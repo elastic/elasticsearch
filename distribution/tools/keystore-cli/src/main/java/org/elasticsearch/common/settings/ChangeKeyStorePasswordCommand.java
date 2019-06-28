@@ -20,39 +20,33 @@
 package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
-import java.util.Arrays;
-
 /**
  * A sub-command for the keystore cli which changes the password.
  */
-class ChangeKeyStorePasswordCommand extends EnvironmentAwareCommand {
+class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
 
     ChangeKeyStorePasswordCommand() {
         super("Changes the password of a keystore");
+        keyStoreMustExist = true;
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        char[] newPassword = null;
-        try (KeystoreAndPassword keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), false)) {
-            if (null == keyAndPass) {
-                return;
-            }
-            KeyStoreWrapper keystore = keyAndPass.getKeystore();
-            newPassword = KeyStoreWrapper.readPassword(terminal, true);
-            keystore.save(env.configFile(), newPassword);
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        SecureString newPassword = null;
+        try {
+            newPassword = readPassword(terminal, true);
+            keyStore.save(env.configFile(), newPassword.getChars());
             terminal.println("Elasticsearch keystore password changed successfully." + env.configFile());
         } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         } finally {
             if (null != newPassword) {
-                Arrays.fill(newPassword, '\u0000');
+                newPassword.close();
             }
         }
     }

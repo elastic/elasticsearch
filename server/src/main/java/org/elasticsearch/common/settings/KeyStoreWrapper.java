@@ -31,6 +31,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -69,11 +70,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import org.elasticsearch.cli.Terminal;
-
 /**
  * A disk based container for sensitive settings in Elasticsearch.
- * <p>
+ *
  * Loading a keystore has 2 phases. First, call {@link #load(Path)}. Then call
  * {@link #decrypt(char[])} with the keystore password, or an empty char array if
  * {@link #hasPassword()} is {@code false}.  Loading and decrypting should happen
@@ -81,9 +80,7 @@ import org.elasticsearch.cli.Terminal;
  */
 public class KeyStoreWrapper implements SecureSettings {
 
-    /**
-     * An identifier for the type of data that may be stored in a keystore entry.
-     */
+    /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum EntryType {
         STRING,
         FILE
@@ -96,64 +93,44 @@ public class KeyStoreWrapper implements SecureSettings {
 
     public static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
 
-    /**
-     * Characters that may be used in the bootstrap seed setting added to all keystores.
-     */
+    /** Characters that may be used in the bootstrap seed setting added to all keystores. */
     private static final char[] SEED_CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
         "~!@#$%^&*-_=+?").toCharArray();
 
-    /**
-     * The name of the keystore file to read and write.
-     */
+    /** The name of the keystore file to read and write. */
     private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
-    /**
-     * The version of the metadata written before the keystore data.
-     */
+    /** The version of the metadata written before the keystore data. */
     static final int FORMAT_VERSION = 4;
 
-    /**
-     * The oldest metadata format version that can be read.
-     */
+    /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;
 
-    /**
-     * The algorithm used to derive the cipher key from a password.
-     */
+    /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
 
-    /**
-     * The number of iterations to derive the cipher key.
-     */
+    /** The number of iterations to derive the cipher key. */
     private static final int KDF_ITERS = 10000;
 
     /**
      * The number of bits for the cipher key.
-     * <p>
+     *
      * Note: The Oracle JDK 8 ships with a limited JCE policy that restricts key length for AES to 128 bits.
      * This can be increased to 256 bits once minimum java 9 is the minimum java version.
      * See http://www.oracle.com/technetwork/java/javase/terms/readme/jdk9-readme-3852447.html#jce
-     */
+     * */
     private static final int CIPHER_KEY_BITS = 128;
 
-    /**
-     * The number of bits for the GCM tag.
-     */
+    /** The number of bits for the GCM tag. */
     private static final int GCM_TAG_BITS = 128;
 
-    /**
-     * The cipher used to encrypt the keystore data.
-     */
+    /** The cipher used to encrypt the keystore data. */
     private static final String CIPHER_ALGO = "AES";
 
-    /**
-     * The mode used with the cipher algorithm.
-     */
+    /** The mode used with the cipher algorithm. */
     private static final String CIPHER_MODE = "GCM";
 
-    /**
-     * The padding used with the cipher algorithm.
-     */
+    /** The padding used with the cipher algorithm. */
     private static final String CIPHER_PADDING = "NoPadding";
 
     // format version changelog:
@@ -162,24 +139,16 @@ public class KeyStoreWrapper implements SecureSettings {
     // 3: FIPS compliant algos, ES 6.3
     // 4: remove distinction between string/files, ES 6.8/7.1
 
-    /**
-     * The metadata format version used to read the current keystore wrapper.
-     */
+    /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;
 
-    /**
-     * True iff the keystore has a password needed to read.
-     */
+    /** True iff the keystore has a password needed to read. */
     private final boolean hasPassword;
 
-    /**
-     * The raw bytes of the encrypted keystore.
-     */
+    /** The raw bytes of the encrypted keystore. */
     private final byte[] dataBytes;
 
-    /**
-     * The decrypted secret data. See {@link #decrypt(char[])}.
-     */
+    /** The decrypted secret data. See {@link #decrypt(char[])}. */
     private final SetOnce<Map<String, byte[]>> entries = new SetOnce<>();
     private volatile boolean closed;
 
@@ -196,16 +165,12 @@ public class KeyStoreWrapper implements SecureSettings {
         return formatVersion;
     }
 
-    /**
-     * Returns a path representing the ES keystore in the given config dir.
-     */
+    /** Returns a path representing the ES keystore in the given config dir. */
     public static Path keystorePath(Path configDir) {
         return configDir.resolve(KEYSTORE_FILENAME);
     }
 
-    /**
-     * Constructs a new keystore with the given password.
-     */
+    /** Constructs a new keystore with the given password. */
     public static KeyStoreWrapper create() {
         KeyStoreWrapper wrapper = new KeyStoreWrapper(FORMAT_VERSION, false, null);
         wrapper.entries.set(new HashMap<>());
@@ -213,9 +178,7 @@ public class KeyStoreWrapper implements SecureSettings {
         return wrapper;
     }
 
-    /**
-     * Add the bootstrap seed setting, which may be used as a unique, secure, random value by the node
-     */
+    /** Add the bootstrap seed setting, which may be used as a unique, secure, random value by the node */
     public static void addBootstrapSeed(KeyStoreWrapper wrapper) {
         assert wrapper.getSettingNames().contains(SEED_SETTING.getKey()) == false;
         SecureRandom random = Randomness.createSecure();
@@ -225,12 +188,12 @@ public class KeyStoreWrapper implements SecureSettings {
             characters[i] = SEED_CHARS[random.nextInt(SEED_CHARS.length)];
         }
         wrapper.setString(SEED_SETTING.getKey(), characters);
-        Arrays.fill(characters, (char) 0);
+        Arrays.fill(characters, (char)0);
     }
 
     /**
      * Loads information about the Elasticsearch keystore from the provided config directory.
-     * <p>
+     *
      * {@link #decrypt(char[])} must be called before reading or writing any entries.
      * Returns {@code null} if no keystore exists.
      */
@@ -300,9 +263,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /**
-     * Upgrades the format of the keystore, if necessary.
-     */
+    /** Upgrades the format of the keystore, if necessary. */
     public static void upgrade(KeyStoreWrapper wrapper, Path configDir, char[] password) throws Exception {
         if (wrapper.getFormatVersion() == FORMAT_VERSION && wrapper.getSettingNames().contains(SEED_SETTING.getKey())) {
             return;
@@ -319,9 +280,7 @@ public class KeyStoreWrapper implements SecureSettings {
         return entries.get() != null;
     }
 
-    /**
-     * Return true iff calling {@link #decrypt(char[])} requires a non-empty password.
-     */
+    /** Return true iff calling {@link #decrypt(char[])} requires a non-empty password. */
     public boolean hasPassword() {
         return hasPassword;
     }
@@ -341,7 +300,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /**
      * Decrypts the underlying keystore data.
-     * <p>
+     *
      * This may only be called once.
      */
     public void decrypt(char[] password) throws GeneralSecurityException, IOException {
@@ -398,13 +357,14 @@ public class KeyStoreWrapper implements SecureSettings {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
         } catch (IOException e) {
+            if (e.getCause() instanceof AEADBadTagException) {
+                throw new SecurityException("Provided keystore password was incorrect", e);
+            }
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }
 
-    /**
-     * Encrypt the keystore entries and return the encrypted data.
-     */
+    /** Encrypt the keystore entries and return the encrypted data. */
     private byte[] encrypt(char[] password, byte[] salt, byte[] iv) throws GeneralSecurityException, IOException {
         assert isLoaded();
 
@@ -479,16 +439,16 @@ public class KeyStoreWrapper implements SecureSettings {
             if (settingType == EntryType.STRING) {
                 ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(chars));
                 bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
-                Arrays.fill(byteBuffer.array(), (byte) 0);
+                Arrays.fill(byteBuffer.array(), (byte)0);
             } else {
                 assert settingType == EntryType.FILE;
                 // The PBE keyspec gives us chars, we convert to bytes
                 byte[] tmpBytes = new byte[chars.length];
                 for (int i = 0; i < tmpBytes.length; ++i) {
-                    tmpBytes[i] = (byte) chars[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
+                    tmpBytes[i] = (byte)chars[i]; // PBE only stores the lower 8 bits, so this narrowing is ok
                 }
                 bytes = Base64.getDecoder().decode(tmpBytes);
-                Arrays.fill(tmpBytes, (byte) 0);
+                Arrays.fill(tmpBytes, (byte)0);
             }
             Arrays.fill(chars, '\0');
 
@@ -496,9 +456,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /**
-     * Write the keystore to the given config directory.
-     */
+    /** Write the keystore to the given config directory. */
     public synchronized void save(Path configDir, char[] password) throws Exception {
         ensureOpen();
 
@@ -507,7 +465,7 @@ public class KeyStoreWrapper implements SecureSettings {
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
-            output.writeByte(password.length == 0 ? (byte) 0 : (byte) 1);
+            output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
 
             // new cipher params
             SecureRandom random = Randomness.createSecure();
@@ -548,62 +506,6 @@ public class KeyStoreWrapper implements SecureSettings {
         if (attrs != null) {
             // don't rely on umask: ensure the keystore has minimal permissions
             attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
-        }
-    }
-
-    /**
-     * Reads the keystore password from the {@link Terminal}, prompting for verification where applicable and returns it as a
-     * {@code char[]}. The caller is responsible to clear the char array after use.
-     *
-     * @param terminal         the terminal to use for user inputs
-     * @param withVerification whether the user should be prompted for password verification
-     * @return a char array with the password the user entered
-     * @throws UserException If the user is prompted for verification and enters a different password
-     */
-    static char[] readPassword(Terminal terminal, boolean withVerification) throws UserException {
-        final char[] password;
-        if (withVerification) {
-            password = terminal.readSecret("Enter new password for the elasticsearch keystore (empty for no password): ");
-            char[] passwordVerification = terminal.readSecret("Enter same password again: ");
-            if (Arrays.equals(password, passwordVerification) == false) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
-            }
-            Arrays.fill(passwordVerification, '\u0000');
-        } else {
-            password = terminal.readSecret("Enter password for the elasticsearch keystore : ");
-        }
-        return password;
-    }
-
-    /**
-     * Reads the keystore from disk or attempts to create it if it doesn't already exist. If the keystore is password protected
-     * it also reads the password from user input and decrypts the keystore. Returns both in a POJO. The caller is responsible to clear
-     * the char array with the password after use, calling {@link KeystoreAndPassword#close()}
-     *
-     * @param terminal    the terminal to use for user inputs
-     * @param configFile  the Path from where to attempt and read the existing keystore
-     * @param forceCreate if set, the keystore is created without prompting the user
-     * @return a POJO with the {@link KeyStoreWrapper} and its password, null if the user elected to not create a keystore
-     */
-    static KeystoreAndPassword readOrCreate(Terminal terminal, Path configFile, boolean forceCreate) throws Exception {
-        KeyStoreWrapper keystore = load(configFile);
-        final char[] password;
-        if (keystore == null) {
-            if (forceCreate == false &&
-                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
-                terminal.println("Exiting without creating keystore.");
-                return null;
-            } else {
-                password = readPassword(terminal, true);
-                keystore = KeyStoreWrapper.create();
-                keystore.save(configFile, password);
-                terminal.println("Created elasticsearch keystore in " + configFile);
-                return new KeystoreAndPassword(keystore, password);
-            }
-        } else {
-            password = keystore.hasPassword ? readPassword(terminal, false) : new char[0];
-            keystore.decrypt(password);
-            return new KeystoreAndPassword(keystore, password);
         }
     }
 
@@ -659,7 +561,7 @@ public class KeyStoreWrapper implements SecureSettings {
         byte[] bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
         byte[] oldEntry = entries.get().put(setting, bytes);
         if (oldEntry != null) {
-            Arrays.fill(oldEntry, (byte) 0);
+            Arrays.fill(oldEntry, (byte)0);
         }
     }
 
@@ -672,7 +574,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         byte[] oldEntry = entries.get().put(setting, Arrays.copyOf(bytes, bytes.length));
         if (oldEntry != null) {
-            Arrays.fill(oldEntry, (byte) 0);
+            Arrays.fill(oldEntry, (byte)0);
         }
     }
 
@@ -683,7 +585,7 @@ public class KeyStoreWrapper implements SecureSettings {
         ensureOpen();
         byte[] oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {
-            Arrays.fill(oldEntry, (byte) 0);
+            Arrays.fill(oldEntry, (byte)0);
         }
     }
 

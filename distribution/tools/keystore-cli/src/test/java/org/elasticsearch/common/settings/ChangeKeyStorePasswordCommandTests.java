@@ -90,6 +90,6 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
         // We'll only be prompted once (for the old password)
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Please make sure the password was correct"));
+        assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
     }
 }

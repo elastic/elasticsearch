@@ -64,28 +64,29 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
         terminal.addTextInput("y");
+        terminal.addTextInput("y");
         execute("foo", file1.toString());
         assertSecureFile("foo", file1, password);
+    }
+
+    public void testMissingPromptCreateWithoutPassword() throws Exception {
+        Path file1 = createRandomFile();
+        terminal.addTextInput("y");
+        terminal.addTextInput("n");
+        execute("foo", file1.toString());
+        assertSecureFile("foo", file1, "");
     }
 
     public void testMissingPromptCreateNotMatchingPasswpord() throws Exception {
         String password = "keystorepassword";
         Path file1 = createRandomFile();
         terminal.addTextInput("y");
+        terminal.addTextInput("y");
         terminal.addSecretInput(password);
         terminal.addSecretInput("adifferentpassphase");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file1.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
-    }
-
-    public void testMissingForceCreate() throws Exception {
-        Path file1 = createRandomFile();
-        String password = "keystorepassword";
-        terminal.addSecretInput(password);
-        terminal.addSecretInput(password);
-        execute("-f", "foo", file1.toString());
-        assertSecureFile("foo", file1, password);
     }
 
     public void testMissingNoCreate() throws Exception {
@@ -207,7 +208,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Please make sure the password was correct"));
+        assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {

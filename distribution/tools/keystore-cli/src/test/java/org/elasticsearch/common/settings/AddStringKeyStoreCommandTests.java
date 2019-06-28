@@ -55,12 +55,13 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput("thewrongpassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo2"));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Please make sure the password was correct"));
+        assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
 
     }
 
     public void testMissingPromptCreate() throws Exception {
         String password = "keystorepassword";
+        terminal.addTextInput("y");
         terminal.addTextInput("y");
         terminal.addSecretInput(password);
         terminal.addSecretInput(password);
@@ -69,8 +70,17 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "bar", password);
     }
 
+    public void testMissingPromptCreateWithoutPassword() throws Exception {
+        terminal.addTextInput("y");
+        terminal.addTextInput("n");
+        terminal.addSecretInput("bar");
+        execute("foo");
+        assertSecureString("foo", "bar", "");
+    }
+
     public void testMissingPromptCreateNotMatchingPasswords() throws Exception {
         String password = "keystorepassword";
+        terminal.addTextInput("y");
         terminal.addTextInput("y");
         terminal.addSecretInput(password);
         terminal.addSecretInput("anotherpassword");
@@ -78,15 +88,6 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
-    }
-
-    public void testMissingForceCreate() throws Exception {
-        String password = "keystorepassword";
-        terminal.addSecretInput(password);
-        terminal.addSecretInput(password);
-        terminal.addSecretInput("bar");
-        execute("-f", "foo");
-        assertSecureString("foo", "bar", password);
     }
 
     public void testMissingNoCreate() throws Exception {

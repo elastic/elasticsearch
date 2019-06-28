@@ -27,7 +27,6 @@ import java.util.Arrays;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -36,7 +35,7 @@ import org.elasticsearch.env.Environment;
 /**
  * A subcommand for the keystore cli which adds a string setting.
  */
-class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
+class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
     private final OptionSpec<Void> stdinOption;
     private final OptionSpec<Void> forceOption;
@@ -55,40 +54,32 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        try (KeystoreAndPassword keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), options.has(forceOption))) {
-            if (null == keyAndPass) {
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        String setting = arguments.value(options);
+        if (setting == null) {
+            throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
+        }
+        if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
+            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
+                terminal.println("Exiting without modifying keystore.");
                 return;
             }
-            KeyStoreWrapper keystore = keyAndPass.getKeystore();
-
-            String setting = arguments.value(options);
-            if (setting == null) {
-                throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
-            }
-            if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-                if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
-                    terminal.println("Exiting without modifying keystore.");
-                    return;
-                }
-            }
-
-            final char[] value;
-            if (options.has(stdinOption)) {
-                BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
-                value = stdinReader.readLine().toCharArray();
-            } else {
-                value = terminal.readSecret("Enter value for " + setting + ": ");
-            }
-
-            try {
-                keystore.setString(setting, value);
-            } catch (IllegalArgumentException e) {
-                throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
-            }
-            keystore.save(env.configFile(), keyAndPass.getPassword());
-        } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
         }
+
+        final char[] value;
+        if (options.has(stdinOption)) {
+            BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+            value = stdinReader.readLine().toCharArray();
+        } else {
+            value = terminal.readSecret("Enter value for " + setting + ": ");
+        }
+
+        try {
+            keyStore.setString(setting, value);
+        } catch (IllegalArgumentException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
+        }
+        keyStore.save(env.configFile(), keyStorePassword.getChars());
+
     }
 }

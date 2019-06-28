@@ -21,45 +21,29 @@ package org.elasticsearch.common.settings;
 
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 /**
  * A subcommand for the keystore cli to list all settings in the keystore.
  */
-class ListKeyStoreCommand extends EnvironmentAwareCommand {
+class ListKeyStoreCommand extends BaseKeyStoreCommand {
 
     ListKeyStoreCommand() {
         super("List entries in the keystore");
+        keyStoreMustExist = true;
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
-        }
-        char[] password;
-        password = keystore.hasPassword() ? KeyStoreWrapper.readPassword(terminal, false) : new char[0];
-        try {
-            keystore.decrypt(password);
-            List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());
-            Collections.sort(sortedEntries);
-            for (String entry : sortedEntries) {
-                terminal.println(entry);
-            }
-        } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
-        } finally {
-            Arrays.fill(password, '\u0000');
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        List<String> sortedEntries = new ArrayList<>(keyStore.getSettingNames());
+        Collections.sort(sortedEntries);
+        for (String entry : sortedEntries) {
+            terminal.println(entry);
         }
     }
 }

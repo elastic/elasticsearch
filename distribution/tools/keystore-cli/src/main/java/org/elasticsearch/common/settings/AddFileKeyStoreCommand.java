@@ -26,7 +26,6 @@ import java.util.List;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -37,7 +36,7 @@ import org.elasticsearch.env.Environment;
 /**
  * A subcommand for the keystore cli which adds a file setting.
  */
-class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
+class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
 
     private final OptionSpec<Void> forceOption;
     private final OptionSpec<String> arguments;
@@ -52,41 +51,33 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        try (KeystoreAndPassword keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), options.has(forceOption))) {
-            if (null == keyAndPass) {
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+
+        List<String> argumentValues = arguments.values(options);
+        if (argumentValues.size() == 0) {
+            throw new UserException(ExitCodes.USAGE, "Missing setting name");
+        }
+        String setting = argumentValues.get(0);
+        if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
+            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
+                terminal.println("Exiting without modifying keystore.");
                 return;
             }
-            KeyStoreWrapper keystore = keyAndPass.getKeystore();
-
-            List<String> argumentValues = arguments.values(options);
-            if (argumentValues.size() == 0) {
-                throw new UserException(ExitCodes.USAGE, "Missing setting name");
-            }
-            String setting = argumentValues.get(0);
-            if (keystore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
-                if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
-                    terminal.println("Exiting without modifying keystore.");
-                    return;
-                }
-            }
-
-            if (argumentValues.size() == 1) {
-                throw new UserException(ExitCodes.USAGE, "Missing file name");
-            }
-            Path file = getPath(argumentValues.get(1));
-            if (Files.exists(file) == false) {
-                throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
-            }
-            if (argumentValues.size() > 2) {
-                throw new UserException(ExitCodes.USAGE, "Unrecognized extra arguments [" +
-                    String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
-            }
-            keystore.setFile(setting, Files.readAllBytes(file));
-            keystore.save(env.configFile(), keyAndPass.getPassword());
-        } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
         }
+
+        if (argumentValues.size() == 1) {
+            throw new UserException(ExitCodes.USAGE, "Missing file name");
+        }
+        Path file = getPath(argumentValues.get(1));
+        if (Files.exists(file) == false) {
+            throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
+        }
+        if (argumentValues.size() > 2) {
+            throw new UserException(ExitCodes.USAGE, "Unrecognized extra arguments [" +
+                String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
+        }
+        keyStore.setFile(setting, Files.readAllBytes(file));
+        keyStore.save(env.configFile(), keyStorePassword.getChars());
     }
 
     @SuppressForbidden(reason = "file arg for cli")

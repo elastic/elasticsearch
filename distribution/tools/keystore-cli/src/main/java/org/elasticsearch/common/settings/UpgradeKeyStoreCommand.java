@@ -20,41 +20,22 @@
 package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
-
-import java.util.Arrays;
 
 /**
  * A sub-command for the keystore CLI that enables upgrading the keystore format.
  */
-public class UpgradeKeyStoreCommand extends EnvironmentAwareCommand {
+public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
 
     UpgradeKeyStoreCommand() {
         super("Upgrade the keystore format");
+        keyStoreMustExist = true;
     }
 
     @Override
-    protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(env.configFile());
-        if (wrapper == null) {
-            throw new UserException(
-                ExitCodes.CONFIG,
-                "keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]");
-        }
-        char[] password;
-        password = wrapper.hasPassword() ? KeyStoreWrapper.readPassword(terminal, false) : new char[0];
-        try {
-            wrapper.decrypt(new char[0]);
-            KeyStoreWrapper.upgrade(wrapper, env.configFile(), new char[0]);
-        } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
-        } finally {
-            Arrays.fill(password, '\u0000');
-        }
+    protected void executeCommand(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
+        KeyStoreWrapper.upgrade(keyStore, env.configFile(), keyStorePassword.getChars());
     }
 
 }

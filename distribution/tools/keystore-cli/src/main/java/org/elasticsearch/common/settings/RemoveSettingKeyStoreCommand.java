@@ -19,12 +19,10 @@
 
 package org.elasticsearch.common.settings;
 
-import java.util.Arrays;
 import java.util.List;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -33,43 +31,28 @@ import org.elasticsearch.env.Environment;
 /**
  * A subcommand for the keystore cli to remove a setting.
  */
-class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
+class RemoveSettingKeyStoreCommand extends BaseKeyStoreCommand {
 
     private final OptionSpec<String> arguments;
 
     RemoveSettingKeyStoreCommand() {
         super("Remove a setting from the keystore");
+        keyStoreMustExist = true;
         arguments = parser.nonOptions("setting names");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
         List<String> settings = arguments.values(options);
         if (settings.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
         }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
-        }
-        char[] password = null;
-        try {
-            password = keystore.hasPassword() ? KeyStoreWrapper.readPassword(terminal, false) : new char[0];
-            keystore.decrypt(password);
-            for (String setting : arguments.values(options)) {
-                if (keystore.getSettingNames().contains(setting) == false) {
-                    throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
-                }
-                keystore.remove(setting);
+        for (String setting : arguments.values(options)) {
+            if (keyStore.getSettingNames().contains(setting) == false) {
+                throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
             }
-            keystore.save(env.configFile(), password);
-        } catch (SecurityException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the password was correct.", e);
-        } finally {
-            if (null != password) {
-                Arrays.fill(password, '\u0000');
-            }
+            keyStore.remove(setting);
         }
+        keyStore.save(env.configFile(), keyStorePassword.getChars());
     }
 }

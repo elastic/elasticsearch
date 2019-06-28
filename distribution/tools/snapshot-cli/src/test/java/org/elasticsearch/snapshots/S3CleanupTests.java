@@ -2,15 +2,10 @@ package org.elasticsearch.snapshots;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -20,21 +15,16 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.blobstore.S3BlobStoreTestUtil;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayInputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,6 +32,18 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 public class S3CleanupTests extends ESSingleNodeTestCase {
+
+    private BlobStoreTestUtil util;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        createRepository("test-repo");
+        BlobStoreRepository repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class)
+                .repository("test-repo");
+        util = new S3BlobStoreTestUtil(repository);
+        util.deleteAndAssertEmpty(repository.basePath());
+    }
 
     @Override
     protected Settings nodeSettings() {
@@ -192,7 +194,6 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
     }
 
     public void testCleanupS3() throws Exception {
-        createRepository("test-repo");
         logger.info("--> execute cleanup tool on empty repo, there is nothing to cleanup");
         MockTerminal terminal = executeCommand(false);
         assertThat(terminal.getOutput(), containsString("No index-N files found. Repository is empty or corrupted? Exiting"));
@@ -241,10 +242,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
             assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
             logger.info("--> check that there is no inconsistencies after running the tool");
-            final BlobStoreRepository repo =
-                    (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
-            final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
-            BlobStoreTestUtil.assertConsistency(repo, genericExec);
+            util.assertConsistency();
 
             logger.info("--> create several dangling indices");
             int numOfFiles = 0;
@@ -259,12 +257,12 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                     files.add(file);
                     numOfFiles++;
                 }
-                size += createDanglingIndex(name, files, repo, genericExec);
+                size += util.createDanglingIndex(name, files);
             }
             Set<String> danglingIndices = indexToFiles.keySet();
 
             logger.info("--> ensure dangling index folders are visible");
-            assertBusy(() -> assertCorruptionVisible(indexToFiles, repo, genericExec), 10, TimeUnit.MINUTES);
+            util.assertCorruptionVisible(indexToFiles);
 
             logger.info("--> execute cleanup tool, corruption is created latter than snapshot, there is nothing to cleanup");
             terminal = executeCommand(false);
@@ -311,7 +309,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                     containsString("In total space freed " + size + " bytes"));
 
             logger.info("--> verify that there is no inconsistencies");
-            BlobStoreTestUtil.assertConsistency(repo, genericExec);
+            util.assertConsistency();
 
             logger.info("--> perform cleanup by removing snapshots");
             assertTrue(client().admin()
@@ -325,52 +323,5 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                     .get()
                     .isAcknowledged());
         }
-    }
-
-    long createDanglingIndex(String name, Set<String> files, BlobStoreRepository repo, Executor executor) throws InterruptedException,
-            ExecutionException {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final AtomicLong totalSize = new AtomicLong();
-        executor.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                BlobContainer container = blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(name));
-                for (String file : files) {
-                    int size = randomIntBetween(0, 10);
-                    totalSize.addAndGet(size);
-                    container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
-                }
-                future.onResponse(null);
-            }
-        });
-        future.get();
-        return totalSize.get();
-    }
-
-    private boolean assertCorruptionVisible(Map<String, Set<String>> indexToFiles, BlobStoreRepository repo, Executor executor) throws Exception {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        executor.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                for (String index : indexToFiles.keySet()) {
-                    if (blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices"))
-                            .children().containsKey(index) == false) {
-                        future.onResponse(false);
-                        return;
-                    }
-                    for (String file : indexToFiles.get(index)) {
-                        if (blobStore.blobContainer(BlobPath.cleanPath().add(getBasePath()).add("indices").add(index))
-                                .blobExists(file) == false) {
-                            future.onResponse(false);
-                            return;
-                        }
-                    }
-                }
-                future.onResponse(true);
-            }
-        });
-        return future.actionGet();
     }
 }

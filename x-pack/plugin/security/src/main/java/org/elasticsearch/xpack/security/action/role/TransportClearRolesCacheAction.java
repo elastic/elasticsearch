@@ -40,8 +40,8 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
     }
 
     @Override
-    protected ClearRolesCacheRequest.Node newNodeRequest(String nodeId, ClearRolesCacheRequest request) {
-        return new ClearRolesCacheRequest.Node(request, nodeId);
+    protected ClearRolesCacheRequest.Node newNodeRequest(ClearRolesCacheRequest request) {
+        return new ClearRolesCacheRequest.Node(request);
     }
 
     @Override

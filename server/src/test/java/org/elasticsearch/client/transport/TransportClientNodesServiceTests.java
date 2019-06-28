@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
@@ -26,7 +27,6 @@ import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAct
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -73,6 +73,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -85,6 +87,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         private final TransportClientNodesService transportClientNodesService;
         private final int listNodesCount;
         private final int sniffNodesCount;
+        private final List<Exception> nodeDisconnectedExceptions = Lists.newArrayList();
         private TransportAddress livenessAddress = buildNewFakeTransportAddress();
         final List<TransportAddress> listNodeAddresses;
         // map for each address of the nodes a cluster state request should respond with
@@ -165,16 +168,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
             }, null, Collections.emptySet());
             transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> false);
-            transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
-                // The FailAndRetryTransport does not use the connection profile
-                PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
-                transport.openConnection(discoveryNode, null, future);
-                return future.actionGet();
-            });
             transportService.start();
             transportService.acceptIncomingRequests();
             transportClientNodesService =
-                new TransportClientNodesService(settings, transportService, threadPool, (a, b) -> {});
+                new TransportClientNodesService(settings, transportService, threadPool,
+                    (node, exception) -> nodeDisconnectedExceptions.add(exception));
             transportClientNodesService.addTransportAddresses(listNodeAddresses.toArray(new TransportAddress[0]));
         }
 
@@ -339,6 +337,18 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 }
             })));
             assertEquals(iteration.listNodesCount + iteration.sniffNodesCount - 1, service.connectedNodes().size());
+        }
+    }
+
+    public void testMasterFalseSniffHasNoExceptions() {
+        Settings extraSettings = Settings.builder()
+            .put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), true)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+        try(TestIteration iteration = new TestIteration(extraSettings)) {
+            final TransportClientNodesService service = iteration.transportClientNodesService;
+            service.doSample();
+            assertThat(iteration.nodeDisconnectedExceptions, is(empty()));
         }
     }
 

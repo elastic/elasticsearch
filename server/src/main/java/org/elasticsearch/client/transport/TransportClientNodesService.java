@@ -494,19 +494,10 @@ final class TransportClientNodesService implements Closeable {
 
                         @Override
                         protected void doRun() throws Exception {
-                            Transport.Connection pingConnection = null;
-                            if (nodes.contains(nodeToPing)) {
-                                try {
-                                    pingConnection = transportService.getConnection(nodeToPing);
-                                } catch (NodeNotConnectedException e) {
-                                    // will use a temp connection
-                                }
-                            }
-                            if (pingConnection == null) {
-                                logger.trace("connecting to cluster node [{}]", nodeToPing);
-                                connectionToClose = transportService.openConnection(nodeToPing, LISTED_NODES_PROFILE);
-                                pingConnection = connectionToClose;
-                            }
+                            logger.trace("connecting to cluster node [{}]", nodeToPing);
+                            connectionToClose = transportService.openConnection(nodeToPing, LISTED_NODES_PROFILE);
+                            Transport.Connection pingConnection = connectionToClose;
+
                             transportService.sendRequest(pingConnection, ClusterStateAction.NAME,
                                 Requests.clusterStateRequest().clear().nodes(true).local(true),
                                 TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE)

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import com.google.common.base.Preconditions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
@@ -92,6 +93,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws TransportException {
+                // Captures the logic in ConnectionProfile.ConnectionTypeHandle.getChannel
+                Preconditions.checkArgument(profile.getNumConnectionsPerType(options.type()) != 0,
+                    "can't select channel size is 0 for types: %s", options.type().toString());
                 //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
                 if (connectMode) {
                     if (TransportLivenessAction.NAME.equals(action)) {

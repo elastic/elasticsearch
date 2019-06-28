@@ -158,8 +158,6 @@ For an example query using the `minimum_should_match_script` parameter, see
 parameter>>.
 --
 
---
-
 [[terms-set-query-notes]]
 ==== Notes
 

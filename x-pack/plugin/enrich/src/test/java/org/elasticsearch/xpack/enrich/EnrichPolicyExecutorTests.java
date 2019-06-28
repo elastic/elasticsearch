@@ -139,7 +139,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     public void testMaximumPolicyExecutionLimit() throws InterruptedException {
         String testPolicyBaseName = "test_policy_";
-        Settings testSettings = Settings.builder().put(EnrichPlugin.ENRICH_POLICY_MAX_CONCURRENT_RUNS.getKey(), 2).build();
+        Settings testSettings = Settings.builder().put(EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.getKey(), 2).build();
         EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("some_index"), "keyfield",
             List.of("valuefield"));
         final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(testSettings, null, null, testThreadPool,

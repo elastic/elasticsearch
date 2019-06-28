@@ -58,9 +58,9 @@ import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING =
-        Setting.intSetting("xpack.enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
-    static final Setting<Integer> ENRICH_POLICY_MAX_CONCURRENT_RUNS =
-        Setting.intSetting("xpack.enrich.policy.max_concurrent_runs", 50, 1, Setting.Property.NodeScope);
+        Setting.intSetting("enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
+    static final Setting<Integer> ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS =
+        Setting.intSetting("enrich.max_concurrent_policy_executions", 50, 1, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final Boolean enabled;
@@ -135,6 +135,6 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(ENRICH_FETCH_SIZE_SETTING, ENRICH_POLICY_MAX_CONCURRENT_RUNS);
+        return List.of(ENRICH_FETCH_SIZE_SETTING, ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS);
     }
 }

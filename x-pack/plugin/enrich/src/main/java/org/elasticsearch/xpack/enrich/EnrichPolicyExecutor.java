@@ -43,7 +43,7 @@ public class EnrichPolicyExecutor {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
         this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
-        this.maximumConcurrentPolicyExecutions = EnrichPlugin.ENRICH_POLICY_MAX_CONCURRENT_RUNS.get(settings);
+        this.maximumConcurrentPolicyExecutions = EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.get(settings);
         this.policyExecutionPermits = new Semaphore(maximumConcurrentPolicyExecutions);
     }
 

@@ -258,8 +258,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
                 client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
         assertThat(statsResponse.getTransformsStateAndStats(), hasSize(1));
-        IndexerState indexerState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getIndexerState();
-        assertThat(indexerState, is(oneOf(IndexerState.STARTED, IndexerState.INDEXING)));
+        DataFrameTransformTaskState taskState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getTaskState();
+
+        // Since we are non-continuous, the transform could auto-stop between being started earlier and us gathering the statistics
+        assertThat(taskState, is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
 
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, Boolean.TRUE, null);
         StopDataFrameTransformResponse stopResponse =
@@ -267,6 +269,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertTrue(stopResponse.isAcknowledged());
         assertThat(stopResponse.getNodeFailures(), empty());
         assertThat(stopResponse.getTaskFailures(), empty());
+
+        // Calling stop with wait_for_completion assures that we will be in the `STOPPED` state for the transform task
+        statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
+            client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
+        taskState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getTaskState();
+        assertThat(taskState, is(DataFrameTransformTaskState.STOPPED));
     }
 
     public void testPreview() throws IOException {

@@ -94,15 +94,15 @@ public class CorsHandler {
             this.maxAge = builder.maxAge;
         }
 
-        boolean isCorsSupportEnabled() {
+        public boolean isCorsSupportEnabled() {
             return enabled;
         }
 
-        boolean isAnyOriginSupported() {
+        public boolean isAnyOriginSupported() {
             return anyOrigin;
         }
 
-        boolean isOriginAllowed(String origin) {
+        public boolean isOriginAllowed(String origin) {
             if (origins.isPresent()) {
                 return origins.get().contains(origin);
             } else if (pattern.isPresent()) {
@@ -111,8 +111,24 @@ public class CorsHandler {
             return false;
         }
 
-        boolean isCredentialsAllowed() {
+        public boolean isCredentialsAllowed() {
             return credentialsAllowed;
+        }
+
+        public Set<RestRequest.Method> allowedRequestMethods() {
+            return allowedRequestMethods;
+        }
+
+        public Set<String> allowedRequestHeaders() {
+            return allowedRequestHeaders;
+        }
+
+        public long maxAge() {
+            return maxAge;
+        }
+
+        public Optional<Set<String>> origins() {
+            return origins;
         }
 
         private static class Builder {

@@ -78,35 +78,43 @@ public class ESJsonLayout extends AbstractStringLayout {
                                           .build();
     }
 
-    private String pattern(String type, String[] esmessagefields) {
+    private String pattern(String type, String[] esMessageFields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("type", inQuotes(type));
-        map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
-        map.put("level", inQuotes("%p"));
-        map.put("component", inQuotes("%c{1.}"));
-        map.put("cluster.name", inQuotes("${sys:es.logs.cluster_name}"));
-        map.put("node.name", inQuotes("%node_name"));
-        map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
+        Map<String, Object> mandatoryFields = new LinkedHashMap<>();
+        mandatoryFields.put("type", inQuotes(type));
+        mandatoryFields.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
+        mandatoryFields.put("level", inQuotes("%p"));
+        mandatoryFields.put("component", inQuotes("%c{1.}"));
+        mandatoryFields.put("cluster.name", inQuotes("${sys:es.logs.cluster_name}"));
+        mandatoryFields.put("node.name", inQuotes("%node_name"));
+        mandatoryFields.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
-        for (String key : esmessagefields) {
-            map.put(key, "%ESMessageField{" + key + "}");
+        Map<String, Object> esMessageFieldsMap = new LinkedHashMap<>();
+        for (String key : esMessageFields) {
+            esMessageFieldsMap.put(key, inQuotes("%ESMessageField{" + key + "}"));
         }
 
-        return createPattern(map);
+        return createPattern(mandatoryFields, esMessageFieldsMap);
     }
 
-    private String createPattern(Map<String, Object> map) {
+    private String createPattern(Map<String, Object> mandatoryFields, Map<String, Object> esMessageFields) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String separator = "";
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
+
+        for (Map.Entry<String, Object> entry : mandatoryFields.entrySet()) {
             sb.append(separator);
-            sb.append(jsonKey(entry.getKey()));
-            sb.append(entry.getValue().toString());
+            appendField(sb, entry);
             separator = ", ";
+        }
+
+        for (Map.Entry<String, Object> entry : esMessageFields.entrySet()) {
+            sb.append("%notEmpty{");
+            sb.append(separator);
+            appendField(sb, entry);
+            sb.append("}");
         }
         sb.append(notEmpty(", %node_and_cluster_id "));
         sb.append("%exceptionAsJson ");
@@ -114,6 +122,11 @@ public class ESJsonLayout extends AbstractStringLayout {
         sb.append(System.lineSeparator());
 
         return sb.toString();
+    }
+
+    private void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
+        sb.append(jsonKey(entry.getKey()));
+        sb.append(entry.getValue().toString());
     }
 
     private String notEmpty(String value) {
@@ -148,7 +161,6 @@ public class ESJsonLayout extends AbstractStringLayout {
         private String esMessageFields;
 
         public Builder() {
-            super();
             setCharset(StandardCharsets.UTF_8);
         }
 
@@ -212,5 +224,9 @@ public class ESJsonLayout extends AbstractStringLayout {
         sb.append("patternLayout=").append(patternLayout);
         sb.append('}');
         return sb.toString();
+    }
+
+    PatternLayout getPatternLayout() {
+        return patternLayout;
     }
 }

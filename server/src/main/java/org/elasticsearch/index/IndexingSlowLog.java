@@ -171,15 +171,15 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 message(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
         }
 
-        private static Map<String, String> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
+        private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
                                                       int maxSourceCharsToLog) {
-            Map<String,String> map = new HashMap<>();
-            map.put("message", inQuotes(index));
-            map.put("took", inQuotes(TimeValue.timeValueNanos(tookInNanos)));
-            map.put("took_millis", inQuotes(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
-            map.put("doc_type", inQuotes(doc.type()));
-            map.put("id", inQuotes(doc.id()));
-            map.put("routing", inQuotes(doc.routing()));
+            Map<String,Object> map = new HashMap<>();
+            map.put("message", index);
+            map.put("took", TimeValue.timeValueNanos(tookInNanos));
+            map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            map.put("doc_type", doc.type());
+            map.put("id", doc.id());
+            map.put("routing", doc.routing());
 
             if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
                 return map;
@@ -189,11 +189,11 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb  = new StringBuilder(trim);
                 StringBuilders.escapeJson(sb,0);
-                map.put("source", inQuotes(sb.toString()));
+                map.put("source", sb.toString());
             } catch (IOException e) {
                 StringBuilder sb  = new StringBuilder("_failed_to_convert_[" + e.getMessage()+"]");
                 StringBuilders.escapeJson(sb,0);
-                map.put("source", inQuotes(sb.toString()));
+                map.put("source", sb.toString());
                 /*
                  * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
                  * will be logged at the warn level.

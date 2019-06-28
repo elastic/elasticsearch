@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.common.Strings;
+
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -28,6 +31,14 @@ import java.util.Map;
 public class DeprecatedMessage extends ESLogMessage {
 
     public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {
-        super(Map.of("x-opaque-id", inQuotes(xOpaqueId)), messagePattern, args);
+        super(fieldMap(xOpaqueId), messagePattern, args);
+    }
+
+    public static Map<String, Object> fieldMap(String xOpaqueId) {
+        if (Strings.isNullOrEmpty(xOpaqueId)) {
+            return Collections.emptyMap();
+        }
+
+        return Map.of("x-opaque-id", xOpaqueId);
     }
 }

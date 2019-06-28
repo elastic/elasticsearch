@@ -55,13 +55,13 @@ public final class ESMessageFieldConverter extends LogEventPatternConverter {
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         if (event.getMessage() instanceof ESLogMessage) {
-            ESLogMessage ESLogMessage = (ESLogMessage) event.getMessage();
-            final String value = ESLogMessage.getValueFor(key);
+            ESLogMessage logMessage = (ESLogMessage) event.getMessage();
+            final String value = logMessage.getValueFor(key);
             if (Strings.isNullOrEmpty(value) == false) {
                 StringBuilders.appendValue(toAppendTo, value);
                 return;
             }
         }
-        StringBuilders.appendValue(toAppendTo, "\"\"");
+        StringBuilders.appendValue(toAppendTo, "");
     }
 }

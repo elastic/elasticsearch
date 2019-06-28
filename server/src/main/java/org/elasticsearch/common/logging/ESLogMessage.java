@@ -29,15 +29,16 @@ import java.util.stream.Stream;
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
 public abstract class ESLogMessage extends ParameterizedMessage {
-    private final Map<String, String> fields;
+    private final Map<String, Object> fields;
 
-    public ESLogMessage(Map<String, String> fields, String messagePattern, Object... args) {
+    public ESLogMessage(Map<String, Object> fields, String messagePattern, Object... args) {
         super(messagePattern, args);
         this.fields = fields;
     }
 
     public String getValueFor(String key) {
-        return fields.get(key);
+        Object value = fields.get(key);
+        return value!=null ? value.toString() : null;
     }
 
     public static String inQuotes(String s) {

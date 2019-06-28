@@ -160,31 +160,31 @@ public final class SearchSlowLog implements SearchOperationListener {
             super(prepareMap(context, tookInNanos), message(context, tookInNanos));
         }
 
-        private static Map<String, String> prepareMap(SearchContext context, long tookInNanos) {
-            Map<String, String> messageFields = new HashMap<>();
-            messageFields.put("message", inQuotes(context.indexShard().shardId()));
-            messageFields.put("took", inQuotes(TimeValue.timeValueNanos(tookInNanos)));
-            messageFields.put("took_millis", inQuotes(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
+        private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
+            Map<String, Object> messageFields = new HashMap<>();
+            messageFields.put("message", context.indexShard().shardId());
+            messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
+            messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             if (context.queryResult().getTotalHits() != null) {
-                messageFields.put("total_hits", inQuotes(context.queryResult().getTotalHits()));
+                messageFields.put("total_hits", context.queryResult().getTotalHits());
             } else {
-                messageFields.put("total_hits", inQuotes("-1"));
+                messageFields.put("total_hits", "-1");
             }
             messageFields.put("stats", asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()));
-            messageFields.put("search_type", inQuotes(context.searchType()));
-            messageFields.put("total_shards", inQuotes(context.numberOfShards()));
+            messageFields.put("search_type", context.searchType());
+            messageFields.put("total_shards", context.numberOfShards());
 
             if (context.request().source() != null) {
                 byte[] sourceEscaped = JsonStringEncoder.getInstance()
                                                         .quoteAsUTF8(context.request().source().toString(FORMAT_PARAMS));
                 String source = new String(sourceEscaped, Charset.defaultCharset());
 
-                messageFields.put("source", inQuotes(source));
+                messageFields.put("source", source);
             } else {
-                messageFields.put("source", inQuotes("{}"));
+                messageFields.put("source", "{}");
             }
 
-            messageFields.put("id", inQuotes(context.getTask().getHeader(Task.X_OPAQUE_ID)));
+            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
             return messageFields;
         }
 

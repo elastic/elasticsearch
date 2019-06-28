@@ -46,6 +46,8 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test confirms JSON log structure is properly formatted and can be parsed.
@@ -73,8 +75,31 @@ public class JsonLoggerTests extends ESTestCase {
         Configurator.shutdown(context);
         super.tearDown();
     }
-
     public void testDeprecatedMessage() throws IOException {
+        final Logger testLogger = LogManager.getLogger("test");
+        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "deprecated"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "deprecated message1"),
+                    hasEntry("x-opaque-id", "someId"))
+                )
+            );
+        }
+    }
+
+    public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
         testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
         testLogger.info(new DeprecatedMessage("deprecated message2", ""));
@@ -103,7 +128,7 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message2"),
-                    hasEntry("x-opaque-id", "")
+                    not(hasKey("x-opaque-id"))
                 ),
                 allOf(
                     hasEntry("type", "deprecated"),
@@ -112,7 +137,7 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message3"),
-                    hasEntry("x-opaque-id", "")
+                    not(hasKey("x-opaque-id"))
                 ),
                 allOf(
                     hasEntry("type", "deprecated"),
@@ -121,7 +146,7 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message4"),
-                    hasEntry("x-opaque-id", "")
+                    not(hasKey("x-opaque-id"))
                 )
                 )
             );

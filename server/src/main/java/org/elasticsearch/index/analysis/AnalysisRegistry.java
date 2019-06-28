@@ -527,7 +527,6 @@ public final class AnalysisRegistry implements Closeable {
                                 Map<String, TokenizerFactory> tokenizerFactoryFactories,
                                 Map<String, CharFilterFactory> charFilterFactoryFactories,
                                 Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
-
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
@@ -569,9 +568,11 @@ public final class AnalysisRegistry implements Closeable {
         return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
-    private static NamedAnalyzer produceAnalyzer(String name, AnalyzerProvider<?> analyzerFactory,
-            Map<String, TokenFilterFactory> tokenFilters, Map<String, CharFilterFactory> charFilters,
-            Map<String, TokenizerFactory> tokenizers) {
+    private static NamedAnalyzer produceAnalyzer(String name,
+                                        AnalyzerProvider<?> analyzerFactory,
+                                        Map<String, TokenFilterFactory> tokenFilters,
+                                        Map<String, CharFilterFactory> charFilters,
+                                        Map<String, TokenizerFactory> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0

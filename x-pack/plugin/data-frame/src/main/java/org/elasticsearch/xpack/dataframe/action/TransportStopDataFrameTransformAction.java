@@ -84,13 +84,15 @@ public class TransportStopDataFrameTransformAction extends
                 finalListener = listener;
             }
 
-            dataFrameTransformsConfigManager.expandTransformIds(request.getId(), new PageParams(0, 10_000), ActionListener.wrap(
-                    expandedIds -> {
-                        request.setExpandedIds(new HashSet<>(expandedIds));
-                        request.setNodes(DataFrameNodes.dataFrameTaskNodes(expandedIds, clusterService.state()));
-                        super.doExecute(task, request, finalListener);
-                    },
-                    listener::onFailure
+            dataFrameTransformsConfigManager.expandTransformIds(request.getId(),
+                new PageParams(0, 10_000),
+                request.isAllowNoMatch(),
+                ActionListener.wrap(hitsAndIds -> {
+                    request.setExpandedIds(new HashSet<>(hitsAndIds.v2()));
+                    request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), clusterService.state()));
+                    super.doExecute(task, request, finalListener);
+                },
+                listener::onFailure
             ));
         }
     }

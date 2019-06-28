@@ -39,10 +39,10 @@
 "Test get old cluster job's timing stats":
   - do:
       ml.get_job_stats:
-        job_id: old-cluster-job
-  - match: { jobs.0.job_id: old-cluster-job }
+        job_id: old-cluster-job-with-ts
+  - match: { jobs.0.job_id: old-cluster-job-with-ts }
   - match: { jobs.0.state: "closed" }
-  - match: { jobs.0.timing_stats.job_id: old-cluster-job }
+  - match: { jobs.0.timing_stats.job_id: old-cluster-job-with-ts }
   - match: { jobs.0.timing_stats.bucket_count: 1 }
   - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
   - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }

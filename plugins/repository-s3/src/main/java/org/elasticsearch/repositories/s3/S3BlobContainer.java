@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,11 +131,52 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void delete() throws IOException {
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            ObjectListing prevListing = null;
+            while (true) {
+                ObjectListing list;
+                if (prevListing != null) {
+                    final ObjectListing finalPrevListing = prevListing;
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
+                } else {
+                    final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
+                    listObjectsRequest.setBucketName(blobStore.bucket());
+                    listObjectsRequest.setPrefix(keyPath);
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
+                }
+                final List<String> blobsToDelete =
+                    list.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
+                if (list.isTruncated()) {
+                    doDeleteBlobs(blobsToDelete, false);
+                    prevListing = list;
+                } else {
+                    final List<String> lastBlobsToDelete = new ArrayList<>(blobsToDelete);
+                    lastBlobsToDelete.add(keyPath);
+                    doDeleteBlobs(lastBlobsToDelete, false);
+                    break;
+                }
+            }
+        } catch (final AmazonClientException e) {
+            throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
+        }
+    }
+
+    @Override
     public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        doDeleteBlobs(blobNames, true);
+    }
+
+    private void doDeleteBlobs(List<String> blobNames, boolean relative) throws IOException {
         if (blobNames.isEmpty()) {
             return;
         }
-        final Set<String> outstanding = blobNames.stream().map(this::buildKey).collect(Collectors.toSet());
+        final Set<String> outstanding;
+        if (relative) {
+            outstanding = blobNames.stream().map(this::buildKey).collect(Collectors.toSet());
+        } else {
+            outstanding = new HashSet<>(blobNames);
+        }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
             final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();

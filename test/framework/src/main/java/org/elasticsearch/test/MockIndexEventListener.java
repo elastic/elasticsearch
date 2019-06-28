@@ -18,12 +18,17 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -34,6 +39,9 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -72,8 +80,11 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public Collection<Module> createGuiceModules() {
-            return Collections.singleton(binder -> binder.bind(TestEventListener.class).toInstance(listener));
+        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                                   NamedXContentRegistry xContentRegistry, Environment environment,
+                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+            return Collections.singletonList(listener);
         }
     }
 

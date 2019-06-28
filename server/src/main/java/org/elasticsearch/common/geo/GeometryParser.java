@@ -22,6 +22,8 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.GeometryValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -34,10 +36,12 @@ public final class GeometryParser {
 
     private final GeoJson geoJsonParser;
     private final WellKnownText wellKnownTextParser;
+    private final GeometryValidator validator;
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
-        geoJsonParser = new GeoJson(rightOrientation, coerce, ignoreZValue);
-        wellKnownTextParser = new WellKnownText();
+        validator = new GeographyValidator(ignoreZValue);
+        geoJsonParser = new GeoJson(rightOrientation, coerce, validator);
+        wellKnownTextParser = new WellKnownText(coerce, validator);
     }
 
     /**
@@ -50,7 +54,6 @@ public final class GeometryParser {
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return geoJsonParser.fromXContent(parser);
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            // TODO: Add support for ignoreZValue and coerce to WKT
             return wellKnownTextParser.fromWKT(parser.text());
         }
         throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");

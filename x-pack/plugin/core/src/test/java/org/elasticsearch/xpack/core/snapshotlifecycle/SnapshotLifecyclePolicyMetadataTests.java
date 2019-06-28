@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.snapshotlifecycle;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -105,7 +106,12 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
             randomAlphaOfLength(4),
             randomSchedule(),
             randomAlphaOfLength(4),
-            config);
+            config,
+            randomRetention());
+    }
+
+    private static SnapshotRetentionConfiguration randomRetention() {
+        return new SnapshotRetentionConfiguration(TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"));
     }
 
     private static String randomSchedule() {

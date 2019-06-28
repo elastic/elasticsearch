@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,7 +44,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
     public void testMissingRepo() throws Exception {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap",
-            "*/1 * * * * ?", "missing-repo", Collections.emptyMap());
+            "*/1 * * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
         Request putLifecycle = new Request("PUT", "/_slm/policy/test-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
@@ -294,7 +295,8 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     () -> randomAlphaOfLength(5)), randomAlphaOfLength(4));
             }
         }
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig);
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig,
+            SnapshotRetentionConfiguration.EMPTY);
 
         Request putLifecycle = new Request("PUT", "/_slm/policy/" + policyName);
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();

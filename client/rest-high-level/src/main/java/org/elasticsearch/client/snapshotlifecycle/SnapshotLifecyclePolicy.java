@@ -38,11 +38,13 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
     private final String schedule;
     private final String repository;
     private final Map<String, Object> configuration;
+    private final SnapshotRetentionConfiguration retentionPolicy;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
+    private static final ParseField RETENTION = new ParseField("retention");
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
 
@@ -54,7 +56,8 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
                 String schedule = (String) a[1];
                 String repo = (String) a[2];
                 Map<String, Object> config = (Map<String, Object>) a[3];
-                return new SnapshotLifecyclePolicy(id, name, schedule, repo, config);
+                SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
+                return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
             });
 
     static {
@@ -62,15 +65,18 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), CONFIG);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
     }
 
     public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, Map<String, Object> configuration) {
+                                   final String repository, Map<String, Object> configuration,
+                                   SnapshotRetentionConfiguration retentionPolicy) {
         this.id = Objects.requireNonNull(id);
         this.name = name;
         this.schedule = schedule;
         this.repository = repository;
         this.configuration = configuration;
+        this.retentionPolicy = retentionPolicy;
     }
 
     public String getId() {
@@ -93,6 +99,10 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         return this.configuration;
     }
 
+    public SnapshotRetentionConfiguration getRetentionPolicy() {
+        return this.retentionPolicy;
+    }
+
     public static SnapshotLifecyclePolicy parse(XContentParser parser, String id) {
         return PARSER.apply(parser, id);
     }
@@ -104,13 +114,14 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         builder.field(SCHEDULE.getPreferredName(), this.schedule);
         builder.field(REPOSITORY.getPreferredName(), this.repository);
         builder.field(CONFIG.getPreferredName(), this.configuration);
+        builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration);
+        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy);
     }
 
     @Override
@@ -127,7 +138,8 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
             Objects.equals(name, other.name) &&
             Objects.equals(schedule, other.schedule) &&
             Objects.equals(repository, other.repository) &&
-            Objects.equals(configuration, other.configuration);
+            Objects.equals(configuration, other.configuration) &&
+            Objects.equals(retentionPolicy, other.retentionPolicy);
     }
 
     @Override

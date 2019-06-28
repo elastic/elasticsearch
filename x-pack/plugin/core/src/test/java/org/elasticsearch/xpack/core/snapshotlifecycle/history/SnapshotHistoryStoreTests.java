@@ -10,10 +10,12 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
 import org.junit.After;
 import org.junit.Before;
 
@@ -167,7 +169,12 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             randomAlphaOfLength(4),
             randomSchedule(),
             randomAlphaOfLength(4),
-            config);
+            config,
+            randomRetention());
+    }
+
+    private static SnapshotRetentionConfiguration randomRetention() {
+        return new SnapshotRetentionConfiguration(TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"));
     }
 
     private static String randomSchedule() {

@@ -51,11 +51,13 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private final String schedule;
     private final String repository;
     private final Map<String, Object> configuration;
+    private final SnapshotRetentionConfiguration retentionPolicy;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
+    private static final ParseField RETENTION = new ParseField("retention");
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
     private static final String POLICY_ID_METADATA_FIELD = "policy";
@@ -69,7 +71,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
                 String schedule = (String) a[1];
                 String repo = (String) a[2];
                 Map<String, Object> config = (Map<String, Object>) a[3];
-                return new SnapshotLifecyclePolicy(id, name, schedule, repo, config);
+                SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
+                return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
             });
 
     static {
@@ -77,15 +80,18 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), CONFIG);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
     }
 
     public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, Map<String, Object> configuration) {
+                                   final String repository, Map<String, Object> configuration,
+                                   SnapshotRetentionConfiguration retentionPolicy) {
         this.id = Objects.requireNonNull(id);
         this.name = name;
         this.schedule = schedule;
         this.repository = repository;
         this.configuration = configuration;
+        this.retentionPolicy = retentionPolicy;
     }
 
     public SnapshotLifecyclePolicy(StreamInput in) throws IOException {
@@ -94,6 +100,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         this.schedule = in.readString();
         this.repository = in.readString();
         this.configuration = in.readMap();
+        this.retentionPolicy = new SnapshotRetentionConfiguration(in);
     }
 
     public String getId() {
@@ -114,6 +121,10 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
 
     public Map<String, Object> getConfig() {
         return this.configuration;
+    }
+
+    public SnapshotRetentionConfiguration getRetentionPolicy() {
+        return this.retentionPolicy;
     }
 
     public long calculateNextExecution() {
@@ -257,6 +268,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         out.writeString(this.schedule);
         out.writeString(this.repository);
         out.writeMap(this.configuration);
+        this.retentionPolicy.writeTo(out);
     }
 
     @Override
@@ -266,13 +278,14 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         builder.field(SCHEDULE.getPreferredName(), this.schedule);
         builder.field(REPOSITORY.getPreferredName(), this.repository);
         builder.field(CONFIG.getPreferredName(), this.configuration);
+        builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration);
+        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy);
     }
 
     @Override
@@ -289,7 +302,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             Objects.equals(name, other.name) &&
             Objects.equals(schedule, other.schedule) &&
             Objects.equals(repository, other.repository) &&
-            Objects.equals(configuration, other.configuration);
+            Objects.equals(configuration, other.configuration) &&
+            Objects.equals(retentionPolicy, other.retentionPolicy);
     }
 
     @Override

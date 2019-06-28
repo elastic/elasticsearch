@@ -1132,9 +1132,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private void cleanupRepo(final String repositoryName, final ActionListener<Void> listener, final long repositoryStateId,
-        final boolean immediatePriority) {
-        // TODO: this whole method ...
+    private void cleanupRepo(String repositoryName, ActionListener<Void> listener, long repositoryStateId, boolean immediatePriority) {
         Priority priority = immediatePriority ? Priority.IMMEDIATE : Priority.NORMAL;
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
             @Override
@@ -1166,7 +1164,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
+                removeSnapshotDeletionFromClusterState(null, e, listener);
             }
 
             @Override
@@ -1178,7 +1176,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (repository instanceof BlobStoreRepository == false) {
                             throw new IllegalArgumentException("Repository [" + repositoryName + "] is not a blob store repository");
                         }
-                        ((BlobStoreRepository) repository).cleanup(repositoryStateId, listener);
+                        ((BlobStoreRepository) repository).cleanup(repositoryStateId, ActionListener.wrap(
+                            v -> removeSnapshotDeletionFromClusterState(null, null, listener),
+                            e -> removeSnapshotDeletionFromClusterState(null, e, listener)));
                     }
                 });
             }

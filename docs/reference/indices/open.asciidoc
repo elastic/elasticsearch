@@ -48,8 +48,8 @@ matches no indices. Defaults to `false`.
 (string) Indicates whether wildcard expressions should expand to
 open or closed indices. Possible values are:
 
-* `open` (Default)
-* `closed`
+* `closed` (Default)
+* `open` 
 * `none`
 * `all`
 

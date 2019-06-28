@@ -21,6 +21,11 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 
+/**
+ * An action for with the response type implements {@link org.elasticsearch.common.io.stream.Streamable}.
+ * @deprecated Use {@link Action} directly and provide a {@link Writeable.Reader}
+ */
+@Deprecated
 public abstract class StreamableResponseAction<Response extends ActionResponse> extends Action<Response> {
 
     protected StreamableResponseAction(String name) {

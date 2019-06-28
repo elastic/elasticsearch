@@ -1,0 +1,59 @@
+[[backup-cluster-configuration]]
+=== Back up a cluster's configuration
+++++
+<titleabbrev>Back up the cluster configuration</titleabbrev>
+++++
+
+In addition to backing up the data in a cluster, it is important to back up its configuration--especially when the cluster becomes large and difficult to
+reconstruct.
+
+Configuration information resides in
+<<config-files-location, regular text files>> on every cluster node. Sensitive
+setting values, like for example passwords for
+Watcher's notification servers, are specified inside a binary secure container,
+the <<secure-settings, elasticsearch.keystore>> file. Moreover, some setting
+values are file paths to the associated configuration data, for example the
+ingest geo ip database. All these files are contained inside the `ES_PATH_CONF`
+directory.
+
+NOTE: All changes to configuration files are done by manually editing the files
+or using command line utilities, but *not* through APIs. In practice, these
+changes are infrequent after the initial setup.
+
+We recommend that you take regular (ideally, daily) backups of your {es} config
+(`$ES_PATH_CONF`) directory using the file backup software of your choice.
+Because some of these files may contain sensitive data such as passwords and
+TLS keys, you should investigate whether your backup software and/or storage
+solution are able to encrypt this data.
+
+Using the <<cluster-update-settings, cluster settings API>> it is possible to
+override some settings from configuration files. You can capture these in a
+*data* backup snapshot by specifying the `include_global_state: true` (default)
+parameter to the snapshot API. Using the
+<<cluster-get-settings, get settings API>> it is also possible to extract these
+configuration values in a text format:
+
+[source,js]
+--------------------------------------------------
+GET _cluster/settings?pretty&flat_settings&filter_path=persistent
+--------------------------------------------------
+//CONSOLE
+//TEST
+
+You can store the output of this as a file together with the rest of
+configuration files.
+
+NOTE: Transient settings are not considered for backup.
+
+TIP: We recommend that you have a configuration management plan for these
+configuration files. You may wish to check them into version control, or
+provision them though your choice of configuration management tool.
+
+NOTE: {es} {security-features} store configuration data, like for example role
+definitions and API keys, inside a dedicate special index. This "system" data,
+complements the <<secure-settings, security settings>> configuration and should
+<<backup-security-index-configuration, backed up as well>>.
+
+NOTE: Other {stack} components, like Kibana and {ml-cap}, store their configuration
+data inside other dedicated indices. From the {es} perspective these are just data
+so you can use the regular <<backup-cluster-data, data backup>> process.

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -152,6 +153,21 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         waitUntilJobIsClosed(jobId);
+
+        String otherJobId = "other-lookback-job";
+        Job.Builder otherJob = createScheduledJob(otherJobId);
+
+        registerJob(otherJob);
+        PutJobAction.Response putOtherJobResponse = putJob(otherJob);
+        assertThat(putOtherJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+
+        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(otherJobId).build());
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, otherJobId, equalTo(0L));
+
+        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(jobId).build());
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
+
+        waitUntilJobIsClosed(otherJobId);
     }
 
     private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {

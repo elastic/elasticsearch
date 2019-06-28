@@ -151,19 +151,18 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             return;
         }
 
-        // Get datafeed config document
+        String datafeedId = request.getDatafeedId();
+
         datafeedConfigProvider.getDatafeedConfig(
-            request.getDatafeedId(),
+            datafeedId,
             ActionListener.wrap(
                 datafeedConfigBuilder -> {
-                    // Delete datafeed timing stats document
                     deleteDatafeedTimingStats(
                         datafeedConfigBuilder.build().getJobId(),
                         ActionListener.wrap(
                             unused1 -> {
-                                // Delete datafeed config document
                                 datafeedConfigProvider.deleteDatafeedConfig(
-                                    request.getDatafeedId(),
+                                    datafeedId,
                                     ActionListener.wrap(
                                         unused2 -> listener.onResponse(new AcknowledgedResponse(true)),
                                         listener::onFailure));

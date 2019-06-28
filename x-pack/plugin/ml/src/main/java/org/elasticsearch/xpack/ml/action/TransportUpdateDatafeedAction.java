@@ -6,7 +6,12 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,7 +31,9 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -35,8 +42,12 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
+    private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
@@ -49,9 +60,10 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
         super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
 
-        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-        jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.client = client;
+        this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     @Override
@@ -86,13 +98,27 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
 
         String datafeedId = request.getUpdate().getId();
 
-        CheckedConsumer<Boolean, Exception> updateConsumer = ok -> {
-            datafeedConfigProvider.updateDatefeedConfig(request.getUpdate().getId(), request.getUpdate(), headers,
-                    jobConfigProvider::validateDatafeedJob,
-                    ActionListener.wrap(
-                            updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                            listener::onFailure
-                    ));
+        CheckedConsumer<Boolean, Exception> updateConsumer = unused1 -> {
+            datafeedConfigProvider.getDatafeedConfig(
+                datafeedId,
+                ActionListener.wrap(
+                    datafeedConfigBuilder -> {
+                        deleteDatafeedTimingStats(
+                            datafeedConfigBuilder.build().getJobId(),
+                            ActionListener.wrap(
+                                unused2 -> {
+                                    datafeedConfigProvider.updateDatefeedConfig(
+                                        datafeedId,
+                                        request.getUpdate(),
+                                        headers,
+                                        jobConfigProvider::validateDatafeedJob,
+                                        ActionListener.wrap(
+                                            updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                                            listener::onFailure));
+                                },
+                                listener::onFailure));
+                    },
+                    listener::onFailure));
         };
 
 
@@ -102,6 +128,30 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
         } else {
             updateConsumer.accept(Boolean.TRUE);
         }
+    }
+
+    /**
+     * Delete the datafeed config document
+     *
+     * @param jobId The job id
+     * @param actionListener Deleted datafeed listener
+     */
+    private void deleteDatafeedTimingStats(String jobId,  ActionListener<DeleteResponse> actionListener) {
+        DeleteRequest request =
+            new DeleteRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), DatafeedTimingStats.documentId(jobId))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteResponse deleteResponse) {
+                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED
+                    || deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND;
+                actionListener.onResponse(deleteResponse);
+            }
+            @Override
+            public void onFailure(Exception e) {
+                actionListener.onFailure(e);
+            }
+        });
     }
 
     /*

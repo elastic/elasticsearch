@@ -379,7 +379,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             Files.write(
                 esStdoutFile,
-                ("[" + Instant.now().toString() + "]  " + message + "\n").getBytes(StandardCharsets.UTF_8),
+                ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE, StandardOpenOption.APPEND
             );
         } catch (IOException e) {

@@ -9,6 +9,8 @@ cluster.
 
 --
 
+include::{docdir}/administering/split-index.asciidoc[]
+
 [[backup-cluster]]
 == Back up a cluster
 

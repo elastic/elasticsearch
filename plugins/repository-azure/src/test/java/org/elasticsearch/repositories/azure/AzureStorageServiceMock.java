@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.StorageException;

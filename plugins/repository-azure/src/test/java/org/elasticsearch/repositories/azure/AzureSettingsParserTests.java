@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.azure;
 
-import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +27,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_DEFAULT_SETTING;
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.DEPRECATED_KEY_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.DEPRECATED_ACCOUNT_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.DEPRECATED_DEFAULT_SETTING;
+import static org.elasticsearch.repositories.azure.AzureStorageSettings.DEPRECATED_KEY_SETTING;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

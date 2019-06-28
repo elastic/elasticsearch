@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryPolicy;

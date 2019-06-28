@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.azure.storage;
+package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.AccessCondition;
 import com.microsoft.azure.storage.CloudStorageAccount;
@@ -35,7 +35,6 @@ import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cloud.azure.blobstore.util.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;

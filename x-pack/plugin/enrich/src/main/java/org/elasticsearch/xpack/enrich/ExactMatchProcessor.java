@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 
 final class ExactMatchProcessor extends AbstractProcessor {
@@ -145,7 +146,30 @@ final class ExactMatchProcessor extends AbstractProcessor {
         return specifications;
     }
 
+    // TODO: This is temporary and will be removed once internal transport action that does an efficient lookup instead of a search.
+    // This semaphore purpose is to throttle the number of concurrent search requests, if this is not done then search thread pool
+    // on nodes may get full and search request fail because they get rejected.
+    // Because this code is going to change, a semaphore seemed like an easy quick fix to address this problem.
+    private static final Semaphore SEMAPHORE = new Semaphore(100);
+
     private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
-        return (req, handler) -> client.search(req, ActionListener.wrap(resp -> handler.accept(resp, null), e -> handler.accept(null, e)));
+        return (req, handler) -> {
+            try {
+                SEMAPHORE.acquire();
+            } catch (InterruptedException e) {
+                Thread.interrupted();
+                handler.accept(null, e);
+                return;
+            }
+            client.search(req, ActionListener.wrap(
+                resp -> {
+                    SEMAPHORE.release();
+                    handler.accept(resp, null);
+                },
+                e -> {
+                    SEMAPHORE.release();
+                    handler.accept(null, e);
+                }));
+        };
     }
 }

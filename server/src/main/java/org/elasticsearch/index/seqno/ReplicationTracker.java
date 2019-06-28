@@ -457,16 +457,40 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
-     * Advance the peer-recovery retention lease for all tracked shard copies, for use in tests until advancing these leases is done
-     * properly. TODO remove this.
+     * Advance the peer-recovery retention leases for all assigned shard copies to discard history below the corresponding global
+     * checkpoint, and renew any leases that are approaching expiry.
      */
-    public synchronized void advancePeerRecoveryRetentionLeasesToGlobalCheckpoints() {
+    public synchronized void renewPeerRecoveryRetentionLeases() {
         assert primaryMode;
+
+        /*
+         * Peer-recovery retention leases never expire while the associated shard is assigned, but we must still renew them occasionally in
+         * case the associated shard is temporarily unassigned. However we must not renew them too often, since each renewal must be
+         * persisted and the resulting IO can be expensive on nodes with large numbers of shards (see #42299). We choose to renew them after
+         * half the expiry time, so that by default the cluster has at least 6 hours to recover before these leases start to expire.
+         */
+        final long renewalTimeMillis = currentTimeMillisSupplier.getAsLong() - indexSettings.getRetentionLeaseMillis() / 2;
+
         for (ShardRouting shardRouting : routingTable) {
             if (shardRouting.assignedToNode()) {
                 final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
-                renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting), Math.max(0L, checkpointState.globalCheckpoint + 1L),
-                    PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
+                if (retentionLease == null) {
+                    if (checkpointState.tracked) {
+                        /*
+                         * BWC: We got here here via a rolling upgrade from an older version that doesn't create peer recovery retention
+                         * leases for every shard copy. TODO create leases lazily
+                         */
+                        assert indexSettings.getIndexVersionCreated().before(Version.V_8_0_0) : indexSettings.getIndexVersionCreated();
+                    }
+                } else {
+                    if (retentionLease.retainingSequenceNumber() <= checkpointState.globalCheckpoint
+                          || retentionLease.timestamp() <= renewalTimeMillis) {
+                        renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting),
+                            Math.max(0L, checkpointState.globalCheckpoint + 1L),
+                            PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                    }
+                }
             }
         }
     }

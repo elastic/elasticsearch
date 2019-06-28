@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -258,7 +257,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             job,
             xContentRegistry,
             // Creating fake {@link TimingStatsReporter} so that search API call is not needed.
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), Clock.systemUTC(), jobResultsPersister),
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), jobResultsPersister),
             ActionListener.wrap(
                 unused ->
                     persistentTasksService.sendStartRequest(

@@ -9,6 +9,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -28,7 +29,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -93,8 +93,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
                 .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
                         AggregationBuilders.terms("airline").field("airline").subAggregation(
                                 AggregationBuilders.avg("responsetime").field("responsetime"))));
-        timingStatsReporter =
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), Clock.systemUTC(), mock(JobResultsPersister.class));
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(JobResultsPersister.class));
     }
 
     public void testExtraction() throws IOException {
@@ -291,6 +290,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         when(searchResponse.getAggregations()).thenReturn(aggregations);
+        when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         return searchResponse;
     }
 
@@ -313,6 +313,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getSuccessfulShards()).thenReturn(3);
         when(searchResponse.getTotalShards()).thenReturn(3 + unavailableShards);
+        when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         return searchResponse;
     }
 

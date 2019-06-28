@@ -109,8 +109,9 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     private Aggregations search() throws IOException {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-        SearchResponse searchResponse = executeSearchRequestWithReporting(buildSearchRequest(buildBaseSearchSource()));
+        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(buildBaseSearchSource()));
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         return validateAggs(searchResponse.getAggregations());
     }
@@ -119,10 +120,6 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount,
             context.start);
         aggregationToJsonProcessor.process(aggs);
-    }
-
-    private SearchResponse executeSearchRequestWithReporting(T searchRequestBuilder) {
-        return timingStatsReporter.executeWithReporting(this::executeSearchRequest, searchRequestBuilder);
     }
 
     protected SearchResponse executeSearchRequest(T searchRequestBuilder) {

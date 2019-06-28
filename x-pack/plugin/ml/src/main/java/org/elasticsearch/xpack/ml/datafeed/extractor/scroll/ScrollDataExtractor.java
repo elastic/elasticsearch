@@ -110,13 +110,10 @@ class ScrollDataExtractor implements DataExtractor {
 
     protected InputStream initScroll(long startTimestamp) throws IOException {
         LOGGER.debug("[{}] Initializing scroll", context.jobId);
-        SearchResponse searchResponse = executeSearchRequestWithReporting(buildSearchRequest(startTimestamp));
+        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return processSearchResponse(searchResponse);
-    }
-
-    private SearchResponse executeSearchRequestWithReporting(SearchRequestBuilder searchRequestBuilder) {
-        return timingStatsReporter.executeWithReporting(this::executeSearchRequest, searchRequestBuilder);
     }
 
     protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
@@ -190,18 +187,19 @@ class ScrollDataExtractor implements DataExtractor {
         LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
         SearchResponse searchResponse;
         try {
-             searchResponse = executeSearchScrollRequestWithReporting(scrollId);
+             searchResponse = executeSearchScrollRequest(scrollId);
         } catch (SearchPhaseExecutionException searchExecutionException) {
             if (searchHasShardFailure == false) {
                 LOGGER.debug("[{}] Reinitializing scroll due to SearchPhaseExecutionException", context.jobId);
                 markScrollAsErrored();
                 searchResponse =
-                    executeSearchRequestWithReporting(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
+                    executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
             } else {
                 throw searchExecutionException;
             }
         }
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return processSearchResponse(searchResponse);
     }
 
@@ -213,10 +211,6 @@ class ScrollDataExtractor implements DataExtractor {
             lastTimestamp++;
         }
         searchHasShardFailure = true;
-    }
-
-    private SearchResponse executeSearchScrollRequestWithReporting(String scrollId) {
-        return timingStatsReporter.executeWithReporting(this::executeSearchScrollRequest, scrollId);
     }
 
     protected SearchResponse executeSearchScrollRequest(String scrollId) {

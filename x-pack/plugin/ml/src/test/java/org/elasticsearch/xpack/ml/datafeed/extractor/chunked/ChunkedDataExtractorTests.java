@@ -32,7 +32,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -94,8 +93,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         scrollSize = 1000;
         chunkSpan = null;
         dataExtractorFactory = mock(DataExtractorFactory.class);
-        timingStatsReporter =
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), Clock.systemUTC(), mock(JobResultsPersister.class));
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(JobResultsPersister.class));
     }
 
     public void testExtractionGivenNoData() throws IOException {

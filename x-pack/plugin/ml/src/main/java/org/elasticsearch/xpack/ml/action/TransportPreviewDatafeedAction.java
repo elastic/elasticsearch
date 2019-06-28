@@ -31,7 +31,6 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -86,7 +85,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                     previewDatafeed.build(),
                                     jobBuilder.build(),
                                     xContentRegistry,
-                                    new DatafeedTimingStatsReporter(timingStats, Clock.systemUTC(), jobResultsPersister),
+                                    new DatafeedTimingStatsReporter(timingStats, jobResultsPersister),
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(DataExtractorFactory dataExtractorFactory) {

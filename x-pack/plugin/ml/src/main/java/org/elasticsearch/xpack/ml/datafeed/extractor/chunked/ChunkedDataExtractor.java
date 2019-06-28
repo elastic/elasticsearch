@@ -129,10 +129,6 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
     }
 
-    private SearchResponse executeSearchRequestWithReporting(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return timingStatsReporter.executeWithReporting(this::executeSearchRequest, searchRequestBuilder);
-    }
-
     protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
         return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
@@ -209,8 +205,9 @@ public class ChunkedDataExtractor implements DataExtractor {
         private DataSummary newScrolledDataSummary() throws IOException {
             SearchRequestBuilder searchRequestBuilder = rangeSearchRequest();
 
-            SearchResponse searchResponse = executeSearchRequestWithReporting(searchRequestBuilder);
+            SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
             LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
             ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
 
@@ -231,12 +228,13 @@ public class ChunkedDataExtractor implements DataExtractor {
             // TODO: once RollupSearchAction is changed from indices:admin* to indices:data/read/* this branch is not needed
             ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder =
                 dataExtractorFactory instanceof RollupDataExtractorFactory ? rollupRangeSearchRequest() : rangeSearchRequest();
-            SearchResponse response = executeSearchRequestWithReporting(searchRequestBuilder);
+            SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
 
-            ExtractorUtils.checkSearchWasSuccessful(context.jobId, response);
+            ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
 
-            Aggregations aggregations = response.getAggregations();
+            Aggregations aggregations = searchResponse.getAggregations();
             Min min = aggregations.get(EARLIEST_TIME);
             Max max = aggregations.get(LATEST_TIME);
             return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);

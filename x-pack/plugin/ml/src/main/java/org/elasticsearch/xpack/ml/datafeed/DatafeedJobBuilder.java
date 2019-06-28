@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.time.Clock;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -98,7 +97,7 @@ public class DatafeedJobBuilder {
                 datafeedConfigHolder.get(),
                 jobHolder.get(),
                 xContentRegistry,
-                new DatafeedTimingStatsReporter(timingStats, Clock.systemUTC(), jobResultsPersister),
+                new DatafeedTimingStatsReporter(timingStats, jobResultsPersister),
                 dataExtractorFactoryHandler);
         };
 

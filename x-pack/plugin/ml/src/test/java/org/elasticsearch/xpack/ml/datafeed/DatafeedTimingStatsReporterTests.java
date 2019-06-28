@@ -5,16 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 import org.mockito.InOrder;
-
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -24,64 +20,36 @@ import static org.mockito.Mockito.mock;
 public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
     private static final String JOB_ID = "my-job-id";
-    private static final Duration ONE_SECOND = Duration.ofSeconds(1);
+    private static final TimeValue ONE_SECOND = TimeValue.timeValueSeconds(1);
 
-    private FakeClock clock;
     private JobResultsPersister jobResultsPersister;
 
     @Before
     public void setUpTests() {
-        clock = new FakeClock();
         jobResultsPersister = mock(JobResultsPersister.class);
     }
 
-    public void testExecuteWithReporting() {
+    public void testReportSearchDuration() {
         DatafeedTimingStats timingStats = new DatafeedTimingStats(JOB_ID, 10000.0);
-        DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(timingStats, clock, jobResultsPersister);
+        DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(timingStats, jobResultsPersister);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 10000.0)));
 
-        timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
+        timingStatsReporter.reportSearchDuration(ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 11000.0)));
 
-        timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
+        timingStatsReporter.reportSearchDuration(ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 12000.0)));
 
-        timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
+        timingStatsReporter.reportSearchDuration(ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 13000.0)));
 
-        timingStatsReporter.executeWithReporting(clock::advanceTime, ONE_SECOND);
+        timingStatsReporter.reportSearchDuration(ONE_SECOND);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 14000.0)));
 
         InOrder inOrder = inOrder(jobResultsPersister);
         inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 12000.0));
         inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 14000.0));
         inOrder.verifyNoMoreInteractions();
-    }
-
-    /** Mutable clock that allows advancing current time. */
-    private static final class FakeClock extends Clock {
-
-        private Instant instant = Instant.EPOCH;
-
-        @Override
-        public Instant instant() {
-            return instant;
-        }
-
-        Void advanceTime(Duration duration) {
-            instant = instant.plus(duration);
-            return null;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     public void testTimingStatsDifferSignificantly() {

@@ -32,11 +32,6 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
     }
 
     @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<Response> getResponseReader() {
         return Response::new;
     }

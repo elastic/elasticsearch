@@ -32,11 +32,6 @@ public class GetFieldMappingsAction extends Action<GetFieldMappingsResponse> {
     }
 
     @Override
-    public GetFieldMappingsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<GetFieldMappingsResponse> getResponseReader() {
         return GetFieldMappingsResponse::new;
     }

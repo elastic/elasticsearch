@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RevertModelSnapshotAction extends Action<RevertModelSnapshotAction.Response> {
+public class RevertModelSnapshotAction extends StreamableResponseAction<RevertModelSnapshotAction.Response> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";

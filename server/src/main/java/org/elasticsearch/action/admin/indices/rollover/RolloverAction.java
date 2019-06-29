@@ -32,11 +32,6 @@ public class RolloverAction extends Action<RolloverResponse> {
     }
 
     @Override
-    public RolloverResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<RolloverResponse> getResponseReader() {
         return RolloverResponse::new;
     }

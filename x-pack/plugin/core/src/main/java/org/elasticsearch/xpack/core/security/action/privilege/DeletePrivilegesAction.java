@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Action for deleting application privileges.
  */
-public final class DeletePrivilegesAction extends Action<DeletePrivilegesResponse> {
+public final class DeletePrivilegesAction extends StreamableResponseAction<DeletePrivilegesResponse> {
 
     public static final DeletePrivilegesAction INSTANCE = new DeletePrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/privilege/delete";

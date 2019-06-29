@@ -32,11 +32,6 @@ public class CloseIndexAction extends Action<CloseIndexResponse> {
     }
 
     @Override
-    public CloseIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<CloseIndexResponse> getResponseReader() {
         return CloseIndexResponse::new;
     }

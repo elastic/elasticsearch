@@ -123,13 +123,12 @@ public class MockClientBuilder {
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addIndicesDeleteResponse(String index, boolean exists, boolean exception,
             ActionListener<AcknowledgedResponse> actionListener) throws InterruptedException, ExecutionException, IOException {
-        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.newResponse();
         StreamInput si = mock(StreamInput.class);
         // this looks complicated but Mockito can't mock the final method
         // DeleteIndexResponse.isAcknowledged() and the only way to create
         // one with a true response is reading from a stream.
         when(si.readByte()).thenReturn((byte) 0x01);
-        response.readFrom(si);
+        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.getResponseReader().read(si);
 
         doAnswer(invocation -> {
             DeleteIndexRequest deleteIndexRequest = (DeleteIndexRequest) invocation.getArguments()[0];

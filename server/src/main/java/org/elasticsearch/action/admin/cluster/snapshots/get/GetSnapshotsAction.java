@@ -35,11 +35,6 @@ public class GetSnapshotsAction extends Action<GetSnapshotsResponse> {
     }
 
     @Override
-    public GetSnapshotsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<GetSnapshotsResponse> getResponseReader() {
         return GetSnapshotsResponse::new;
     }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Action for retrieving a list of currently running tasks
  */
-public class GetTaskAction extends Action<GetTaskResponse> {
+public class GetTaskAction extends StreamableResponseAction<GetTaskResponse> {
     public static final String TASKS_ORIGIN = "tasks";
 
     public static final GetTaskAction INSTANCE = new GetTaskAction();

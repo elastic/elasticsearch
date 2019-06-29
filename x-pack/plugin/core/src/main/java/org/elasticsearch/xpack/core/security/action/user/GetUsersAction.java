@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Action for retrieving a user from the security index
  */
-public class GetUsersAction extends Action<GetUsersResponse> {
+public class GetUsersAction extends StreamableResponseAction<GetUsersResponse> {
 
     public static final GetUsersAction INSTANCE = new GetUsersAction();
     public static final String NAME = "cluster:admin/xpack/security/user/get";

@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.graph.action;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
 
-public class GraphExploreAction extends StreamableResponseAction<GraphExploreResponse> {
+public class GraphExploreAction extends StreamableResponseActionType<GraphExploreResponse> {
 
     public static final GraphExploreAction INSTANCE = new GraphExploreAction();
     public static final String NAME = "indices:data/read/xpack/graph/explore";

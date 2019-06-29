@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class ReloadAnalyzerAction extends StreamableResponseAction<ReloadAnalyzersResponse> {
+public class ReloadAnalyzerAction extends StreamableResponseActionType<ReloadAnalyzersResponse> {
 
     public static final ReloadAnalyzerAction INSTANCE = new ReloadAnalyzerAction();
     public static final String NAME = "indices:admin/reload_analyzers";

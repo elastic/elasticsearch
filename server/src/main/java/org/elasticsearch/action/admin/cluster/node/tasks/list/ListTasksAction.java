@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
- * Action for retrieving a list of currently running tasks
+ * ActionType for retrieving a list of currently running tasks
  */
-public class ListTasksAction extends Action<ListTasksResponse> {
+public class ListTasksAction extends ActionType<ListTasksResponse> {
 
     public static final ListTasksAction INSTANCE = new ListTasksAction();
     public static final String NAME = "cluster:monitor/tasks/lists";

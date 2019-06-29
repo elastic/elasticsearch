@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
@@ -27,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class PutFollowAction extends Action<PutFollowAction.Response> {
+public final class PutFollowAction extends ActionType<PutFollowAction.Response> {
 
     public static final PutFollowAction INSTANCE = new PutFollowAction();
     public static final String NAME = "indices:admin/xpack/ccr/put_follow";

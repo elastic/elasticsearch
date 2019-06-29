@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
- * Action for initiating an authentication process using OpenID Connect
+ * ActionType for initiating an authentication process using OpenID Connect
  */
-public final class OpenIdConnectAuthenticateAction extends Action<OpenIdConnectAuthenticateResponse> {
+public final class OpenIdConnectAuthenticateAction extends ActionType<OpenIdConnectAuthenticateResponse> {
 
     public static final OpenIdConnectAuthenticateAction INSTANCE = new OpenIdConnectAuthenticateAction();
     public static final String NAME = "cluster:admin/xpack/security/oidc/authenticate";

@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -331,7 +331,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class TestTaskAction extends StreamableResponseAction<NodesResponse> {
+    public static class TestTaskAction extends StreamableResponseActionType<NodesResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/tasks/test";
@@ -348,7 +348,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
 
-        protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesResponse> action) {
+        protected NodesRequestBuilder(ElasticsearchClient client, ActionType<NodesResponse> action) {
             super(client, action, new NodesRequest("test"));
         }
 
@@ -456,7 +456,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     }
 
-    public static class UnblockTestTasksAction extends Action<UnblockTestTasksResponse> {
+    public static class UnblockTestTasksAction extends ActionType<UnblockTestTasksResponse> {
 
         public static final UnblockTestTasksAction INSTANCE = new UnblockTestTasksAction();
         public static final String NAME = "cluster:admin/tasks/testunblock";
@@ -474,7 +474,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse> {
 
         protected UnblockTestTasksRequestBuilder(ElasticsearchClient client,
-                                                 Action<UnblockTestTasksResponse> action) {
+                                                 ActionType<UnblockTestTasksResponse> action) {
             super(client, action, new UnblockTestTasksRequest());
         }
     }

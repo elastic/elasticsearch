@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
-import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -92,8 +91,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                                                                                                   ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 ActionRequestValidationException validationException = getApiKeyRequest.validate();
                 if (validationException != null) {

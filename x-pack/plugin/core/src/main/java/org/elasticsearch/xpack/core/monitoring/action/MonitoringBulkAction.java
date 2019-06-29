@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.monitoring.action;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class MonitoringBulkAction extends StreamableResponseAction<MonitoringBulkResponse> {
+public class MonitoringBulkAction extends StreamableResponseActionType<MonitoringBulkResponse> {
 
     public static final MonitoringBulkAction INSTANCE = new MonitoringBulkAction();
     public static final String NAME = "cluster:admin/xpack/monitoring/bulk";

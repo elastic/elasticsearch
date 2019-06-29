@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class ClearScrollAction extends StreamableResponseAction<ClearScrollResponse> {
+public class ClearScrollAction extends StreamableResponseActionType<ClearScrollResponse> {
 
     public static final ClearScrollAction INSTANCE = new ClearScrollAction();
     public static final String NAME = "indices:data/read/scroll/clear";

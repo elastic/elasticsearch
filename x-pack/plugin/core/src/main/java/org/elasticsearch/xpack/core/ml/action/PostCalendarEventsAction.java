@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class PostCalendarEventsAction extends StreamableResponseAction<PostCalendarEventsAction.Response> {
+public class PostCalendarEventsAction extends StreamableResponseActionType<PostCalendarEventsAction.Response> {
     public static final PostCalendarEventsAction INSTANCE = new PostCalendarEventsAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/post";
 

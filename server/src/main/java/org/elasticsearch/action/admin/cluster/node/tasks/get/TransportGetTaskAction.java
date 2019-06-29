@@ -56,7 +56,7 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskActio
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
 
 /**
- * Action to get a single task. If the task isn't running then it'll try to request the status from request index.
+ * ActionType to get a single task. If the task isn't running then it'll try to request the status from request index.
  *
  * The general flow is:
  * <ul>

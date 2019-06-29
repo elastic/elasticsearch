@@ -1350,13 +1350,18 @@ public final class Settings implements ToXContentFragment {
         }
 
         @Override
-        public SecureString getString(String setting) throws GeneralSecurityException{
+        public SecureString getString(String setting) throws GeneralSecurityException {
             return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
-        public InputStream getFile(String setting) throws GeneralSecurityException{
+        public InputStream getFile(String setting) throws GeneralSecurityException {
             return delegate.getFile(addPrefix.apply(setting));
+        }
+
+        @Override
+        public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+            return delegate.getSHA256Digest(addPrefix.apply(setting));
         }
 
         @Override

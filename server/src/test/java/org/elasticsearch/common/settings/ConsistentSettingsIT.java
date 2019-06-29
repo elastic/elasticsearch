@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -60,7 +61,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
                             Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
             assertTrue("All secure settings are consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
                     new ConsistentSettingsService(environment.settings(), clusterService,
-                            List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+                            Arrays.asList(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         }
     }
 
@@ -98,7 +99,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
                         Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         assertFalse("All secure settings are NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
-                        List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+                        Arrays.asList(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         nodeSettingsOverride.set(nodeOrdinal -> {
             Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
             MockSecureSettings secureSettings = new MockSecureSettings();
@@ -142,7 +143,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
                         Collections.singletonList(DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         assertFalse("All secure settings are NOT consistent [" + clusterService.state().metaData().hashesOfConsistentSettings() + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
-                        List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+                        Arrays.asList(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
         nodeSettingsOverride.set(null);
     }
 

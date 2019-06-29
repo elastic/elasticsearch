@@ -37,6 +37,10 @@ public final class PkiRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE), "cache.max_users",
         key -> Setting.intSetting(key, DEFAULT_MAX_USERS, Setting.Property.NodeScope));
 
+    public static final Setting.AffixSetting<Boolean> ALLOW_DELEGATION_SETTING = Setting.affixKeySetting(
+            RealmSettings.realmSettingPrefix(TYPE), "allow_delegation",
+            key -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+
     public static final Setting.AffixSetting<Optional<String>> TRUST_STORE_PATH;
     public static final Setting.AffixSetting<Optional<String>> TRUST_STORE_TYPE;
     public static final Setting.AffixSetting<SecureString> TRUST_STORE_PASSWORD;

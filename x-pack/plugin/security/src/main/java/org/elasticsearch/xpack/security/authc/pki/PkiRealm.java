@@ -76,6 +76,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
     private DelegatedAuthorizationSupport delegatedRealms;
+    private final boolean allowAuthenticationDelegation;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
         this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
@@ -93,6 +94,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
                 .build();
         this.delegatedRealms = null;
+        this.allowAuthenticationDelegation = config.getSetting(PkiRealmSettings.ALLOW_DELEGATION_SETTING);
     }
 
     @Override
@@ -110,7 +112,13 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     @Override
     public X509AuthenticationToken token(ThreadContext context) {
-        return token(context.getTransient(PKI_CERT_HEADER_NAME), principalPattern, logger);
+        Object pkiHeaderValue = context.getTransient(PKI_CERT_HEADER_NAME);
+        if (pkiHeaderValue == null) {
+            return null;
+        }
+        assert pkiHeaderValue instanceof X509Certificate[];
+        X509Certificate[] certificates = (X509Certificate[]) pkiHeaderValue;
+        return token(certificates, principalPattern, logger);
     }
 
     @Override
@@ -128,6 +136,10 @@ public class PkiRealm extends Realm implements CachingRealm {
                 }
             } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
+            } else if (false == allowAuthenticationDelegation && token.isDelegated()) {
+                assert token.getDelegateeInfo() != null;
+                listener.onResponse(AuthenticationResult.unsuccessful("Realm does not permit delegation for " + token.dn() + " from client "
+                        + token.getDelegateeInfo().getDelegateeClientAuthentication().getUser().principal(), null));
             } else {
                 final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
                     if (result.isAuthenticated()) {
@@ -149,7 +161,12 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     private void buildUser(X509AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-        final Map<String, Object> metadata = Map.of("pki_dn", token.dn());
+        final Map<String, Object> metadata;
+        if (token.isDelegated()) {
+            metadata = Map.of("pki_dn", token.dn(), "delegatee_info", token.getDelegateeInfo());
+        } else {
+            metadata = Map.of("pki_dn", token.dn());
+        }
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(), token.dn(), Set.of(), metadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User computedUser =
@@ -163,13 +180,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         listener.onResponse(null);
     }
 
-    static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, Logger logger) {
-        if (pkiHeaderValue == null) {
-            return null;
-        }
-
-        assert pkiHeaderValue instanceof X509Certificate[];
-        X509Certificate[] certificates = (X509Certificate[]) pkiHeaderValue;
+    static X509AuthenticationToken token(X509Certificate[] certificates, Pattern principalPattern, Logger logger) {
         if (certificates.length == 0) {
             return null;
         }

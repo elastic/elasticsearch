@@ -7,11 +7,21 @@
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestGetTokenForX509Action extends TokenBaseRestHandler {
+
+    public RestGetTokenForX509Action(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
+        super(settings, xPackLicenseState);
+        controller.registerHandler(POST, "/_security/delegate_pki/token", this);
+    }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
@@ -20,7 +30,7 @@ public class RestGetTokenForX509Action extends TokenBaseRestHandler {
 
     @Override
     public String getName() {
-        return null;
+        return "security_delegate_pki_action";
     }
 
 }

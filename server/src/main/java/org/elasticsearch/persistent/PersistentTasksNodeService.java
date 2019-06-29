@@ -78,7 +78,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 
-        // Cluster State   Local State      Local ActionType
+        // Cluster State   Local State      Local Action
         //   STARTED         NULL          Create as STARTED, Start
         //   STARTED         STARTED       Noop - running
         //   STARTED         COMPLETED     Noop - waiting for notification ack

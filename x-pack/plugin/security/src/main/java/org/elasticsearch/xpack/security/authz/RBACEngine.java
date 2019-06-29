@@ -171,7 +171,7 @@ public class RBACEngine implements AuthorizationEngine {
 
             assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
                 || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                : "ActionType '" + action + "' should not be possible when sameUsername=" + sameUsername;
+                : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
             return sameUsername;
         }
         return false;

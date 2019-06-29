@@ -272,14 +272,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-                    logger.info("ActionType on node {}", node);
+                    logger.info("Action on node {}", node);
                     actionLatch.countDown();
                     try {
                         checkLatch.await();
                     } catch (InterruptedException ex) {
                         Thread.currentThread().interrupt();
                     }
-                    logger.info("ActionType on node {} finished", node);
+                    logger.info("Action on node {} finished", node);
                     return new NodeResponse(testNodes[node].discoveryNode());
                 }
             };
@@ -527,7 +527,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                     testNodes[i].transportService) {
                 @Override
                 protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-                    logger.info("ActionType on node {}", node);
+                    logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }
             };

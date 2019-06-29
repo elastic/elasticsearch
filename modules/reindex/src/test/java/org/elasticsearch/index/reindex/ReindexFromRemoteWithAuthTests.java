@@ -167,7 +167,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * ActionType filter that will reject the request if it isn't authenticated.
+     * Action filter that will reject the request if it isn't authenticated.
      */
     public static class TestFilter implements ActionFilter {
         /**

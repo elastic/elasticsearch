@@ -32,7 +32,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 
 /**
- * Flush ActionType.
+ * Flush Action.
  */
 public class TransportFlushAction
         extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {

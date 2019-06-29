@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 /**
- * ActionType to obtain information about X.509 (SSL/TLS) certificates that are being used by X-Pack.
+ * Action to obtain information about X.509 (SSL/TLS) certificates that are being used by X-Pack.
  * The primary use case is for tracking the expiry dates of certificates.
  */
 public class GetCertificateInfoAction extends StreamableResponseActionType<GetCertificateInfoAction.Response> {

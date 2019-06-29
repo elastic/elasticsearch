@@ -115,7 +115,7 @@ public abstract class TaskBatcher {
     }
 
     /**
-     * ActionType to be implemented by the specific batching implementation.
+     * Action to be implemented by the specific batching implementation.
      * All tasks have the same batching key.
      */
     protected abstract void onTimeout(List<? extends BatchedTask> tasks, TimeValue timeout);
@@ -153,7 +153,7 @@ public abstract class TaskBatcher {
     }
 
     /**
-     * ActionType to be implemented by the specific batching implementation
+     * Action to be implemented by the specific batching implementation
      * All tasks have the given batching key.
      */
     protected abstract void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary);

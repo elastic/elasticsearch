@@ -83,7 +83,7 @@ public class ActionWrapper implements ToXContentObject {
      * <li>Throttling</li>
      * <li>Conditional Check</li>
      * <li>Transformation</li>
-     * <li>ActionType</li>
+     * <li>Action</li>
      * </ol>
      *
      * @param ctx The current watch's context

@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.function.Supplier;
 
 /**
- * Synced flush ActionType.
+ * Synced flush Action.
  */
 public class TransportSyncedFlushAction extends HandledTransportAction<SyncedFlushRequest, SyncedFlushResponse> {
 

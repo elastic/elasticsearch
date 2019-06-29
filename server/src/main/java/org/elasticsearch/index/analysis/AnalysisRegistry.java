@@ -185,11 +185,7 @@ public final class AnalysisRegistry implements Closeable {
                             throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
                         }}
             );
-        } else if ("standard_html_strip".equals(analyzer)) {
-            throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
-                "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         }
-
         return analyzerProvider.get(environment, analyzer).get();
     }
 

@@ -159,12 +159,12 @@ public class DataFrameAnalyticsIndexTests extends ESTestCase {
             containsInAnyOrder("index.number_of_shards", "index.number_of_replicas", "index.sort.field", "index.sort.order"));
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_shards", -1), equalTo(5));
         assertThat(createIndexRequest.settings().getAsInt("index.number_of_replicas", -1), equalTo(1));
-        assertThat(createIndexRequest.settings().get("index.sort.field"), equalTo("_id_copy"));
+        assertThat(createIndexRequest.settings().get("index.sort.field"), equalTo("ml__id_copy"));
         assertThat(createIndexRequest.settings().get("index.sort.order"), equalTo("asc"));
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings().get("_doc"))) {
             Map<String, Object> map = parser.map();
-            assertThat(extractValue("_doc.properties._id_copy.type", map), equalTo("keyword"));
+            assertThat(extractValue("_doc.properties.ml__id_copy.type", map), equalTo("keyword"));
             assertThat(extractValue("_doc.properties.field_1", map), equalTo("field_1_mappings"));
             assertThat(extractValue("_doc.properties.field_2", map), equalTo("field_2_mappings"));
             assertThat(extractValue("_doc._meta.analytics", map), equalTo(ANALYTICS_ID));

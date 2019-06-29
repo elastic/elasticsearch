@@ -37,6 +37,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -214,7 +215,7 @@ public final class ConsistentSettingsService {
         final ClusterService clusterService;
 
         HashesPublisher(Map<String, String> computedHashesOfConsistentSettings, ClusterService clusterService) {
-            this.computedHashesOfConsistentSettings = Map.copyOf(computedHashesOfConsistentSettings);
+            this.computedHashesOfConsistentSettings = Collections.unmodifiableMap(computedHashesOfConsistentSettings);
             this.clusterService = clusterService;
         }
 

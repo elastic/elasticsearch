@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class MultiGetAction extends Action<MultiGetResponse> {
+public class MultiGetAction extends StreamableResponseAction<MultiGetResponse> {
 
     public static final MultiGetAction INSTANCE = new MultiGetAction();
     public static final String NAME = "indices:data/read/mget";

@@ -32,11 +32,6 @@ public class ClusterRerouteAction extends Action<ClusterRerouteResponse> {
     }
 
     @Override
-    public ClusterRerouteResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<ClusterRerouteResponse> getResponseReader() {
         return ClusterRerouteResponse::new;
     }

@@ -22,11 +22,6 @@ public final class GetApiKeyAction extends Action<GetApiKeyResponse> {
     }
 
     @Override
-    public GetApiKeyResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<GetApiKeyResponse> getResponseReader() {
         return GetApiKeyResponse::new;
     }

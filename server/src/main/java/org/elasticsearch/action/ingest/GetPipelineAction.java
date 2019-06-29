@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class GetPipelineAction extends Action<GetPipelineResponse> {
+public class GetPipelineAction extends StreamableResponseAction<GetPipelineResponse> {
 
     public static final GetPipelineAction INSTANCE = new GetPipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/get";

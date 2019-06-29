@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class SimulatePipelineAction extends Action<SimulatePipelineResponse> {
+public class SimulatePipelineAction extends StreamableResponseAction<SimulatePipelineResponse> {
 
     public static final SimulatePipelineAction INSTANCE = new SimulatePipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/simulate";

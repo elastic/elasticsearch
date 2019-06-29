@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class IndicesExistsAction extends Action<IndicesExistsResponse> {
+public class IndicesExistsAction extends StreamableResponseAction<IndicesExistsResponse> {
 
     public static final IndicesExistsAction INSTANCE = new IndicesExistsAction();
     public static final String NAME = "indices:admin/exists";

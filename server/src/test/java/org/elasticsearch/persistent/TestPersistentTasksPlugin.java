@@ -406,11 +406,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public TestTasksResponse newResponse() {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public Writeable.Reader<TestTasksResponse> getResponseReader() {
             return TestTasksResponse::new;
         }

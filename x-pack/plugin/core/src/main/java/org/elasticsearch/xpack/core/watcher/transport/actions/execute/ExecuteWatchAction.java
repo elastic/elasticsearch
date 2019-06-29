@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * This action executes a watch, either ignoring the schedule and condition or just the schedule and can execute a subset of the actions,
  * optionally persisting the history entry
  */
-public class ExecuteWatchAction extends Action<ExecuteWatchResponse> {
+public class ExecuteWatchAction extends StreamableResponseAction<ExecuteWatchResponse> {
 
     public static final ExecuteWatchAction INSTANCE = new ExecuteWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/execute";

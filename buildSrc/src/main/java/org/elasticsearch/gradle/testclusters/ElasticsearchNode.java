@@ -864,10 +864,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private String workspaceRelativePath(Path file) {
-        return file.relativize(project.getRootDir().toPath()).toString();
-    }
-
     private Path getExtractedDistributionDir() {
         return artifactsExtractDir.resolve(distribution.getGroup()).resolve("elasticsearch-" + getVersion());
     }
@@ -880,27 +876,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @InputFiles
     private FileCollection getDistributionFiles() {
         return project.fileTree(getExtractedDistributionDir()).minus(project.files(getRuntimeClasspath()));
-    }
-
-    @Input
-    private List<String> getInstalledPlugins() {
-        List<String> installPluginsPaths = new ArrayList<>();
-
-        for (URI plugin : this.plugins) {
-            if (plugin.getScheme().equalsIgnoreCase("file")) {
-                // track only the path relative to the root project directory so that we can have better build cache portability
-                installPluginsPaths.add(workspaceRelativePath(Path.of(plugin)));
-            } else {
-                installPluginsPaths.add(plugin.toString());
-            }
-        }
-
-        return installPluginsPaths;
-    }
-
-    @Input
-    private List<String> getInstalledModules() {
-        return this.modules.stream().map(File::toPath).map(this::workspaceRelativePath).collect(Collectors.toList());
     }
 
     @Nested

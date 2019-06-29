@@ -874,6 +874,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     private FileCollection getDistributionFiles() {
         return project.fileTree(getExtractedDistributionDir()).minus(project.files(getRuntimeClasspath()));
     }

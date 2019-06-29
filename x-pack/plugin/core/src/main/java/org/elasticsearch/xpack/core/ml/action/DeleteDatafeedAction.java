@@ -33,11 +33,6 @@ public class DeleteDatafeedAction extends Action<AcknowledgedResponse> {
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
         return AcknowledgedResponse::new;
     }

@@ -32,11 +32,6 @@ public class MultiSearchTemplateAction extends Action<MultiSearchTemplateRespons
     }
 
     @Override
-    public MultiSearchTemplateResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<MultiSearchTemplateResponse> getResponseReader() {
         return MultiSearchTemplateResponse::new;
     }

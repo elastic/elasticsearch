@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Action for retrieving one or more application privileges from the security index
  */
-public final class GetPrivilegesAction extends Action<GetPrivilegesResponse> {
+public final class GetPrivilegesAction extends StreamableResponseAction<GetPrivilegesResponse> {
 
     public static final GetPrivilegesAction INSTANCE = new GetPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/privilege/get";

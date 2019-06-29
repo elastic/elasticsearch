@@ -26,6 +26,13 @@ POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 
 `POST _ml/set_upgrade_mode`
 
+[[ml-set-upgrade-mode-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-set-upgrade-mode-desc]]
 ==== {api-description-title}
 
@@ -54,19 +61,12 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
 [[ml-set-upgrade-mode-query-parms]]
 ==== {api-query-parms-title}
 
-`enabled`::
+`enabled` (Optional)::
   (boolean) When `true`, this enables `upgrade_mode`. Defaults to `false`
 
-`timeout`::
+`timeout` (Optional)::
   (time) The time to wait for the request to be completed.
   The default value is 30 seconds.
-
-[[ml-set-upgrade-mode-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-set-upgrade-mode-example]]
 ==== {api-examples-title}

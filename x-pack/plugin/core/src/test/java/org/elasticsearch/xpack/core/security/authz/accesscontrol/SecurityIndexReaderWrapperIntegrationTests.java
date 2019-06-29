@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -62,7 +63,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilderTestCase {
+public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderTestCase {
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
@@ -99,7 +100,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         });
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(s -> queryShardContext,
+        SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
                 bitsetFilterCache, threadContext, licenseState, scriptService) {
 
             @Override
@@ -156,8 +157,9 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             doReturn(new TermQueryBuilder("field", values[i])).when(queryShardContext).parseInnerQueryBuilder(any(XContentParser.class));
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
-            DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
-            IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
+            DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
+            IndexSearcher indexSearcher = new ContextIndexSearcher(wrappedDirectoryReader,
+                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
@@ -222,7 +224,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(s -> queryShardContext,
+        SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
                 bitsetFilterCache, threadContext, licenseState, scriptService) {
 
             @Override
@@ -259,8 +261,9 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         iw.close();
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
-        DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
-        IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
+        DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
+        IndexSearcher indexSearcher = new ContextIndexSearcher(wrappedDirectoryReader,
+            IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
 
         ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();

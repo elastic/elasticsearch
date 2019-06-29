@@ -13,10 +13,17 @@ Predicts the future behavior of a time series by using its historical behavior.
 
 `POST _ml/anomaly_detectors/<job_id>/_forecast`
 
+[[ml-forecast-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-forecast-desc]]
 ==== {api-description-title}
 
-See {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the Future].
+See {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
 
 [NOTE]
 ===============================
@@ -29,29 +36,23 @@ forecast. For more information about this property, see <<ml-job-resource>>.
 [[ml-forecast-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id`::
+`<job_id>` (Required)::
   (string) Identifier for the job.
 
 [[ml-forecast-request-body]]
 ==== {api-request-body-title}
 
-`duration`::
+`duration` (Optional)::
   (time units) A period of time that indicates how far into the future to
   forecast. For example, `30d` corresponds to 30 days. The default value is 1
   day. The forecast starts at the last record that was processed. For more
   information about time units, see <<time-units>>.
 
-`expires_in`::
+`expires_in` (Optional)::
   (time units) The period of time that forecast results are retained.
   After a forecast expires, the results are deleted. The default value is 14 days.
   If set to a value of `0`, the forecast is never automatically deleted.
   For more information about time units, see <<time-units>>.
-
-[[ml-forecast-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
 
 [[ml-forecast-example]]
 ==== {api-examples-title}

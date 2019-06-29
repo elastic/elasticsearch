@@ -30,11 +30,6 @@ public class AddVotingConfigExclusionsAction extends Action<AddVotingConfigExclu
     }
 
     @Override
-    public AddVotingConfigExclusionsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Reader<AddVotingConfigExclusionsResponse> getResponseReader() {
         return AddVotingConfigExclusionsResponse::new;
     }

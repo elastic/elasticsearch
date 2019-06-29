@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.cache.clear;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class ClearIndicesCacheAction extends Action<ClearIndicesCacheResponse> {
+public class ClearIndicesCacheAction extends StreamableResponseAction<ClearIndicesCacheResponse> {
 
     public static final ClearIndicesCacheAction INSTANCE = new ClearIndicesCacheAction();
     public static final String NAME = "indices:admin/cache/clear";

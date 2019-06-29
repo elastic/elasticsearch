@@ -498,6 +498,12 @@ public class SearchModule {
                 PercentilesBucketPipelineAggregationBuilder.PARSER)
                     .addResultReader(InternalPercentilesBucket::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
+            PercentileRanksBucketPipelineAggregationBuilder.NAME,
+            PercentileRanksBucketPipelineAggregationBuilder::new,
+            PercentileRanksBucketPipelineAggregator::new,
+            PercentileRanksBucketPipelineAggregationBuilder.PARSER)
+            .addResultReader(InternalPercentileRanksBucket::new));
+        registerPipelineAggregation(new PipelineAggregationSpec(
                 CumulativeSumPipelineAggregationBuilder.NAME,
                 CumulativeSumPipelineAggregationBuilder::new,
                 CumulativeSumPipelineAggregator::new,

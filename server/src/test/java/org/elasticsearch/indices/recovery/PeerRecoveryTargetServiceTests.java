@@ -28,6 +28,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -189,7 +190,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         for (Thread sender : senders) {
             sender.join();
         }
-        recoveryTarget.cleanFiles(0, Long.parseLong(sourceSnapshot.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO)), sourceSnapshot);
+        PlainActionFuture<Void> cleanFilesFuture = new PlainActionFuture<>();
+        recoveryTarget.cleanFiles(0, Long.parseLong(sourceSnapshot.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+            sourceSnapshot, cleanFilesFuture);
+        cleanFilesFuture.actionGet();
         recoveryTarget.decRef();
         Store.MetadataSnapshot targetSnapshot = targetShard.snapshotStoreMetadata();
         Store.RecoveryDiff diff = sourceSnapshot.recoveryDiff(targetSnapshot);

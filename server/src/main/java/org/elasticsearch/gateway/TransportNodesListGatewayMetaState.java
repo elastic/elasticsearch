@@ -67,8 +67,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest();
     }
 
     @Override
@@ -114,14 +114,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     public static class NodeRequest extends BaseNodeRequest {
-
-        public NodeRequest() {
-        }
-
-        NodeRequest(String nodeId) {
-            super(nodeId);
-        }
-
     }
 
     public static class NodeGatewayMetaState extends BaseNodeResponse {

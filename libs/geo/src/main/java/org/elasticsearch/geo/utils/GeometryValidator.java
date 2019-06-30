@@ -17,30 +17,18 @@
  * under the License.
  */
 
-package org.apache.lucene.search;
+package org.elasticsearch.geo.utils;
 
-import org.apache.lucene.index.LeafReaderContext;
-
-import java.io.IOException;
-import java.util.List;
+import org.elasticsearch.geo.geometry.Geometry;
 
 /**
- * A wrapper for {@link IndexSearcher} that makes {@link IndexSearcher#search(List, Weight, Collector)}
- * visible by sub-classes.
+ * Generic geometry validator that can be used by the parser to verify the validity of the parsed geometry
  */
-public class XIndexSearcher extends IndexSearcher {
-    private final IndexSearcher in;
+public interface GeometryValidator {
 
-    public XIndexSearcher(IndexSearcher in) {
-        super(in.getIndexReader());
-        this.in = in;
-        setSimilarity(in.getSimilarity());
-        setQueryCache(in.getQueryCache());
-        setQueryCachingPolicy(in.getQueryCachingPolicy());
-    }
+    /**
+     * Validates the geometry and throws IllegalArgumentException if the geometry is not valid
+     */
+    void validate(Geometry geometry);
 
-    @Override
-    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        in.search(leaves, weight, collector);
-    }
 }

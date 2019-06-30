@@ -54,8 +54,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, NodesHotThreadsRequest request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(NodesHotThreadsRequest request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -85,8 +85,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, NodesHotThreadsRequest request) {
-            super(nodeId);
+        NodeRequest(NodesHotThreadsRequest request) {
             this.request = request;
         }
 

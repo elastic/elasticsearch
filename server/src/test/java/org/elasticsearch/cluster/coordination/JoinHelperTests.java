@@ -58,7 +58,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode, null, Collections.emptySet());
         JoinHelper joinHelper = new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> null,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(), s -> {});
+            Collections.emptyList(), (s, r) -> {});
         transportService.start();
 
         DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -164,7 +164,7 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode, null, Collections.emptySet());
         new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(), s -> {}); // registers request handler
+            Collections.emptyList(), (s, r) -> {}); // registers request handler
         transportService.start();
         transportService.acceptIncomingRequests();
 

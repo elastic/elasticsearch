@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
@@ -23,7 +24,7 @@ import java.util.Objects;
  * Runs deprecation checks on each node. Deprecation checks are performed locally so that filtered settings
  * can be accessed in the deprecation checks.
  */
-public class NodesDeprecationCheckAction extends Action<NodesDeprecationCheckResponse> {
+public class NodesDeprecationCheckAction extends StreamableResponseAction<NodesDeprecationCheckResponse> {
     public static final NodesDeprecationCheckAction INSTANCE = new NodesDeprecationCheckAction();
     public static final String NAME = "cluster:admin/xpack/deprecation/nodes/info";
 
@@ -41,8 +42,7 @@ public class NodesDeprecationCheckAction extends Action<NodesDeprecationCheckRes
         NodesDeprecationCheckRequest request;
 
         public NodeRequest() {}
-        public NodeRequest(String nodeId, NodesDeprecationCheckRequest request) {
-            super(nodeId);
+        public NodeRequest(NodesDeprecationCheckRequest request) {
             this.request = request;
         }
 

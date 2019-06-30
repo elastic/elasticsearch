@@ -32,11 +32,6 @@ public class TermVectorsAction extends Action<TermVectorsResponse> {
     }
 
     @Override
-    public TermVectorsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<TermVectorsResponse> getResponseReader() {
         return TermVectorsResponse::new;
     }

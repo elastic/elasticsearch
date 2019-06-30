@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
-public class AuthenticateAction extends Action<AuthenticateResponse> {
+public class AuthenticateAction extends StreamableResponseAction<AuthenticateResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/user/authenticate";
     public static final AuthenticateAction INSTANCE = new AuthenticateAction();

@@ -76,11 +76,6 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
     }
 
     @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Writeable.Reader<Response> getResponseReader() {
         return Response::new;
     }

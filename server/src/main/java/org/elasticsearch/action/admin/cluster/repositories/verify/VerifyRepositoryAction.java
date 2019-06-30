@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.verify;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Unregister repository action
  */
-public class VerifyRepositoryAction extends Action<VerifyRepositoryResponse> {
+public class VerifyRepositoryAction extends StreamableResponseAction<VerifyRepositoryResponse> {
 
     public static final VerifyRepositoryAction INSTANCE = new VerifyRepositoryAction();
     public static final String NAME = "cluster:admin/repository/verify";

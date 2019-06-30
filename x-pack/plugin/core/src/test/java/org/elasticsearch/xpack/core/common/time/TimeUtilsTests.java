@@ -3,18 +3,61 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.utils.time;
+package org.elasticsearch.xpack.core.common.time;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TimeUtilsTests extends ESTestCase {
 
-    public void testdateStringToEpoch() {
+    public void testParseTimeField() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "123456789")) {
+            parser.nextToken();
+            Date date = TimeUtils.parseTimeField(parser, "my_time_field");
+            assertThat(date.getTime(), equalTo(123456789L));
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "\"2016-05-01T10:00:00.333-0030\"")) {
+            parser.nextToken();
+            Date date = TimeUtils.parseTimeField(parser, "my_time_field");
+            assertThat(date.getTime(), equalTo(1462098600333L));
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}")) {
+            parser.nextToken();
+            Exception e = expectThrows(IllegalArgumentException.class, () -> TimeUtils.parseTimeField(parser, "my_time_field"));
+            assertThat(e.getMessage(), containsString("unexpected token [START_OBJECT] for [my_time_field]"));
+        }
+    }
+
+    public void testParseTimeFieldToInstant() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "123456789")) {
+            parser.nextToken();
+            Instant instant = TimeUtils.parseTimeFieldToInstant(parser, "my_time_field");
+            assertThat(instant.toEpochMilli(), equalTo(123456789L));
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "\"2016-05-01T10:00:00.333-0030\"")) {
+            parser.nextToken();
+            Instant instant = TimeUtils.parseTimeFieldToInstant(parser, "my_time_field");
+            assertThat(instant.toEpochMilli(), equalTo(1462098600333L));
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}")) {
+            parser.nextToken();
+            Exception e = expectThrows(IllegalArgumentException.class, () -> TimeUtils.parseTimeFieldToInstant(parser, "my_time_field"));
+            assertThat(e.getMessage(), containsString("unexpected token [START_OBJECT] for [my_time_field]"));
+        }
+    }
+
+    public void testDateStringToEpoch() {
         assertEquals(1462096800000L, TimeUtils.dateStringToEpoch("2016-05-01T10:00:00Z"));
         assertEquals(1462096800333L, TimeUtils.dateStringToEpoch("2016-05-01T10:00:00.333Z"));
         assertEquals(1462096800334L, TimeUtils.dateStringToEpoch("2016-05-01T10:00:00.334+00"));

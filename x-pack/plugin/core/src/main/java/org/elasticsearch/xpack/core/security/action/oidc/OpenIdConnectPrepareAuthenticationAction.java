@@ -18,11 +18,6 @@ public class OpenIdConnectPrepareAuthenticationAction extends Action<OpenIdConne
     }
 
     @Override
-    public OpenIdConnectPrepareAuthenticationResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<OpenIdConnectPrepareAuthenticationResponse> getResponseReader() {
         return OpenIdConnectPrepareAuthenticationResponse::new;
     }

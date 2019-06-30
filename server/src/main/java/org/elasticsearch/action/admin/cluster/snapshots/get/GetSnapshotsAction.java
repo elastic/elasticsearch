@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseAction;
 
 /**
  * Get snapshots action
  */
-public class GetSnapshotsAction extends Action<GetSnapshotsResponse> {
+public class GetSnapshotsAction extends StreamableResponseAction<GetSnapshotsResponse> {
 
     public static final GetSnapshotsAction INSTANCE = new GetSnapshotsAction();
     public static final String NAME = "cluster:admin/snapshot/get";

@@ -52,8 +52,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     }
 
     @Override
-    protected NodesDeprecationCheckAction.NodeRequest newNodeRequest(String nodeId, NodesDeprecationCheckRequest request) {
-        return new NodesDeprecationCheckAction.NodeRequest(nodeId, request);
+    protected NodesDeprecationCheckAction.NodeRequest newNodeRequest(NodesDeprecationCheckRequest request) {
+        return new NodesDeprecationCheckAction.NodeRequest(request);
     }
 
     @Override

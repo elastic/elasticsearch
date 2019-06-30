@@ -83,7 +83,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -152,13 +151,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
      * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
      * @param reroute A callback to call when the membership of the cluster has changed, to recalculate the assignment of shards. In
-     *                production code this calls {@link org.elasticsearch.cluster.routing.RoutingService#reroute(String)}.
+     *                production code this calls
+     *                {@link org.elasticsearch.cluster.routing.RoutingService#reroute(String, ActionListener)}.
      */
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       Consumer<String> reroute, ElectionStrategy electionStrategy) {
+                       BiConsumer<String, ActionListener<Void>> reroute, ElectionStrategy electionStrategy) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;

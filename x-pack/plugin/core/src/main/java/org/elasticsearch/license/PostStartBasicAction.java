@@ -18,11 +18,6 @@ public class PostStartBasicAction extends Action<PostStartBasicResponse> {
     }
 
     @Override
-    public PostStartBasicResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<PostStartBasicResponse> getResponseReader() {
         return PostStartBasicResponse::new;
     }

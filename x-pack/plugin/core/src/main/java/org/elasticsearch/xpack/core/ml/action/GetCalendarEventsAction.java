@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Response> {
+public class GetCalendarEventsAction extends StreamableResponseAction<GetCalendarEventsAction.Response> {
     public static final GetCalendarEventsAction INSTANCE = new GetCalendarEventsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/events/get";
 

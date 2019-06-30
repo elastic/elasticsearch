@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -169,17 +170,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
-        protected String nodeId;
         protected boolean shouldBlock;
 
         public NodeRequest() {
             super();
         }
 
-        public NodeRequest(NodesRequest request, String nodeId, boolean shouldBlock) {
-            super(nodeId);
+        public NodeRequest(NodesRequest request, boolean shouldBlock) {
             requestName = request.requestName;
-            this.nodeId = nodeId;
             this.shouldBlock = shouldBlock;
         }
 
@@ -187,7 +185,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            nodeId = in.readString();
             shouldBlock = in.readBoolean();
         }
 
@@ -195,13 +192,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeString(nodeId);
             out.writeBoolean(shouldBlock);
         }
 
         @Override
         public String getDescription() {
-            return "NodeRequest[" + requestName + ", " + nodeId + "]";
+            return "NodeRequest[" + requestName + "]";
         }
 
         @Override
@@ -301,8 +297,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId, request.getShouldBlock());
+        protected NodeRequest newNodeRequest(NodesRequest request) {
+            return new NodeRequest(request, request.getShouldBlock());
         }
 
         @Override
@@ -341,7 +337,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     }
 
-    public static class TestTaskAction extends Action<NodesResponse> {
+    public static class TestTaskAction extends StreamableResponseAction<NodesResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/tasks/test";
@@ -473,11 +469,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         private UnblockTestTasksAction() {
             super(NAME);
-        }
-
-        @Override
-        public UnblockTestTasksResponse newResponse() {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

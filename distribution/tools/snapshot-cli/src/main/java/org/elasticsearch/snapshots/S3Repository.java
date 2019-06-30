@@ -144,11 +144,12 @@ public class S3Repository extends AbstractRepository {
          * However, on Minio the code above returns some weird dates far in the past.
          * So we use listing instead.
          */
-        ObjectListing listing = client.listObjects(bucket, fullPath("indices/" + indexDirectoryName + "/"));
+        final ListObjectsRequest listRequest = new ListObjectsRequest();
+        listRequest.setBucketName(bucket);
+        listRequest.setPrefix(fullPath("indices/" + indexDirectoryName + "/"));
+        listRequest.setMaxKeys(1);
+        ObjectListing listing = client.listObjects(listRequest);
         List<S3ObjectSummary> summaries = listing.getObjectSummaries();
-        while (summaries.isEmpty() && listing.isTruncated()) {
-            summaries = listing.getObjectSummaries();
-        }
         if (summaries.isEmpty()) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index "
                     + indexDirectoryName + " directory. " + "Skipping");

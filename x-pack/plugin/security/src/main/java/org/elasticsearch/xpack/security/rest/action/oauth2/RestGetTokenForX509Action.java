@@ -20,7 +20,7 @@ public class RestGetTokenForX509Action extends TokenBaseRestHandler {
 
     public RestGetTokenForX509Action(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
-        controller.registerHandler(POST, "/_security/delegate_pki/token", this);
+        controller.registerHandler(POST, "/_security/delegate_pki", this);
     }
 
     @Override

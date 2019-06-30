@@ -11,9 +11,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
@@ -35,22 +37,32 @@ public class DelegatePkiRequest extends ActionRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        ObjectInputStream ois = new ObjectInputStream(in);
+    public void readFrom(StreamInput input) throws IOException {
+        super.readFrom(input);
         try {
-            this.certificates = (X509Certificate[]) ois.readObject();
-        } catch (ClassNotFoundException e) {
+            final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+            input.readArray(in -> {
+                try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
+                    return (X509Certificate) certificateFactory.generateCertificate(bis);
+                } catch (CertificateException e) {
+                    throw new IOException(e);
+                }
+            }, X509Certificate[]::new);
+        } catch (CertificateException e) {
             throw new IOException(e);
         }
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        ObjectOutputStream oos = new ObjectOutputStream(out);
-        oos.writeObject(certificates);
-        oos.flush();
+    public void writeTo(StreamOutput output) throws IOException {
+        super.writeTo(output);
+        output.writeArray((out, cert) -> {
+            try {
+                out.writeByteArray(cert.getEncoded());
+            } catch (CertificateEncodingException e) {
+                throw new IOException(e);
+            }
+        }, certificates);
     }
 
     @Override

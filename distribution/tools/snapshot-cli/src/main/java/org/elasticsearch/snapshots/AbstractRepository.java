@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public abstract class AbstractRepository implements Repository {
@@ -129,6 +130,13 @@ public abstract class AbstractRepository implements Repository {
             terminal.println(Terminal.Verbosity.NORMAL, "In total space freed " + totalSpaceFreed + " bytes");
             terminal.println(Terminal.Verbosity.NORMAL, "Finished removing orphaned indices");
         } finally {
+            try {
+                if (executor.awaitTermination(0L, TimeUnit.MILLISECONDS) == false) {
+                    terminal.println(Terminal.Verbosity.NORMAL, "Unexpectedly there are still tasks running on the executor");
+                }
+            } catch (InterruptedException e) {
+                throw new ElasticsearchException(e);
+            }
             executor.shutdown();
         }
     }

@@ -10,28 +10,30 @@
 
 Returns defaults and limits used by machine learning.
 
-==== Request
+[[get-ml-info-request]]
+==== {api-request-title}
 
 `GET _ml/info`
 
-==== Description
+[[get-ml-info-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[get-ml-info-desc]]
+==== {api-description-title}
 
 This endpoint is designed to be used by a user interface that needs to fully
 understand machine learning configurations where some options are not specified,
 meaning that the defaults should be used.  This endpoint may be used to find out
 what those defaults are.
 
-
-==== Authorization
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API.  The `machine_learning_admin` and `machine_learning_user`
-roles provide these privileges. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges] and
-{stack-ov}/built-in-roles.html[Built-in Roles].
-
-
-==== Examples
+[[get-ml-info-example]]
+==== {api-examples-title}
 
 The endpoint takes no arguments:
 

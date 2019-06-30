@@ -19,11 +19,14 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.client.dataframe.transforms.util.TimeUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,10 +34,8 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
-import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject {
 
@@ -52,6 +53,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private static final ParseField ANALYSIS = new ParseField("analysis");
     private static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
     private static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
+    private static final ParseField CREATE_TIME = new ParseField("create_time");
+    private static final ParseField VERSION = new ParseField("version");
 
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_config", true, Builder::new);
 
@@ -63,9 +66,24 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         PARSER.declareField(Builder::setAnalyzedFields,
             (p, c) -> FetchSourceContext.fromXContent(p),
             ANALYZED_FIELDS,
-            OBJECT_ARRAY_BOOLEAN_OR_STRING);
+            ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareField(Builder::setModelMemoryLimit,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()), MODEL_MEMORY_LIMIT, VALUE);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()),
+            MODEL_MEMORY_LIMIT,
+            ValueType.VALUE);
+        PARSER.declareField(Builder::setCreateTime,
+            p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
+            CREATE_TIME,
+            ValueType.VALUE);
+        PARSER.declareField(Builder::setVersion,
+            p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return Version.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            },
+            VERSION,
+            ValueType.STRING);
     }
 
     private static DataFrameAnalysis parseAnalysis(XContentParser parser) throws IOException {
@@ -82,15 +100,20 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final DataFrameAnalysis analysis;
     private final FetchSourceContext analyzedFields;
     private final ByteSizeValue modelMemoryLimit;
+    private final Instant createTime;
+    private final Version version;
 
     private DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest, DataFrameAnalysis analysis,
-                                     @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit) {
+                                     @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit,
+                                     @Nullable Instant createTime, @Nullable Version version) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.dest = Objects.requireNonNull(dest);
         this.analysis = Objects.requireNonNull(analysis);
         this.analyzedFields = analyzedFields;
         this.modelMemoryLimit = modelMemoryLimit;
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());;
+        this.version = version;
     }
 
     public String getId() {
@@ -117,6 +140,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return modelMemoryLimit;
     }
 
+    public Instant getCreateTime() {
+        return createTime;
+    }
+
+    public Version getVersion() {
+        return version;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -131,6 +162,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         }
         if (modelMemoryLimit != null) {
             builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit.getStringRep());
+        }
+        if (createTime != null) {
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+        }
+        if (version != null) {
+            builder.field(VERSION.getPreferredName(), version);
         }
         builder.endObject();
         return builder;
@@ -147,12 +184,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             && Objects.equals(dest, other.dest)
             && Objects.equals(analysis, other.analysis)
             && Objects.equals(analyzedFields, other.analyzedFields)
-            && Objects.equals(modelMemoryLimit, other.modelMemoryLimit);
+            && Objects.equals(modelMemoryLimit, other.modelMemoryLimit)
+            && Objects.equals(createTime, other.createTime)
+            && Objects.equals(version, other.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analysis, analyzedFields, getModelMemoryLimit());
+        return Objects.hash(id, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version);
     }
 
     @Override
@@ -168,6 +207,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         private DataFrameAnalysis analysis;
         private FetchSourceContext analyzedFields;
         private ByteSizeValue modelMemoryLimit;
+        private Instant createTime;
+        private Version version;
 
         private Builder() {}
 
@@ -201,8 +242,18 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setCreateTime(Instant createTime) {
+            this.createTime = createTime;
+            return this;
+        }
+
+        public Builder setVersion(Version version) {
+            this.version = version;
+            return this;
+        }
+
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analysis, analyzedFields, modelMemoryLimit);
+            return new DataFrameAnalyticsConfig(id, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version);
         }
     }
 }

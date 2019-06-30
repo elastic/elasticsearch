@@ -172,7 +172,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         request.add(new TermVectorsRequest("index2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,
+        transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, client,
             new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiTermVectorsResponse> listener,
@@ -197,7 +197,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         request.add(new TermVectorsRequest("index2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,
+        transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, client,
             new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiTermVectorsResponse> listener,

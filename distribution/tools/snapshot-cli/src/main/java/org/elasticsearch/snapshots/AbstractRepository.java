@@ -108,7 +108,8 @@ public abstract class AbstractRepository implements Repository {
                 return;
             }
 
-            confirm(terminal, "Do you want to remove orphaned indices files? This action is NOT REVERSIBLE");
+            confirm(terminal, orphanedIndexIds.size() + " indices have been found. Do you want to remove orphaned indices files? " +
+                    "This action is NOT REVERSIBLE");
 
             terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned indices");
             PlainActionFuture<Collection<Tuple<Integer, Long>>> removalFuture = new PlainActionFuture<>();

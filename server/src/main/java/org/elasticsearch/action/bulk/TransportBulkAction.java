@@ -82,6 +82,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -649,14 +650,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
         final List<BulkItemResponse> itemResponses;
+        final AtomicIntegerArray originalSlots;
 
         volatile int currentSlot = -1;
-        volatile int[] originalSlots;
 
         BulkRequestModifier(BulkRequest bulkRequest) {
             this.bulkRequest = bulkRequest;
             this.failedSlots = new SparseFixedBitSet(bulkRequest.requests().size());
             this.itemResponses = new ArrayList<>(bulkRequest.requests().size());
+            this.originalSlots = new AtomicIntegerArray(bulkRequest.requests().size()); // oversize, but that's ok
         }
 
         @Override
@@ -680,12 +682,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 int slot = 0;
                 List<DocWriteRequest<?>> requests = bulkRequest.requests();
-                originalSlots = new int[requests.size()]; // oversize, but that's ok
                 for (int i = 0; i < requests.size(); i++) {
                     DocWriteRequest<?> request = requests.get(i);
                     if (failedSlots.get(i) == false) {
                         modifiedBulkRequest.add(request);
-                        originalSlots[slot++] = i;
+                        originalSlots.set(slot++, i);
                     }
                 }
                 return modifiedBulkRequest;
@@ -700,7 +701,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -> {
                     BulkItemResponse[] items = response.getItems();
                     for (int i = 0; i < items.length; i++) {
-                        itemResponses.add(originalSlots[i], response.getItems()[i]);
+                        itemResponses.add(originalSlots.get(i), response.getItems()[i]);
                     }
                     delegatedListener.onResponse(
                         new BulkResponse(

@@ -30,6 +30,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.hash.MessageDigests;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
@@ -84,6 +85,17 @@ public class KeyStoreWrapper implements SecureSettings {
     private enum EntryType {
         STRING,
         FILE
+    }
+
+    /** An entry in the keystore. The bytes are opaque and interpreted based on the entry type. */
+    private static class Entry {
+        final byte[] bytes;
+        final byte[] sha256Digest;
+
+        Entry(byte[] bytes) {
+            this.bytes = bytes;
+            this.sha256Digest = MessageDigests.sha256().digest(bytes);
+        }
     }
 
     /**
@@ -149,7 +161,7 @@ public class KeyStoreWrapper implements SecureSettings {
     private final byte[] dataBytes;
 
     /** The decrypted secret data. See {@link #decrypt(char[])}. */
-    private final SetOnce<Map<String, byte[]>> entries = new SetOnce<>();
+    private final SetOnce<Map<String, Entry>> entries = new SetOnce<>();
     private volatile boolean closed;
 
     private KeyStoreWrapper(int formatVersion, boolean hasPassword, byte[] dataBytes) {
@@ -351,7 +363,7 @@ public class KeyStoreWrapper implements SecureSettings {
                 int entrySize = input.readInt();
                 byte[] entryBytes = new byte[entrySize];
                 input.readFully(entryBytes);
-                entries.get().put(setting, entryBytes);
+                entries.get().put(setting, new Entry(entryBytes));
             }
             if (input.read() != -1) {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
@@ -373,11 +385,11 @@ public class KeyStoreWrapper implements SecureSettings {
         try (CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
              DataOutputStream output = new DataOutputStream(cipherStream)) {
             output.writeInt(entries.get().size());
-            for (Map.Entry<String, byte[]> mapEntry : entries.get().entrySet()) {
+            for (Map.Entry<String, Entry> mapEntry : entries.get().entrySet()) {
                 output.writeUTF(mapEntry.getKey());
-                byte[] entry = mapEntry.getValue();
-                output.writeInt(entry.length);
-                output.write(entry);
+                byte[] entryBytes = mapEntry.getValue().bytes;
+                output.writeInt(entryBytes.length);
+                output.write(entryBytes);
             }
         }
         return bytes.toByteArray();
@@ -452,7 +464,7 @@ public class KeyStoreWrapper implements SecureSettings {
             }
             Arrays.fill(chars, '\0');
 
-            entries.get().put(setting, bytes);
+            entries.get().put(setting, new Entry(bytes));
         }
     }
 
@@ -525,8 +537,8 @@ public class KeyStoreWrapper implements SecureSettings {
     @Override
     public synchronized SecureString getString(String setting) {
         ensureOpen();
-        byte[] entry = entries.get().get(setting);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(entry);
+        Entry entry = entries.get().get(setting);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(entry.bytes);
         CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
         return new SecureString(Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit()));
     }
@@ -534,8 +546,19 @@ public class KeyStoreWrapper implements SecureSettings {
     @Override
     public synchronized InputStream getFile(String setting) {
         ensureOpen();
-        byte[] entry = entries.get().get(setting);
-        return new ByteArrayInputStream(entry);
+        Entry entry = entries.get().get(setting);
+        return new ByteArrayInputStream(entry.bytes);
+    }
+
+    /**
+     * Returns the SHA256 digest for the setting's value, even after {@code #close()} has been called. The setting must exist. The digest is
+     * used to check for value changes without actually storing the value.
+     */
+    @Override
+    public byte[] getSHA256Digest(String setting) {
+        assert entries.get() != null : "Keystore is not loaded";
+        Entry entry = entries.get().get(setting);
+        return entry.sha256Digest;
     }
 
     /**
@@ -559,9 +582,9 @@ public class KeyStoreWrapper implements SecureSettings {
 
         ByteBuffer byteBuffer = StandardCharsets.UTF_8.encode(CharBuffer.wrap(value));
         byte[] bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
-        byte[] oldEntry = entries.get().put(setting, bytes);
+        Entry oldEntry = entries.get().put(setting, new Entry(bytes));
         if (oldEntry != null) {
-            Arrays.fill(oldEntry, (byte)0);
+            Arrays.fill(oldEntry.bytes, (byte)0);
         }
     }
 
@@ -572,9 +595,9 @@ public class KeyStoreWrapper implements SecureSettings {
         ensureOpen();
         validateSettingName(setting);
 
-        byte[] oldEntry = entries.get().put(setting, Arrays.copyOf(bytes, bytes.length));
+        Entry oldEntry = entries.get().put(setting, new Entry(Arrays.copyOf(bytes, bytes.length)));
         if (oldEntry != null) {
-            Arrays.fill(oldEntry, (byte)0);
+            Arrays.fill(oldEntry.bytes, (byte)0);
         }
     }
 
@@ -583,9 +606,9 @@ public class KeyStoreWrapper implements SecureSettings {
      */
     void remove(String setting) {
         ensureOpen();
-        byte[] oldEntry = entries.get().remove(setting);
+        Entry oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {
-            Arrays.fill(oldEntry, (byte)0);
+            Arrays.fill(oldEntry.bytes, (byte)0);
         }
     }
 
@@ -600,8 +623,8 @@ public class KeyStoreWrapper implements SecureSettings {
     public synchronized void close() {
         this.closed = true;
         if (null != entries.get() && entries.get().isEmpty() == false) {
-            for (byte[] entry : entries.get().values()) {
-                Arrays.fill(entry, (byte) 0);
+            for (Entry entry : entries.get().values()) {
+                Arrays.fill(entry.bytes, (byte) 0);
             }
         }
     }

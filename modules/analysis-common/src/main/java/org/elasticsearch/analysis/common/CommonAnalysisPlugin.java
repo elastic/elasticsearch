@@ -322,9 +322,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
-        // TODO remove in 8.0
-        analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.ELASTICSEARCH,
-            () -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH,
             () -> new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true,
             CharArraySet.EMPTY_SET)));
@@ -395,10 +392,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 input -> new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("delimited_payload_filter", false, input ->
-                new DelimitedPayloadTokenFilter(input,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
         filters.add(PreConfiguredTokenFilter.singleton("delimited_payload", false, input ->
                 new DelimitedPayloadTokenFilter(input,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,

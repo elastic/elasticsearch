@@ -28,6 +28,10 @@ public class DelegatePkiResponse extends ActionResponse implements ToXContentObj
         this.expiresIn = Objects.requireNonNull(expiresIn);
     }
 
+    public DelegatePkiResponse(StreamInput input) throws IOException {
+        this.readFrom(input);
+    }
+
     public String getTokenString() {
         return tokenString;
     }

@@ -17,7 +17,7 @@ public class AuthenticationDelegateeInfo implements ToXContentObject {
 
     final Authentication delegateeClientAuthentication;
 
-    AuthenticationDelegateeInfo(Authentication delegateeClientAuthentication) {
+    public AuthenticationDelegateeInfo(Authentication delegateeClientAuthentication) {
         this.delegateeClientAuthentication = delegateeClientAuthentication;
     }
 

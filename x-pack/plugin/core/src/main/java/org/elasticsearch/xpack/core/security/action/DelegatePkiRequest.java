@@ -18,19 +18,11 @@ import java.security.cert.X509Certificate;
 import java.util.Arrays;
 
 public class DelegatePkiRequest extends ActionRequest {
-    
+
     private X509Certificate[] certificates;
 
-    public DelegatePkiRequest() { }
-
     public DelegatePkiRequest(StreamInput in) throws IOException {
-        super(in);
-        ObjectInputStream ois = new ObjectInputStream(in);
-        try {
-            this.certificates = (X509Certificate[]) ois.readObject();
-        } catch (ClassNotFoundException e) {
-            throw new IOException(e);
-        }
+        this.readFrom(in);
     }
 
     @Override
@@ -44,7 +36,13 @@ public class DelegatePkiRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        super.readFrom(in);
+        ObjectInputStream ois = new ObjectInputStream(in);
+        try {
+            this.certificates = (X509Certificate[]) ois.readObject();
+        } catch (ClassNotFoundException e) {
+            throw new IOException(e);
+        }
     }
 
     @Override

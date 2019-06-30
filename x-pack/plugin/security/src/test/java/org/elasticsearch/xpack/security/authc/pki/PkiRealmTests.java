@@ -79,7 +79,7 @@ public class PkiRealmTests extends ESTestCase {
 
         assertThat(realm.supports(null), is(false));
         assertThat(realm.supports(new UsernamePasswordToken("", new SecureString(new char[0]))), is(false));
-        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], "", "")), is(true));
+        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0])), is(true));
     }
 
     public void testExtractToken() throws Exception {
@@ -90,9 +90,11 @@ public class PkiRealmTests extends ESTestCase {
                 TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class));
 
         X509AuthenticationToken token = realm.token(threadContext);
+        final String expectedUsername = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN),
+                token, NoOpLogger.INSTANCE);
         assertThat(token, is(notNullValue()));
         assertThat(token.dn(), is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
-        assertThat(token.principal(), is("Elasticsearch Test Node"));
+        assertThat(expectedUsername, is("Elasticsearch Test Node"));
     }
 
     public void testAuthenticateBasedOnCertToken() throws Exception {
@@ -112,7 +114,8 @@ public class PkiRealmTests extends ESTestCase {
         PkiRealm realm = buildRealm(roleMapper, globalSettings);
         verify(roleMapper).refreshRealmOnChange(realm);
 
-        final String expectedUsername = token.principal();
+        final String expectedUsername = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN),
+                token, NoOpLogger.INSTANCE);
         final AuthenticationResult result = authenticate(token, realm);
         final PlainActionFuture<AuthenticationResult> future;
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
@@ -172,7 +175,7 @@ public class PkiRealmTests extends ESTestCase {
 
     private X509AuthenticationToken buildToken() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        return new X509AuthenticationToken(new X509Certificate[]{certificate}, "Elasticsearch Test Node", "CN=Elasticsearch Test Node,");
+        return new X509AuthenticationToken(new X509Certificate[]{certificate});
     }
 
     private AuthenticationResult authenticate(X509AuthenticationToken token, PkiRealm realm) {
@@ -306,10 +309,11 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("CN=PKI Client");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate},
-                Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate});
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
         assertThat(token, notNullValue());
-        assertThat(token.principal(), is("PKI Client"));
+        assertThat(parsedPrincipal, is("PKI Client"));
         assertThat(token.dn(), is("CN=PKI Client"));
     }
 
@@ -318,10 +322,11 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("CN=PKI Client, OU=Security");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate},
-                Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate});
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
         assertThat(token, notNullValue());
-        assertThat(token.principal(), is("PKI Client"));
+        assertThat(parsedPrincipal, is("PKI Client"));
         assertThat(token.dn(), is("CN=PKI Client, OU=Security"));
     }
 
@@ -330,10 +335,11 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Security");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate},
-                Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), NoOpLogger.INSTANCE);
+        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate});
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
         assertThat(token, notNullValue());
-        assertThat(token.principal(), is("PKI Client"));
+        assertThat(parsedPrincipal, is("PKI Client"));
         assertThat(token.dn(), is("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Security"));
     }
 
@@ -355,10 +361,12 @@ public class PkiRealmTests extends ESTestCase {
 
     public void testDelegatedAuthorization() throws Exception {
         final X509AuthenticationToken token = buildToken();
+        String parsedPrincipal = PkiRealm.getPrincipalFromSubjectDN(Pattern.compile(PkiRealmSettings.DEFAULT_USERNAME_PATTERN), token,
+                NoOpLogger.INSTANCE);
 
         final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
             globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
-        final User lookupUser = new User(token.principal());
+        final User lookupUser = new User(parsedPrincipal);
         otherRealm.registerUser(lookupUser);
 
         final Settings realmSettings = Settings.builder()
@@ -373,7 +381,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getUser(), sameInstance(lookupUser));
 
         // check that the authorizing realm is consulted even for cached principals
-        final User lookupUser2 = new User(token.principal());
+        final User lookupUser2 = new User(parsedPrincipal);
         otherRealm.registerUser(lookupUser2);
 
         result = authenticate(token, pkiRealm);

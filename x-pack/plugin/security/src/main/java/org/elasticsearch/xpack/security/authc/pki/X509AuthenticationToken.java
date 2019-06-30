@@ -11,25 +11,23 @@ import java.security.cert.X509Certificate;
 
 public class X509AuthenticationToken implements AuthenticationToken {
 
-    private final String principal;
-    private X509Certificate[] credentials;
     private final String dn;
-    private final AuthenticationDelegateeInfo delegateeInfo;
+    private final X509Certificate[] credentials;
+    private AuthenticationDelegateeInfo delegateeInfo;
 
-    public X509AuthenticationToken(X509Certificate[] certificates, String principal, String dn) {
-        this(certificates, principal, dn, null);
+    public X509AuthenticationToken(X509Certificate[] certificates) {
+        this(certificates, null);
     }
 
-    public X509AuthenticationToken(X509Certificate[] certificates, String principal, String dn, AuthenticationDelegateeInfo delegateeInfo) {
-        this.principal = principal;
+    public X509AuthenticationToken(X509Certificate[] certificates, AuthenticationDelegateeInfo delegateeInfo) {
+        this.dn = certificates == null || certificates.length == 0 ? null : certificates[0].getSubjectX500Principal().toString();
         this.credentials = certificates;
-        this.dn = dn;
         this.delegateeInfo = delegateeInfo;
     }
 
     @Override
     public String principal() {
-        return principal;
+        return "X500SubjectDN(" + dn() + ")";
     }
 
     @Override
@@ -51,6 +49,6 @@ public class X509AuthenticationToken implements AuthenticationToken {
 
     @Override
     public void clearCredentials() {
-        credentials = null;
+        // noop
     }
 }

@@ -120,7 +120,10 @@ public abstract class AbstractRepository implements Repository {
                     @Override
                     protected void doRun() {
                         terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned index " + indexId);
-                        groupedRemovalListener.onResponse(deleteIndex(indexId));
+                        Tuple<Integer, Long> countSize = deleteIndex(indexId);
+                        terminal.println("Index directory " + indexId + ", files removed " + countSize.v1() +
+                                ", bytes freed " + countSize.v2());
+                        groupedRemovalListener.onResponse(countSize);
                     }
                 });
             }

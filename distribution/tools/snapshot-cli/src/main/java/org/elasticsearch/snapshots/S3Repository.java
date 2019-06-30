@@ -182,8 +182,6 @@ public class S3Repository extends AbstractRepository {
             if (listing.isTruncated()) {
                 listing = client.listNextBatchOfObjects(listing);
             } else {
-                terminal.println(Terminal.Verbosity.VERBOSE,
-                        "Space freed by deleting files starting with " + prefix + " is " + filesSize + " bytes");
                 return Tuple.tuple(removedFilesCount, filesSize);
             }
         }

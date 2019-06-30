@@ -1,6 +1,7 @@
 package org.elasticsearch.snapshots;
 
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -53,6 +54,7 @@ public class S3Repository extends AbstractRepository {
         } else {
             builder.withRegion(region);
         }
+        builder.setClientConfiguration(new ClientConfiguration().withUserAgentPrefix("s3_cleanup_tool"));
 
         return builder.build();
     }

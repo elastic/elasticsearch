@@ -22,7 +22,7 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
@@ -1005,7 +1005,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             shardStateAction,
                             actionFilters,
                             indexNameExpressionResolver));
-            Map<Action, TransportAction> actions = new HashMap<>();
+            Map<ActionType, TransportAction> actions = new HashMap<>();
             final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                 indicesService,
                 allocationService, new AliasValidator(), environment, indexScopedSettings,
@@ -1018,18 +1018,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 ));
             final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
             mappingUpdatedAction.setClient(client);
-            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
-                clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, indexNameExpressionResolver);
             actions.put(BulkAction.INSTANCE,
                 new TransportBulkAction(threadPool, transportService, clusterService,
                     new IngestService(
                         clusterService, threadPool, environment, scriptService,
                         new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                         Collections.emptyList()),
-                    transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
+                    client, actionFilters, indexNameExpressionResolver,
                     new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver)
                 ));
+            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
+                actionFilters, indexNameExpressionResolver);
+            actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
             final RestoreService restoreService = new RestoreService(
                 clusterService, repositoriesService, allocationService,
                 metaDataCreateIndexService,

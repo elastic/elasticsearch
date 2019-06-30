@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * This async IO processor allows to batch IO operations and have a single writer processing the write operations.
@@ -39,11 +40,13 @@ import java.util.function.Consumer;
 public abstract class AsyncIOProcessor<Item> {
     private final Logger logger;
     private final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
+    private final ThreadContext threadContext;
     private final Semaphore promiseSemaphore = new Semaphore(1);
 
-    protected AsyncIOProcessor(Logger logger, int queueSize) {
+    protected AsyncIOProcessor(Logger logger, int queueSize, ThreadContext threadContext) {
         this.logger = logger;
         this.queue = new ArrayBlockingQueue<>(queueSize);
+        this.threadContext = threadContext;
     }
 
     /**
@@ -58,11 +61,10 @@ public abstract class AsyncIOProcessor<Item> {
 
         // we first try make a promise that we are responsible for the processing
         final boolean promised = promiseSemaphore.tryAcquire();
-        final Tuple<Item, Consumer<Exception>> itemTuple = new Tuple<>(item, listener);
         if (promised == false) {
             // in this case we are not responsible and can just block until there is space
             try {
-                queue.put(new Tuple<>(item, listener));
+                queue.put(new Tuple<>(item, preserveContext(listener)));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 listener.accept(e);
@@ -75,7 +77,8 @@ public abstract class AsyncIOProcessor<Item> {
             final List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
             if (promised) {
                 // we are responsible for processing we don't need to add the tuple to the queue we can just add it to the candidates
-                candidates.add(itemTuple);
+                // no need to preserve context for listener since it runs in current thread.
+                candidates.add(new Tuple<>(item, listener));
             }
             // since we made the promise to process we gotta do it here at least once
             drainAndProcessAndRelease(candidates);
@@ -121,6 +124,15 @@ public abstract class AsyncIOProcessor<Item> {
                 logger.warn("failed to notify callback", ex);
             }
         }
+    }
+
+    private Consumer<Exception> preserveContext(Consumer<Exception> consumer) {
+        Supplier<ThreadContext.StoredContext> restorableContext = threadContext.newRestorableContext(false);
+        return e -> {
+            try (ThreadContext.StoredContext ignore = restorableContext.get()) {
+                consumer.accept(e);
+            }
+        };
     }
 
     /**

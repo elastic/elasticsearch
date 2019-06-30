@@ -258,7 +258,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeRequest newNodeRequest(String nodeId, TestNodesRequest request) {
+        protected TestNodeRequest newNodeRequest(TestNodesRequest request) {
             return new TestNodeRequest();
         }
 

@@ -391,54 +391,58 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
-        state().getTranslog().totalOperations(totalTranslogOps);
-        // first, we go and move files that were created with the recovery id suffix to
-        // the actual names, its ok if we have a corrupted index here, since we have replicas
-        // to recover from in case of a full cluster shutdown just when this code executes...
-        multiFileWriter.renameAllTempFiles();
-        final Store store = store();
-        store.incRef();
-        try {
-            store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
-            final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
-            store.associateIndexWithNewTranslog(translogUUID);
-
-            if (indexShard.getRetentionLeases().leases().isEmpty()) {
-                // if empty, may be a fresh IndexShard, so write an empty leases file to disk
-                indexShard.persistRetentionLeases();
-                assert indexShard.loadRetentionLeases().leases().isEmpty();
-            } else {
-                assert indexShard.assertRetentionLeasesPersisted();
-            }
-
-        } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
-            // this is a fatal exception at this stage.
-            // this means we transferred files from the remote that have not be checksummed and they are
-            // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
-            // source shard since this index might be broken there as well? The Source can handle this and checks
-            // its content on disk if possible.
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
+                           ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            state().getTranslog().totalOperations(totalTranslogOps);
+            // first, we go and move files that were created with the recovery id suffix to
+            // the actual names, its ok if we have a corrupted index here, since we have replicas
+            // to recover from in case of a full cluster shutdown just when this code executes...
+            multiFileWriter.renameAllTempFiles();
+            final Store store = store();
+            store.incRef();
             try {
-                try {
-                    store.removeCorruptionMarker();
-                } finally {
-                    Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+                final String translogUUID = Translog.createEmptyTranslog(
+                    indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
+                store.associateIndexWithNewTranslog(translogUUID);
+
+                if (indexShard.getRetentionLeases().leases().isEmpty()) {
+                    // if empty, may be a fresh IndexShard, so write an empty leases file to disk
+                    indexShard.persistRetentionLeases();
+                    assert indexShard.loadRetentionLeases().leases().isEmpty();
+                } else {
+                    assert indexShard.assertRetentionLeasesPersisted();
                 }
-            } catch (Exception e) {
-                logger.debug("Failed to clean lucene index", e);
-                ex.addSuppressed(e);
+
+            } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
+                // this is a fatal exception at this stage.
+                // this means we transferred files from the remote that have not be checksummed and they are
+                // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
+                // source shard since this index might be broken there as well? The Source can handle this and checks
+                // its content on disk if possible.
+                try {
+                    try {
+                        store.removeCorruptionMarker();
+                    } finally {
+                        Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                    }
+                } catch (Exception e) {
+                    logger.debug("Failed to clean lucene index", e);
+                    ex.addSuppressed(e);
+                }
+                RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
+                fail(rfe, true);
+                throw rfe;
+            } catch (Exception ex) {
+                RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
+                fail(rfe, true);
+                throw rfe;
+            } finally {
+                store.decRef();
             }
-            RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
-            fail(rfe, true);
-            throw rfe;
-        } catch (Exception ex) {
-            RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
-            fail(rfe, true);
-            throw rfe;
-        } finally {
-            store.decRef();
-        }
+            return null;
+        });
     }
 
     @Override

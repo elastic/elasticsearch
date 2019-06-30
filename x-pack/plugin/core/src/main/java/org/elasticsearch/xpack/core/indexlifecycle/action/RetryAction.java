@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -22,17 +22,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class RetryAction extends Action<RetryAction.Response> {
+public class RetryAction extends ActionType<RetryAction.Response> {
     public static final RetryAction INSTANCE = new RetryAction();
     public static final String NAME = "indices:admin/ilm/retry";
 
     protected RetryAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

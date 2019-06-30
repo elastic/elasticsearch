@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
@@ -82,7 +82,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client)throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final CreateTokenRequest tokenRequest = PARSER.parse(parser, null);
-            final Action<CreateTokenResponse> action =
+            final ActionType<CreateTokenResponse> action =
                     "refresh_token".equals(tokenRequest.getGrantType()) ? RefreshTokenAction.INSTANCE : CreateTokenAction.INSTANCE;
             return channel -> client.execute(action, tokenRequest,
                     // this doesn't use the RestBuilderListener since we need to override the

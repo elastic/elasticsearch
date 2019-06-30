@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -25,17 +24,7 @@ public class GetEnrichPolicyAction extends Action<GetEnrichPolicyAction.Response
     public static final String NAME = "cluster:admin/xpack/enrich/get";
 
     private GetEnrichPolicyAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {

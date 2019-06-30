@@ -69,8 +69,6 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        terminal.println("Cleanup tool is running");
-
         String region = regionOption.value(options);
         String endpoint = endpointOption.value(options);
 

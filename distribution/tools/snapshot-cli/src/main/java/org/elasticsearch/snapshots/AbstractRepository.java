@@ -129,7 +129,7 @@ public abstract class AbstractRepository implements Repository {
             long totalSpaceFreed = removeResults.stream().map(Tuple::v2).reduce(0L, (a, b) -> a + b);
             terminal.println(Terminal.Verbosity.NORMAL, "Total files removed: " + totalFilesRemoved);
             terminal.println(Terminal.Verbosity.NORMAL, "Total bytes freed: " + totalSpaceFreed);
-            terminal.println(Terminal.Verbosity.NORMAL, "Finished removing orphaned indices");
+            terminal.println(Terminal.Verbosity.NORMAL, "Finished removing " + orphanedIndexIds.size() + " orphaned indices");
         } finally {
             try {
                 if (executor.awaitTermination(0L, TimeUnit.MILLISECONDS) == false) {

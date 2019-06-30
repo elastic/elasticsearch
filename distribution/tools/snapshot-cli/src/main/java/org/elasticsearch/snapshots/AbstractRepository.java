@@ -79,21 +79,8 @@ public abstract class AbstractRepository implements Repository {
                 executor.submit(new ActionRunnable<>(groupedOrphanedIndicesListener) {
                     @Override
                     protected void doRun() {
-                        terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
-                        Date indexTimestamp = getIndexTimestamp(candidate);
-                        if (indexTimestamp != null) {
-                            if (indexTimestamp.before(shiftedIndexNTimestamp)) {
-                                terminal.println(Terminal.Verbosity.VERBOSE,
-                                        "Index " + candidate + " is orphaned because its modification timestamp " + indexTimestamp +
-                                                " is less than index-N shifted timestamp " + shiftedIndexNTimestamp);
-                                groupedOrphanedIndicesListener.onResponse(candidate);
-                            } else {
-                                terminal.println(Terminal.Verbosity.VERBOSE,
-                                        "Index  " + candidate + " might not be orphaned because its modification timestamp "
-                                                + indexTimestamp +
-                                                " is gte than index-N shifted timestamp " + shiftedIndexNTimestamp);
-                                groupedOrphanedIndicesListener.onResponse(null);
-                            }
+                        if (isOrphaned(candidate, shiftedIndexNTimestamp)) {
+                            groupedOrphanedIndicesListener.onResponse(candidate);
                         } else {
                             groupedOrphanedIndicesListener.onResponse(null);
                         }
@@ -143,6 +130,25 @@ public abstract class AbstractRepository implements Repository {
             }
             executor.shutdown();
         }
+    }
+
+    private boolean isOrphaned(String candidate, Date shiftedIndexNTimestamp) {
+        terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
+        Date indexTimestamp = getIndexTimestamp(candidate);
+        if (indexTimestamp != null) {
+            if (indexTimestamp.before(shiftedIndexNTimestamp)) {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Index " + candidate + " is orphaned because its modification timestamp " + indexTimestamp +
+                                " is less than index-N shifted timestamp " + shiftedIndexNTimestamp);
+                return true;
+            } else {
+                terminal.println(Terminal.Verbosity.VERBOSE,
+                        "Index  " + candidate + " might not be orphaned because its modification timestamp "
+                                + indexTimestamp +
+                                " is gte than index-N shifted timestamp " + shiftedIndexNTimestamp);
+            }
+        }
+        return false;
     }
 
     private void confirm(Terminal terminal, String msg) {

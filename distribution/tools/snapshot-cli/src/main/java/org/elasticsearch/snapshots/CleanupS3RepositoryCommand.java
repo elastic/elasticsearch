@@ -88,6 +88,9 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
         }
 
         String basePath = basePathOption.value(options);
+        if (basePath.endsWith("/")) {
+            throw new ElasticsearchException("there should be not trailing slash in the base path");
+        }
 
         String accessKey = accessKeyOption.value(options);
         if (Strings.isNullOrEmpty(accessKey)) {

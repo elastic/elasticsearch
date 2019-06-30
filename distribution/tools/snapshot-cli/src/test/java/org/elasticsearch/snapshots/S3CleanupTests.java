@@ -193,6 +193,12 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                 "parallelism should be at least 1");
     }
 
+    public void testBasePathTrailingSlash() {
+        expectThrows(() ->
+                        executeCommand(false, Map.of("base_path", getBasePath() + "/")),
+                "there should be not trailing slash in the base path");
+    }
+
     public void testCleanupS3() throws Exception {
         logger.info("--> execute cleanup tool on empty repo, there is nothing to cleanup");
         MockTerminal terminal = executeCommand(false);

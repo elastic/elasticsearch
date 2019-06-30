@@ -111,7 +111,7 @@ public abstract class AbstractRepository implements Repository {
             confirm(terminal, orphanedIndexIds.size() + " indices have been found. Do you want to remove orphaned indices files? " +
                     "This action is NOT REVERSIBLE");
 
-            terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned indices");
+            terminal.println(Terminal.Verbosity.NORMAL, "Removing " + orphanedIndexIds.size() + " orphaned indices");
             PlainActionFuture<Collection<Tuple<Integer, Long>>> removalFuture = new PlainActionFuture<>();
             GroupedActionListener<Tuple<Integer, Long>> groupedRemovalListener =
                     new GroupedActionListener<>(removalFuture, orphanedIndexIds.size());

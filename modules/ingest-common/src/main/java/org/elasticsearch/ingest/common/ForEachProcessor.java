@@ -94,13 +94,11 @@ public final class ForEachProcessor extends AbstractProcessor {
             if (e != null)  {
                 newValues.add(document.getIngestMetadata().put("_value", previousValue));
                 handler.accept(null, e);
+            } else if (result == null) {
+                handler.accept(null, null);
             } else {
-                if (result == null) {
-                    handler.accept(null, null);
-                } else {
-                    newValues.add(document.getIngestMetadata().put("_value", previousValue));
-                    innerExecute(index + 1, values, newValues, document, handler);
-                }
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                innerExecute(index + 1, values, newValues, document, handler);
             }
         });
     }

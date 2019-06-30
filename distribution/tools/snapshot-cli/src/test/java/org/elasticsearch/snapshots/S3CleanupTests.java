@@ -310,9 +310,9 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                 }
             }
             assertThat(terminal.getOutput(),
-                    containsString("In total removed " + numOfFiles + " files"));
+                    containsString("Total files removed: " + numOfFiles));
             assertThat(terminal.getOutput(),
-                    containsString("In total space freed " + size + " bytes"));
+                    containsString("Total bytes freed: " + size));
 
             logger.info("--> verify that there is no inconsistencies");
             util.assertConsistency();

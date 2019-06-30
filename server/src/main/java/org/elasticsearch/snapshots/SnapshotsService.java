@@ -1098,6 +1098,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                final boolean immediatePriority) {
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
+        if (snapshotName == null && repository instanceof BlobStoreRepository == false) {
+            listener.onResponse(null);
+            return;
+        }
         final RepositoryData repositoryData = repository.getRepositoryData();
         final Optional<SnapshotId> incompatibleSnapshotId =
             repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
@@ -1164,7 +1168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
-                removeSnapshotDeletionFromClusterState(null, e, listener);
+                after(e);
             }
 
             @Override
@@ -1173,14 +1177,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     @Override
                     protected void doRun() {
                         Repository repository = repositoriesService.repository(repositoryName);
-                        if (repository instanceof BlobStoreRepository == false) {
-                            throw new IllegalArgumentException("Repository [" + repositoryName + "] is not a blob store repository");
-                        }
-                        ((BlobStoreRepository) repository).cleanup(repositoryStateId, ActionListener.wrap(
-                            v -> removeSnapshotDeletionFromClusterState(null, null, listener),
-                            e -> removeSnapshotDeletionFromClusterState(null, e, listener)));
+                        assert repository instanceof BlobStoreRepository;
+                        ((BlobStoreRepository) repository)
+                            .cleanup(repositoryStateId, ActionListener.wrap(v -> after(null), e -> after(e)));
                     }
                 });
+            }
+
+            private void after(@Nullable Exception e) {
+                removeSnapshotDeletionFromClusterState(null, e, listener);
             }
         });
     }

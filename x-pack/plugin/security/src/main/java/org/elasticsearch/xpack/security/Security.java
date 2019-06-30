@@ -772,7 +772,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestDeletePrivilegesAction(settings, restController, getLicenseState()),
                 new RestCreateApiKeyAction(settings, restController, getLicenseState()),
                 new RestInvalidateApiKeyAction(settings, restController, getLicenseState()),
-                new RestGetApiKeyAction(settings, restController, getLicenseState())
+                new RestGetApiKeyAction(settings, restController, getLicenseState()),
+                new RestDeletePrivilegesAction(settings, restController, getLicenseState())
         );
     }
 

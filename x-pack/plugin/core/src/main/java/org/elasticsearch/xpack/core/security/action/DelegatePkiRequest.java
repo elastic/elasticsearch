@@ -23,6 +23,10 @@ public class DelegatePkiRequest extends ActionRequest {
 
     private X509Certificate[] certificates;
 
+    public DelegatePkiRequest(X509Certificate[] certificates) {
+        this.certificates = certificates;
+    }
+
     public DelegatePkiRequest(StreamInput in) throws IOException {
         this.readFrom(in);
     }

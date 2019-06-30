@@ -154,8 +154,8 @@ public class PivotTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action, Request request,
-                                                                                                  ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
 
             if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;

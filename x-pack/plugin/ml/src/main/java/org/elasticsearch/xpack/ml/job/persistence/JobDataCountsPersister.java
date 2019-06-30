@@ -49,7 +49,7 @@ public class JobDataCountsPersister {
      *
      * @param jobId Job to update
      * @param counts The counts
-     * @param listener ActionType response listener
+     * @param listener Action response listener
      */
     public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         try (XContentBuilder content = serialiseCounts(counts)) {

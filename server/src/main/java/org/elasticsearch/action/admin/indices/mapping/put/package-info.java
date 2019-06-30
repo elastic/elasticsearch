@@ -18,6 +18,6 @@
  */
 
 /**
- * Put Mapping ActionType.
+ * Put Mapping Action.
  */
 package org.elasticsearch.action.admin.indices.mapping.put;

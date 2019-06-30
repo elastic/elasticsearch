@@ -29,8 +29,8 @@ public abstract class AbstractBulkIndexByScrollRequestBuilder<
                 Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Self>>
         extends AbstractBulkByScrollRequestBuilder<Request, Self> {
 
-    protected AbstractBulkIndexByScrollRequestBuilder(ElasticsearchClient client,
-                                                      ActionType<BulkByScrollResponse> action, SearchRequestBuilder search, Request request) {
+    protected AbstractBulkIndexByScrollRequestBuilder(ElasticsearchClient client, ActionType<BulkByScrollResponse> action,
+                                                      SearchRequestBuilder search, Request request) {
         super(client, action, search, request);
     }
 

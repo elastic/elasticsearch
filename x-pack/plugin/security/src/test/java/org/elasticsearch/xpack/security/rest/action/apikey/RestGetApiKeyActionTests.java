@@ -91,8 +91,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action, Request request,
-                                                                                                   ActionListener<Response> listener) {
+            public <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 ActionRequestValidationException validationException = getApiKeyRequest.validate();
                 if (validationException != null) {

@@ -121,14 +121,14 @@ public abstract class AbstractRepository implements Repository {
             terminal.println(Terminal.Verbosity.NORMAL, "Total bytes freed: " + totalSpaceFreed);
             terminal.println(Terminal.Verbosity.NORMAL, "Finished removing " + orphanedIndexIds.size() + " orphaned indices");
         } finally {
+            executor.shutdown();
             try {
-                if (executor.awaitTermination(0L, TimeUnit.MILLISECONDS) == false) {
+                if (executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
                     terminal.println(Terminal.Verbosity.NORMAL, "Unexpectedly there are still tasks running on the executor");
                 }
             } catch (InterruptedException e) {
                 throw new ElasticsearchException(e);
             }
-            executor.shutdown();
         }
     }
 

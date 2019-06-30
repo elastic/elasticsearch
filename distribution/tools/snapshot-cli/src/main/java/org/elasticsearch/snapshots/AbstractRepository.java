@@ -84,12 +84,12 @@ public abstract class AbstractRepository implements Repository {
                         if (indexTimestamp != null) {
                             if (indexTimestamp.before(shiftedIndexNTimestamp)) {
                                 terminal.println(Terminal.Verbosity.VERBOSE,
-                                        "Index " + candidate + " is orphaned because it's modification timestamp " + indexTimestamp +
+                                        "Index " + candidate + " is orphaned because its modification timestamp " + indexTimestamp +
                                                 " is less than index-N shifted timestamp " + shiftedIndexNTimestamp);
                                 groupedOrphanedIndicesListener.onResponse(candidate);
                             } else {
                                 terminal.println(Terminal.Verbosity.VERBOSE,
-                                        "Index  " + candidate + " might not be orphaned because it's modification timestamp "
+                                        "Index  " + candidate + " might not be orphaned because its modification timestamp "
                                                 + indexTimestamp +
                                                 " is gte than index-N shifted timestamp " + shiftedIndexNTimestamp);
                                 groupedOrphanedIndicesListener.onResponse(null);

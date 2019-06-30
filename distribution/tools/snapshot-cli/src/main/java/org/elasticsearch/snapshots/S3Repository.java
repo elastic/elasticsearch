@@ -177,7 +177,7 @@ public class S3Repository extends AbstractRepository {
             List<String> files = listing.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
             deleteFiles(files);
             removedFilesCount += files.size();
-            filesSize += listing.getObjectSummaries().stream().map(S3ObjectSummary::getSize).reduce(0L, (a, b) -> a + b);
+            filesSize += listing.getObjectSummaries().stream().mapToLong(S3ObjectSummary::getSize).sum();
 
             if (listing.isTruncated()) {
                 listing = client.listNextBatchOfObjects(listing);

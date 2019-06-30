@@ -125,8 +125,8 @@ public abstract class AbstractRepository implements Repository {
                 });
             }
             Collection<Tuple<Integer, Long>> removeResults = removalFuture.actionGet();
-            int totalFilesRemoved = removeResults.stream().map(Tuple::v1).reduce(0, (a, b) -> a + b);
-            long totalSpaceFreed = removeResults.stream().map(Tuple::v2).reduce(0L, (a, b) -> a + b);
+            int totalFilesRemoved = removeResults.stream().mapToInt(Tuple::v1).sum();
+            long totalSpaceFreed = removeResults.stream().mapToLong(Tuple::v2).sum();
             terminal.println(Terminal.Verbosity.NORMAL, "Total files removed: " + totalFilesRemoved);
             terminal.println(Terminal.Verbosity.NORMAL, "Total bytes freed: " + totalSpaceFreed);
             terminal.println(Terminal.Verbosity.NORMAL, "Finished removing " + orphanedIndexIds.size() + " orphaned indices");

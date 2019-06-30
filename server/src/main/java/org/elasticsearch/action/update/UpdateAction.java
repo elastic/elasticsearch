@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class UpdateAction extends StreamableResponseAction<UpdateResponse> {
+public class UpdateAction extends StreamableResponseActionType<UpdateResponse> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();
     public static final String NAME = "indices:data/write/update";

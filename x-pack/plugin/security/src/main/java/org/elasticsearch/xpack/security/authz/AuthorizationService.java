@@ -308,7 +308,7 @@ public class AuthorizationService {
         } else if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
             // if this is performing multiple actions on the index, then check each of those actions.
             assert request instanceof BulkShardRequest
-                : "Action " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
+                : "ActionType " + action + " requires " + BulkShardRequest.class + " but was " + request.getClass();
             authorizeBulkItems(requestInfo, authzInfo, authzEngine, resolvedIndicesAsyncSupplier, authorizedIndicesSupplier, metaData,
                     requestId,
                     wrapPreservingContext(

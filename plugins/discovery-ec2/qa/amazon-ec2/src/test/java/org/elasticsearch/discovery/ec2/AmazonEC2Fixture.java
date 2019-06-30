@@ -87,7 +87,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 // Simulate an EC2 DescribeInstancesResponse
                 byte[] responseBody = EMPTY_BYTE;
                 for (NameValuePair parse : URLEncodedUtils.parse(new String(request.getBody(), UTF_8), UTF_8)) {
-                    if ("Action".equals(parse.getName())) {
+                    if ("ActionType".equals(parse.getName())) {
                         responseBody = generateDescribeInstancesResponse();
                         break;
                     }

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
- * This Action gets the stats for the watcher plugin
+ * This ActionType gets the stats for the watcher plugin
  */
-public class WatcherStatsAction extends StreamableResponseAction<WatcherStatsResponse> {
+public class WatcherStatsAction extends StreamableResponseActionType<WatcherStatsResponse> {
 
     public static final WatcherStatsAction INSTANCE = new WatcherStatsAction();
     public static final String NAME = "cluster:monitor/xpack/watcher/stats/dist";

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class ReindexAction extends StreamableResponseAction<BulkByScrollResponse> {
+public class ReindexAction extends StreamableResponseActionType<BulkByScrollResponse> {
     public static final ReindexAction INSTANCE = new ReindexAction();
     public static final String NAME = "indices:data/write/reindex";
 

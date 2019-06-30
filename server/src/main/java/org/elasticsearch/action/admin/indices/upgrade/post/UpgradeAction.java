@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * Upgrade index/indices action.
  */
-public class UpgradeAction extends StreamableResponseAction<UpgradeResponse> {
+public class UpgradeAction extends StreamableResponseActionType<UpgradeResponse> {
 
     public static final UpgradeAction INSTANCE = new UpgradeAction();
     public static final String NAME = "indices:admin/upgrade";

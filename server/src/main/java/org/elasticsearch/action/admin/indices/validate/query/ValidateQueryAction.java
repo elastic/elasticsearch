@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class ValidateQueryAction extends StreamableResponseAction<ValidateQueryResponse> {
+public class ValidateQueryAction extends StreamableResponseActionType<ValidateQueryResponse> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();
     public static final String NAME = "indices:admin/validate/query";

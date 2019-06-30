@@ -226,7 +226,7 @@ public final class BulkRequestParser {
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else {
-                                throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
+                                throw new IllegalArgumentException("ActionType/metadata line [" + line + "] contains an unknown parameter ["
                                         + currentFieldName + "]");
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetStatusAction extends StreamableResponseAction<GetStatusAction.Response> {
+public class GetStatusAction extends StreamableResponseActionType<GetStatusAction.Response> {
     public static final GetStatusAction INSTANCE = new GetStatusAction();
     public static final String NAME = "cluster:admin/ilm/operation_mode/get";
 

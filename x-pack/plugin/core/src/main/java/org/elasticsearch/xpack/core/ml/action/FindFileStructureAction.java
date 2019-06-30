@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FindFileStructureAction extends StreamableResponseAction<FindFileStructureAction.Response> {
+public class FindFileStructureAction extends StreamableResponseActionType<FindFileStructureAction.Response> {
 
     public static final FindFileStructureAction INSTANCE = new FindFileStructureAction();
     public static final String NAME = "cluster:monitor/xpack/ml/findfilestructure";

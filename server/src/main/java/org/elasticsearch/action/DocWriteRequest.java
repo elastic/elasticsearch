@@ -36,7 +36,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
- * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
+ * ActionType requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
 public interface DocWriteRequest<T> extends IndicesRequest {
 

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class GetMappingsAction extends StreamableResponseAction<GetMappingsResponse> {
+public class GetMappingsAction extends StreamableResponseActionType<GetMappingsResponse> {
 
     public static final GetMappingsAction INSTANCE = new GetMappingsAction();
     public static final String NAME = "indices:admin/mappings/get";

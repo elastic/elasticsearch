@@ -689,7 +689,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             onRequestReceived(requestId, action);
             final RequestHandlerRegistry reg = getRequestHandler(action);
             if (reg == null) {
-                throw new ActionNotFoundTransportException("Action [" + action + "] not found");
+                throw new ActionNotFoundTransportException("ActionType [" + action + "] not found");
             }
             final String executor = reg.getExecutor();
             if (ThreadPool.Names.SAME.equals(executor)) {

@@ -536,7 +536,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
     }
 
     /**
-     * Action to perform with index metadata.
+     * ActionType to perform with index metadata.
      */
     public interface IndexMetaDataAction {
         /**

@@ -170,7 +170,7 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
-        assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
+        assertThat(exc.getMessage(), containsString("ActionType/metadata line [3] contains an unknown parameter [_foo]"));
         //This test's JSON contains outdated references to types
         assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);        
     }

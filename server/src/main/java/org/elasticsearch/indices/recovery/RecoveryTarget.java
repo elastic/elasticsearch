@@ -377,17 +377,20 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                                 List<Long> phase1FileSizes,
                                 List<String> phase1ExistingFileNames,
                                 List<Long> phase1ExistingFileSizes,
-                                int totalTranslogOps) {
-        final RecoveryState.Index index = state().getIndex();
-        for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
-            index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
-        }
-        for (int i = 0; i < phase1FileNames.size(); i++) {
-            index.addFileDetail(phase1FileNames.get(i), phase1FileSizes.get(i), false);
-        }
-        state().getTranslog().totalOperations(totalTranslogOps);
-        state().getTranslog().totalOperationsOnStart(totalTranslogOps);
-
+                                int totalTranslogOps,
+                                ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final RecoveryState.Index index = state().getIndex();
+            for (int i = 0; i < phase1ExistingFileNames.size(); i++) {
+                index.addFileDetail(phase1ExistingFileNames.get(i), phase1ExistingFileSizes.get(i), true);
+            }
+            for (int i = 0; i < phase1FileNames.size(); i++) {
+                index.addFileDetail(phase1FileNames.get(i), phase1FileSizes.get(i), false);
+            }
+            state().getTranslog().totalOperations(totalTranslogOps);
+            state().getTranslog().totalOperationsOnStart(totalTranslogOps);
+            return null;
+        });
     }
 
     @Override

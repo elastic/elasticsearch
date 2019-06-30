@@ -129,14 +129,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     @Override
     public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps) {
-
+                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
         RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(recoveryId, shardId,
-                phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
+            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps);
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FILES_INFO, recoveryInfoFilesRequest,
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+            new ActionListenerResponseHandler<>(ActionListener.map(listener, r -> null),
+                in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override

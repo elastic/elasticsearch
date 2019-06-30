@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteDataFrameTransformAction extends Action<AcknowledgedResponse> {
+public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDataFrameTransformAction INSTANCE = new DeleteDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/delete";

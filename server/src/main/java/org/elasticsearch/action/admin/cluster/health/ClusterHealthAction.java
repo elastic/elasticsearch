@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class ClusterHealthAction extends StreamableResponseAction<ClusterHealthResponse> {
+public class ClusterHealthAction extends StreamableResponseActionType<ClusterHealthResponse> {
 
     public static final ClusterHealthAction INSTANCE = new ClusterHealthAction();
     public static final String NAME = "cluster:monitor/health";

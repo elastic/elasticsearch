@@ -19,10 +19,10 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class MultiSearchTemplateAction extends Action<MultiSearchTemplateResponse> {
+public class MultiSearchTemplateAction extends ActionType<MultiSearchTemplateResponse> {
 
     public static final MultiSearchTemplateAction INSTANCE = new MultiSearchTemplateAction();
     public static final String NAME = "indices:data/read/msearch/template";

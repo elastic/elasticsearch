@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class RolloverAction extends Action<RolloverResponse> {
+public class RolloverAction extends ActionType<RolloverResponse> {
 
     public static final RolloverAction INSTANCE = new RolloverAction();
     public static final String NAME = "indices:admin/rollover";

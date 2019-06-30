@@ -415,7 +415,7 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction) {
+                ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction) {
                 register(new ActionHandler<>(action, transportAction));
             }
         }
@@ -464,7 +464,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class);
-        actions.register(TransportGetFieldMappingsIndexAction.ACTION_INSTANCE, TransportGetFieldMappingsIndexAction.class);
+        actions.register(TransportGetFieldMappingsIndexAction.TYPE, TransportGetFieldMappingsIndexAction.class);
         actions.register(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
@@ -488,13 +488,13 @@ public class ActionModule extends AbstractModule {
         actions.register(GetAction.INSTANCE, TransportGetAction.class);
         actions.register(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
         actions.register(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class);
-        actions.register(TransportShardMultiTermsVectorAction.ACTION_INSTANCE, TransportShardMultiTermsVectorAction.class);
+        actions.register(TransportShardMultiTermsVectorAction.TYPE, TransportShardMultiTermsVectorAction.class);
         actions.register(DeleteAction.INSTANCE, TransportDeleteAction.class);
         actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class);
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class);
-        actions.register(TransportShardMultiGetAction.ACTION_INSTANCE, TransportShardMultiGetAction.class);
+        actions.register(TransportShardMultiGetAction.TYPE, TransportShardMultiGetAction.class);
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class);
-        actions.register(TransportShardBulkAction.ACTION_INSTANCE, TransportShardBulkAction.class);
+        actions.register(TransportShardBulkAction.TYPE, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
@@ -509,7 +509,7 @@ public class ActionModule extends AbstractModule {
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
         actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class);
-        actions.register(TransportFieldCapabilitiesIndexAction.ACTION_INSTANCE, TransportFieldCapabilitiesIndexAction.class);
+        actions.register(TransportFieldCapabilitiesIndexAction.TYPE, TransportFieldCapabilitiesIndexAction.class);
 
         actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
@@ -689,10 +689,10 @@ public class ActionModule extends AbstractModule {
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
         bind(TransportLivenessAction.class).asEagerSingleton();
 
-        // register Action -> transportAction Map used by NodeClient
+        // register ActionType -> transportAction Map used by NodeClient
         @SuppressWarnings("rawtypes")
-        MapBinder<Action, TransportAction> transportActionsBinder
-                = MapBinder.newMapBinder(binder(), Action.class, TransportAction.class);
+        MapBinder<ActionType, TransportAction> transportActionsBinder
+                = MapBinder.newMapBinder(binder(), ActionType.class, TransportAction.class);
         for (ActionHandler<?, ?> action : actions.values()) {
             // bind the action as eager singleton, so the map binder one will reuse it
             bind(action.getTransportAction()).asEagerSingleton();

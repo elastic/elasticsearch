@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ccr.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CcrStatsAction extends Action<CcrStatsAction.Response> {
+public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
 
     public static final String NAME = "cluster:monitor/ccr/stats";
     public static final CcrStatsAction INSTANCE = new CcrStatsAction();

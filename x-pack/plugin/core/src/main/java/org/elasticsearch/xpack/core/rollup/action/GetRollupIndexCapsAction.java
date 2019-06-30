@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupIndexCapsAction extends StreamableResponseAction<GetRollupIndexCapsAction.Response> {
+public class GetRollupIndexCapsAction extends StreamableResponseActionType<GetRollupIndexCapsAction.Response> {
 
     public static final GetRollupIndexCapsAction INSTANCE = new GetRollupIndexCapsAction();
     public static final String NAME = "indices:data/read/xpack/rollup/get/index/caps";

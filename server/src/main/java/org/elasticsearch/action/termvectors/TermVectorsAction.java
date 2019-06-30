@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class TermVectorsAction extends Action<TermVectorsResponse> {
+public class TermVectorsAction extends ActionType<TermVectorsResponse> {
 
     public static final TermVectorsAction INSTANCE = new TermVectorsAction();
     public static final String NAME = "indices:data/read/tv";

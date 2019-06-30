@@ -18,26 +18,15 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
-public final class CleanupRepositoryAction extends Action<AcknowledgedResponse> {
+public final class CleanupRepositoryAction extends ActionType<AcknowledgedResponse> {
 
     public static final CleanupRepositoryAction INSTANCE = new CleanupRepositoryAction();
     public static final String NAME = "cluster:admin/repository/cleanup";
 
     private CleanupRepositoryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 }

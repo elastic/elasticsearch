@@ -24,7 +24,7 @@ The following example shows how to close an index:
 
 [source,js]
 --------------------------------------------------
-POST /my_index/_close
+POST /my_index/_close?wait_for_active_shards=1
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT my_index\n/]
@@ -35,12 +35,7 @@ This will return the following response:
 --------------------------------------------------
 {
     "acknowledged" : true,
-    "shards_acknowledged" : true,
-    "indices" : {
-        "my_index" : {
-            "closed" : true
-        }
-    }
+    "shards_acknowledged" : true
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -52,7 +47,7 @@ A closed index can be reopened like this:
 POST /my_index/_open
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
+// TEST[s/^/PUT my_index\nPOST my_index\/_close?wait_for_active_shards=1\n/]
 
 which will yield the following response:
 

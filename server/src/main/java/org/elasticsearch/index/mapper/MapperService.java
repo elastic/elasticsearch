@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -748,10 +747,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public Collection<String> simpleMatchToFullName(String pattern) {
+    public Set<String> simpleMatchToFullName(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return Collections.singletonList(pattern);
+            return Collections.singleton(pattern);
         }
         return fieldTypes.simpleMatchToFullName(pattern);
     }

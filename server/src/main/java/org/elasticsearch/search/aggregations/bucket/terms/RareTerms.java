@@ -16,31 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.search.aggregations.bucket.terms;
 
-package org.apache.lucene.search;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import org.apache.lucene.index.LeafReaderContext;
-
-import java.io.IOException;
 import java.util.List;
 
-/**
- * A wrapper for {@link IndexSearcher} that makes {@link IndexSearcher#search(List, Weight, Collector)}
- * visible by sub-classes.
- */
-public class XIndexSearcher extends IndexSearcher {
-    private final IndexSearcher in;
 
-    public XIndexSearcher(IndexSearcher in) {
-        super(in.getIndexReader());
-        this.in = in;
-        setSimilarity(in.getSimilarity());
-        setQueryCache(in.getQueryCache());
-        setQueryCachingPolicy(in.getQueryCachingPolicy());
+public interface RareTerms extends MultiBucketsAggregation {
+
+    /**
+     * A bucket that is associated with a single term
+     */
+    interface Bucket extends MultiBucketsAggregation.Bucket {
+
+        Number getKeyAsNumber();
     }
 
+    /**
+     * Return the sorted list of the buckets in this terms aggregation.
+     */
     @Override
-    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        in.search(leaves, weight, collector);
-    }
+    List<? extends Bucket> getBuckets();
+
+    /**
+     * Get the bucket for the given term, or null if there is no such bucket.
+     */
+    Bucket getBucketByKey(String term);
+
 }
+

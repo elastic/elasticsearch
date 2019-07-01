@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -32,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class StopDataFrameTransformAction extends Action<StopDataFrameTransformAction.Response> {
+public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransformAction.Response> {
 
     public static final StopDataFrameTransformAction INSTANCE = new StopDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/stop";
@@ -41,11 +41,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     private StopDataFrameTransformAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

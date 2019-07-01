@@ -83,7 +83,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .primaryTerm(0, primaryTerm)
             .putMapping("_doc",
                 "{\"_source\":{\"enabled\": false}}").build();
-        IndexShard shard = newShard(shardRouting, metaData, new InternalEngineFactory());
+        IndexShard shard = newShard(shardRouting, metaData, null, new InternalEngineFactory());
         recoverShardFromStore(shard);
 
         for (int i = 0; i < 1; i++) {
@@ -278,7 +278,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .settings(settings)
             .primaryTerm(0, primaryTerm);
         metaData.putMapping(mapping);
-        IndexShard targetShard = newShard(targetShardRouting, metaData.build(), new InternalEngineFactory());
+        IndexShard targetShard = newShard(targetShardRouting, metaData.build(), null, new InternalEngineFactory());
         boolean success = false;
         try {
             recoverShardFromStore(targetShard);

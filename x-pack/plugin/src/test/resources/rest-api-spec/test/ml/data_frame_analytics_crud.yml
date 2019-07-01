@@ -50,7 +50,7 @@ setup:
             "analyzed_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }
@@ -63,7 +63,7 @@ setup:
         id: "simple-outlier-detection-with-query"
   - match: { count: 1 }
   - match: { data_frame_analytics.0.id: "simple-outlier-detection-with-query" }
-  - match: { data_frame_analytics.0.source.index: "index-source" }
+  - match: { data_frame_analytics.0.source.index: ["index-source"] }
   - match: { data_frame_analytics.0.source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { data_frame_analytics.0.dest.index: "index-dest" }
   - match: { data_frame_analytics.0.analysis: {"outlier_detection":{}} }
@@ -145,7 +145,7 @@ setup:
             "analysis": {"outlier_detection":{}}
           }
   - match: { id: "simple-outlier-detection" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }
@@ -170,17 +170,17 @@ setup:
               "outlier_detection":{
                 "n_neighbors": 5,
                 "method": "lof",
-                "minimum_score_to_write_feature_influence": 0.0
+                "feature_influence_threshold": 0.0
               }
             }
           }
   - match: { id: "custom-outlier-detection" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis.outlier_detection.n_neighbors: 5 }
   - match: { analysis.outlier_detection.method: "lof" }
-  - match: { analysis.outlier_detection.minimum_score_to_write_feature_influence: 0.0 }
+  - match: { analysis.outlier_detection.feature_influence_threshold: 0.0 }
   - is_true: create_time
   - is_true: version
 
@@ -427,16 +427,34 @@ setup:
           }
 
 ---
-"Test put config given source with empty index":
+"Test put config given source with empty index array":
 
   - do:
-      catch: /\[index\] must be non-empty/
+      catch: /source\.index must specify at least one index/
       ml.put_data_frame_analytics:
         id: "simple-outlier-detection"
         body: >
           {
             "source": {
-              "index": ""
+              "index": []
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
+"Test put config given source with empty string in index array":
+
+  - do:
+      catch: /source\.index must contain non-null and non-empty strings/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": [""]
             },
             "dest": {
               "index": "index-dest"
@@ -889,7 +907,7 @@ setup:
             "analyzed_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
-  - match: { source.index: "index-source" }
+  - match: { source.index: ["index-source"] }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
   - match: { analysis: {"outlier_detection":{}} }

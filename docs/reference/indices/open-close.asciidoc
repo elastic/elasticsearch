@@ -18,12 +18,21 @@ data of opened/closed indices is automatically replicated by the
 cluster to ensure that enough shard copies are safely kept around
 at all times.
 
-The REST endpoint is `/{index}/_close` and `/{index}/_open`. For
-example:
+The REST endpoint is `/{index}/_close` and `/{index}/_open`.
+
+The following example shows how to close an index:
 
 [source,js]
 --------------------------------------------------
 POST /my_index/_close
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
+
+And this will return the following response:
+
+[source,js]
+--------------------------------------------------
 {
     "acknowledged" : true,
     "shards_acknowledged" : true,
@@ -33,14 +42,28 @@ POST /my_index/_close
         }
     }
 }
+--------------------------------------------------
+// TESTRESPONSE
 
+A closed index can be reopened like this:
+
+[source,js]
+--------------------------------------------------
 POST /my_index/_open
-{
-    "acknowledged" : true
-}
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
+
+Which will yield the following response:
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged" : true,
+    "shards_acknowledged" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
 
 It is possible to open and close multiple indices. An error will be thrown
 if the request explicitly refers to a missing index. This behaviour can be
@@ -61,4 +84,4 @@ API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
 
 Because opening or closing an index allocates its shards, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
-index creation applies to the index `_open` and `_close` actions as well.
+index creation applies to the `_open` and `_close` index actions as well.

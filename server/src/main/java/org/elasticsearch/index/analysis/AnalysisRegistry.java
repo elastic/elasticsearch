@@ -19,6 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -536,7 +537,7 @@ public final class AnalysisRegistry implements Closeable {
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
-                () -> tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+                () -> KeywordTokenizer::new, tokenFilterFactoryFactories, charFilterFactoryFactories);
             processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
                 () -> WhitespaceTokenizer::new, tokenFilterFactoryFactories, charFilterFactoryFactories);
         }

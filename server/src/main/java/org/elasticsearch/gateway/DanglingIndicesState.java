@@ -110,7 +110,7 @@ public class DanglingIndicesState implements ClusterStateListener {
     }
 
     /**
-     * Finds (@{link #findNewAndAddDanglingIndices}) and adds the new dangling indices
+     * Finds ({@link #findNewAndAddDanglingIndices}) and adds the new dangling indices
      * to the currently tracked dangling indices.
      */
     void findNewAndAddDanglingIndices(final MetaData metaData) {

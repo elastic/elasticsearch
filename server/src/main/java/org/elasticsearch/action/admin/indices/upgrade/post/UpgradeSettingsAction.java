@@ -19,22 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class UpgradeSettingsAction extends Action<AcknowledgedResponse> {
+public class UpgradeSettingsAction extends ActionType<AcknowledgedResponse> {
 
     public static final UpgradeSettingsAction INSTANCE = new UpgradeSettingsAction();
     public static final String NAME = "internal:indices/admin/upgrade";
 
     private UpgradeSettingsAction() {
         super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
@@ -18,7 +18,7 @@ import java.util.List;
  * {@link XPackInfoAction} implementation iterates over the {@link #ALL} list of actions to form
  * the complete info result.
  */
-public class XPackInfoFeatureAction extends Action<XPackInfoFeatureResponse> {
+public class XPackInfoFeatureAction extends StreamableResponseActionType<XPackInfoFeatureResponse> {
 
     private static final String BASE_NAME = "cluster:monitor/xpack/info/";
 
@@ -33,10 +33,13 @@ public class XPackInfoFeatureAction extends Action<XPackInfoFeatureResponse> {
     public static final XPackInfoFeatureAction INDEX_LIFECYCLE = new XPackInfoFeatureAction(XPackField.INDEX_LIFECYCLE);
     public static final XPackInfoFeatureAction CCR = new XPackInfoFeatureAction(XPackField.CCR);
     public static final XPackInfoFeatureAction DATA_FRAME = new XPackInfoFeatureAction(XPackField.DATA_FRAME);
+    public static final XPackInfoFeatureAction FLATTENED = new XPackInfoFeatureAction(XPackField.FLATTENED);
     public static final XPackInfoFeatureAction VECTORS = new XPackInfoFeatureAction(XPackField.VECTORS);
+    public static final XPackInfoFeatureAction VOTING_ONLY = new XPackInfoFeatureAction(XPackField.VOTING_ONLY);
 
     public static final List<XPackInfoFeatureAction> ALL = Arrays.asList(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, VECTORS
+        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, FLATTENED,
+        VECTORS, VOTING_ONLY
     );
 
     private XPackInfoFeatureAction(String name) {
@@ -50,6 +53,6 @@ public class XPackInfoFeatureAction extends Action<XPackInfoFeatureResponse> {
 
     @Override
     public String toString() {
-        return "Action [" + name() + "]";
+        return "ActionType [" + name() + "]";
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -546,8 +547,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
         return ActionListener.wrap(x -> latch.countDown(), x -> fail());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41067")
-    public void testCollectNodes() throws InterruptedException, IOException {
+    @TestLogging("org.elasticsearch.transport:TRACE") // added for https://github.com/elastic/elasticsearch/issues/41067
+    public void testCollectNodes() throws Exception {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();
         final List<DiscoveryNode> knownNodes_c2 = new CopyOnWriteArrayList<>();
@@ -666,6 +667,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
                                 @Override
                                 public void onResponse(BiFunction<String, String, DiscoveryNode> stringStringDiscoveryNodeBiFunction) {
+                                    logger.warn("unexpected call: {}", new Exception("just for the stack trace"));
                                     try {
                                         fail("should not be called");
                                     } finally {

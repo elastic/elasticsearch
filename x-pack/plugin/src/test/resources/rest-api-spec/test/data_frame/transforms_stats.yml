@@ -53,7 +53,7 @@ teardown:
   - lte: { transforms.0.stats.pages_processed: 1 }
   - match: { transforms.0.stats.documents_processed: 0 }
   - match: { transforms.0.stats.documents_indexed: 0 }
-  - match: { transforms.0.stats.trigger_count: 1 }
+  - lte: { transforms.0.stats.trigger_count: 1 }
   - match: { transforms.0.stats.index_time_in_ms: 0 }
   - match: { transforms.0.stats.index_total: 0 }
   - match: { transforms.0.stats.index_failures: 0 }

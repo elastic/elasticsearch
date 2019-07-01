@@ -18,17 +18,19 @@
  */
 package org.elasticsearch.client.watcher.hlrc;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.watcher.DeleteWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 
 import java.io.IOException;
 
-public class DeleteWatchResponseTests extends AbstractHlrcXContentTestCase<
+import static org.hamcrest.Matchers.equalTo;
+
+public class DeleteWatchResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse, DeleteWatchResponse> {
 
     @Override
-    protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createTestInstance() {
+    protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createServerTestInstance() {
         String id = randomAlphaOfLength(10);
         long version = randomLongBetween(1, 10);
         boolean found = randomBoolean();
@@ -36,23 +38,15 @@ public class DeleteWatchResponseTests extends AbstractHlrcXContentTestCase<
     }
 
     @Override
-    protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse doParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    public DeleteWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+    protected DeleteWatchResponse doParseToClientInstance(XContentParser parser) throws IOException {
         return DeleteWatchResponse.fromXContent(parser);
     }
 
     @Override
-    public org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse convertHlrcToInternal(DeleteWatchResponse instance) {
-        return new org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse(instance.getId(), instance.getVersion(),
-            instance.isFound());
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected void assertInstances(org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse serverTestInstance,
+                                   DeleteWatchResponse clientInstance) {
+        assertThat(clientInstance.getId(), equalTo(serverTestInstance.getId()));
+        assertThat(clientInstance.getVersion(), equalTo(serverTestInstance.getVersion()));
+        assertThat(clientInstance.isFound(), equalTo(serverTestInstance.isFound()));
     }
 }

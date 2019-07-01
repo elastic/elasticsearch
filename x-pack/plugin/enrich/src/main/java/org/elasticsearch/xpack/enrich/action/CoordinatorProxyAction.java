@@ -22,7 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;

@@ -8,9 +8,9 @@ The `boost` value is a floating point number used to decrease or increase the
 relevance scores of documents returned by a query. The default value is `1.0`.
 
 A value greater than `1.0` increases the relevance score, meaning those
-documents appear higher in the search results. A boost value between `0` and
-`1.0` decreases the relevance score of matching documents, meaning they appear
-lower in the search results.
+documents appear higher in the search results by default. A boost value between
+`0` and `1.0` decreases the relevance score of matching documents, meaning they
+appear lower in the search results.
 
 [WARNING]
 ====
@@ -25,8 +25,7 @@ lower in the search results.
 ==== Increase relevance scores
 
 The following search returns documents matching "full text search." Documents
-that also match "Elasticsearch" receive higher relevance scores, meaning
-they appear higher in the search results.
+that also match "Elasticsearch" receive higher relevance scores.
 
 
 [source,js]
@@ -61,8 +60,7 @@ GET /_search
 ==== Decrease relevance scores
 
 The following search returns documents matching "apple." Documents that also
-match "pie" receive lower relevance scores, meaning they appear lower in
-the search results.
+match "pie" receive lower relevance scores.
 
 
 [source,js]

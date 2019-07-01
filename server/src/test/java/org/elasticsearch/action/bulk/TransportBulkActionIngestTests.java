@@ -133,7 +133,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         TestTransportBulkAction() {
             super(threadPool, transportService, clusterService, ingestService,
-                null, null, new ActionFilters(Collections.emptySet()), null,
+                null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     new IndexNameExpressionResolver()

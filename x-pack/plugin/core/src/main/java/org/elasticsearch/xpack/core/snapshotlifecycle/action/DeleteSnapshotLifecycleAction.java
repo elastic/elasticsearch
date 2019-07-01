@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.core.snapshotlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,17 +18,12 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteSnapshotLifecycleAction extends Action<DeleteSnapshotLifecycleAction.Response> {
+public class DeleteSnapshotLifecycleAction extends ActionType<DeleteSnapshotLifecycleAction.Response> {
     public static final DeleteSnapshotLifecycleAction INSTANCE = new DeleteSnapshotLifecycleAction();
     public static final String NAME = "cluster:admin/slm/delete";
 
     protected DeleteSnapshotLifecycleAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -57,8 +57,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     }
 
     @Override
-    protected NodeInfoRequest newNodeRequest(String nodeId, NodesInfoRequest request) {
-        return new NodeInfoRequest(nodeId, request);
+    protected NodeInfoRequest newNodeRequest(NodesInfoRequest request) {
+        return new NodeInfoRequest(request);
     }
 
     @Override
@@ -80,8 +80,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         public NodeInfoRequest() {
         }
 
-        public NodeInfoRequest(String nodeId, NodesInfoRequest request) {
-            super(nodeId);
+        public NodeInfoRequest(NodesInfoRequest request) {
             this.request = request;
         }
 

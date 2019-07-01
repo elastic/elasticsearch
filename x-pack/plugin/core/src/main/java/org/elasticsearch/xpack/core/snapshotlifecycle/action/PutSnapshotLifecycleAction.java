@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.core.snapshotlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
@@ -22,17 +22,12 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutSnapshotLifecycleAction extends Action<PutSnapshotLifecycleAction.Response> {
+public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleAction.Response> {
     public static final PutSnapshotLifecycleAction INSTANCE = new PutSnapshotLifecycleAction();
     public static final String NAME = "cluster:admin/slm/put";
 
     protected PutSnapshotLifecycleAction() {
         super(NAME);
-    }
-
-    @Override
-    public PutSnapshotLifecycleAction.Response newResponse() {
-        throw new UnsupportedOperationException();
     }
 
     @Override

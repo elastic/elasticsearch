@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.snapshotlifecycle;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -198,17 +198,17 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
      */
     public static class VerifyingClient extends NoOpClient {
 
-        private final TriFunction<Action<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier;
+        private final TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier;
 
         VerifyingClient(ThreadPool threadPool,
-                        TriFunction<Action<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier) {
+                        TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier) {
             super(threadPool);
             this.verifier = verifier;
         }
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action,
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
                                                                                                   Request request,
                                                                                                   ActionListener<Response> listener) {
             listener.onResponse((Response) verifier.apply(action, request, listener));

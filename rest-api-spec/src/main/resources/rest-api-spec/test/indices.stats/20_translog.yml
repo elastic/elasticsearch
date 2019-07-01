@@ -81,8 +81,8 @@ setup:
 ---
 "Translog stats on closed indices":
   - skip:
-      version: " - 7.2.99"
-      reason:  "closed indices have translog stats starting version 7.3.0"
+      version: " - 7.9.99"
+      reason:  "closed indices have translog stats starting version 8.0.0"
 
   - do:
       index:
@@ -112,11 +112,6 @@ setup:
       indices.close:
         index: test
   - is_true: acknowledged
-
-  - do:
-      cluster.health:
-        expand_wildcards: all
-        wait_for_no_initializing_shards: true
 
   - do:
       indices.stats:

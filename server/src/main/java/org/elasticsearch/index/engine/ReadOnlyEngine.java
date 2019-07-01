@@ -82,7 +82,6 @@ public class ReadOnlyEngine extends Engine {
     private final DocsStats docsStats;
     private final RamAccountingSearcherFactory searcherFactory;
 
-
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
      * read-write engine. It allows to optionally obtain the writer locks for the shard which would time-out if another
@@ -121,6 +120,7 @@ public class ReadOnlyEngine extends Engine {
                 reader = wrapReader(reader, readerWrapperFunction);
                 searcherManager = new SearcherManager(reader, searcherFactory);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
+                assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;

@@ -438,7 +438,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
         assertIndexFrozen(indexName);
 
-        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_CLOSED;
         stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions).clear().setTranslog(true).get();
         assertThat(stats.getIndex(indexName), notNullValue());
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));

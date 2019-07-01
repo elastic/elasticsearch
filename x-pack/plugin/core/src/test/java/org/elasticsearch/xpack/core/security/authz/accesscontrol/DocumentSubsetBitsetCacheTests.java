@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -63,7 +64,22 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         runTestOnIndex((shardContext, leafContext) -> {
             final Query query = QueryBuilders.termQuery("does-not-exist", "any-value").toQuery(shardContext);
             final BitSet bitSet = cache.getBitSet(query, leafContext);
-            assertThat(bitSet, Matchers.nullValue());
+            assertThat(bitSet, nullValue());
+        });
+    }
+
+    public void testNullEntriesAreNotCountedInMemoryUsage() throws Exception {
+        final DocumentSubsetBitsetCache cache = new DocumentSubsetBitsetCache(Settings.EMPTY);
+        assertThat(cache.ramBytesUsed(), equalTo(0L));
+
+        runTestOnIndex((shardContext, leafContext) -> {
+            for (int i = 1; i <= randomIntBetween(3, 6); i++) {
+                final Query query = QueryBuilders.termQuery("dne-" + i, "dne- " + i).toQuery(shardContext);
+                final BitSet bitSet = cache.getBitSet(query, leafContext);
+                assertThat(bitSet, nullValue());
+                assertThat(cache.ramBytesUsed(), equalTo(0L));
+                assertThat(cache.entryCount(), equalTo(i));
+            }
         });
     }
 

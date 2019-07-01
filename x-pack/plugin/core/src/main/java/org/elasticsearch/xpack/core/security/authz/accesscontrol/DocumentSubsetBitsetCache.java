@@ -74,7 +74,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         this.bitsetCache = CacheBuilder.<BitsetCacheKey, BitSet>builder()
             .setExpireAfterAccess(ttl)
             .setMaximumWeight(size.getBytes())
-            .weigher((key, bitSet) -> bitSet.ramBytesUsed()).build();
+            .weigher((key, bitSet) -> bitSet == NULL_MARKER ? 0 : bitSet.ramBytesUsed()).build();
         this.bitsetCacheHelper = new CacheIteratorHelper(bitsetCache);
     }
 

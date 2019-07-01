@@ -358,19 +358,23 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(bucketCountThresholds, collectMode, executionHint, includeExclude, order, showTermDocCountError);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), bucketCountThresholds, collectMode,
+            executionHint, includeExclude, order, showTermDocCountError);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         TermsAggregationBuilder other = (TermsAggregationBuilder) obj;
         return Objects.equals(bucketCountThresholds, other.bucketCountThresholds)
-                && Objects.equals(collectMode, other.collectMode)
-                && Objects.equals(executionHint, other.executionHint)
-                && Objects.equals(includeExclude, other.includeExclude)
-                && Objects.equals(order, other.order)
-                && Objects.equals(showTermDocCountError, other.showTermDocCountError);
+            && Objects.equals(collectMode, other.collectMode)
+            && Objects.equals(executionHint, other.executionHint)
+            && Objects.equals(includeExclude, other.includeExclude)
+            && Objects.equals(order, other.order)
+            && Objects.equals(showTermDocCountError, other.showTermDocCountError);
     }
 
     @Override

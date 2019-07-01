@@ -19,13 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Delete snapshot action
  */
-public class DeleteSnapshotAction extends Action<AcknowledgedResponse> {
+public class DeleteSnapshotAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteSnapshotAction INSTANCE = new DeleteSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/delete";
@@ -35,8 +36,8 @@ public class DeleteSnapshotAction extends Action<AcknowledgedResponse> {
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return AcknowledgedResponse::new;
     }
 }
 

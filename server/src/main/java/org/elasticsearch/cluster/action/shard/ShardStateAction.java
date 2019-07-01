@@ -379,7 +379,9 @@ public class ShardStateAction {
                 if (logger.isTraceEnabled()) {
                     logger.trace("{}, scheduling a reroute", reason);
                 }
-                routingService.reroute(reason);
+                routingService.reroute(reason, ActionListener.wrap(
+                    r -> logger.trace("{}, reroute completed", reason),
+                    e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)));
             }
         }
     }
@@ -580,7 +582,11 @@ public class ShardStateAction {
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
+                logger.debug(() -> new ParameterizedMessage("failure during [{}]", source), e);
+            } else {
+                logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            }
         }
     }
 

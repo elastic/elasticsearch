@@ -23,6 +23,7 @@
  * threads, etc.
  */
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {

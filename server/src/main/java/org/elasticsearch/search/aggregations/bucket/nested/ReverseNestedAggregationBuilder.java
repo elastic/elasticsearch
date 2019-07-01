@@ -168,14 +168,16 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         return factory;
     }
 
-
     @Override
-    protected int doHashCode() {
-        return Objects.hash(path);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), path);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ReverseNestedAggregationBuilder other = (ReverseNestedAggregationBuilder) obj;
         return Objects.equals(path, other.path);
     }

@@ -117,29 +117,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             if (pageSize == 0) {
                 pageSize = pivot.getInitialPageSize();
             }
-
-            // if run for the 1st time, create checkpoint
-            if (initialRun()) {
-                createCheckpoint(ActionListener.wrap(cp -> {
-                    DataFrameTransformCheckpoint oldCheckpoint = inProgressOrLastCheckpoint;
-
-                    if (oldCheckpoint.isEmpty()) {
-                        // this is the 1st run, accept the new in progress checkpoint and go on
-                        inProgressOrLastCheckpoint = cp;
-                        listener.onResponse(null);
-                    } else {
-                        logger.debug ("Getting changes from {} to {}", oldCheckpoint.getTimeUpperBound(), cp.getTimeUpperBound());
-
-                        getChangedBuckets(oldCheckpoint, cp, ActionListener.wrap(changedBuckets -> {
-                            inProgressOrLastCheckpoint = cp;
-                            this.changedBuckets = changedBuckets;
-                            listener.onResponse(null);
-                        }, listener::onFailure));
-                    }
-                }, listener::onFailure));
-            } else {
-                listener.onResponse(null);
-            }
+            listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -152,7 +130,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected void onFinish(ActionListener<Void> listener) {
         // reset the page size, so we do not memorize a low page size forever, the pagesize will be re-calculated on start
-        pageSize = 0;
+        pageSize = pivot.getInitialPageSize();
         // reset the changed bucket to free memory
         changedBuckets = null;
     }
@@ -218,13 +196,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         });
     }
 
-    @Override
-    protected SearchRequest buildSearchRequest() {
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(pivot.buildAggregation(getPosition(), pageSize));
-        sourceBuilder.size(0);
-
+    protected QueryBuilder buildFilterQuery() {
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         DataFrameTransformConfig config = getConfig();
@@ -233,9 +205,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
                 throw new RuntimeException("in progress checkpoint not found");
             }
 
-            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().
-                    filter(pivotQueryBuilder).
-                    filter(config.getSyncConfig().getRangeQuery(inProgressOrLastCheckpoint));
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
+                .filter(pivotQueryBuilder)
+                .filter(config.getSyncConfig().getRangeQuery(inProgressOrLastCheckpoint));
 
             if (changedBuckets != null && changedBuckets.isEmpty() == false) {
                 QueryBuilder pivotFilter = pivot.filterBuckets(changedBuckets);
@@ -245,11 +217,19 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             }
 
             logger.trace("running filtered query: {}", filteredQuery);
-            sourceBuilder.query(filteredQuery);
+            return filteredQuery;
         } else {
-            sourceBuilder.query(pivotQueryBuilder);
+            return pivotQueryBuilder;
         }
+    }
 
+    @Override
+    protected SearchRequest buildSearchRequest() {
+        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+            .aggregation(pivot.buildAggregation(getPosition(), pageSize))
+            .size(0)
+            .query(buildFilterQuery());
         searchRequest.source(sourceBuilder);
         return searchRequest;
     }
@@ -292,15 +272,24 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         return true;
     }
 
-    private void getChangedBuckets(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint,
-            ActionListener<Map<String, Set<String>>> listener) {
+    protected void getChangedBuckets(DataFrameTransformCheckpoint oldCheckpoint,
+                                     DataFrameTransformCheckpoint newCheckpoint,
+                                     ActionListener<Map<String, Set<String>>> listener) {
 
+        ActionListener<Map<String, Set<String>>> wrappedListener = ActionListener.wrap(
+            r -> {
+                this.inProgressOrLastCheckpoint = newCheckpoint;
+                this.changedBuckets = r;
+                listener.onResponse(r);
+            },
+            listener::onFailure
+        );
         // initialize the map of changed buckets, the map might be empty if source do not require/implement
         // changed bucket detection
         Map<String, Set<String>> keys = pivot.initialIncrementalBucketUpdateMap();
         if (keys.isEmpty()) {
             logger.trace("This data frame does not implement changed bucket detection, returning");
-            listener.onResponse(null);
+            wrappedListener.onResponse(null);
             return;
         }
 
@@ -324,17 +313,17 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             sourceBuilder.query(filteredQuery);
         } else {
             logger.trace("No sync configured");
-            listener.onResponse(null);
+            wrappedListener.onResponse(null);
             return;
         }
 
         searchRequest.source(sourceBuilder);
         searchRequest.allowPartialSearchResults(false);
 
-        collectChangedBuckets(searchRequest, changesAgg, keys, ActionListener.wrap(listener::onResponse, e -> {
+        collectChangedBuckets(searchRequest, changesAgg, keys, ActionListener.wrap(wrappedListener::onResponse, e -> {
             // fall back if bucket collection failed
             logger.error("Failed to retrieve changed buckets, fall back to complete retrieval", e);
-            listener.onResponse(null);
+            wrappedListener.onResponse(null);
         }));
     }
 

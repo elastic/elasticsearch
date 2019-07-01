@@ -74,7 +74,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
             latch.countDown();
         });
         latch.await();
-        SimulateDocumentResult actualItemResponse = holder.getAcquire();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
@@ -106,7 +106,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
             latch.countDown();
         });
         latch.await();
-        SimulateDocumentResult actualItemResponse = holder.getAcquire();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;

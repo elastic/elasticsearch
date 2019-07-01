@@ -582,7 +582,7 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.executeBulkRequest(bulkRequest.numberOfActions(), bulkRequest.requests(), failureHandler,
             completionHandler, indexReq -> {});
         verify(failureHandler, times(1)).accept(
-            argThat(new CustomTypeSafeMatcher<>("failure handler was not called with the expected arguments") {
+            argThat(new CustomTypeSafeMatcher<Integer>("failure handler was not called with the expected arguments") {
                 @Override
                 protected boolean matchesSafely(Integer item) {
                     return item == 1;

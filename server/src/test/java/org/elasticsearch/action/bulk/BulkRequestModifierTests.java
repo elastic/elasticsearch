@@ -102,7 +102,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         assertThat(bulkRequest.requests().size(), Matchers.equalTo(16));
 
         List<BulkItemResponse> responses = new ArrayList<>();
-        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<>() {
+        ActionListener<BulkResponse> bulkResponseListener = modifier.wrapActionListenerIfNeeded(1L, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 responses.addAll(Arrays.asList(bulkItemResponses.getItems()));

@@ -15,8 +15,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
-import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -57,24 +55,26 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
             out.println("foo, baz");
         }
 
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
+        final String indexName = "test";
+        final String analyzerName = "my_synonym_analyzer";
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
                 .put("index.number_of_shards", 5)
                 .put("index.number_of_replicas", 0)
-                .put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
-                .putList("analysis.analyzer.my_synonym_analyzer.filter", "lowercase", "my_synonym_filter")
+                .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
+                .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "my_synonym_filter")
                 .put("analysis.filter.my_synonym_filter.type", "synonym")
                 .put("analysis.filter.my_synonym_filter.updateable", "true")
                 .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer"));
+                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + analyzerName));
 
-        client().prepareIndex("test", "_doc", "1").setSource("field", "Foo").get();
-        assertNoFailures(client().admin().indices().prepareRefresh("test").execute().actionGet());
+        client().prepareIndex(indexName, "_doc", "1").setSource("field", "Foo").get();
+        assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
 
-        SearchResponse response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
         assertHitCount(response, 1L);
-        response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
         assertHitCount(response, 0L);
-        Response analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
+        Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
         assertEquals(2, analyzeResponse.getTokens().size());
         assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
         assertEquals("baz", analyzeResponse.getTokens().get(1).getTerm());
@@ -84,9 +84,14 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
             out.println("foo, baz, buzz");
         }
-        assertNoFailures(client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest("test")).actionGet());
+        ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
+                .actionGet();
+        assertNoFailures(reloadResponse);
+        Set<String> reloadedAnalyzers = reloadResponse.getReloadedIndicesDetails().get(indexName).getReloadedAnalyzers();
+        assertEquals(1, reloadedAnalyzers.size());
+        assertTrue(reloadedAnalyzers.contains(analyzerName));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("test", "Foo").setAnalyzer("my_synonym_analyzer").get();
+        analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "Foo").setAnalyzer(analyzerName).get();
         assertEquals(3, analyzeResponse.getTokens().size());
         Set<String> tokens = new HashSet<>();
         analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
@@ -94,9 +99,9 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
         assertTrue(tokens.contains("baz"));
         assertTrue(tokens.contains("buzz"));
 
-        response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
         assertHitCount(response, 1L);
-        response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
         assertHitCount(response, 1L);
     }
 }

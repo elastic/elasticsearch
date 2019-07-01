@@ -129,7 +129,6 @@ import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -722,36 +721,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(stats2.getUserData(), hasKey(SequenceNumbers.MAX_SEQ_NO));
             assertThat(Long.parseLong(stats2.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo.get()));
         }
-    }
-
-    public void testIndexSearcherWrapper() throws Exception {
-        final AtomicInteger counter = new AtomicInteger();
-        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
-
-            @Override
-            public DirectoryReader wrap(DirectoryReader reader) {
-                counter.incrementAndGet();
-                return reader;
-            }
-
-            @Override
-            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-                counter.incrementAndGet();
-                return searcher;
-            }
-        };
-        Store store = createStore();
-        Path translog = createTempDir("translog-test");
-        InternalEngine engine = createEngine(store, translog);
-        engine.close();
-
-        engine = new InternalEngine(engine.config());
-        assertTrue(engine.isRecovering());
-        engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-        Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
-        assertThat(counter.get(), equalTo(2));
-        searcher.close();
-        IOUtils.close(store, engine);
     }
 
     public void testFlushIsDisabledDuringTranslogRecovery() throws IOException {

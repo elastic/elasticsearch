@@ -8,9 +8,9 @@ The `boost` value is a floating point number used to decrease or increase the
 relevance scores of documents returned by a query. The default value is `1.0`.
 
 A value greater than `1.0` increases the relevance score, meaning those
-documents higher in the search results. A boost value between `0` and `1.0`
-decreases the relevance score of matching documents, meaning they appear lower
-in the search results.
+documents appear higher in the search results. A boost value between `0` and
+`1.0` decreases the relevance score of matching documents, meaning they appear
+lower in the search results.
 
 [WARNING]
 ====
@@ -25,7 +25,7 @@ in the search results.
 ==== Increase relevance scores
 
 The following search returns documents matching "full text search." Documents
-that also match "Elasticsearch" receive higher relevance scores, which means
+that also match "Elasticsearch" receive higher relevance scores, meaning
 they appear higher in the search results.
 
 
@@ -37,7 +37,7 @@ GET /_search
         "bool": {
             "must": {
                 "match": {
-                    "content": {
+                    "message": {
                         "query":    "full text search",
                         "operator": "and"
                     }
@@ -45,7 +45,7 @@ GET /_search
             },
             "should": [
                 { "match": {
-                    "content": {
+                    "message": {
                         "query": "Elasticsearch",
                         "boost": 3
                     }
@@ -55,12 +55,13 @@ GET /_search
     }
 }
 ----
+// CONSOLE
 
 [float]
 ==== Decrease relevance scores
 
 The following search returns documents matching "apple." Documents that also
-match "pie" receive lower relevance scores, which means they appear lower in
+match "pie" receive lower relevance scores, meaning they appear lower in
 the search results.
 
 
@@ -72,7 +73,7 @@ GET /_search
         "bool": {
             "must": {
                 "match": {
-                    "content": {
+                    "message": {
                         "query":    "apple",
                         "operator": "and"
                     }
@@ -80,7 +81,7 @@ GET /_search
             },
             "should": [
                 { "match": {
-                    "content": {
+                    "message": {
                         "query": "pie",
                         "boost": 0.5
                     }
@@ -90,3 +91,4 @@ GET /_search
     }
 }
 ----
+// CONSOLE

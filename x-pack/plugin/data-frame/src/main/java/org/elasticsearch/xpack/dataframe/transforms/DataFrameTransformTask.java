@@ -471,6 +471,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     static class ClientDataFrameIndexer extends DataFrameIndexer {
+
+        private static final int ON_FINISH_AUDIT_FREQUENCY = 1000;
+
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -674,11 +677,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         protected void onFinish(ActionListener<Void> listener) {
             try {
                 super.onFinish(listener);
-                long checkpoint = transformTask.currentCheckpoint.incrementAndGet();
+                long checkpoint = transformTask.currentCheckpoint.getAndIncrement();
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
-                auditor.info(transformTask.getTransformId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
-                logger.info(
+                if (checkpoint % ON_FINISH_AUDIT_FREQUENCY == 0) {
+                    auditor.info(transformTask.getTransformId(),
+                        "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
+                }
+                logger.debug(
                     "Finished indexing for data frame transform [" + transformTask.getTransformId() + "] checkpoint [" + checkpoint + "]");
                 auditBulkFailures = true;
                 listener.onResponse(null);

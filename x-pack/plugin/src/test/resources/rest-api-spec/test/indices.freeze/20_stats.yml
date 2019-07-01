@@ -10,8 +10,8 @@ setup:
 ---
 "Translog stats on frozen indices":
   - skip:
-      version: " - 7.9.99"
-      reason:  "frozen indices have translog stats starting version 8.0.0"
+      version: " - 7.2.99"
+      reason:  "frozen indices have translog stats starting version 7.3.0"
 
   - do:
       index:
@@ -41,6 +41,7 @@ setup:
   - do:
       indices.freeze:
         index: test
+        wait_for_active_shards: 1
   - is_true: acknowledged
 
   - do:
@@ -53,6 +54,7 @@ setup:
   - do:
       indices.freeze:
         index: test
+        wait_for_active_shards: 1
   - is_true: acknowledged
 
   - do:

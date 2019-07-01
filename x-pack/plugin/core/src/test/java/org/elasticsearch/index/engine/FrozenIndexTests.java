@@ -410,7 +410,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testTranslogStats()  {
+    public void testTranslogStats() throws Exception {
         final String indexName = "test";
         createIndex(indexName, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -435,7 +435,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedOps));
 
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new TransportFreezeIndexAction.FreezeRequest(indexName)).actionGet());
+        assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
         assertIndexFrozen(indexName);
 
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;

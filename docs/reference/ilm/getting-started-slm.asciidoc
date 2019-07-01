@@ -49,7 +49,8 @@ PUT /_slm/policy/nightly-snapshots
   "repository": "my_repository", <3>
   "config": { <4>
     "indices": ["*"] <5>
-  }
+  },
+  "retention": {}
 }
 --------------------------------------------------
 // CONSOLE
@@ -125,7 +126,8 @@ next time the policy will be executed.
       "repository": "my_repository",
       "config": {
         "indices": ["*"],
-      }
+      },
+      "retention": {}
     },
     "last_success": { <1>
       "snapshot_name": "nightly-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a", <2>

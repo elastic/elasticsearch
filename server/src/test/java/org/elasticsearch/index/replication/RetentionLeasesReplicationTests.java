@@ -39,7 +39,6 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTestCase {

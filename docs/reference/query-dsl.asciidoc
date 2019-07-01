@@ -45,6 +45,8 @@ include::query-dsl/special-queries.asciidoc[]
 
 include::query-dsl/span-queries.asciidoc[]
 
+include::query-dsl/boost.asciidoc[]
+
 include::query-dsl/minimum-should-match.asciidoc[]
 
 include::query-dsl/multi-term-rewrite.asciidoc[]

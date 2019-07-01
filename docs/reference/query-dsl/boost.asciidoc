@@ -1,0 +1,92 @@
+[[query-dsl-boost]]
+== `boost` parameter
+
+You can use the `boost` parameter to adjust <<query-filter-context,relevance
+scores>> for searches containing two or more queries.
+
+The `boost` value is a floating point number used to decrease or increase the
+relevance scores of documents returned by a query. The default value is `1.0`.
+
+A value greater than `1.0` increases the relevance score, meaning those
+documents higher in the search results. A boost value between `0` and `1.0`
+decreases the relevance score of matching documents, meaning they appear lower
+in the search results.
+
+[WARNING]
+====
+{es} does **not** support negative `boost` values.
+====
+
+[float]
+[[query-dsl-boost-examples]]
+=== Examples
+
+[float]
+==== Increase relevance scores
+
+The following search returns documents matching "full text search." Documents
+that also match "Elasticsearch" receive higher relevance scores, which means
+they appear higher in the search results.
+
+
+[source,js]
+----
+GET /_search
+{
+    "query": {
+        "bool": {
+            "must": {
+                "match": {
+                    "content": {
+                        "query":    "full text search",
+                        "operator": "and"
+                    }
+                }
+            },
+            "should": [
+                { "match": {
+                    "content": {
+                        "query": "Elasticsearch",
+                        "boost": 3
+                    }
+                }}
+            ]
+        }
+    }
+}
+----
+
+[float]
+==== Decrease relevance scores
+
+The following search returns documents matching "apple." Documents that also
+match "pie" receive lower relevance scores, which means they appear lower in
+the search results.
+
+
+[source,js]
+----
+GET /_search
+{
+    "query": {
+        "bool": {
+            "must": {
+                "match": {
+                    "content": {
+                        "query":    "apple",
+                        "operator": "and"
+                    }
+                }
+            },
+            "should": [
+                { "match": {
+                    "content": {
+                        "query": "pie",
+                        "boost": 0.5
+                    }
+                }}
+            ]
+        }
+    }
+}
+----

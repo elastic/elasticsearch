@@ -97,7 +97,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
         synchronized void coordinateLookups() {
             while (queue.isEmpty() == false &&
-                numberOfOutstandingRequests.get() <= maxNumberOfConcurrentRequests) {
+                numberOfOutstandingRequests.get() < maxNumberOfConcurrentRequests) {
 
                 final List<Item> items = new ArrayList<>();
                 queue.drainTo(items, maxLookupsPerRequest);

@@ -27,6 +27,7 @@ import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
+import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
@@ -39,6 +40,7 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -326,7 +328,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         createConfiguration();
 
-        if(plugins.isEmpty() == false) {
+        if (plugins.isEmpty() == false) {
             logToProcessStdout("Installing " + plugins.size() + " plugins");
             plugins.forEach(plugin -> runElaticsearchBinScript(
                 "elasticsearch-plugin",
@@ -363,9 +365,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             credentials.forEach(paramMap -> runElaticsearchBinScript(
                 "elasticsearch-users",
-                    paramMap.entrySet().stream()
-                        .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()))
-                        .toArray(String[]::new)
+                paramMap.entrySet().stream()
+                    .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()))
+                    .toArray(String[]::new)
             ));
         }
 
@@ -411,19 +413,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logToProcessStdout("Setting up " + extraConfigFiles.size() + " additional config files");
         }
         extraConfigFiles.forEach((destination, from) -> {
-                if (Files.exists(from.toPath()) == false) {
-                    throw new TestClustersException("Can't create extra config file from " + from + " for " + this +
-                        " as it does not exist");
-                }
-                Path dst = configFile.getParent().resolve(destination);
-                try {
-                    Files.createDirectories(dst.getParent());
-                    Files.copy(from.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
-                    LOGGER.info("Added extra config file {} for {}", destination, this);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Can't create extra config file for", e);
-                }
-            });
+            if (Files.exists(from.toPath()) == false) {
+                throw new TestClustersException("Can't create extra config file from " + from + " for " + this +
+                    " as it does not exist");
+            }
+            Path dst = configFile.getParent().resolve(destination);
+            try {
+                Files.createDirectories(dst.getParent());
+                Files.copy(from.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.info("Added extra config file {} for {}", destination, this);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't create extra config file for", e);
+            }
+        });
     }
 
     private void installModules() {
@@ -479,9 +481,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (keys.isEmpty() == false) {
             throw new TestClustersException("Unknown keys in user definition " + keys + " for " + this);
         }
-        Map<String,String> cred = new LinkedHashMap<>();
-        cred.put("useradd", userSpec.getOrDefault("username","test_user"));
-        cred.put("-p", userSpec.getOrDefault("password","x-pack-test-password"));
+        Map<String, String> cred = new LinkedHashMap<>();
+        cred.put("useradd", userSpec.getOrDefault("username", "test_user"));
+        cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
         cred.put("-r", userSpec.getOrDefault("role", "superuser"));
         credentials.add(cred);
     }
@@ -691,7 +693,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void logFileContents(String description, Path from) {
         LOGGER.error("{} `{}`", description, this);
-        try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
+        try (Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
             lines
                 .map(line -> "  " + line)
                 .forEach(LOGGER::error);
@@ -727,7 +729,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * We remove write permissions to make sure files are note mistakenly edited ( e.x. the config file ) and changes
      * reflected across all copies. Permissions are retained to be able to replace the links.
      *
-     * @param sourceRoot where to copy from
+     * @param sourceRoot      where to copy from
      * @param destinationRoot destination to link to
      */
     private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
@@ -765,7 +767,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void createConfiguration()  {
+    private void createConfiguration() {
         String nodeName = nameCustomization.apply(safeName(name));
         if (nodeName != null) {
             defaultConfig.put("node.name", nodeName);
@@ -794,15 +796,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
         if (Version.fromString(version).getMajor() >= 7) {
-            defaultConfig.put("indices.breaker.total.use_real_memory",  "false");
+            defaultConfig.put("indices.breaker.total.use_real_memory", "false");
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
-        defaultConfig.put("discovery.initial_state_timeout",  "0s");
+        defaultConfig.put("discovery.initial_state_timeout", "0s");
 
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(settings.keySet());
         overriden.removeAll(OVERRIDABLE_SETTINGS);
-        if (overriden.isEmpty() ==false) {
+        if (overriden.isEmpty() == false) {
             throw new IllegalArgumentException(
                 "Testclusters does not allow the following settings to be changed:" + overriden + " for " + this
             );
@@ -834,7 +836,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void checkFrozen() {
         if (configurationFrozen.get()) {
-            throw new IllegalStateException("Configuration for " + this +  " can not be altered, already locked");
+            throw new IllegalStateException("Configuration for " + this + " can not be altered, already locked");
         }
     }
 
@@ -859,7 +861,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private List<String> readPortsFile(Path file) throws IOException {
-        try(Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
             return lines.map(String::trim).collect(Collectors.toList());
         }
     }
@@ -868,15 +870,45 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return artifactsExtractDir.resolve(distribution.getGroup()).resolve("elasticsearch-" + getVersion());
     }
 
+    private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
+        return Stream.concat(
+            plugins.stream().filter(uri -> uri.getScheme().equalsIgnoreCase("file")).map(File::new),
+            modules.stream()
+        )
+            .filter(File::exists)
+            // TODO: We may be able to simplify this with Gradle 5.6
+            // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
+            .map(zipFile -> project.zipTree(zipFile).matching(filter))
+            .flatMap(tree -> tree.getFiles().stream())
+            .collect(Collectors.toList());
+    }
+
+    @Input
+    private Set<URI> getRemotePlugins() {
+        Set<URI> file = plugins.stream().filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false).collect(Collectors.toSet());
+        return file;
+    }
+
     @Classpath
-    private Set<File> getRuntimeClasspath() {
+    private List<File> getInstalledClasspath() {
+        return getInstalledFileSet(filter -> filter.include("**/*.jar"));
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    private List<File> getInstalledFiles() {
+        return getInstalledFileSet(filter -> filter.exclude("**/*.jar"));
+    }
+
+    @Classpath
+    private Set<File> getDistributionClasspath() {
         return project.fileTree(getExtractedDistributionDir()).matching(filter -> filter.include("**/*.jar")).getFiles();
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     private FileCollection getDistributionFiles() {
-        return project.fileTree(getExtractedDistributionDir()).minus(project.files(getRuntimeClasspath()));
+        return project.fileTree(getExtractedDistributionDir()).minus(project.files(getDistributionClasspath()));
     }
 
     @Nested
@@ -933,9 +965,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 ADDITIONAL_CONFIG_TIMEOUT_UNIT.toMillis(ADDITIONAL_CONFIG_TIMEOUT *
                     (
                         plugins.size() +
-                        keystoreFiles.size() +
-                        keystoreSettings.size() +
-                        credentials.size()
+                            keystoreFiles.size() +
+                            keystoreSettings.size() +
+                            credentials.size()
                     )
                 ),
             TimeUnit.MILLISECONDS,

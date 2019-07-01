@@ -29,7 +29,7 @@ POST /my_index/_close
 // CONSOLE
 // TEST[s/^/PUT my_index\n/]
 
-And this will return the following response:
+This will return the following response:
 
 [source,js]
 --------------------------------------------------
@@ -54,7 +54,7 @@ POST /my_index/_open
 // CONSOLE
 // TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
 
-Which will yield the following response:
+which will yield the following response:
 
 [source,js]
 --------------------------------------------------

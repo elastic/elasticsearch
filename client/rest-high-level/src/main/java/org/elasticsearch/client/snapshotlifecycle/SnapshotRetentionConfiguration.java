@@ -38,7 +38,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject {
 
     private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER =
         new ConstructingObjectParser<>("snapshot_retention", true, a -> {
-            TimeValue expireAfter = TimeValue.parseTimeValue((String) a[0], EXPIRE_AFTER.getPreferredName());
+            TimeValue expireAfter = a[0] == null ? null : TimeValue.parseTimeValue((String) a[0], EXPIRE_AFTER.getPreferredName());
             return new SnapshotRetentionConfiguration(expireAfter);
         });
 
@@ -64,7 +64,9 @@ public class SnapshotRetentionConfiguration implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(EXPIRE_AFTER.getPreferredName(), expireAfter.getStringRep());
+        if (expireAfter != null) {
+            builder.field(EXPIRE_AFTER.getPreferredName(), expireAfter.getStringRep());
+        }
         builder.endObject();
         return builder;
     }

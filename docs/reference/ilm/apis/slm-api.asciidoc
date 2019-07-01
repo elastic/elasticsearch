@@ -59,7 +59,8 @@ PUT /_slm/policy/daily-snapshots
     "indices": ["data-*", "important"], <5>
     "ignore_unavailable": false,
     "include_global_state": false
-  }
+  },
+  "retention": {}
 }
 --------------------------------------------------
 // CONSOLE
@@ -136,7 +137,8 @@ The output looks similar to the following:
         "indices": ["data-*", "important"],
         "ignore_unavailable": false,
         "include_global_state": false
-      }
+      },
+      "retention": {}
     },
     "next_execution": "2019-04-24T01:30:00.000Z", <3>
     "next_execution_millis": 1556048160000
@@ -221,8 +223,9 @@ Which, in this case shows an error because the index did not exist:
         "indices": ["data-*", "important"],
         "ignore_unavailable": false,
         "include_global_state": false
-      }
-    },
+      },
+      "retention": {},
+    }
     "last_failure": { <1>
       "snapshot_name": "daily-snap-2019.04.02-lohisb5ith2n8hxacaq3mw",
       "time_string": "2019-04-02T01:30:00.000Z",
@@ -304,7 +307,8 @@ Which now includes the successful snapshot information:
         "indices": ["data-*", "important"],
         "ignore_unavailable": true,
         "include_global_state": false
-      }
+      },
+      "retention": {}
     },
     "last_success": { <2>
       "snapshot_name": "daily-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a",

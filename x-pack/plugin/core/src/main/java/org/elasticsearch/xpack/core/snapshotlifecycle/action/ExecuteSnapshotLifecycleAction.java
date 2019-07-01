@@ -6,9 +6,9 @@
 
 package org.elasticsearch.xpack.core.snapshotlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,17 +24,12 @@ import java.util.Objects;
  * Action used to manually invoke a create snapshot request for a given
  * snapshot lifecycle policy regardless of schedule.
  */
-public class ExecuteSnapshotLifecycleAction extends Action<ExecuteSnapshotLifecycleAction.Response> {
+public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLifecycleAction.Response> {
     public static final ExecuteSnapshotLifecycleAction INSTANCE = new ExecuteSnapshotLifecycleAction();
     public static final String NAME = "cluster:admin/slm/execute";
 
     protected ExecuteSnapshotLifecycleAction() {
         super(NAME);
-    }
-
-    @Override
-    public ExecuteSnapshotLifecycleAction.Response newResponse() {
-        throw new UnsupportedOperationException();
     }
 
     @Override

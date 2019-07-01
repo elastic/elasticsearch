@@ -69,8 +69,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -169,8 +169,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesSnapshotsStatus.Request request) {
-            super(nodeId);
+        NodeRequest(TransportNodesSnapshotsStatus.Request request) {
             snapshots = Arrays.asList(request.snapshots);
         }
 

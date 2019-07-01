@@ -42,6 +42,7 @@ public final class ClusterPrivilege extends Privilege {
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");
     private static final Automaton MANAGE_TOKEN_AUTOMATON = patterns("cluster:admin/xpack/security/token/*");
+    private static final Automaton MANAGE_API_KEY_AUTOMATON = patterns("cluster:admin/xpack/security/api_key/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/xpack/ml/*");
     private static final Automaton MONITOR_DATA_FRAME_AUTOMATON = patterns("cluster:monitor/data_frame/*");
@@ -90,6 +91,7 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",     MANAGE_SECURITY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SAML =           new ClusterPrivilege("manage_saml",         MANAGE_SAML_AUTOMATON);
     public static final ClusterPrivilege MANAGE_OIDC =           new ClusterPrivilege("manage_oidc", MANAGE_OIDC_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_API_KEY =        new ClusterPrivilege("manage_api_key", MANAGE_API_KEY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
     public static final ClusterPrivilege MANAGE_CCR =            new ClusterPrivilege("manage_ccr", MANAGE_CCR_AUTOMATON);
     public static final ClusterPrivilege READ_CCR =              new ClusterPrivilege("read_ccr", READ_CCR_AUTOMATON);
@@ -120,6 +122,7 @@ public final class ClusterPrivilege extends Privilege {
             entry("manage_security", MANAGE_SECURITY),
             entry("manage_saml", MANAGE_SAML),
             entry("manage_oidc", MANAGE_OIDC),
+            entry("manage_api_key", MANAGE_API_KEY),
             entry("manage_pipeline", MANAGE_PIPELINE),
             entry("manage_rollup", MANAGE_ROLLUP),
             entry("manage_ccr", MANAGE_CCR),

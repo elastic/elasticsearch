@@ -19,21 +19,16 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class CreateIndexAction extends Action<CreateIndexResponse> {
+public class CreateIndexAction extends ActionType<CreateIndexResponse> {
 
     public static final CreateIndexAction INSTANCE = new CreateIndexAction();
     public static final String NAME = "indices:admin/create";
 
     private CreateIndexAction() {
         super(NAME);
-    }
-
-    @Override
-    public CreateIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

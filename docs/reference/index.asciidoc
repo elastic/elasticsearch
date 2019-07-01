@@ -65,8 +65,6 @@ include::frozen-indices.asciidoc[]
 
 include::administering.asciidoc[]
 
-include::rest-api/index.asciidoc[]
-
 include::commands/index.asciidoc[]
 
 :edit_url:
@@ -75,6 +73,8 @@ include::how-to.asciidoc[]
 include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
+
+include::rest-api/index.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 

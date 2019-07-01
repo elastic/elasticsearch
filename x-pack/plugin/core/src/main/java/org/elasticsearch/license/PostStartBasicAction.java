@@ -5,21 +5,16 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class PostStartBasicAction extends Action<PostStartBasicResponse> {
+public class PostStartBasicAction extends ActionType<PostStartBasicResponse> {
 
     public static final PostStartBasicAction INSTANCE = new PostStartBasicAction();
     public static final String NAME = "cluster:admin/xpack/license/start_basic";
 
     private PostStartBasicAction() {
         super(NAME);
-    }
-
-    @Override
-    public PostStartBasicResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

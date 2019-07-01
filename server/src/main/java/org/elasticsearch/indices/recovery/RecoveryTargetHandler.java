@@ -88,7 +88,8 @@ public interface RecoveryTargetHandler {
                          List<Long> phase1FileSizes,
                          List<String> phase1ExistingFileNames,
                          List<Long> phase1ExistingFileSizes,
-                         int totalTranslogOps);
+                         int totalTranslogOps,
+                         ActionListener<Void> listener);
 
     /**
      * After all source files has been sent over, this command is sent to the target so it can clean any local

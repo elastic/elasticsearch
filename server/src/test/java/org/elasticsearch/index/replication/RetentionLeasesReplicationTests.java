@@ -39,6 +39,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTestCase {
@@ -135,7 +136,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             group.addRetentionLease("new-lease-after-promotion", randomNonNegativeLong(), "test", newLeaseFuture);
             RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
             assertThat(leasesOnPrimary.primaryTerm(), equalTo(group.getPrimary().getOperationPrimaryTerm()));
-            assertThat(leasesOnPrimary.version(), equalTo(latestRetentionLeasesOnNewPrimary.version() + 1L));
+            assertThat(leasesOnPrimary.version(), greaterThan(latestRetentionLeasesOnNewPrimary.version()));
             assertThat(leasesOnPrimary.leases(), hasSize(latestRetentionLeasesOnNewPrimary.leases().size() + 1));
             RetentionLeaseSyncAction.Request request = ((SyncRetentionLeasesResponse) newLeaseFuture.actionGet()).syncRequest;
             for (IndexShard replica : group.getReplicas()) {

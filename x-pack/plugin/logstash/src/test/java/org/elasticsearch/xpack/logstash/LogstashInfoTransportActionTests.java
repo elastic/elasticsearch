@@ -34,7 +34,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
 
         LogstashUsageTransportAction usageAction = newUsageAction(settings, false);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -60,7 +60,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(Settings.EMPTY, available);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 

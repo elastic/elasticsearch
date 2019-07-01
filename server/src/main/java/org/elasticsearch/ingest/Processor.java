@@ -19,18 +19,16 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -40,6 +38,21 @@ import java.util.function.LongSupplier;
  * Processors may get called concurrently and thus need to be thread-safe.
  */
 public interface Processor {
+
+    /**
+     * Introspect and potentially modify the incoming data.
+     *
+     * Expert method: only override this method if a processor implementation needs to make an asynchronous call,
+     * otherwise just overwrite {@link #execute(IngestDocument)}.
+     */
+    default void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        try {
+            IngestDocument result = execute(ingestDocument);
+            handler.accept(result, null);
+        } catch (Exception e) {
+            handler.accept(null, e);
+        }
+    }
 
     /**
      * Introspect and potentially modify the incoming data.
@@ -115,17 +128,13 @@ public interface Processor {
         public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
         /**
-         * Provides access to an engine searcher of a locally allocated index specified for the provided index.
-         * The input of this function is an index expression and this function returns the {@link IndexMetaData}
-         * of the resolved locally allocated index and {@link Engine.Searcher} instance for the resolved index.
-         *
-         * The locally allocated index must be have a single primary shard.
+         * Provides access to the client
          */
-        public final Function<String, Tuple<IndexMetaData, Engine.Searcher>> localShardSearcher;
+        public final Client client;
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Function<String, Tuple<IndexMetaData, Engine.Searcher>> localShardSearcher) {
+                          IngestService ingestService, Client client) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -133,7 +142,7 @@ public interface Processor {
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
             this.ingestService = ingestService;
-            this.localShardSearcher = localShardSearcher;
+            this.client = client;
         }
 
     }

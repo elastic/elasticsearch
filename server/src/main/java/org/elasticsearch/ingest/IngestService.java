@@ -30,14 +30,12 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -48,12 +46,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,8 +63,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Holder class for several ingest related services.
@@ -95,10 +91,9 @@ public class IngestService implements ClusterStateApplier {
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
-                         List<IngestPlugin> ingestPlugins, IndicesService indicesService) {
+                         List<IngestPlugin> ingestPlugins, Client client) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -106,35 +101,7 @@ public class IngestService implements ClusterStateApplier {
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
                 (delay, command) -> threadPool.schedule(
                     command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC
-                ), this, indexExpression -> {
-                    ClusterState state = clusterService.state();
-                    Index[] resolvedIndices = resolver.concreteIndices(state, IndicesOptions.STRICT_EXPAND_OPEN, indexExpression);
-                    if (resolvedIndices.length != 1) {
-                        throw new IllegalStateException("expression [" + indexExpression + "] can only point to a single concrete index");
-                    }
-                    Index index = resolvedIndices[0];
-
-                    // check if indexExpression matches with an alias that has a filter
-                    // There is no guarantee that alias filters are applied, so fail if this is the case.
-                    Set<String> indicesAndAliases = resolver.resolveExpressions(state, indexExpression);
-                    String[] aliasesWithFilter = resolver.filteringAliases(state, index.getName(), indicesAndAliases);
-                    if (aliasesWithFilter != null && aliasesWithFilter.length > 0) {
-                        throw new IllegalStateException("expression [" + indexExpression + "] points an alias with a filter");
-                    }
-
-                    IndexService indexService = indicesService.indexServiceSafe(index);
-                    int numShards = indexService.getMetaData().getNumberOfShards();
-                    if (numShards != 1) {
-                        throw new IllegalStateException("index [" + index.getName() + "] must have 1 shard, but has " + numShards +
-                            " shards");
-                    }
-
-                    IndexShard indexShard = indexService.getShard(0);
-                    IndexMetaData imd = state.metaData().index(index);
-                    return new Tuple<>(imd, indexShard.acquireSearcher("ingest"));
-                }
-            )
-        );
+                ), this, client));
         this.threadPool = threadPool;
     }
 
@@ -362,42 +329,72 @@ public class IngestService implements ClusterStateApplier {
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    public void executeBulkRequest(Iterable<DocWriteRequest<?>> actionRequests,
-        BiConsumer<IndexRequest, Exception> itemFailureHandler, Consumer<Exception> completionHandler,
-        Consumer<IndexRequest> itemDroppedHandler) {
+    public void executeBulkRequest(int numberOfActionRequests,
+                                   Iterable<DocWriteRequest<?>> actionRequests,
+                                   BiConsumer<Integer, Exception> itemFailureHandler,
+                                   BiConsumer<Thread, Exception> completionHandler,
+                                   IntConsumer itemDroppedHandler) {
 
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
-                completionHandler.accept(e);
+                completionHandler.accept(null, e);
             }
 
             @Override
             protected void doRun() {
+                final Thread originalThread = Thread.currentThread();
+                final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
+                int i = 0;
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
                     IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(originalThread, null);
+                        }
+                        assert counter.get() >= 0;
                         continue;
                     }
                     String pipelineId = indexRequest.getPipeline();
-                    if (NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        try {
-                            PipelineHolder holder = pipelines.get(pipelineId);
-                            if (holder == null) {
-                                throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-                            }
-                            Pipeline pipeline = holder.pipeline;
-                            innerExecute(indexRequest, pipeline, itemDroppedHandler);
-                            //this shouldn't be needed here but we do it for consistency with index api
-                            // which requires it to prevent double execution
-                            indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                        } catch (Exception e) {
-                            itemFailureHandler.accept(indexRequest, e);
+                    if (NOOP_PIPELINE_NAME.equals(pipelineId)) {
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(originalThread, null);
                         }
+                        assert counter.get() >= 0;
+                        continue;
                     }
+
+                    final int slot = i;
+                    try {
+                        PipelineHolder holder = pipelines.get(pipelineId);
+                        if (holder == null) {
+                            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+                        }
+                        Pipeline pipeline = holder.pipeline;
+                        innerExecute(slot, indexRequest, pipeline, itemDroppedHandler, e -> {
+                            if (e == null) {
+                                // this shouldn't be needed here but we do it for consistency with index api
+                                // which requires it to prevent double execution
+                                indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                            } else {
+                                itemFailureHandler.accept(slot, e);
+                            }
+
+                            if (counter.decrementAndGet() == 0){
+                                completionHandler.accept(originalThread, null);
+                            }
+                            assert counter.get() >= 0;
+                        });
+                    } catch (Exception e) {
+                        itemFailureHandler.accept(slot, e);
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(originalThread, null);
+                        }
+                        assert counter.get() >= 0;
+                    }
+                    i++;
                 }
-                completionHandler.accept(null);
             }
         });
     }
@@ -453,26 +450,34 @@ public class IngestService implements ClusterStateApplier {
         return sb.toString();
     }
 
-    private void innerExecute(IndexRequest indexRequest, Pipeline pipeline, Consumer<IndexRequest> itemDroppedHandler) throws Exception {
+    private void innerExecute(int slot, IndexRequest indexRequest, Pipeline pipeline, IntConsumer itemDroppedHandler,
+                              Consumer<Exception> handler) {
         if (pipeline.getProcessors().isEmpty()) {
+            handler.accept(null);
             return;
         }
 
         long startTimeInNanos = System.nanoTime();
         // the pipeline specific stat holder may not exist and that is fine:
         // (e.g. the pipeline may have been removed while we're ingesting a document
-        try {
-            totalMetrics.preIngest();
-            String index = indexRequest.index();
-            String type = indexRequest.type();
-            String id = indexRequest.id();
-            String routing = indexRequest.routing();
-            Long version = indexRequest.version();
-            VersionType versionType = indexRequest.versionType();
-            Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
-            if (pipeline.execute(ingestDocument) == null) {
-                itemDroppedHandler.accept(indexRequest);
+        totalMetrics.preIngest();
+        String index = indexRequest.index();
+        String type = indexRequest.type();
+        String id = indexRequest.id();
+        String routing = indexRequest.routing();
+        Long version = indexRequest.version();
+        VersionType versionType = indexRequest.versionType();
+        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
+        IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
+        pipeline.execute(ingestDocument, (result, e) -> {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
+            totalMetrics.postIngest(ingestTimeInMillis);
+            if (e != null) {
+                totalMetrics.ingestFailed();
+                handler.accept(e);
+            } else if (result == null) {
+                itemDroppedHandler.accept(slot);
+                handler.accept(null);
             } else {
                 Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
                 //it's fine to set all metadata fields all the time, as ingest document holds their starting values
@@ -486,14 +491,9 @@ public class IngestService implements ClusterStateApplier {
                     indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
                 }
                 indexRequest.source(ingestDocument.getSourceAndMetadata());
+                handler.accept(null);
             }
-        } catch (Exception e) {
-            totalMetrics.ingestFailed();
-            throw e;
-        } finally {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-            totalMetrics.postIngest(ingestTimeInMillis);
-        }
+        });
     }
 
     @Override

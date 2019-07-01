@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -104,21 +103,6 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             TestEnvironment.newEnvironment(settings), client, licenseState, jobManagerHolder);
     }
 
-    public void testIsRunningOnMlPlatform() {
-        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "amd64", true));
-        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "amd64", true));
-        assertTrue(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Mac OS X", "x86_64", true));
-        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "i386", false));
-        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "i386", false));
-        assertFalse(MachineLearningInfoTransportAction.isRunningOnMlPlatform("SunOS", "amd64", false));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("Linux", "i386", true));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("Windows 10", "i386", true));
-        expectThrows(ElasticsearchException.class,
-                () -> MachineLearningInfoTransportAction.isRunningOnMlPlatform("SunOS", "amd64", true));
-    }
-
     public void testAvailable() throws Exception {
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), commonSettings, licenseState);
@@ -127,7 +111,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
         var usageAction = newUsageAction(commonSettings);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -151,7 +135,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(expected));
 
@@ -184,7 +168,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -264,7 +248,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage mlUsage = future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         mlUsage.writeTo(out);
@@ -286,7 +270,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, clusterState, future);
+        usageAction.masterOperation(null, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
@@ -312,7 +296,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, ClusterState.EMPTY_STATE, future);
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));

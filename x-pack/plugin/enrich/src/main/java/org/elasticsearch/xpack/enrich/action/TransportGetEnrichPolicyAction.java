@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -53,7 +54,7 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected void masterOperation(GetEnrichPolicyAction.Request request,
+    protected void masterOperation(Task task, GetEnrichPolicyAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
         final EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);

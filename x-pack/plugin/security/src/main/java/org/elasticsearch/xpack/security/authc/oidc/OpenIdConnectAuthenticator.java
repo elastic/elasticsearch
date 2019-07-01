@@ -626,7 +626,7 @@ public class OpenIdConnectAuthenticator {
      * necessary as some OPs return slightly different values for some claims (i.e. Google for the profile picture) and
      * {@link JSONObject#merge(Object)} would throw a runtime exception. The merging is performed based on the following rules:
      * <ul>
-     * <li>If the values for a given claim are primitives (of the the same type), the value from the ID Token is retained</li>
+     * <li>If the values for a given claim are primitives (of the same type), the value from the ID Token is retained</li>
      * <li>If the values for a given claim are Objects, the values are merged</li>
      * <li>If the values for a given claim are Arrays, the values are merged without removing duplicates</li>
      * <li>If the values for a given claim are of different types, an exception is thrown</li>

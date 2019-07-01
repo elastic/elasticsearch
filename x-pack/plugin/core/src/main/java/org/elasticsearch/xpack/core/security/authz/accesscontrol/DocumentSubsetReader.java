@@ -16,6 +16,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CombinedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -171,18 +172,7 @@ public final class DocumentSubsetReader extends FilterLeafReader {
             return roleQueryBits;
         } else {
             // apply deletes when needed:
-            return new Bits() {
-
-                @Override
-                public boolean get(int index) {
-                    return roleQueryBits.get(index) && actualLiveDocs.get(index);
-                }
-
-                @Override
-                public int length() {
-                    return roleQueryBits.length();
-                }
-            };
+            return new CombinedBitSet(roleQueryBits, actualLiveDocs);
         }
     }
 
@@ -207,13 +197,4 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         // Not delegated since we change the live docs
         return null;
     }
-
-    BitSet getRoleQueryBits() {
-        return roleQueryBits;
-    }
-
-    Bits getWrappedLiveDocs() {
-        return in.getLiveDocs();
-    }
-
 }

@@ -3,7 +3,6 @@ package org.elasticsearch.gradle.test;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Nested;
-import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.testing.Test;
 
 import java.util.ArrayList;
@@ -28,7 +27,6 @@ public class RestTestRunnerTask extends Test {
     }
 
     @Nested
-    @Optional
     public Collection<ElasticsearchCluster> getClusters() {
         return clusters;
     }

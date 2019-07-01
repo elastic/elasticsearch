@@ -40,7 +40,7 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public Iterator<T> iterator() {
-        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).collect(Collectors.toList()).iterator();
+        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).iterator();
     }
 
     @Override

@@ -51,7 +51,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         switch (between(0, 5)) {
             case 0:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> createRandomPolicy(randomAlphaOfLength(10))))
+                    .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))
                     .build();
             case 1:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
@@ -82,7 +82,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
 
     public static SnapshotLifecyclePolicyMetadata createRandomPolicyMetadata(String policyId) {
         SnapshotLifecyclePolicyMetadata.Builder builder = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(createRandomPolicy(policyId))
+            .setPolicy(randomSnapshotLifecyclePolicy(policyId))
             .setVersion(randomNonNegativeLong())
             .setModifiedDate(randomNonNegativeLong());
         if (randomBoolean()) {
@@ -97,7 +97,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         return builder.build();
     }
 
-    public static SnapshotLifecyclePolicy createRandomPolicy(String policyId) {
+    public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String policyId) {
         Map<String, Object> config = new HashMap<>();
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
@@ -110,11 +110,11 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
             randomRetention());
     }
 
-    private static SnapshotRetentionConfiguration randomRetention() {
+    public static SnapshotRetentionConfiguration randomRetention() {
         return new SnapshotRetentionConfiguration(TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"));
     }
 
-    private static String randomSchedule() {
+    public static String randomSchedule() {
         return randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 12) + " * * ?";

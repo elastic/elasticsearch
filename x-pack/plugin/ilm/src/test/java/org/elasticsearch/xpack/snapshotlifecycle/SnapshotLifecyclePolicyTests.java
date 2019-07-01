@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.snapshotlifecycle;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadataTests;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
 
 import java.io.IOException;
@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -137,29 +138,6 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
         return randomSnapshotLifecyclePolicy(id);
     }
 
-    public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String id) {
-        Map<String, Object> config = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(2, 5); i++) {
-            config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
-        }
-        return new SnapshotLifecyclePolicy(id,
-            randomAlphaOfLength(4),
-            randomSchedule(),
-            randomAlphaOfLength(4),
-            config,
-            randomRetention());
-    }
-
-    private static SnapshotRetentionConfiguration randomRetention() {
-        return new SnapshotRetentionConfiguration(TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"));
-    }
-
-    private static String randomSchedule() {
-        return randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 12) + " * * ?";
-    }
-
     @Override
     protected SnapshotLifecyclePolicy mutateInstance(SnapshotLifecyclePolicy instance) {
         switch (between(0, 5)) {
@@ -180,7 +158,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
             case 2:
                 return new SnapshotLifecyclePolicy(instance.getId(),
                     instance.getName(),
-                    randomValueOtherThan(instance.getSchedule(), SnapshotLifecyclePolicyTests::randomSchedule),
+                    randomValueOtherThan(instance.getSchedule(), SnapshotLifecyclePolicyMetadataTests::randomSchedule),
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy());
@@ -208,7 +186,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
                     instance.getSchedule(),
                     instance.getRepository(),
                     instance.getConfig(),
-                    randomValueOtherThan(instance.getRetentionPolicy(), SnapshotLifecyclePolicyTests::randomRetention));
+                    randomValueOtherThan(instance.getRetentionPolicy(), SnapshotLifecyclePolicyMetadataTests::randomRetention));
             default:
                 throw new AssertionError("failure, got illegal switch case");
         }

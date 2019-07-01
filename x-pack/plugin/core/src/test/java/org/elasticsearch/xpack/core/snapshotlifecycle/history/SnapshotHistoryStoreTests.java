@@ -10,22 +10,20 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
 import org.junit.After;
 import org.junit.Before;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore.getHistoryIndexNameForTime;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -158,28 +156,5 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             equalTo(".slm-history-" + indexTemplateVersion + "-2014.11"));
         assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(2833165811000L).atZone(ZoneOffset.UTC)),
             equalTo(".slm-history-" + indexTemplateVersion + "-2059.10"));
-    }
-
-    public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String id) {
-        Map<String, Object> config = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(2, 5); i++) {
-            config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
-        }
-        return new SnapshotLifecyclePolicy(id,
-            randomAlphaOfLength(4),
-            randomSchedule(),
-            randomAlphaOfLength(4),
-            config,
-            randomRetention());
-    }
-
-    private static SnapshotRetentionConfiguration randomRetention() {
-        return new SnapshotRetentionConfiguration(TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"));
-    }
-
-    private static String randomSchedule() {
-        return randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 59) + " " +
-            randomIntBetween(0, 12) + " * * ?";
     }
 }

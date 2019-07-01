@@ -427,6 +427,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                     + claimValueObject.getClass().getName());
                             }
                             return values.stream().map(s -> {
+                                if (s == null) {
+                                    logger.debug("OpenID Connect Claim [{}] is null", claimName);
+                                    return null;
+                                }
                                 final Matcher matcher = regex.matcher(s);
                                 if (matcher.find() == false) {
                                     logger.debug("OpenID Connect Claim [{}] is [{}], which does not match [{}]",
@@ -456,7 +460,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                     + " expects a claim with String or a String Array value but found a "
                                     + claimValueObject.getClass().getName());
                             }
-                            return (List<String>) claimValueObject;
+                            return ((List<String>) claimValueObject).stream()
+                                        .filter(Objects::nonNull)
+                                        .collect(Collectors.toList());
                         });
                 }
             } else if (required) {

@@ -229,7 +229,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     final int permitsToRelease;
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
-                        // executed at all, so we will never getSemapthore to un-claim and terminate it.
+                        // executed at all, so we will never be called again to un-claim and terminate it.
                         clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
                         permitsToRelease = clustersUsedByTask.stream()
                             .map(cluster -> cluster.getNumberOfNodes())
@@ -283,7 +283,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     /**
-     * Boilerplate to getSemapthore testClusters container extension
+     * Boilerplate to get testClusters container extension
      *
      * Equivalent to project.testClusters in the DSL
      */

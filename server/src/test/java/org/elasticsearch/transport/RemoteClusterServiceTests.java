@@ -667,7 +667,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
                                 @Override
                                 public void onResponse(BiFunction<String, String, DiscoveryNode> stringStringDiscoveryNodeBiFunction) {
-                                    logger.warn("unexpected call: {}", new Exception("just for the stack trace"));
+                                    logger.warn("unexpected call", new Exception("just for the stack trace"));
                                     try {
                                         fail("should not be called");
                                     } finally {

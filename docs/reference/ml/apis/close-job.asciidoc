@@ -12,7 +12,6 @@ A job can be opened and closed multiple times throughout its lifecycle.
 A closed job cannot receive data or perform analysis
 operations, but you can still explore and navigate results.
 
-[discrete]
 [[ml-close-job-request]]
 ==== {api-request-title}
 
@@ -21,6 +20,13 @@ operations, but you can still explore and navigate results.
 `POST _ml/anomaly_detectors/<job_id>,<job_id>/_close` +
 
 `POST _ml/anomaly_detectors/_all/_close` +
+
+[[ml-close-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-close-job-desc]]
 ==== {api-description-title}
@@ -48,30 +54,23 @@ after the close job API returns.  The `force` query parameter should only be use
 situations where the job has already failed, or where you are not interested in
 results the job might have recently produced or might produce in the future.
 
-[discrete]
 [[ml-close-job-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id`::
+`<job_id>` (Required)::
   (string) Identifier for the job. It can be a job identifier, a group name, or
   a wildcard expression.
 
 [[ml-close-job-query-parms]]
 ==== {api-query-parms-title}
 
-`force`::
+`force` (Optional)::
   (boolean) Use to close a failed job, or to forcefully close a job which has not
   responded to its initial close request.
 
-`timeout`::
+`timeout` (Optional)::
   (time units) Controls the time to wait until a job has closed.
   The default value is 30 minutes.
-
-[[ml-close-job-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-close-job-example]]
 ==== {api-examples-title}

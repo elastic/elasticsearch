@@ -26,15 +26,27 @@ import org.elasticsearch.transport.TransportRequestOptions;
 /**
  * A generic action. Should strive to make it a singleton.
  */
-public abstract class Action<Response extends ActionResponse> {
+public class ActionType<Response extends ActionResponse> {
 
     private final String name;
+    private final Writeable.Reader<Response> responseReader;
 
     /**
      * @param name The name of the action, must be unique across actions.
+     * @deprecated Pass a {@link Writeable.Reader} with {@link }
      */
-    protected Action(String name) {
+    @Deprecated
+    protected ActionType(String name) {
+        this(name, null);
+    }
+
+    /**
+     * @param name The name of the action, must be unique across actions.
+     * @param responseReader A reader for the response type
+     */
+    public ActionType(String name, Writeable.Reader<Response> responseReader) {
         this.name = name;
+        this.responseReader = responseReader;
     }
 
     /**
@@ -45,22 +57,10 @@ public abstract class Action<Response extends ActionResponse> {
     }
 
     /**
-     * Creates a new response instance.
-     * @deprecated Implement {@link #getResponseReader()} instead and make this method throw an
-     *             {@link UnsupportedOperationException}
-     */
-    @Deprecated
-    public abstract Response newResponse();
-
-    /**
      * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
      */
     public Writeable.Reader<Response> getResponseReader() {
-        return in -> {
-            Response response = newResponse();
-            response.readFrom(in);
-            return response;
-        };
+        return responseReader;
     }
 
     /**
@@ -72,7 +72,7 @@ public abstract class Action<Response extends ActionResponse> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof Action && name.equals(((Action<?>) o).name());
+        return o instanceof ActionType && name.equals(((ActionType<?>) o).name());
     }
 
     @Override

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
-public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Response> {
+public class PreviewDatafeedAction extends StreamableResponseActionType<PreviewDatafeedAction.Response> {
 
     public static final PreviewDatafeedAction INSTANCE = new PreviewDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";

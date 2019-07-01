@@ -15,6 +15,13 @@ Retrieves filters.
 
 `GET _ml/filters/`
 
+[[ml-get-filter-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-get-filter-desc]]
 ==== {api-description-title}
 
@@ -24,16 +31,16 @@ You can get a single filter or all filters. For more information, see
 [[ml-get-filter-path-parms]]
 ==== {api-path-parms-title}
 
-`filter_id`::
+`<filter_id>` (Optional)::
   (string) Identifier for the filter.
 
 [[ml-get-filter-query-parms]]
 ==== {api-query-parms-title}
 
-`from`:::
+`from` (Optional):::
     (integer) Skips the specified number of filters.
 
-`size`:::
+`size` (Optional):::
     (integer) Specifies the maximum number of filters to obtain.
 
 [[ml-get-filter-results]]
@@ -44,13 +51,6 @@ The API returns the following information:
 `filters`::
   (array) An array of filter resources.
   For more information, see <<ml-filter-resource>>.
-
-[[ml-get-filter-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
 
 [[ml-get-filter-example]]
 ==== {api-examples-title}

@@ -19,7 +19,14 @@ Retrieves configuration information for {dfeeds}.
 
 `GET _ml/datafeeds/` +
 
-`GET _ml/datafeeds/_all` +
+`GET _ml/datafeeds/_all` 
+
+[[ml-get-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-get-datafeed-desc]]
 ==== {api-description-title}
@@ -34,7 +41,7 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 [[ml-get-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`feed_id`::
+`<feed_id>` (Optional)::
   (string) Identifier for the {dfeed}. It can be a {dfeed} identifier or a
   wildcard expression. If you do not specify one of these options, the API
   returns information about all {dfeeds}.
@@ -47,13 +54,6 @@ The API returns the following information:
 `datafeeds`::
   (array) An array of {dfeed} objects.
   For more information, see <<ml-datafeed-resource>>.
-
-[[ml-get-datafeed-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
 
 [[ml-get-datafeed-example]]
 ==== {api-examples-title}

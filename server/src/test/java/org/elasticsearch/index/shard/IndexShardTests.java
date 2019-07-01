@@ -2925,7 +2925,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         indexShard.getLocalCheckpoint());
                     indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
                         indexShard.getLocalCheckpoint());
-                    indexShard.advancePeerRecoveryRetentionLeasesToGlobalCheckpoints();
+                    indexShard.syncRetentionLeases();
                 } else {
                     indexShard.updateGlobalCheckpointOnReplica(newGlobalCheckpoint, "test");
 
@@ -3524,7 +3524,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.updateGlobalCheckpointForShard(
                 primary.routingEntry().allocationId().getId(),
                 primary.getLastSyncedGlobalCheckpoint());
-            primary.advancePeerRecoveryRetentionLeasesToGlobalCheckpoints();
+            primary.syncRetentionLeases();
             primary.sync();
             flushShard(primary);
         }

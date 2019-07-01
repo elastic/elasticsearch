@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -50,6 +51,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
@@ -61,6 +63,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
@@ -973,6 +978,160 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
     private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final String allocationId) {
         addPeerRecoveryRetentionLease(tracker, AllocationId.newInitializing(allocationId));
+    }
+
+    public void testPeerRecoveryRetentionLeaseCreationAndRenewal() {
+
+        final int numberOfActiveAllocationsIds = randomIntBetween(1, 8);
+        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final Tuple<Set<AllocationId>, Set<AllocationId>> activeAndInitializingAllocationIds =
+            randomActiveAndInitializingAllocationIds(numberOfActiveAllocationsIds, numberOfInitializingIds);
+        final Set<AllocationId> activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final Set<AllocationId> initializingAllocationIds = activeAndInitializingAllocationIds.v2();
+
+        final AllocationId primaryId = activeAllocationIds.iterator().next();
+
+        final long initialClusterStateVersion = randomNonNegativeLong();
+
+        final AtomicLong currentTimeMillis = new AtomicLong(0L);
+        final ReplicationTracker tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, currentTimeMillis::get);
+
+        final long retentionLeaseExpiryTimeMillis = tracker.indexSettings().getRetentionLeaseMillis();
+        final long peerRecoveryRetentionLeaseRenewalTimeMillis = retentionLeaseExpiryTimeMillis / 2;
+
+        final long maximumTestTimeMillis = 13 * retentionLeaseExpiryTimeMillis;
+        final long testStartTimeMillis = randomLongBetween(0L, Long.MAX_VALUE - maximumTestTimeMillis);
+        currentTimeMillis.set(testStartTimeMillis);
+
+        final Function<AllocationId, RetentionLease> retentionLeaseFromAllocationId = allocationId
+            -> new RetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeIdFromAllocationId(allocationId)),
+            0L, currentTimeMillis.get(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+
+        final List<RetentionLease> initialLeases = new ArrayList<>();
+        if (randomBoolean()) {
+            initialLeases.add(retentionLeaseFromAllocationId.apply(primaryId));
+        }
+        for (final AllocationId replicaId : initializingAllocationIds) {
+            if (randomBoolean()) {
+                initialLeases.add(retentionLeaseFromAllocationId.apply(replicaId));
+            }
+        }
+        for (int i = randomIntBetween(0, 5); i > 0; i--) {
+            initialLeases.add(retentionLeaseFromAllocationId.apply(AllocationId.newInitializing()));
+        }
+        tracker.updateRetentionLeasesOnReplica(new RetentionLeases(randomNonNegativeLong(), randomNonNegativeLong(), initialLeases));
+
+        IndexShardRoutingTable routingTable = routingTable(initializingAllocationIds, primaryId);
+        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertTrue("primary's retention lease should exist",
+            tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(routingTable.primaryShard())));
+
+        final Consumer<Runnable> assertAsTimePasses = assertion -> {
+            final long startTime = currentTimeMillis.get();
+            while (currentTimeMillis.get() < startTime + retentionLeaseExpiryTimeMillis * 2) {
+                currentTimeMillis.addAndGet(randomLongBetween(0L, retentionLeaseExpiryTimeMillis * 2));
+                tracker.renewPeerRecoveryRetentionLeases();
+                tracker.getRetentionLeases(true);
+                assertion.run();
+            }
+        };
+
+        assertAsTimePasses.accept(() -> {
+            // Leases for assigned replicas do not expire
+            final RetentionLeases retentionLeases = tracker.getRetentionLeases();
+            for (final AllocationId replicaId : initializingAllocationIds) {
+                final String leaseId = retentionLeaseFromAllocationId.apply(replicaId).id();
+                assertTrue("should not have removed lease for " + replicaId + " in " + retentionLeases,
+                    initialLeases.stream().noneMatch(l -> l.id().equals(leaseId)) || retentionLeases.contains(leaseId));
+            }
+        });
+
+        // Leases that don't correspond to assigned replicas, however, are expired by this time.
+        final Set<String> expectedLeaseIds = Stream.concat(Stream.of(primaryId), initializingAllocationIds.stream())
+            .map(allocationId -> retentionLeaseFromAllocationId.apply(allocationId).id()).collect(Collectors.toSet());
+        for (final RetentionLease retentionLease : tracker.getRetentionLeases().leases()) {
+            assertThat(expectedLeaseIds, hasItem(retentionLease.id()));
+        }
+
+        for (AllocationId replicaId : initializingAllocationIds) {
+            markAsTrackingAndInSyncQuietly(tracker, replicaId.getId(), NO_OPS_PERFORMED);
+        }
+
+        assertThat(tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
+            equalTo(expectedLeaseIds));
+
+        assertAsTimePasses.accept(() -> {
+            // Leases still don't expire
+            assertThat(tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
+                equalTo(expectedLeaseIds));
+
+            // Also leases are renewed before reaching half the expiry time
+            //noinspection OptionalGetWithoutIsPresent
+            assertThat(tracker.getRetentionLeases() + " renewed before too long",
+                tracker.getRetentionLeases().leases().stream().mapToLong(RetentionLease::timestamp).min().getAsLong(),
+                greaterThanOrEqualTo(currentTimeMillis.get() - peerRecoveryRetentionLeaseRenewalTimeMillis));
+        });
+
+        IndexShardRoutingTable.Builder routingTableBuilder = new IndexShardRoutingTable.Builder(routingTable);
+        for (ShardRouting replicaShard : routingTable.replicaShards()) {
+            routingTableBuilder.removeShard(replicaShard);
+            routingTableBuilder.addShard(replicaShard.moveToStarted());
+        }
+        routingTable = routingTableBuilder.build();
+        activeAllocationIds.addAll(initializingAllocationIds);
+
+        tracker.updateFromMaster(initialClusterStateVersion + randomLongBetween(1, 10), ids(activeAllocationIds), routingTable);
+
+        assertAsTimePasses.accept(() -> {
+            // Leases still don't expire
+            assertThat(tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
+                equalTo(expectedLeaseIds));
+            // ... and any extra peer recovery retention leases are expired immediately since the shard is fully active
+            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.wrap(() -> {}));
+        });
+
+        tracker.renewPeerRecoveryRetentionLeases();
+        assertTrue("expired extra lease", tracker.getRetentionLeases(true).v1());
+
+        final AllocationId advancingAllocationId
+            = initializingAllocationIds.isEmpty() || rarely() ? primaryId : randomFrom(initializingAllocationIds);
+        final String advancingLeaseId = retentionLeaseFromAllocationId.apply(advancingAllocationId).id();
+
+        final long initialGlobalCheckpoint
+            = Math.max(NO_OPS_PERFORMED, tracker.getTrackedLocalCheckpointForShard(advancingAllocationId.getId()).globalCheckpoint);
+        assertThat(tracker.getRetentionLeases().get(advancingLeaseId).retainingSequenceNumber(), equalTo(initialGlobalCheckpoint + 1));
+        final long newGlobalCheckpoint = initialGlobalCheckpoint + randomLongBetween(1, 1000);
+        tracker.updateGlobalCheckpointForShard(advancingAllocationId.getId(), newGlobalCheckpoint);
+        tracker.renewPeerRecoveryRetentionLeases();
+        assertThat("lease was renewed because the shard advanced its global checkpoint",
+            tracker.getRetentionLeases().get(advancingLeaseId).retainingSequenceNumber(), equalTo(newGlobalCheckpoint + 1));
+
+        final long initialVersion = tracker.getRetentionLeases().version();
+        tracker.renewPeerRecoveryRetentionLeases();
+        assertThat("immediate renewal is a no-op", tracker.getRetentionLeases().version(), equalTo(initialVersion));
+
+        //noinspection OptionalGetWithoutIsPresent
+        final long millisUntilFirstRenewal
+            = tracker.getRetentionLeases().leases().stream().mapToLong(RetentionLease::timestamp).min().getAsLong()
+            + peerRecoveryRetentionLeaseRenewalTimeMillis
+            - currentTimeMillis.get();
+
+        if (millisUntilFirstRenewal != 0) {
+            final long shorterThanRenewalTime = randomLongBetween(0L, millisUntilFirstRenewal - 1);
+            currentTimeMillis.addAndGet(shorterThanRenewalTime);
+            tracker.renewPeerRecoveryRetentionLeases();
+            assertThat("renewal is a no-op after a short time", tracker.getRetentionLeases().version(), equalTo(initialVersion));
+            currentTimeMillis.addAndGet(millisUntilFirstRenewal - shorterThanRenewalTime);
+        }
+
+        tracker.renewPeerRecoveryRetentionLeases();
+        assertThat("renewal happens after a sufficiently long time", tracker.getRetentionLeases().version(), greaterThan(initialVersion));
+        assertTrue("all leases were renewed",
+            tracker.getRetentionLeases().leases().stream().allMatch(l -> l.timestamp() == currentTimeMillis.get()));
+
+        assertThat("test ran for too long, potentially leading to overflow",
+            currentTimeMillis.get(), lessThanOrEqualTo(testStartTimeMillis + maximumTestTimeMillis));
     }
 
 }

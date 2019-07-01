@@ -97,20 +97,11 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     }
 
-    public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING);
-        }
-
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
                 super.nodePlugins().stream(),
-                Stream.of(RetentionLeaseRenewIntervalSettingPlugin.class, RetentionLeaseSyncIntervalSettingPlugin.class))
+                Stream.of(RetentionLeaseRenewIntervalSettingPlugin.class))
                 .collect(Collectors.toList());
     }
 

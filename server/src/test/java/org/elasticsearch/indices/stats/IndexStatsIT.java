@@ -81,7 +81,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -1009,7 +1008,10 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testFilterCacheStats() throws Exception {
-        Settings settings = Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build();
+        Settings settings = Settings.builder().put(indexSettings())
+            .put("number_of_replicas", 0)
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
+            .build();
         assertAcked(prepareCreate("index").setSettings(settings).get());
         indexRandom(false, true,
                 client().prepareIndex("index", "type", "1").setSource("foo", "bar"),
@@ -1053,10 +1055,13 @@ public class IndexStatsIT extends ESIntegTestCase {
         // we need to flush and make that commit safe so that the SoftDeletesPolicy can drop everything.
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
             persistGlobalCheckpoint("index");
-            internalCluster().nodesInclude("index").stream()
-                .flatMap(n -> StreamSupport.stream(internalCluster().getInstance(IndicesService.class, n).spliterator(), false))
-                .flatMap(n -> StreamSupport.stream(n.spliterator(), false))
-                .forEach(IndexShard::advancePeerRecoveryRetentionLeasesToGlobalCheckpoints);
+            assertBusy(() -> {
+                for (final ShardStats shardStats : client().admin().indices().prepareStats("index").get().getIndex("index").getShards()) {
+                    final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                    assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                        .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
+                }
+            });
             flush("index");
         }
         ForceMergeResponse forceMergeResponse =

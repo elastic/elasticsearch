@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * Create snapshot action
  */
-public class CreateSnapshotAction extends StreamableResponseAction<CreateSnapshotResponse> {
+public class CreateSnapshotAction extends StreamableResponseActionType<CreateSnapshotResponse> {
 
     public static final CreateSnapshotAction INSTANCE = new CreateSnapshotAction();
     public static final String NAME = "cluster:admin/snapshot/create";

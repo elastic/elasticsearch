@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.action.admin.indices.exists.types;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class TypesExistsAction extends StreamableResponseAction<TypesExistsResponse> {
+public class TypesExistsAction extends StreamableResponseActionType<TypesExistsResponse> {
 
     public static final TypesExistsAction INSTANCE = new TypesExistsAction();
     public static final String NAME = "indices:admin/types/exists";

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class DeleteJobAction extends Action<AcknowledgedResponse> {
+public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteJobAction INSTANCE = new DeleteJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/delete";

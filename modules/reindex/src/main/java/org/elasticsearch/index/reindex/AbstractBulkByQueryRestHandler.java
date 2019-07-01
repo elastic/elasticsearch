@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +39,7 @@ import java.util.function.Consumer;
  */
 public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
-        A extends Action<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
+        A extends ActionType<BulkByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
     protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
         super(settings, action);

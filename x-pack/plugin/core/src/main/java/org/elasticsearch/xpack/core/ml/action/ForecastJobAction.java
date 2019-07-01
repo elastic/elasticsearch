@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ForecastJobAction extends Action<ForecastJobAction.Response> {
+public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
 
     public static final ForecastJobAction INSTANCE = new ForecastJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";

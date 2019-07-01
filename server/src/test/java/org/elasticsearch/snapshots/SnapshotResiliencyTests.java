@@ -22,7 +22,7 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
@@ -1120,7 +1120,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             shardStateAction,
                             actionFilters,
                             indexNameExpressionResolver));
-            Map<Action, TransportAction> actions = new HashMap<>();
+            Map<ActionType, TransportAction> actions = new HashMap<>();
             final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                 indicesService,
                 allocationService, new AliasValidator(), environment, indexScopedSettings,

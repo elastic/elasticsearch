@@ -21,7 +21,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -104,7 +104,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 listener.onResponse((Response)new CreateIndexResponse(false, false, null));
             }
         };

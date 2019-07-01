@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateDatafeedAction extends StreamableResponseAction<PutDatafeedAction.Response> {
+public class UpdateDatafeedAction extends StreamableResponseActionType<PutDatafeedAction.Response> {
 
     public static final UpdateDatafeedAction INSTANCE = new UpdateDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/update";

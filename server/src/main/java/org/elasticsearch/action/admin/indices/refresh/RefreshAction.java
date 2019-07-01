@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class RefreshAction extends StreamableResponseAction<RefreshResponse> {
+public class RefreshAction extends StreamableResponseActionType<RefreshResponse> {
 
     public static final RefreshAction INSTANCE = new RefreshAction();
     public static final String NAME = "indices:admin/refresh";

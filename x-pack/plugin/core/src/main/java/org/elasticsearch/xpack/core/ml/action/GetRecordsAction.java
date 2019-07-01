@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetRecordsAction extends StreamableResponseAction<GetRecordsAction.Response> {
+public class GetRecordsAction extends StreamableResponseActionType<GetRecordsAction.Response> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/records/get";

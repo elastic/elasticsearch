@@ -1094,12 +1094,6 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         tracker.renewPeerRecoveryRetentionLeases();
         assertTrue("expired extra lease", tracker.getRetentionLeases(true).v1());
 
-
-        for (RetentionLease retentionLease : tracker.getRetentionLeases().leases()) {
-            // update all leases' timestamps so they don't need a time-based renewal for a while
-            tracker.renewRetentionLease(retentionLease.id(), retentionLease.retainingSequenceNumber(), retentionLease.source());
-        }
-
         final AllocationId advancingAllocationId
             = initializingAllocationIds.isEmpty() || rarely() ? primaryId : randomFrom(initializingAllocationIds);
         final String advancingLeaseId = retentionLeaseFromAllocationId.apply(advancingAllocationId).id();
@@ -1117,14 +1111,24 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         tracker.renewPeerRecoveryRetentionLeases();
         assertThat("immediate renewal is a no-op", tracker.getRetentionLeases().version(), equalTo(initialVersion));
 
-        final long shorterThanRenewalTime = randomLongBetween(0L, peerRecoveryRetentionLeaseRenewalTimeMillis - 1);
-        currentTimeMillis.addAndGet(shorterThanRenewalTime);
-        tracker.renewPeerRecoveryRetentionLeases();
-        assertThat("renewal is a no-op after a short time", tracker.getRetentionLeases().version(), equalTo(initialVersion));
+        //noinspection OptionalGetWithoutIsPresent
+        final long millisUntilFirstRenewal
+            = tracker.getRetentionLeases().leases().stream().mapToLong(RetentionLease::timestamp).min().getAsLong()
+            + peerRecoveryRetentionLeaseRenewalTimeMillis
+            - currentTimeMillis.get();
 
-        currentTimeMillis.addAndGet(peerRecoveryRetentionLeaseRenewalTimeMillis - shorterThanRenewalTime);
+        if (millisUntilFirstRenewal != 0) {
+            final long shorterThanRenewalTime = randomLongBetween(0L, millisUntilFirstRenewal - 1);
+            currentTimeMillis.addAndGet(shorterThanRenewalTime);
+            tracker.renewPeerRecoveryRetentionLeases();
+            assertThat("renewal is a no-op after a short time", tracker.getRetentionLeases().version(), equalTo(initialVersion));
+            currentTimeMillis.addAndGet(millisUntilFirstRenewal - shorterThanRenewalTime);
+        }
+
         tracker.renewPeerRecoveryRetentionLeases();
         assertThat("renewal happens after a sufficiently long time", tracker.getRetentionLeases().version(), greaterThan(initialVersion));
+        assertTrue("all leases were renewed",
+            tracker.getRetentionLeases().leases().stream().allMatch(l -> l.timestamp() == currentTimeMillis.get()));
 
         assertThat("test ran for too long, potentially leading to overflow",
             currentTimeMillis.get(), lessThanOrEqualTo(testStartTimeMillis + maximumTestTimeMillis));

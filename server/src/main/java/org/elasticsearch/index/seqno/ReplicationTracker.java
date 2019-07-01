@@ -60,6 +60,7 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
@@ -462,6 +463,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void renewPeerRecoveryRetentionLeases() {
         assert primaryMode;
+        assert invariant();
 
         /*
          * Peer-recovery retention leases never expire while the associated shard is assigned, but we must still renew them occasionally in
@@ -471,21 +473,31 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
          */
         final long renewalTimeMillis = currentTimeMillisSupplier.getAsLong() - indexSettings.getRetentionLeaseMillis() / 2;
 
-        for (ShardRouting shardRouting : routingTable) {
-            if (shardRouting.assignedToNode()) {
-                final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
+        /*
+         * If any of the peer-recovery retention leases need renewal, it's a good opportunity to renew them all.
+         */
+        final boolean renewalNeeded = StreamSupport.stream(routingTable.spliterator(), false).filter(ShardRouting::assignedToNode)
+            .anyMatch(shardRouting -> {
                 final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
                 if (retentionLease == null) {
-                    if (checkpointState.tracked) {
-                        /*
-                         * BWC: We got here here via a rolling upgrade from an older version that doesn't create peer recovery retention
-                         * leases for every shard copy. TODO create leases lazily
-                         */
-                        assert indexSettings.getIndexVersionCreated().before(Version.V_8_0_0) : indexSettings.getIndexVersionCreated();
-                    }
-                } else {
-                    if (retentionLease.retainingSequenceNumber() <= checkpointState.globalCheckpoint
-                          || retentionLease.timestamp() <= renewalTimeMillis) {
+                    /*
+                     * If this shard copy is tracked then we got here here via a rolling upgrade from an older version that doesn't
+                     * create peer recovery retention leases for every shard copy. TODO create leases lazily in that situation.
+                     */
+                    assert checkpoints.get(shardRouting.allocationId().getId()).tracked == false
+                        || indexSettings.getIndexVersionCreated().before(Version.V_8_0_0);
+                    return false;
+                }
+                return retentionLease.timestamp() <= renewalTimeMillis
+                    || retentionLease.retainingSequenceNumber() <= checkpoints.get(shardRouting.allocationId().getId()).globalCheckpoint;
+            });
+
+        if (renewalNeeded) {
+            for (ShardRouting shardRouting : routingTable) {
+                if (shardRouting.assignedToNode()) {
+                    final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
+                    if (retentionLease != null) {
+                        final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
                         renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting),
                             Math.max(0L, checkpointState.globalCheckpoint + 1L),
                             PEER_RECOVERY_RETENTION_LEASE_SOURCE);
@@ -493,6 +505,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 }
             }
         }
+
+        assert invariant();
     }
 
     public static class CheckpointState implements Writeable {

@@ -85,18 +85,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             logger.debug(reason);
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
-        if (clusterState.nodes().getMinNodeVersion().onOrAfter(params.getVersion())) {
-            return super.getAssignment(params, clusterState);
-        } else {
-            DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, (node) ->
-                node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
-            );
-            if (discoveryNode == null) {
-                return NO_NODE_FOUND;
-            } else {
-                return new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
-            }
-        }
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, (node) ->
+            node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
+        );
+        return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {

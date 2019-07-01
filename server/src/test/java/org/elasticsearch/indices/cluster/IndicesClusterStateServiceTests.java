@@ -103,7 +103,8 @@ public class IndicesClusterStateServiceTests extends ESTestCase {
             new IndexNameExpressionResolver()) {
 
             @Override
-            protected void doExecute(Task task, RetentionLeaseBackgroundSyncAction.Request request, ActionListener<ReplicationResponse> listener) {
+            protected void doExecute(Task task, RetentionLeaseBackgroundSyncAction.Request request,
+                                     ActionListener<ReplicationResponse> listener) {
                 assertTrue(threadPool.getThreadContext().isSystemContext());
                 assertThat(request.shardId(), sameInstance(indexShard.shardId()));
                 assertThat(request.getRetentionLeases(), sameInstance(retentionLeases));

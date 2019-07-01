@@ -129,7 +129,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void delete() throws IOException {
         try {
-            blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME)::submit);
+            blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
         } catch (URISyntaxException | StorageException e) {
             throw new IOException(e);
         }
@@ -147,7 +147,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint
             // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.
             for (String blobName : blobNames) {
-                executor.submit(new ActionRunnable<>(listener) {
+                executor.execute(new ActionRunnable<>(listener) {
                     @Override
                     protected void doRun() throws IOException {
                         deleteBlobIgnoringIfNotExists(blobName);

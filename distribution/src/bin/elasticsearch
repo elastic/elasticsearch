@@ -24,6 +24,7 @@ ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
 ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR}"
 
+unset KEYSTORE_PASSWORD
 KEYSTORE_PASSWORD=
 # If keystore exists and is encrypted, prompt for a password
 if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ] \
@@ -31,9 +32,18 @@ if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ] \
     && ! echo $* | grep -E '(^-V |-V$| -V |--version$|--version )' >/dev/null 2>&1 \
     && hexdump -b -s 31 -n1 "$ES_PATH_CONF"/elasticsearch.keystore | head -1 | cut -d' ' -f2 | grep '001' >/dev/null 2>&1
 then
-  echo -n "Elasticsearch keystore password: "
-  read -s KEYSTORE_PASSWORD
-  echo
+  if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
+    # read from a file or a FIFO
+    if [ -p "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
+      echo "Reading keystore passphrase from FIFO (blocking operation)"
+    fi
+  read -s KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE"
+  else
+    # read from standard input
+    echo -n "Elasticsearch keystore password: "
+    read -s KEYSTORE_PASSWORD
+    echo
+  fi
 fi
 
 # manual parsing to find out, if process should be detached

@@ -5,40 +5,29 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutEnrichPolicyAction extends Action<AcknowledgedResponse> {
+public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutEnrichPolicyAction INSTANCE = new PutEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/put";
 
     private PutEnrichPolicyAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static Request fromXContent(XContentParser parser, String name) throws IOException {
         return new Request(name, EnrichPolicy.fromXContent(parser));
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public static class Request extends MasterNodeRequest<PutEnrichPolicyAction.Request> {

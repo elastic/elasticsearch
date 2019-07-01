@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -20,18 +20,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteForecastAction extends Action<AcknowledgedResponse> {
+public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteForecastAction INSTANCE = new DeleteForecastAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast/delete";
 
     private DeleteForecastAction() {
         super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

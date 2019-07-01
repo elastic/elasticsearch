@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +74,7 @@ public class DataFrameDataExtractorFactory {
                               DataFrameAnalyticsConfig config,
                               boolean isTaskRestarting,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
-        validateIndexAndExtractFields(client, config.getDest().getIndex(), config, isTaskRestarting,
+        validateIndexAndExtractFields(client, new String[] {config.getDest().getIndex()}, config, isTaskRestarting,
             ActionListener.wrap(extractedFields -> listener.onResponse(new DataFrameDataExtractorFactory(
                     client, config.getId(), config.getDest().getIndex(), extractedFields, config.getHeaders())),
                 listener::onFailure
@@ -100,7 +101,7 @@ public class DataFrameDataExtractorFactory {
     }
 
     private static void validateIndexAndExtractFields(Client client,
-                                                      String index,
+                                                      String[] index,
                                                       DataFrameAnalyticsConfig config,
                                                       boolean isTaskRestarting,
                                                       ActionListener<ExtractedFields> listener) {
@@ -120,6 +121,7 @@ public class DataFrameDataExtractorFactory {
 
                 FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
                 fieldCapabilitiesRequest.indices(index);
+                fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
                 fieldCapabilitiesRequest.fields("*");
                 ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
                     client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
@@ -134,7 +136,7 @@ public class DataFrameDataExtractorFactory {
         getDocValueFieldsLimit(client, index, docValueFieldsLimitListener);
     }
 
-    private static void getDocValueFieldsLimit(Client client, String index, ActionListener<Integer> docValueFieldsLimitListener) {
+    private static void getDocValueFieldsLimit(Client client, String[] index, ActionListener<Integer> docValueFieldsLimitListener) {
         ActionListener<GetSettingsResponse> settingsListener = ActionListener.wrap(getSettingsResponse -> {
                 Integer minDocValueFieldsLimit = Integer.MAX_VALUE;
 

@@ -131,6 +131,20 @@ public class CorsHandler {
             return origins;
         }
 
+        @Override
+        public String toString() {
+            return "Config{" +
+                "enabled=" + enabled +
+                ", origins=" + origins +
+                ", pattern=" + pattern +
+                ", anyOrigin=" + anyOrigin +
+                ", credentialsAllowed=" + credentialsAllowed +
+                ", allowedRequestMethods=" + allowedRequestMethods +
+                ", allowedRequestHeaders=" + allowedRequestHeaders +
+                ", maxAge=" + maxAge +
+                '}';
+        }
+
         private static class Builder {
 
             private boolean enabled = true;

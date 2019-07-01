@@ -45,7 +45,6 @@ import java.util.stream.Collectors;
  * This handler can be configured using a {@link CorsHandler.Config}, please
  * refer to this class for details about the configuration options available.
  *
- * This code was borrowed from Netty 4 and refactored to work for Elasticsearch's Netty 3 setup.
  */
 public class Netty4CorsHandler extends ChannelDuplexHandler {
 

@@ -18,6 +18,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
@@ -28,8 +29,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * An internal action to locally manage the load of the search requests the originate from the enrich processor.
- * This is because the enrich processor executes in non blocking manner and a bulk request could easily overload
+ * An internal action to locally manage the load of the search requests that originate from the enrich processor.
+ * This is because the enrich processor executes asynchronously and a bulk request could easily overload
  * the search tp.
  */
 public class CoordinatorProxyAction extends ActionType<SearchResponse> {
@@ -53,6 +54,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
         @Override
         protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
+            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
             coordinator.schedule(request, listener);
         }
     }
@@ -78,7 +80,16 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         void schedule(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-            queue.add(new Item(searchRequest, listener));
+            // Use put(...), because if queue is full then this method will wait until a free slot becomes available
+            // The calling thread here is a write thread (write tp is used by ingest) and
+            // this will great natural back pressure from the enrich processor.
+            // If there are no write threads available then write requests with ingestion will fail with 429 error code.
+            try {
+                queue.put(new Item(searchRequest, listener));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("unable to add item to queue", e);
+            }
             coordinateLookups();
         }
 

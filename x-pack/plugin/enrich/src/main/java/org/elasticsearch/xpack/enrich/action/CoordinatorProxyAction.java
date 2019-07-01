@@ -64,19 +64,21 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
         final Client client;
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
-        final BlockingQueue<Item> queue = new LinkedBlockingQueue<>();
+        final BlockingQueue<Item> queue;
         final AtomicInteger numberOfOutstandingRequests = new AtomicInteger(0);
 
         public Coordinator(Client client, Settings settings) {
             this(client,
                 EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings),
-                EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings));
+                EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings),
+                EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings));
         }
 
-        Coordinator(Client client, int maxLookupsPerRequest, int maxNumberOfConcurrentRequests) {
+        Coordinator(Client client, int maxLookupsPerRequest, int maxNumberOfConcurrentRequests, int queueCapacity) {
             this.client = client;
             this.maxLookupsPerRequest = maxLookupsPerRequest;
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
+            this.queue = new LinkedBlockingQueue<>(queueCapacity);
         }
 
         void schedule(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {

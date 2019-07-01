@@ -67,6 +67,16 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     public static final Setting<Integer> COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST =
         Setting.intSetting("enrich.coordinator_proxy.max_lookups_per_request", 128, 1, 10000, Setting.Property.NodeScope);
 
+    private static final String QUEUE_CAPACITY_SETTING_NAME = "enrich.coordinator_proxy.queue_capacity";
+    public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME,
+            settings -> {
+                int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
+                int maxLookupsPerRequest = COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings);
+                return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
+            },
+            val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME),
+            Setting.Property.NodeScope);
+
     private final Settings settings;
     private final Boolean enabled;
 
@@ -141,6 +151,11 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(ENRICH_FETCH_SIZE_SETTING, COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS, COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST);
+        return List.of(
+            ENRICH_FETCH_SIZE_SETTING,
+            COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS,
+            COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
+            COORDINATOR_PROXY_QUEUE_CAPACITY
+        );
     }
 }

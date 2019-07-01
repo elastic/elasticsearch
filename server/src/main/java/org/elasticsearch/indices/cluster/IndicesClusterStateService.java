@@ -72,6 +72,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -130,6 +131,39 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @Inject
     public IndicesClusterStateService(
+            final Settings settings,
+            final IndicesService indicesService,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final PeerRecoveryTargetService recoveryTargetService,
+            final ShardStateAction shardStateAction,
+            final NodeMappingRefreshAction nodeMappingRefreshAction,
+            final RepositoriesService repositoriesService,
+            final SearchService searchService,
+            final SyncedFlushService syncedFlushService,
+            final PeerRecoverySourceService peerRecoverySourceService,
+            final SnapshotShardsService snapshotShardsService,
+            final PrimaryReplicaSyncer primaryReplicaSyncer,
+            final NodeClient client) {
+        this(
+                settings,
+                (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
+                clusterService,
+                threadPool,
+                recoveryTargetService,
+                shardStateAction,
+                nodeMappingRefreshAction,
+                repositoriesService,
+                searchService,
+                syncedFlushService,
+                peerRecoverySourceService,
+                snapshotShardsService,
+                primaryReplicaSyncer,
+                client);
+    }
+
+    // for tests
+    IndicesClusterStateService(
             final Settings settings,
             final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService,
             final ClusterService clusterService,

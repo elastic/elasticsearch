@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 public class NodesReloadSecureSettingsAction
-        extends StreamableResponseAction<NodesReloadSecureSettingsResponse> {
+        extends StreamableResponseActionType<NodesReloadSecureSettingsResponse> {
 
     public static final NodesReloadSecureSettingsAction INSTANCE = new NodesReloadSecureSettingsAction();
     public static final String NAME = "cluster:admin/nodes/reload_secure_settings";

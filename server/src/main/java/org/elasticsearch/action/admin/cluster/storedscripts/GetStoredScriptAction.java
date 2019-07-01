@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class GetStoredScriptAction extends StreamableResponseAction<GetStoredScriptResponse> {
+public class GetStoredScriptAction extends StreamableResponseActionType<GetStoredScriptResponse> {
 
     public static final GetStoredScriptAction INSTANCE = new GetStoredScriptAction();
     public static final String NAME = "cluster:admin/script/get";

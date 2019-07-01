@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class IndicesSegmentsAction extends StreamableResponseAction<IndicesSegmentResponse> {
+public class IndicesSegmentsAction extends StreamableResponseActionType<IndicesSegmentResponse> {
 
     public static final IndicesSegmentsAction INSTANCE = new IndicesSegmentsAction();
     public static final String NAME = "indices:monitor/segments";

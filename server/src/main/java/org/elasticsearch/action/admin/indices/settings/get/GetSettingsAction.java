@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class GetSettingsAction extends StreamableResponseAction<GetSettingsResponse> {
+public class GetSettingsAction extends StreamableResponseActionType<GetSettingsResponse> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();
     public static final String NAME = "indices:monitor/settings/get";

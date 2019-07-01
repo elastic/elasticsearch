@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * This action gets an watch by name
  */
-public class GetWatchAction extends StreamableResponseAction<GetWatchResponse> {
+public class GetWatchAction extends StreamableResponseActionType<GetWatchResponse> {
 
     public static final GetWatchAction INSTANCE = new GetWatchAction();
     public static final String NAME = "cluster:monitor/xpack/watcher/watch/get";

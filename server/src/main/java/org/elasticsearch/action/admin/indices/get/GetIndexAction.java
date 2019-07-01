@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class GetIndexAction extends StreamableResponseAction<GetIndexResponse> {
+public class GetIndexAction extends StreamableResponseActionType<GetIndexResponse> {
 
     public static final GetIndexAction INSTANCE = new GetIndexAction();
     public static final String NAME = "indices:admin/get";

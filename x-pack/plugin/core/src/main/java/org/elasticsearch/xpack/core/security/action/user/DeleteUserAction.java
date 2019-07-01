@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
- * Action for deleting a native user.
+ * ActionType for deleting a native user.
  */
-public class DeleteUserAction extends StreamableResponseAction<DeleteUserResponse> {
+public class DeleteUserAction extends StreamableResponseActionType<DeleteUserResponse> {
 
     public static final DeleteUserAction INSTANCE = new DeleteUserAction();
     public static final String NAME = "cluster:admin/xpack/security/user/delete";

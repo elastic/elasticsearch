@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -20,7 +20,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class PutInternalCcrRepositoryAction extends Action<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
+public class PutInternalCcrRepositoryAction extends ActionType<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> {
 
     public static final PutInternalCcrRepositoryAction INSTANCE = new PutInternalCcrRepositoryAction();
     public static final String NAME = "internal:admin/ccr/internal_repository/put";

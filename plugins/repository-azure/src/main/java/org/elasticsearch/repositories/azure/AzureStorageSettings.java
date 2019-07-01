@@ -159,9 +159,9 @@ public final class AzureStorageSettings {
         this.locationMode = LocationMode.PRIMARY_ONLY;
     }
 
-    AzureStorageSettings(String name, String account, String key, String sasToken, String endpointSuffix, TimeValue timeout, int maxRetries,
-                         Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
-        this.name = name;
+    private AzureStorageSettings(String account, String key, String sasToken, String endpointSuffix, TimeValue timeout, int maxRetries,
+                                 Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
+        this.name = null;
         this.account = account;
         this.connectString = buildConnectString(account, key, sasToken, endpointSuffix);
         this.endpointSuffix = endpointSuffix;
@@ -324,7 +324,7 @@ public final class AzureStorageSettings {
         try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
              SecureString key = getConfigValue(settings, clientName, KEY_SETTING);
              SecureString sasToken = getConfigValue(settings, clientName, SAS_TOKEN_SETTING)) {
-            return new AzureStorageSettings(null, account.toString(), key.toString(), sasToken.toString(),
+            return new AzureStorageSettings(account.toString(), key.toString(), sasToken.toString(),
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),

@@ -88,7 +88,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                 .putList("filter", "my_filter")
                 .build();
 
-        AnalyzerComponents components = createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter,
+        AnalyzerComponents components = createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer::get, testAnalysis.charFilter,
                 Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER));
 
         try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap)) {
@@ -106,7 +106,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                 .put("tokenizer", "standard")
                 .putList("filter", "lowercase")
                 .build();
-        AnalyzerComponents indexAnalyzerComponents = createComponents("my_analyzer", indexAnalyzerSettings, testAnalysis.tokenizer,
+        AnalyzerComponents indexAnalyzerComponents = createComponents("my_analyzer", indexAnalyzerSettings, testAnalysis.tokenizer::get,
                 testAnalysis.charFilter, testAnalysis.tokenFilter);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> new ReloadableCustomAnalyzer(indexAnalyzerComponents, positionIncrementGap, offsetGap));
@@ -123,7 +123,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                 .putList("filter", "my_filter")
                 .build();
 
-        AnalyzerComponents components = createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter,
+        AnalyzerComponents components = createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer::get, testAnalysis.charFilter,
                 Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER));
         int numThreads = randomIntBetween(5, 10);
 

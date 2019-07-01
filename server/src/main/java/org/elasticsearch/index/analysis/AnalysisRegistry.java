@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -409,8 +410,11 @@ public final class AnalysisRegistry implements Closeable {
                     continue;
                 }
             } else if (component == Component.NORMALIZER) {
+                if (currentSettings.hasValue("tokenizer")) {
+                    throw new IllegalArgumentException("Custom normalizer [" + name + "] cannot configure a tokenizer");
+                }
                 if (typeName == null || typeName.equals("custom")) {
-                    T factory = (T) new CustomNormalizerProvider(settings, name, currentSettings);
+                    T factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                     factories.put(name, factory);
                     continue;
                 }
@@ -531,10 +535,10 @@ public final class AnalysisRegistry implements Closeable {
                     });
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
-                tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
+                () -> tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
             processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
-                    "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
+                () -> WhitespaceTokenizer::new, tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
         if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
@@ -575,7 +579,7 @@ public final class AnalysisRegistry implements Closeable {
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         if (analyzerFactory instanceof CustomAnalyzerProvider) {
-            ((CustomAnalyzerProvider) analyzerFactory).build(tokenizers, charFilters, tokenFilters);
+            ((CustomAnalyzerProvider) analyzerFactory).build(tokenizers::get, charFilters, tokenFilters);
             /*
              * Custom analyzers already default to the correct, version
              * dependent positionIncrementGap and the user is be able to
@@ -603,20 +607,16 @@ public final class AnalysisRegistry implements Closeable {
         return analyzer;
     }
 
-    private void processNormalizerFactory(
+    private static void processNormalizerFactory(
             String name,
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,
-            String tokenizerName,
-            TokenizerFactory tokenizerFactory,
+            Supplier<TokenizerFactory> tokenizerSupplier,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
-        if (tokenizerFactory == null) {
-            throw new IllegalStateException("keyword tokenizer factory is null, normalizers require analysis-common module");
-        }
 
-        if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
+        if (normalizerFactory instanceof CustomAnalyzerProvider) {
+            ((CustomAnalyzerProvider) normalizerFactory).build(n -> tokenizerSupplier.get(), charFilters, tokenFilters);
         }
         if (normalizers.containsKey(name)) {
             throw new IllegalStateException("already registered analyzer with name: " + name);

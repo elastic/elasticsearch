@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A class that groups analysis components necessary to produce a custom analyzer.
@@ -49,14 +50,11 @@ public final class AnalyzerComponents {
         this.analysisMode = mode;
     }
 
-    static AnalyzerComponents createComponents(String name, Settings analyzerSettings, final Map<String, TokenizerFactory> tokenizers,
+    static AnalyzerComponents createComponents(String name, Settings analyzerSettings, final Function<String, TokenizerFactory> tokenizers,
             final Map<String, CharFilterFactory> charFilters, final Map<String, TokenFilterFactory> tokenFilters) {
         String tokenizerName = analyzerSettings.get("tokenizer");
-        if (tokenizerName == null) {
-            throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");
-        }
 
-        TokenizerFactory tokenizer = tokenizers.get(tokenizerName);
+        TokenizerFactory tokenizer = tokenizers.apply(tokenizerName);
         if (tokenizer == null) {
             throw new IllegalArgumentException(
                     "Custom Analyzer [" + name + "] failed to find tokenizer under name " + "[" + tokenizerName + "]");

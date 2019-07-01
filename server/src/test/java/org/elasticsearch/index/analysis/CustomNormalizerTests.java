@@ -103,36 +103,7 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
         assertEquals(new BytesRef("zbc"), normalizer.normalize("foo", "abc"));
     }
 
-    public void testIllegalFilters() throws IOException {
-        Settings settings = Settings.builder()
-                .putList("index.analysis.normalizer.my_normalizer.filter", "mock_forbidden")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN));
-        assertEquals("Custom normalizer [my_normalizer] may not use filter [mock_forbidden]", e.getMessage());
-    }
-
-    public void testIllegalCharFilters() throws IOException {
-        Settings settings = Settings.builder()
-                .putList("index.analysis.normalizer.my_normalizer.char_filter", "mock_forbidden")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, MOCK_ANALYSIS_PLUGIN));
-        assertEquals("Custom normalizer [my_normalizer] may not use char filter [mock_forbidden]", e.getMessage());
-    }
-
     private static class MockAnalysisPlugin implements AnalysisPlugin {
-        @Override
-        public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
-            return singletonList(PreConfiguredTokenFilter.singleton("mock_forbidden", false, MockLowerCaseFilter::new));
-        }
-
-        @Override
-        public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
-            return singletonList(PreConfiguredCharFilter.singleton("mock_forbidden", false, Function.identity()));
-        }
 
         @Override
         public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {

@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
 
@@ -44,7 +45,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         this.analyzerSettings = settings;
     }
 
-    void build(final Map<String, TokenizerFactory> tokenizers,
+    void build(final Function<String, TokenizerFactory> tokenizers,
                final Map<String, CharFilterFactory> charFilters,
                final Map<String, TokenFilterFactory> tokenFilters) {
         customAnalyzer = create(name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
@@ -54,7 +55,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
      * Factory method that either returns a plain {@link ReloadableCustomAnalyzer} if the components used for creation are supporting index
      * and search time use, or a {@link ReloadableCustomAnalyzer} if the components are intended for search time use only.
      */
-    private static Analyzer create(String name, Settings analyzerSettings, Map<String, TokenizerFactory> tokenizers,
+    private static Analyzer create(String name, Settings analyzerSettings, Function<String, TokenizerFactory> tokenizers,
             Map<String, CharFilterFactory> charFilters,
             Map<String, TokenFilterFactory> tokenFilters) {
         int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;

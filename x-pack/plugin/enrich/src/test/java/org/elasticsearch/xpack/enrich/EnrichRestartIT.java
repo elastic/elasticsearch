@@ -28,7 +28,7 @@ public class EnrichRestartIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EnrichPlugin.class, ReindexPlugin.class);
+        return List.of(LocalStateEnrich.class, ReindexPlugin.class);
     }
 
     public void testRestart() throws Exception {

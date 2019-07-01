@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -33,18 +33,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTransformAction.Response> {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrameTransformAction.Response> {
 
     public static final PreviewDataFrameTransformAction INSTANCE = new PreviewDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/preview";
 
     private PreviewDataFrameTransformAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -94,8 +91,15 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if(config.getPivotConfig() != null) {
+                for(String failure : config.getPivotConfig().aggFieldValidation()) {
+                    validationException = addValidationError(failure, validationException);
+                }
+            }
+            return validationException;
         }
+
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

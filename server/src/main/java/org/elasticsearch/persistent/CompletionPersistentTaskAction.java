@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,10 +44,10 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Action that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
+ * ActionType that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
  */
-public class CompletionPersistentTaskAction extends Action<PersistentTaskResponse> {
+public class CompletionPersistentTaskAction extends StreamableResponseActionType<PersistentTaskResponse> {
 
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/completion";
@@ -161,7 +162,7 @@ public class CompletionPersistentTaskAction extends Action<PersistentTaskRespons
         }
 
         @Override
-        protected final void masterOperation(final Request request, ClusterState state,
+        protected final void masterOperation(Task ignoredTask, final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
                 ActionListener.delegateFailure(listener,

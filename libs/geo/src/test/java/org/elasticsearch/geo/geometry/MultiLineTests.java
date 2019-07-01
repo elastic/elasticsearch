@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, true);
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("multilinestring ((3.0 1.0, 4.0 2.0))", wkt.toWKT(
             new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4})))));
         assertEquals(new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4}))),

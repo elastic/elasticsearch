@@ -53,7 +53,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
     }
 
     @Override
-    protected void masterOperation(PutJobAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, PutJobAction.Request request, ClusterState state,
                                    ActionListener<PutJobAction.Response> listener) throws Exception {
         jobManager.putJob(request, analysisRegistry, state, listener);
     }

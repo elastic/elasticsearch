@@ -66,11 +66,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -109,7 +109,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -1150,8 +1149,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final CheckedRunnable<Exception> afterPausingFollower,
             final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-                singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        final Map<String, String> extraSettingsMap = new HashMap<>(2);
+        extraSettingsMap.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true");
+        extraSettingsMap.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms");
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1), extraSettingsMap);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
@@ -1182,15 +1183,17 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
         leaderClient().prepareDelete("index1", "doc", "1").get();
-        getLeaderCluster().nodesInclude("index1").stream()
-            .flatMap(n -> StreamSupport.stream(getLeaderCluster().getInstance(IndicesService.class, n).spliterator(), false))
-            .flatMap(n -> StreamSupport.stream(n.spliterator(), false))
-            .filter(indexShard -> indexShard.shardId().getIndexName().equals("index1"))
-            .filter(indexShard -> indexShard.routingEntry().primary())
-            .forEach(IndexShard::advancePeerRecoveryRetentionLeasesToGlobalCheckpoints);
-
         leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();
         leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
+        assertBusy(() -> {
+            final ShardStats[] shardsStats = leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+            for (final ShardStats shardStats : shardsStats) {
+                final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
+                assertTrue(shardStats.getRetentionLeaseStats().retentionLeases().leases().stream()
+                    .filter(retentionLease -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(retentionLease.source()))
+                    .allMatch(retentionLease -> retentionLease.retainingSequenceNumber() == maxSeqNo + 1));
+            }
+        });
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index1");
         forceMergeRequest.maxNumSegments(1);
         leaderClient().admin().indices().forceMerge(forceMergeRequest).actionGet();

@@ -2109,6 +2109,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         ensureSoftDeletesEnabled("retention leases");
+        replicationTracker.renewPeerRecoveryRetentionLeases();
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
@@ -2498,16 +2499,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void addPeerRecoveryRetentionLease(String nodeId, long globalCheckpoint, ActionListener<ReplicationResponse> listener) {
         assert assertPrimaryMode();
         replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
-    }
-
-    /**
-     * Test-only method to advance the all shards' peer-recovery retention leases to their tracked global checkpoints so that operations
-     * can be discarded. TODO Remove this when retention leases are advanced by other mechanisms.
-     */
-    public void advancePeerRecoveryRetentionLeasesToGlobalCheckpoints() {
-        assert assertPrimaryMode();
-        replicationTracker.advancePeerRecoveryRetentionLeasesToGlobalCheckpoints();
-        syncRetentionLeases();
     }
 
     class ShardEventListener implements Engine.EventListener {

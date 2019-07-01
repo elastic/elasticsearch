@@ -66,7 +66,8 @@ public class TransportDelegatePkiAction extends HandledTransportAction<DelegateP
                             listener.onResponse(new DelegatePkiResponse(tuple.v1(), expiresIn));
                         }, listener::onFailure));
             }, e -> {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("Delegated x509Token [{}] could not be authenticated", x509DelegatedToken), e);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("Delegated x509Token [{}] could not be authenticated",
+                        x509DelegatedToken), e);
                 listener.onFailure(e);
             }));
         }

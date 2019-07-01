@@ -39,6 +39,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -160,14 +161,14 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
-        assertThat(p.getValueFor("message"), equalTo("\"[foo][0]\""));
-        assertThat(p.getValueFor("took"), equalTo("\"10nanos\""));
-        assertThat(p.getValueFor("took_millis"), equalTo("\"0\""));
-        assertThat(p.getValueFor("total_hits"), equalTo("\"-1\""));
+        assertThat(p.getValueFor("message"), equalTo("[foo][0]"));
+        assertThat(p.getValueFor("took"), equalTo("10nanos"));
+        assertThat(p.getValueFor("took_millis"), equalTo("0"));
+        assertThat(p.getValueFor("total_hits"), equalTo("-1"));
         assertThat(p.getValueFor("stats"), equalTo("[]"));
-        assertThat(p.getValueFor("search_type"), equalTo("\"\""));
-        assertThat(p.getValueFor("total_shards"), equalTo("\"1\""));
-        assertThat(p.getValueFor("source"), equalTo("\"{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}\""));
+        assertThat(p.getValueFor("search_type"), Matchers.nullValue());
+        assertThat(p.getValueFor("total_shards"), equalTo("1"));
+        assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
     }
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {

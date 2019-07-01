@@ -58,17 +58,17 @@ public class IndexingSlowLogTests extends ESTestCase {
         // Turning off document logging doesn't log source[]
         IndexingSlowLogMessage p = new IndexingSlowLogMessage(index, pd, 10, true, 0);
 
-        assertThat(p.getValueFor("message"),equalTo("\"[foo/123]\""));
-        assertThat(p.getValueFor("took"),equalTo("\"10nanos\""));
-        assertThat(p.getValueFor("took_millis"),equalTo("\"0\""));
-        assertThat(p.getValueFor("doc_type"),equalTo("\"test\""));
-        assertThat(p.getValueFor("id"),equalTo("\"id\""));
-        assertThat(p.getValueFor("routing"),equalTo("\"routingValue\""));
+        assertThat(p.getValueFor("message"),equalTo("[foo/123]"));
+        assertThat(p.getValueFor("took"),equalTo("10nanos"));
+        assertThat(p.getValueFor("took_millis"),equalTo("0"));
+        assertThat(p.getValueFor("doc_type"),equalTo("test"));
+        assertThat(p.getValueFor("id"),equalTo("id"));
+        assertThat(p.getValueFor("routing"),equalTo("routingValue"));
         assertThat(p.getValueFor("source"), is(emptyOrNullString()));
 
         // Turning on document logging logs the whole thing
         p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat((String)p.getValueFor("source"), containsString("\"{\\\"foo\\\":\\\"bar\\\"}\""));
+        assertThat(p.getValueFor("source"), containsString("{\\\"foo\\\":\\\"bar\\\"}"));
     }
 
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {

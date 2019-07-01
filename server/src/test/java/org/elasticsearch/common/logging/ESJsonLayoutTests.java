@@ -22,6 +22,11 @@ package org.elasticsearch.common.logging;
 import org.apache.lucene.util.LuceneTestCase;
 import org.hamcrest.Matchers;
 
+/*
+  Because this test is testing ESJsonLayout in isolation, ESMessageField pattern converter is not configured
+  Status logger is printing out warnings about this to std error (causing tests to fail)
+ */
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "StatusLogger warnings")
 public class ESJsonLayoutTests extends LuceneTestCase {
 
     public void testEmptyType() {
@@ -69,4 +74,23 @@ public class ESJsonLayoutTests extends LuceneTestCase {
                 "%exceptionAsJson }\n"));
     }
 
+    public void testLayoutWithAdditionalFieldOverride() {
+        ESJsonLayout server = ESJsonLayout.newBuilder()
+                                          .setType("server")
+                                          .setESMessageFields("message")
+                                          .build();
+        String conversionPattern = server.getPatternLayout().getConversionPattern();
+
+        assertThat(conversionPattern, Matchers.equalTo(
+            "{" +
+                "\"type\": \"server\", " +
+                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
+                "\"level\": \"%p\", " +
+                "\"component\": \"%c{1.}\", " +
+                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"node.name\": \"%node_name\"" +
+                "%notEmpty{, \"message\": \"%ESMessageField{message}\"}" +
+                "%notEmpty{, %node_and_cluster_id }" +
+                "%exceptionAsJson }\n"));
+    }
 }

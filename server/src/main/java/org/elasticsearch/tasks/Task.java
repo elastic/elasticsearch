@@ -103,7 +103,7 @@ public class Task {
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
         final TaskId parentTask;
         // TODO: Find real solution
-        if (this.getAction().startsWith("reindex/job")) {
+        if (this.getAction().contains("reindex")) {
             parentTask = TaskId.EMPTY_TASK_ID;
         } else {
             parentTask = this.parentTask;

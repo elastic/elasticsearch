@@ -19,15 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class StartReindexJobAction extends Action<StartReindexJobAction.Response> {
+public class StartReindexJobAction extends ActionType<StartReindexJobAction.Response> {
 
     public static final StartReindexJobAction INSTANCE = new StartReindexJobAction();
     // TODO: Name
@@ -45,17 +44,7 @@ public class StartReindexJobAction extends Action<StartReindexJobAction.Response
 //    public static final String NAME = "indices:data/reindex/start_reindex";
 
     private StartReindexJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public StartReindexJobAction.Response newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject, CompositeIndicesRequest {

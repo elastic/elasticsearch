@@ -25,13 +25,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -48,10 +49,12 @@ public class ReindexTask extends AllocatedPersistentTask {
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
+        private final ClusterService clusterService;
         private final Client client;
 
-        public ReindexPersistentTasksExecutor(final Client client) {
+        public ReindexPersistentTasksExecutor(ClusterService clusterService, final Client client) {
             super(NAME, ThreadPool.Names.GENERIC);
+            this.clusterService = clusterService;
             this.client = client;
         }
 
@@ -66,24 +69,20 @@ public class ReindexTask extends AllocatedPersistentTask {
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<ReindexJob> taskInProgress,
                                                      Map<String, String> headers) {
-            return new ReindexTask(id, type, action, parentTaskId, headers, client);
+            return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, client);
         }
     }
 
     private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-                        Client client) {
+                        ClusterService clusterService, Client client) {
         super(id, type, action, "reindex_" + id, parentTask, headers);
-        this.client = client;
+        this.client = new ParentTaskAssigningClient(client, new TaskId(clusterService.localNode().getId(), id));
     }
 
     private void doReindex(ReindexJob reindexJob) {
-        TaskManager taskManager = getTaskManager();
-        assert taskManager != null : "task should not be started before task manager assigned";
-
         ThreadContext threadContext = client.threadPool().getThreadContext();
         // TODO: What is happening here? Putting headers back in place for possible different thread action listener?
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-        // TODO: Need to use ParentTaskAssigningClient?
         try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
             // TODO: Always store currently for compatibility
             ReindexRequest reindexRequest = reindexJob.getReindexRequest();
@@ -94,22 +93,13 @@ public class ReindexTask extends AllocatedPersistentTask {
                         updatePersistentTaskState(new ReindexJobState(response, null), new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                                try {
-                                    taskManager.storeResult(ReindexTask.this, response,
-                                        ActionListener.wrap(ReindexTask.this::markAsCompleted));
-                                } finally {
-                                    markAsCompleted();
-                                }
+                                markAsCompleted();
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 logger.error("Failed to update task state to success.", e);
-                                try {
-                                    taskManager.storeResult(ReindexTask.this, e, ActionListener.wrap(() -> markAsFailed(e)));
-                                } finally {
-                                    markAsFailed(e);
-                                }
+                                markAsFailed(e);
                             }
                         });
                     }
@@ -119,21 +109,13 @@ public class ReindexTask extends AllocatedPersistentTask {
                         updatePersistentTaskState(new ReindexJobState(null, new ElasticsearchException(ex)), new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                                try {
-                                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                                } finally {
-                                    markAsFailed(ex);
-                                }
+                                markAsFailed(ex);
                             }
 
                             @Override
                             public void onFailure(Exception e) {
                                 logger.error("Failed to update task state to failed.", e);
-                                try {
-                                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                                } finally {
-                                    markAsFailed(ex);
-                                }
+                                markAsFailed(ex);
                             }
                         });
                     }

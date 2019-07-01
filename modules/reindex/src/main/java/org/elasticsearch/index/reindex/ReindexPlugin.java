@@ -123,6 +123,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool, Client client,
                                                                        SettingsModule settingsModule) {
-        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(client));
+        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client));
     }
 }

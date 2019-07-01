@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -26,13 +27,16 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.function.Consumer;
 
-public class TransportGetReindexJobTaskAction extends TransportTasksAction<ReindexTask, GetReindexJobTaskAction.Request,
+public class TransportGetReindexJobTaskAction extends TransportTasksAction<BulkByScrollTask, GetReindexJobTaskAction.Request,
     GetReindexJobTaskAction.Responses, GetReindexJobTaskAction.Response> {
 
     @Inject
@@ -51,8 +55,35 @@ public class TransportGetReindexJobTaskAction extends TransportTasksAction<Reind
     }
 
     @Override
-    protected void taskOperation(GetReindexJobTaskAction.Request request, ReindexTask task,
+    protected void taskOperation(GetReindexJobTaskAction.Request request, BulkByScrollTask task,
                                  ActionListener<GetReindexJobTaskAction.Response> listener) {
         listener.onResponse(new GetReindexJobTaskAction.Response(new TaskId(clusterService.localNode().getId(), task.getId())));
+    }
+
+    @Override
+    protected void processTasks(GetReindexJobTaskAction.Request request, Consumer<BulkByScrollTask> operation) {
+        String persistentTaskId = request.getPersistentTaskId();
+
+        TaskId parentTaskId = null;
+        for (Task task : taskManager.getTasks().values()) {
+            if (task instanceof ReindexTask) {
+                AllocatedPersistentTask reindexTask = (AllocatedPersistentTask) task;
+                if (reindexTask.getPersistentTaskId().equals(persistentTaskId)) {
+                    parentTaskId = new TaskId(clusterService.localNode().getId(), reindexTask.getId());
+                }
+            }
+        }
+
+        if (parentTaskId == null) {
+            throw new ResourceNotFoundException("task [{}] is missing", request.getPersistentTaskId());
+        }
+
+        for (Task task : taskManager.getTasks().values()) {
+            if (task instanceof BulkByScrollTask) {
+                if (task.getParentTaskId().equals(parentTaskId)) {
+                    operation.accept((BulkByScrollTask) task);
+                }
+            }
+        }
     }
 }

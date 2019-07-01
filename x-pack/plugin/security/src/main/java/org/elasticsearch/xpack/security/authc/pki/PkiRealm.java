@@ -215,7 +215,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 return true;
             } catch (CertificateException e) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("failed certificate validation for Subject DN [{}]", token.dn(), e);
+                    logger.trace("failed certificate validation for Subject DN [" + token.dn() + "]", e);
                 } else if (logger.isDebugEnabled()) {
                     logger.debug("failed certificate validation for Subbject DN [{}]", token.dn());
                 }

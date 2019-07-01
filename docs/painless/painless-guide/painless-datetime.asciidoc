@@ -337,14 +337,16 @@ if (zdt1.isAfter(zdt2)) {
 
 ==== Datetime Zone
 
-Both string datetimes and complex datetimes have a modifiable timezone with a
-default of `UTC`. Numeric datetimes do not have enough explicit information to
+Both string datetimes and complex datetimes have a timezone with a default of
+`UTC`. Numeric datetimes do not have enough explicit information to
 have a timezone, so `UTC` is always assumed. Use
 <<painless-api-reference-shared-ZonedDateTime, methods>> (or fields) in
 conjunction with a <<painless-api-reference-shared-ZoneId, ZoneId>> to change
 the timezone for a complex datetime. Parse a string datetime into a complex
 datetime to change the timezone, and then format the complex datetime back into
-a desired string datetime.
+a desired string datetime. Note many complex datetimes are immutable so upon
+modification a new complex datetime is created that requires
+<<variable-assignment, assignment>> or immediate use.
 
 ===== Datetime Zone Examples
 
@@ -548,10 +550,9 @@ String output = input.format(DateTimeFormatter.ISO_INSTANT); <1>
 +
 ** Assumptions:
 +
-*** The fields `start_datetime` and `end_datetime` may *not* exist in all
-indexes as part of the query
-*** The fields `start_datetime` and `end_datetime` may *not* have values in all
-indexed documents
+*** The fields `start` and `end` may *not* exist in all indexes as part of the
+query
+*** The fields `start` and `end` may *not* have values in all indexed documents
 +
 ** Mappings:
 +
@@ -562,10 +563,10 @@ indexed documents
         ...
         "properties": {
             ...
-            "start_datetime": {
+            "start": {
                 "type": "date"
             },
-            "end_datetime": {
+            "end": {
                 "type": "date"
             }
             ...
@@ -579,15 +580,13 @@ indexed documents
 +
 [source,Painless]
 ----
-if (doc.containsKey('start_datetime') &&
-        doc.containsKey('end_datetime')) { <1>
+if (doc.containsKey('start') && doc.containsKey('end')) { <1>
 
-    if (doc['start_datetime'].size() > 0 && doc['end_datetime'].size() > 0) { <2>
+    if (doc['start'].size() > 0 && doc['end'].size() > 0) { <2>
 
-        def startDatetime = doc['start_datetime'].value;
-        def endDatetime = doc['end_datetime'].value;
-        long differenceInMillis =
-            ChronoUnit.MILLIS.between(startDateTime, endDateTime);
+        def start = doc['start'].value;
+        def end = doc['end'].value;
+        long differenceInMillis = ChronoUnit.MILLIS.between(start, end);
 
         // handle difference in times
     } else {

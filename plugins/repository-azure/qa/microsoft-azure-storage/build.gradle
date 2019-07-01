@@ -64,8 +64,15 @@ processTestResources {
 
 integTestCluster {
     keystoreSetting 'azure.client.integration_test.account', azureAccount
-    keystoreSetting 'azure.client.integration_test.key', azureKey
 
+    if (azureKey != null && azureKey.isEmpty() == false) {
+        println "Using access key in external service tests."
+        keystoreSetting 'azure.client.integration_test.key', azureKey
+    }
+    if (azureSasToken != null && azureSasToken.isEmpty() == false) {
+        println "Using SAS token in external service tests."
+        keystoreSetting 'azure.client.integration_test.sas_token', azureSasToken
+    }
     if (useFixture) {
         dependsOn azureStorageFixture
         // Use a closure on the string to delay evaluation until tests are executed. The endpoint_suffix is used

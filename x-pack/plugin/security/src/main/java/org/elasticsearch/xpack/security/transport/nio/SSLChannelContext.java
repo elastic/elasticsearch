@@ -180,12 +180,7 @@ public final class SSLChannelContext extends SocketChannelContext {
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
             WriteOperation writeOperation = new CloseNotifyOperation(this);
-            NioSelector selector = getSelector();
-            if (selector.isOnCurrentThread() == false) {
-                selector.queueWrite(writeOperation);
-                return;
-            }
-            selector.writeToChannel(writeOperation);
+            getSelector().queueWrite(writeOperation);
         }
     }
 

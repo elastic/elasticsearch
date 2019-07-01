@@ -154,7 +154,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
@@ -254,7 +254,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, future);
+        usageAction.masterOperation(null, null, null, future);
         SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);

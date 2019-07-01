@@ -2802,7 +2802,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -2851,7 +2851,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetDataFrameAnalyticsStats() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -2901,7 +2901,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         {
@@ -2994,7 +2994,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testDeleteDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
 
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -3044,9 +3044,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testStartDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
         highLevelClient().index(
-            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000)
+            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]).source(XContentType.JSON, "total", 10000)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
@@ -3101,9 +3101,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testStopDataFrameAnalytics() throws Exception {
-        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]);
         highLevelClient().index(
-            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000)
+            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()[0]).source(XContentType.JSON, "total", 10000)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
         RestHighLevelClient client = highLevelClient();
         client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);

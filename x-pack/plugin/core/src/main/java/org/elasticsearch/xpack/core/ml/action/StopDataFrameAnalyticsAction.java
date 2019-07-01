@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -33,18 +33,13 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsAction.Response> {
+public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyticsAction.Response> {
 
     public static final StopDataFrameAnalyticsAction INSTANCE = new StopDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/stop";
 
     private StopDataFrameAnalyticsAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

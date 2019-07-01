@@ -14,6 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
@@ -63,7 +64,8 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
         }
 
         @Override
-        protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+        protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                       ActionListener<XPackUsageFeatureResponse> listener) {
             final boolean available = licenseState.isVotingOnlyAllowed();
             final VotingOnlyNodeFeatureSetUsage usage =
                 new VotingOnlyNodeFeatureSetUsage(available);

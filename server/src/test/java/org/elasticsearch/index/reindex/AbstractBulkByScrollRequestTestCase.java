@@ -47,11 +47,7 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         original.setRequestsPerSecond(
                 randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat));
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                original.setMaxDocs(between(0, Integer.MAX_VALUE));
-            } else {
-                original.setSize(between(0, Integer.MAX_VALUE));
-            }
+            original.setMaxDocs(between(0, Integer.MAX_VALUE));
         }
 
         // it's not important how many slices there are, we just need a number for forSlice

@@ -229,6 +229,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 if (Version.fromString(node.getVersion()).getMajor() >= 7) {
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
+                    node.defaultConfig.put("discovery.seed_hosts", "[]");
                 }
             }
             node.start();
@@ -286,14 +287,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     public void waitForAllConditions() {
-        long startedAt = System.currentTimeMillis();
         LOGGER.info("Waiting for nodes");
         nodes.forEach(ElasticsearchNode::waitForAllConditions);
 
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
-        waitForConditions(waitConditions, startedAt, CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
+        waitForConditions(waitConditions, System.currentTimeMillis(), CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
     }
 
     @Override

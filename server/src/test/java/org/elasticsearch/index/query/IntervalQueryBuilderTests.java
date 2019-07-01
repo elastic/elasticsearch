@@ -59,6 +59,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     private static final String MASKED_FIELD = "masked_field";
     private static final String NO_POSITIONS_FIELD = "no_positions_field";
+    private static final String PREFIXED_FIELD = "prefixed_field";
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -69,6 +70,10 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             .startObject(NO_POSITIONS_FIELD)
             .field("type", "text")
             .field("index_options", "freqs")
+            .endObject()
+            .startObject(PREFIXED_FIELD)
+            .field("type", "text")
+            .startObject("index_prefixes").endObject()
             .endObject()
             .endObject().endObject().endObject();
 
@@ -383,6 +388,109 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             new IntervalsSourceProvider.ScriptFilterSource(Intervals.term("term1"), "interval.start > 3", null));
         assertEquals(expected, q);
 
+    }
+
+    public void testPrefixes() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.prefix("term"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createShardContext());
+            });
+
+        String no_positions_fixed_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\", \"use_field\" : \"" + NO_POSITIONS_FIELD + "\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_fixed_field_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(prefix_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String short_prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"t\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.or(
+            Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.wildcard("t?")),
+            Intervals.term("t")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fix_field_prefix_json =  "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\", \"use_field\" : \"" + PREFIXED_FIELD + "\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(fix_field_prefix_json);
+        // This looks weird, but it's fine, because the innermost fixField wins
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.fixField(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String keyword_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"Term\", \"analyzer\" : \"keyword\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(keyword_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String keyword_fix_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"Term\", \"analyzer\" : \"keyword\", \"use_field\" : \"" + PREFIXED_FIELD + "\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(keyword_fix_field_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.fixField(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+    }
+
+    public void testWildcard() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\" } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard("te?m"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"term\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String keyword_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"analyzer\" : \"keyword\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(keyword_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard("Te?m"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fixed_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard("te?m")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fixed_field_json_no_positions = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"" + NO_POSITIONS_FIELD + "\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(fixed_field_json_no_positions);
+            builder1.toQuery(createShardContext());
+        });
+
+        String fixed_field_analyzer_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\", \"analyzer\" : \"keyword\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard("Te?m")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
     }
 
 }

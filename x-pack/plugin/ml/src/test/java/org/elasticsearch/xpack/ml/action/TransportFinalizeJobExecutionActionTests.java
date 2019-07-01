@@ -71,7 +71,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
 
         FinalizeJobExecutionAction.Request request = new FinalizeJobExecutionAction.Request(new String[]{"job1", "job2"});
         AtomicReference<AcknowledgedResponse> ack = new AtomicReference<>();
-        action.masterOperation(request, clusterState, ActionListener.wrap(
+        action.masterOperation(null, request, clusterState, ActionListener.wrap(
                 ack::set,
                 e -> assertNull(e.getMessage())
         ));

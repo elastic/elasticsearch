@@ -16,12 +16,17 @@ Opens a closed index.
 [[indices-open-desc]]
 === {api-description-title}
 
-You can use the open index API to open a closed index.
+You can use the open index API to open a <<indices-close,closed index>>.
 
-Closed indices are blocked for read/write operations. Closed indices have almost
-no overhead on the cluster, aside from metadata maintenance.
+You can close an index using the <<indices-close,close index API>>. {es} blocks
+read and write operations for closed indices. You cannot index or search for
+documents in closed indices.
 
-Re-opened indices go through the <<indices-recovery, index recovery process>>.
+When opening an index, the <<master-node,master node>> restarts the index shards
+to reflect the new state of the index. The index shards then go through the
+<<indices-recovery,index recovery process>>. The cluster automatically copies
+the data of opening indices to ensure a safe number of shard copies at all
+times.
 
 [float]
 [[indices-open-path-params]]
@@ -32,8 +37,7 @@ Re-opened indices go through the <<indices-recovery, index recovery process>>.
 --
 (string) Comma-separated list or wildcard expression of index names to retrieve.
 
-If the `action.destructive_requires_name` setting is `true`, you can use a value
-of `_all` or `*` to close all indices.
+You can use a value of `_all` or `*` to open all indices.
 --
 
 [float]
@@ -72,4 +76,15 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[]
 POST /my_index/_open
 ----
 // CONSOLE
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
+
+The API returns the following response:
+
+[source,js]
+----
+{
+    "acknowledged" : true,
+    "shards_acknowledged" : true
+}
+----
+// TESTRESPONSE

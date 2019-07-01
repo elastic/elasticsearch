@@ -16,16 +16,23 @@ Closes an open index.
 [[indices-close-desc]]
 === {api-description-title}
 
-You can use the close index API to close an open index.
+You can use the close index API to close an <<indices-open, open index>>.
 
-Closed indices are blocked for read/write operations. Closed indices have almost
-no overhead on the cluster, aside from metadata maintenance.
+{es} blocks read and write operations for closed indices. You cannot index or
+search for documents in closed indices. You can re-open a closed index using the
+<<indices-open,open index API>>.
 
-You can re-open a closed index using the <<indices-open, open index API>>.
+Because closed indices do not maintain internal data structures for indexing or
+searching documents, they have a smaller overhead on the cluster.
+
+When closing an index, the <<master-node,master node>> restarts the index shards
+to reflect the new state of the index. The index shards then go through the
+<<indices-recovery,index recovery process>>. The cluster automatically copies
+the data of closed indices to ensure a safe number of shard copies at all times.
 
 NOTE: Closed indices can consume a significant amount of disk-space, which may
 cause problems in managed environments. You can disable index closing by
-changing the <<cluster-indices-close, `cluster.indices.close.enable` setting>>
+changing the <<cluster-indices-close,`cluster.indices.close.enable` setting>>
 to `false`.
 
 [float]
@@ -78,3 +85,19 @@ POST /my_index/_close
 ----
 // CONSOLE
 // TEST[s/^/PUT my_index\n/]
+
+The API returns the following response:
+
+[source,js]
+----
+{
+    "acknowledged" : true,
+    "shards_acknowledged" : true,
+    "indices" : {
+        "my_index" : {
+            "closed" : true
+        }
+    }
+}
+----
+// TESTRESPONSE

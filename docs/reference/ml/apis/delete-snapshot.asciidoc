@@ -13,6 +13,13 @@ Deletes an existing model snapshot.
 
 `DELETE _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
+[[ml-delete-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-delete-snapshot-desc]]
 ==== {api-description-title}
 
@@ -23,17 +30,11 @@ the `model_snapshot_id` in the results from the get jobs API.
 [[ml-delete-snapshot-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id` (required)::
-  (string) Identifier for the job
+`<job_id>` (Required)::
+  (string) Identifier for the job.
 
-`snapshot_id` (required)::
-  (string) Identifier for the model snapshot
-
-[[ml-delete-snapshot-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+`<snapshot_id>` (Required)::
+  (string) Identifier for the model snapshot.
 
 [[ml-delete-snapshot-example]]
 ==== {api-examples-title}

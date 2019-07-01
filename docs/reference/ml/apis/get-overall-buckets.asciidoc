@@ -18,6 +18,16 @@ bucket results of multiple jobs.
 
 `GET _ml/anomaly_detectors/_all/results/overall_buckets`
 
+[[ml-get-overall-buckets-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
 [[ml-get-overall-buckets-desc]]
 ==== {api-description-title}
 
@@ -46,37 +56,38 @@ overall buckets with a span equal to the largest job's `bucket_span`.
 [[ml-get-overall-buckets-path-parms]]
 ==== {api-path-parms-title}
 
-`job_id`::
+`<job_id>` (Required)::
   (string) Identifier for the job. It can be a job identifier, a group name, a
   comma-separated list of jobs or groups, or a wildcard expression.
 
 [[ml-get-overall-buckets-request-body]]
 ==== {api-request-body-title}
 
-`allow_no_jobs`::
+`allow_no_jobs` (Optional)::
   (boolean) If `false` and the `job_id` does not match any job an error will
   be returned. The default value is `true`.
 
-`bucket_span`::
+`bucket_span` (Optional)::
   (string) The span of the overall buckets. Must be greater or equal
   to the largest job's `bucket_span`. Defaults to the largest job's `bucket_span`.
 
-`end`::
+`end` (Optional)::
   (string) Returns overall buckets with timestamps earlier than this time.
 
-`exclude_interim`::
+`exclude_interim` (Optional)::
   (boolean) If `true`, the output excludes interim overall buckets.
   Overall buckets are interim if any of the job buckets within
   the overall bucket interval are interim.
   By default, interim results are included.
 
-`overall_score`::
-  (double) Returns overall buckets with overall scores greater or equal than this value.
+`overall_score` (Optional)::
+  (double) Returns overall buckets with overall scores greater or equal than
+  this value.
 
-`start`::
+`start` (Optional)::
   (string) Returns overall buckets with timestamps after this time.
 
-`top_n`::
+`top_n` (Optional)::
   (integer) The number of top job bucket scores to be used in the
   `overall_score` calculation. The default value is `1`.
 
@@ -88,16 +99,6 @@ The API returns the following information:
 `overall_buckets`::
   (array) An array of overall bucket objects. For more information, see
   <<ml-results-overall-buckets,Overall Buckets>>.
-
-[[ml-get-overall-buckets-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. You also need `read` index privilege on the index
-that stores the results. The `machine_learning_admin` and `machine_learning_user`
-roles provide these privileges. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges] and
-{stack-ov}/built-in-roles.html[Built-in Roles].
 
 [[ml-get-overall-buckets-example]]
 ==== {api-examples-title}

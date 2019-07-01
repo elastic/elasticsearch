@@ -37,6 +37,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -65,8 +67,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final int NODE_UP_TIMEOUT = 60;
-    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final int NODE_UP_TIMEOUT = 2;
+    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
+    private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
+    private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers"
@@ -310,6 +314,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         try {
             if (isWorkingDirConfigured == false) {
+                logToProcessStdout("Configuring working directory: " + workingDir);
                 // Only configure working dir once so we don't loose data on restarts
                 isWorkingDirConfigured = true;
                 createWorkingDir(distroArtifact);
@@ -319,12 +324,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         createConfiguration();
 
-        plugins.forEach(plugin -> runElaticsearchBinScript(
-            "elasticsearch-plugin",
-            "install", "--batch", plugin.toString())
-        );
+        if(plugins.isEmpty() == false) {
+            logToProcessStdout("Installing " + plugins.size() + " plugins");
+            plugins.forEach(plugin -> runElaticsearchBinScript(
+                "elasticsearch-plugin",
+                "install", "--batch", plugin.toString())
+            );
+        }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
+            logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
             runElaticsearchBinScript("elasticsearch-keystore", "create");
 
             checkSuppliers("Keystore", keystoreSettings.values());
@@ -347,6 +356,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         copyExtraConfigFiles();
 
         if (isSettingMissingOrTrue("xpack.security.enabled")) {
+            logToProcessStdout("Setting up " + credentials.size() + " users");
             if (credentials.isEmpty()) {
                 user(Collections.emptyMap());
             }
@@ -358,7 +368,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             ));
         }
 
+        logToProcessStdout("Starting Elasticsearch process");
         startElasticsearchProcess();
+    }
+
+    private void logToProcessStdout(String message) {
+        try {
+            if (Files.exists(esStdoutFile.getParent()) == false) {
+                Files.createDirectories(esStdoutFile.getParent());
+            }
+            Files.write(
+                esStdoutFile,
+                ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -380,6 +406,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void copyExtraConfigFiles() {
+        if (extraConfigFiles.isEmpty() == false) {
+            logToProcessStdout("Setting up " + extraConfigFiles.size() + " additional config files");
+        }
         extraConfigFiles.forEach((destination, from) -> {
                 if (Files.exists(from.toPath()) == false) {
                     throw new TestClustersException("Can't create extra config file from " + from + " for " + this +
@@ -398,6 +427,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void installModules() {
         if (distribution == Distribution.INTEG_TEST) {
+            logToProcessStdout("Installing " + modules.size() + "modules");
             for (File module : modules) {
                 Path destination = workingDir.resolve("modules").resolve(module.getName().replace(".zip", "").replace("-" + version, ""));
 
@@ -843,7 +873,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     void waitForAllConditions() {
-        waitForConditions(waitConditions, System.currentTimeMillis(), NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT, this);
+        waitForConditions(
+            waitConditions,
+            System.currentTimeMillis(),
+            NODE_UP_TIMEOUT_UNIT.toMillis(NODE_UP_TIMEOUT) +
+                // Installing plugins at config time and loading them when nods start requires additional time we need to
+                // account for
+                ADDITIONAL_CONFIG_TIMEOUT_UNIT.toMillis(ADDITIONAL_CONFIG_TIMEOUT *
+                    (
+                        plugins.size() +
+                        keystoreFiles.size() +
+                        keystoreSettings.size() +
+                        credentials.size()
+                    )
+                ),
+            TimeUnit.MILLISECONDS,
+            this
+        );
     }
 
     @Override

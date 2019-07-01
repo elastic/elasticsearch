@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -36,18 +36,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTransformAction.Response> {
+public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrameTransformAction.Response> {
 
     public static final PreviewDataFrameTransformAction INSTANCE = new PreviewDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/preview";
 
     private PreviewDataFrameTransformAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -15,6 +15,13 @@ Retrieves configuration information for calendars.
 
 `GET _ml/calendars/_all`
 
+[[ml-get-calendar-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-get-calendar-desc]]
 ==== {api-description-title}
 
@@ -24,17 +31,17 @@ You can get information for a single calendar or for all calendars by using
 [[ml-get-calendar-path-parms]]
 ==== {api-path-parms-title}
 
-`calendar_id`::
+`<calendar_id>` (Required)::
   (string) Identifier for the calendar.
 
 [[ml-get-calendar-request-body]]
 ==== {api-request-body-title}
 
-`page`::
+`page` (Optional)::
 `from`:::
     (integer) Skips the specified number of calendars.
 
-`size`:::
+`size` (Optional):::
     (integer) Specifies the maximum number of calendars to obtain.
 
 [[ml-get-calendar-results]]
@@ -45,13 +52,6 @@ The API returns the following information:
 `calendars`::
   (array) An array of calendar resources.
   For more information, see <<ml-calendar-resource>>.
-
-[[ml-get-calendar-prereqs]]
-==== {api-prereq-title}
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
 
 [[ml-get-calendar-example]]
 ==== {api-examples-title}

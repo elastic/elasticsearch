@@ -38,7 +38,7 @@ import java.util.function.Consumer;
 /**
  * An approximate set membership datastructure that scales as more unique values are inserted.
  * Can definitively say if a member does not exist (no false negatives), but may say an item exists
- * when it does not (has false negatives).  Similar in usage to a Bloom Filter.
+ * when it does not (has false positives).  Similar in usage to a Bloom Filter.
  *
  * Internally, the datastructure maintains a Set of hashes up to a specified threshold.  This provides
  * 100% accurate membership queries.

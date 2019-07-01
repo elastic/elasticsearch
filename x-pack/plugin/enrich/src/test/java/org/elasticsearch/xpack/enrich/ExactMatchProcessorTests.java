@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,11 +36,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ExactMatchProcessorTests extends ESTestCase {
 
@@ -60,7 +61,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
             Collections.singletonMap("domain", "elastic.co"));
         // Run
-        assertThat(processor.execute(ingestDocument), notNullValue());
+        IngestDocument[] holder = new IngestDocument[1];
+        processor.execute(ingestDocument, (result, e) -> holder[0] = result);
+        assertThat(holder[0], notNullValue());
         // Check request
         SearchRequest request = mockSearch.getCapturedRequest();
         assertThat(request.indices().length, equalTo(1));
@@ -88,7 +91,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
             Collections.singletonMap("domain", "elastic.com"));
         int numProperties = ingestDocument.getSourceAndMetadata().size();
         // Run
-        assertThat(processor.execute(ingestDocument), notNullValue());
+        IngestDocument[] holder = new IngestDocument[1];
+        processor.execute(ingestDocument, (result, e) -> holder[0] = result);
+        assertThat(holder[0], notNullValue());
         // Check request
         SearchRequest request = mockSearch.getCapturedRequest();
         assertThat(request.indices().length, equalTo(1));
@@ -115,7 +120,15 @@ public class ExactMatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
             Collections.singletonMap("domain", "elastic.com"));
         // Run
-        IndexNotFoundException expectedException = expectThrows(IndexNotFoundException.class, () -> processor.execute(ingestDocument));
+        IngestDocument[] resultHolder = new IngestDocument[1];
+        Exception[] exceptionHolder = new Exception[1];
+        processor.execute(ingestDocument, (result, e) -> {
+            resultHolder[0] = result;
+            exceptionHolder[0] = e;
+        });
+        assertThat(resultHolder[0], nullValue());
+        assertThat(exceptionHolder[0], notNullValue());
+        assertThat(exceptionHolder[0], instanceOf(IndexNotFoundException.class));
         // Check request
         SearchRequest request = mockSearch.getCapturedRequest();
         assertThat(request.indices().length, equalTo(1));
@@ -131,7 +144,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
         assertThat(termQueryBuilder.value(), equalTo("elastic.com"));
         // Check result
-        assertThat(expectedException.getMessage(), equalTo("no such index [" + indexName + "]"));
+        assertThat(exceptionHolder[0].getMessage(), equalTo("no such index [" + indexName + "]"));
     }
 
     public void testIgnoreKeyMissing() throws Exception {
@@ -142,7 +155,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 Collections.emptyMap());
 
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
-            assertThat(processor.execute(ingestDocument), notNullValue());
+            IngestDocument[] holder = new IngestDocument[1];
+            processor.execute(ingestDocument, (result, e) -> holder[0] = result);
+            assertThat(holder[0], notNullValue());
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
         }
         {
@@ -150,11 +165,19 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 false, Arrays.asList(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
             IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
                 Collections.emptyMap());
-            expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+            IngestDocument[] resultHolder = new IngestDocument[1];
+            Exception[] exceptionHolder = new Exception[1];
+            processor.execute(ingestDocument, (result, e) -> {
+                resultHolder[0] = result;
+                exceptionHolder[0] = e;
+            });
+            assertThat(resultHolder[0], nullValue());
+            assertThat(exceptionHolder[0], notNullValue());
+            assertThat(exceptionHolder[0], instanceOf(IllegalArgumentException.class));
         }
     }
 
-    private static final class MockSearchFunction implements CheckedFunction<SearchRequest, SearchResponse, Exception> {
+    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  {
         private final SearchResponse mockResponse;
         private final SetOnce<SearchRequest> capturedRequest;
         private final Exception exception;
@@ -172,12 +195,12 @@ public class ExactMatchProcessorTests extends ESTestCase {
         }
 
         @Override
-        public SearchResponse apply(SearchRequest request) throws Exception {
+        public void accept(SearchRequest request, BiConsumer<SearchResponse, Exception> handler) {
             capturedRequest.set(request);
             if (exception != null) {
-                throw exception;
+                handler.accept(null, exception);
             } else {
-                return mockResponse;
+                handler.accept(mockResponse, null);
             }
         }
 

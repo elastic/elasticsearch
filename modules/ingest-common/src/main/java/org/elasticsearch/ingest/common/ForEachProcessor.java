@@ -28,6 +28,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
+
 import org.elasticsearch.script.ScriptService;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -63,29 +66,46 @@ public final class ForEachProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         List<?> values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
         if (values == null) {
             if (ignoreMissing) {
-                return ingestDocument;
+                handler.accept(ingestDocument, null);
+            } else {
+                handler.accept(null, new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements."));
             }
-            throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
+        } else {
+            List<Object> newValues = new CopyOnWriteArrayList<>();
+            innerExecute(0, values, newValues, ingestDocument, handler);
         }
-        List<Object> newValues = new ArrayList<>(values.size());
-        IngestDocument document = ingestDocument;
-        for (Object value : values) {
-            Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
-            try {
-                document = processor.execute(document);
-                if (document == null) {
-                    return null;
-                }
-            } finally {
-                newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
+    }
+
+    void innerExecute(int index, List<?> values, List<Object> newValues, IngestDocument document,
+                      BiConsumer<IngestDocument, Exception> handler) {
+        if (index == values.size()) {
+            document.setFieldValue(field, new ArrayList<>(newValues));
+            handler.accept(document, null);
+            return;
+        }
+
+        Object value = values.get(index);
+        Object previousValue = document.getIngestMetadata().put("_value", value);
+        processor.execute(document, (result, e) -> {
+            if (e != null)  {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                handler.accept(null, e);
+            } else if (result == null) {
+                handler.accept(null, null);
+            } else {
+                newValues.add(document.getIngestMetadata().put("_value", previousValue));
+                innerExecute(index + 1, values, newValues, document, handler);
             }
-        }
-        document.setFieldValue(field, newValues);
-        return document;
+        });
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     @Override

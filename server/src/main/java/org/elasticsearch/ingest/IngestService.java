@@ -63,8 +63,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Holder class for several ingest related services.
@@ -327,42 +329,72 @@ public class IngestService implements ClusterStateApplier {
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    public void executeBulkRequest(Iterable<DocWriteRequest<?>> actionRequests,
-        BiConsumer<IndexRequest, Exception> itemFailureHandler, Consumer<Exception> completionHandler,
-        Consumer<IndexRequest> itemDroppedHandler) {
+    public void executeBulkRequest(int numberOfActionRequests,
+                                   Iterable<DocWriteRequest<?>> actionRequests,
+                                   BiConsumer<Integer, Exception> itemFailureHandler,
+                                   BiConsumer<Thread, Exception> completionHandler,
+                                   IntConsumer itemDroppedHandler) {
 
         threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
-                completionHandler.accept(e);
+                completionHandler.accept(null, e);
             }
 
             @Override
             protected void doRun() {
+                final Thread originalThread = Thread.currentThread();
+                final AtomicInteger counter = new AtomicInteger(numberOfActionRequests);
+                int i = 0;
                 for (DocWriteRequest<?> actionRequest : actionRequests) {
                     IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                     if (indexRequest == null) {
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(originalThread, null);
+                        }
+                        assert counter.get() >= 0;
                         continue;
                     }
                     String pipelineId = indexRequest.getPipeline();
-                    if (NOOP_PIPELINE_NAME.equals(pipelineId) == false) {
-                        try {
-                            PipelineHolder holder = pipelines.get(pipelineId);
-                            if (holder == null) {
-                                throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-                            }
-                            Pipeline pipeline = holder.pipeline;
-                            innerExecute(indexRequest, pipeline, itemDroppedHandler);
-                            //this shouldn't be needed here but we do it for consistency with index api
-                            // which requires it to prevent double execution
-                            indexRequest.setPipeline(NOOP_PIPELINE_NAME);
-                        } catch (Exception e) {
-                            itemFailureHandler.accept(indexRequest, e);
+                    if (NOOP_PIPELINE_NAME.equals(pipelineId)) {
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(originalThread, null);
                         }
+                        assert counter.get() >= 0;
+                        continue;
                     }
+
+                    final int slot = i;
+                    try {
+                        PipelineHolder holder = pipelines.get(pipelineId);
+                        if (holder == null) {
+                            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+                        }
+                        Pipeline pipeline = holder.pipeline;
+                        innerExecute(slot, indexRequest, pipeline, itemDroppedHandler, e -> {
+                            if (e == null) {
+                                // this shouldn't be needed here but we do it for consistency with index api
+                                // which requires it to prevent double execution
+                                indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+                            } else {
+                                itemFailureHandler.accept(slot, e);
+                            }
+
+                            if (counter.decrementAndGet() == 0){
+                                completionHandler.accept(originalThread, null);
+                            }
+                            assert counter.get() >= 0;
+                        });
+                    } catch (Exception e) {
+                        itemFailureHandler.accept(slot, e);
+                        if (counter.decrementAndGet() == 0){
+                            completionHandler.accept(originalThread, null);
+                        }
+                        assert counter.get() >= 0;
+                    }
+                    i++;
                 }
-                completionHandler.accept(null);
             }
         });
     }
@@ -418,26 +450,34 @@ public class IngestService implements ClusterStateApplier {
         return sb.toString();
     }
 
-    private void innerExecute(IndexRequest indexRequest, Pipeline pipeline, Consumer<IndexRequest> itemDroppedHandler) throws Exception {
+    private void innerExecute(int slot, IndexRequest indexRequest, Pipeline pipeline, IntConsumer itemDroppedHandler,
+                              Consumer<Exception> handler) {
         if (pipeline.getProcessors().isEmpty()) {
+            handler.accept(null);
             return;
         }
 
         long startTimeInNanos = System.nanoTime();
         // the pipeline specific stat holder may not exist and that is fine:
         // (e.g. the pipeline may have been removed while we're ingesting a document
-        try {
-            totalMetrics.preIngest();
-            String index = indexRequest.index();
-            String type = indexRequest.type();
-            String id = indexRequest.id();
-            String routing = indexRequest.routing();
-            Long version = indexRequest.version();
-            VersionType versionType = indexRequest.versionType();
-            Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
-            if (pipeline.execute(ingestDocument) == null) {
-                itemDroppedHandler.accept(indexRequest);
+        totalMetrics.preIngest();
+        String index = indexRequest.index();
+        String type = indexRequest.type();
+        String id = indexRequest.id();
+        String routing = indexRequest.routing();
+        Long version = indexRequest.version();
+        VersionType versionType = indexRequest.versionType();
+        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
+        IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
+        pipeline.execute(ingestDocument, (result, e) -> {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
+            totalMetrics.postIngest(ingestTimeInMillis);
+            if (e != null) {
+                totalMetrics.ingestFailed();
+                handler.accept(e);
+            } else if (result == null) {
+                itemDroppedHandler.accept(slot);
+                handler.accept(null);
             } else {
                 Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
                 //it's fine to set all metadata fields all the time, as ingest document holds their starting values
@@ -451,14 +491,9 @@ public class IngestService implements ClusterStateApplier {
                     indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
                 }
                 indexRequest.source(ingestDocument.getSourceAndMetadata());
+                handler.accept(null);
             }
-        } catch (Exception e) {
-            totalMetrics.ingestFailed();
-            throw e;
-        } finally {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-            totalMetrics.postIngest(ingestTimeInMillis);
-        }
+        });
     }
 
     @Override

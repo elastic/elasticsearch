@@ -39,8 +39,6 @@ import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -199,8 +197,8 @@ public class AzureStorageService {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
-        final AtomicLong outstanding = new AtomicLong(0);
-        final SetOnce<PlainActionFuture<Void>> resReference = new SetOnce<>();
+        final AtomicLong outstanding = new AtomicLong(1L);
+        final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
         SocketAccess.doPrivilegedVoidException(() -> {
             for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
@@ -221,22 +219,16 @@ public class AzureStorageService {
                     @Override
                     public void onAfter() {
                         if (outstanding.decrementAndGet() == 0) {
-                            ActionListener<Void> resListener = resReference.get();
-                            if (resListener != null) {
-                                resListener.onResponse(null);
-                            }
+                            result.onResponse(null);
                         }
                     }
                 });
             }
         });
-        if (outstanding.get() > 0) {
-            final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
-            resReference.set(result);
-            if (outstanding.get() > 0) {
-                result.actionGet();
-            }
+        if (outstanding.decrementAndGet() == 0) {
+            result.onResponse(null);
         }
+        result.actionGet();
         if (exceptions.isEmpty() == false) {
             final IOException ex = new IOException("Deleting directory [" + path + "] failed");
             exceptions.forEach(ex::addSuppressed);

@@ -195,6 +195,7 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
+import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
@@ -773,7 +774,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestCreateApiKeyAction(settings, restController, getLicenseState()),
                 new RestInvalidateApiKeyAction(settings, restController, getLicenseState()),
                 new RestGetApiKeyAction(settings, restController, getLicenseState()),
-                new RestDeletePrivilegesAction(settings, restController, getLicenseState())
+                new RestDelegatePkiAction(settings, restController, getLicenseState())
         );
     }
 

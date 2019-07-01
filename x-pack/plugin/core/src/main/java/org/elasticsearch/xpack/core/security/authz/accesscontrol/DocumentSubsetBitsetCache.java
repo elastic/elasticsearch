@@ -29,13 +29,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 
 import java.io.Closeable;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -65,7 +66,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     private final Logger logger;
     private final Cache<BitsetCacheKey, BitSet> bitsetCache;
-    private final CacheIteratorHelper<BitsetCacheKey, BitSet> bitsetCacheHelper;
+    private final Map<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByIndex;
 
     public DocumentSubsetBitsetCache(Settings settings) {
         this.logger = LogManager.getLogger(getClass());
@@ -75,12 +76,17 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             .setExpireAfterAccess(ttl)
             .setMaximumWeight(size.getBytes())
             .weigher((key, bitSet) -> bitSet == NULL_MARKER ? 0 : bitSet.ramBytesUsed()).build();
-        this.bitsetCacheHelper = new CacheIteratorHelper(bitsetCache);
+        this.keysByIndex = new ConcurrentHashMap<>();
     }
 
     @Override
     public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
-        bitsetCacheHelper.removeKeysIf(key -> key.matchesIndex(ownerCoreCacheKey));
+        final Set<BitsetCacheKey> keys = keysByIndex.remove(ownerCoreCacheKey);
+        if (keys != null) {
+            // Because this Set has been removed from the map, and the only update to the set is performed in a
+            // Map#compute call, it should not be possible to get a concurrent modification here.
+            keys.forEach(bitsetCache::invalidate);
+        }
     }
 
     @Override
@@ -90,9 +96,14 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     public void clear(String reason) {
         logger.debug("clearing all DLS bitsets because [{}]", reason);
-        try (ReleasableLock ignored = bitsetCacheHelper.acquireUpdateLock()) {
-            bitsetCache.invalidateAll();
-        }
+        // Due to the order here, it is possible than a new entry could be added _after_ the keysByIndex map is cleared
+        // but _before_ the cache is cleared. This would mean it sits orphaned in keysByIndex, but this is not a issue.
+        // When the index is closed, the key will be removed from the map, and there will not be a corresponding item
+        // in the cache, which will make the cache-invalidate a no-op.
+        // Since the entry is not in the cache, if #getBitSet is called, it will be loaded, and the new key will be added
+        // to the index without issue.
+        keysByIndex.clear();
+        bitsetCache.invalidateAll();
     }
 
     int entryCount() {
@@ -118,27 +129,33 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         }
         coreCacheHelper.addClosedListener(this);
         final IndexReader.CacheKey indexKey = coreCacheHelper.getKey();
-        final BitsetCacheKey key = new BitsetCacheKey(indexKey, query);
+        final BitsetCacheKey cacheKey = new BitsetCacheKey(indexKey, query);
 
-        try (ReleasableLock ignored = bitsetCacheHelper.acquireUpdateLock()) {
-            final BitSet bitSet = bitsetCache.computeIfAbsent(key, ignore -> {
-                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                Scorer s = weight.scorer(context);
-                if (s == null) {
-                    // A cache loader is not allowed to return null, return a marker object instead.
-                    return NULL_MARKER;
-                } else {
-                    return BitSet.of(s.iterator(), context.reader().maxDoc());
+        final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
+            // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
+            keysByIndex.compute(indexKey, (ignore2, set) -> {
+                if (set == null) {
+                    set = new HashSet<>();
                 }
+                set.add(cacheKey);
+                return set;
             });
-            if (bitSet == NULL_MARKER) {
-                return null;
+            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+            searcher.setQueryCache(null);
+            final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            Scorer s = weight.scorer(context);
+            if (s == null) {
+                // A cache loader is not allowed to return null, return a marker object instead.
+                return NULL_MARKER;
             } else {
-                return bitSet;
+                return BitSet.of(s.iterator(), context.reader().maxDoc());
             }
+        });
+        if (bitSet == NULL_MARKER) {
+            return null;
+        } else {
+            return bitSet;
         }
     }
 
@@ -162,10 +179,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         private BitsetCacheKey(IndexReader.CacheKey index, Query query) {
             this.index = index;
             this.query = query;
-        }
-
-        public boolean matchesIndex(IndexReader.CacheKey index) {
-            return this.index.equals(index);
         }
 
         @Override

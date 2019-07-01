@@ -27,7 +27,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(EnrichPlugin.class);
+        return List.of(LocalStateEnrich.class);
     }
 
     public void testUpdatePolicyOnly() {
@@ -56,6 +56,4 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         Pipeline pipelineInstance2 = ingestService.getPipeline("1");
         assertThat(pipelineInstance2, sameInstance(pipelineInstance1));
     }
-
-
 }

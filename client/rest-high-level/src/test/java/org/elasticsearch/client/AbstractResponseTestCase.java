@@ -45,7 +45,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         final S serverTestInstance = createServerTestInstance();
 
         final XContentType xContentType = randomFrom(XContentType.values());
-        final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, getParams(), randomBoolean());
 
         final XContent xContent = XContentFactory.xContent(xContentType);
         final XContentParser parser = xContent.createParser(
@@ -61,5 +61,9 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
     protected abstract C doParseToClientInstance(XContentParser parser) throws IOException;
 
     protected abstract void assertInstances(S serverTestInstance, C clientInstance);
+
+    protected ToXContent.Params getParams() {
+        return ToXContent.EMPTY_PARAMS;
+    }
 
 }

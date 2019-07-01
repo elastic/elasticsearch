@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDataFrameAnalyticsAction extends Action<PutDataFrameAnalyticsAction.Response> {
+public class PutDataFrameAnalyticsAction extends StreamableResponseActionType<PutDataFrameAnalyticsAction.Response> {
 
     public static final PutDataFrameAnalyticsAction INSTANCE = new PutDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/put";

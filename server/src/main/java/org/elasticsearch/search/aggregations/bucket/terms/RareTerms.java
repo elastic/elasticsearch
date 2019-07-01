@@ -16,32 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.search.aggregations.bucket.terms;
 
-package org.elasticsearch.action;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+
+import java.util.List;
 
 
-import org.elasticsearch.common.io.stream.Writeable;
+public interface RareTerms extends MultiBucketsAggregation {
 
-/**
- * An action for which the response class implements {@link org.elasticsearch.common.io.stream.Writeable}.
- */
-public class Action2<Response extends ActionResponse> extends Action<Response> {
-    private final Writeable.Reader<Response> responseReader;
+    /**
+     * A bucket that is associated with a single term
+     */
+    interface Bucket extends MultiBucketsAggregation.Bucket {
 
-    public Action2(String name, Writeable.Reader<Response> responseReader) {
-        super(name);
-        this.responseReader = responseReader;
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException();
+        Number getKeyAsNumber();
     }
 
     /**
-     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     * Return the sorted list of the buckets in this terms aggregation.
      */
-    public Writeable.Reader<Response> getResponseReader() {
-        return responseReader;
-    }
+    @Override
+    List<? extends Bucket> getBuckets();
+
+    /**
+     * Get the bucket for the given term, or null if there is no such bucket.
+     */
+    Bucket getBucketByKey(String term);
+
 }
+

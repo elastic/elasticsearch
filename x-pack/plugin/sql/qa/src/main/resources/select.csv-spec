@@ -9,6 +9,14 @@ SELECT 'abc' AS "test""ing";
 abc
 ;
 
+selectAsEscapedLiteral
+SELECT 'ab''c' AS escaped_text;
+
+ escaped_text:s
+---------------
+ab'c
+;
+
 //
 // SELECT with = and !=
 //

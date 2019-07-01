@@ -19,15 +19,19 @@
 package org.elasticsearch.common.logging;
 
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 /*
   Because this test is testing ESJsonLayout in isolation, ESMessageField pattern converter is not configured
   Status logger is printing out warnings about this to std error (causing tests to fail)
  */
-@LuceneTestCase.SuppressSysoutChecks(bugUrl = "StatusLogger warnings")
-public class ESJsonLayoutTests extends LuceneTestCase {
+public class ESJsonLayoutTests extends ESTestCase {
+    @BeforeClass
+    public static void initNodeName() {
+        JsonLogsTestSetup.init();
+    }
 
     public void testEmptyType() {
         expectThrows(IllegalArgumentException.class, () -> ESJsonLayout.newBuilder().build());

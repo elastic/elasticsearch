@@ -64,7 +64,8 @@ import java.util.Set;
  * <code>... "message":  %ESMessageField{message}, "took": %ESMessageField{took} ...</code>
  * the message passed to a logger will be overriden with a value from %ESMessageField{message}
  * <p>
- * The value taken from %ESMessageField{message} has to be a correct JSON and is populated in subclasses of <code>ESLogMessage</code>
+ * The value taken from %ESMessageField{message} has to be a simple escaped JSON value and is populated in subclasses of
+ * <code>ESLogMessage</code>
  */
 @Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ESJsonLayout extends AbstractStringLayout {

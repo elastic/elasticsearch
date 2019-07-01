@@ -59,7 +59,7 @@ public class JsonLoggerTests extends ESTestCase {
 
     @BeforeClass
     public static void initNodeName() {
-        LogConfigurator.setNodeName("sample-name");
+        JsonLogsTestSetup.init();
     }
 
     @Override

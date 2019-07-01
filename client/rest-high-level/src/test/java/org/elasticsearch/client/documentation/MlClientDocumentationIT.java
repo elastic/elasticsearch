@@ -3112,6 +3112,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             StopDataFrameAnalyticsRequest request = new StopDataFrameAnalyticsRequest("my-analytics-config"); // <1>
             // end::stop-data-frame-analytics-request
 
+            //tag::stop-data-frame-analytics-request-force
+            request.setForce(false); // <2>
+            //end::stop-data-frame-analytics-request-force
+
             // tag::stop-data-frame-analytics-execute
             StopDataFrameAnalyticsResponse response = client.machineLearning().stopDataFrameAnalytics(request, RequestOptions.DEFAULT);
             // end::stop-data-frame-analytics-execute

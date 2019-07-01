@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.S
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.Aggregations;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.dataframe.transforms.IDGenerator;
 
@@ -47,6 +48,7 @@ public final class AggregationResultUtils {
      * @param agg The aggregation result
      * @param groups The original groupings used for querying
      * @param aggregationBuilders the aggregation used for querying
+     * @param specialAggregations special aggregations of this transform
      * @param fieldTypeMap A Map containing "field-name": "type" entries to determine the appropriate type for the aggregation results.
      * @param stats stats collector
      * @return a map containing the results of the aggregation in a consumable way
@@ -55,6 +57,7 @@ public final class AggregationResultUtils {
                                                                                  GroupConfig groups,
                                                                                  Collection<AggregationBuilder> aggregationBuilders,
                                                                                  Collection<PipelineAggregationBuilder> pipelineAggs,
+                                                                                 Map<String, String> specialAggregations,
                                                                                  Map<String, String> fieldTypeMap,
                                                                                  DataFrameIndexerTransformStats stats) {
         return agg.getBuckets().stream().map(bucket -> {
@@ -73,15 +76,23 @@ public final class AggregationResultUtils {
 
             List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());
             aggNames.addAll(pipelineAggs.stream().map(PipelineAggregationBuilder::getName).collect(Collectors.toList()));
+            aggNames.addAll(specialAggregations.keySet());
 
             for (String aggName: aggNames) {
                 final String fieldType = fieldTypeMap.get(aggName);
+                Object value;
 
-                // TODO: support other aggregation types
-                Aggregation aggResult = bucket.getAggregations().get(aggName);
+                if (specialAggregations.containsKey(aggName)) {
+                    value = Aggregations.getBucketFunction(specialAggregations.get(aggName)).apply(bucket);
+                } else {
+                    // TODO: support other aggregation types
+                    Aggregation aggResult = bucket.getAggregations().get(aggName);
 
-                AggValueExtractor extractor = getExtractor(aggResult);
-                updateDocument(document, aggName, extractor.value(aggResult, fieldType));
+                    AggValueExtractor extractor = getExtractor(aggResult);
+                    value = extractor.value(aggResult, fieldType);
+                }
+
+                updateDocument(document, aggName, value);
             }
 
             document.put(DataFrameField.DOCUMENT_ID_FIELD, idGen.getID());

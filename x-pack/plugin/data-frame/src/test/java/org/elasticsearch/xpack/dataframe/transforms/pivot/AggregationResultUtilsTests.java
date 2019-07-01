@@ -157,7 +157,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             targetField, "keyword",
             aggName, "double"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 11);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), Collections.emptyMap(), input, fieldTypeMap, expected, 11);
     }
 
     public void testExtractCompositeAggregationResultsMultipleGroups() throws IOException {
@@ -243,7 +243,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             targetField, "keyword",
             targetField2, "keyword"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 6);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), Collections.emptyMap(), input, fieldTypeMap, expected, 6);
     }
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
@@ -313,7 +313,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             aggName, "double",
             aggName2, "double"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 200);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), Collections.emptyMap(), input, fieldTypeMap, expected, 200);
     }
 
     public void testExtractCompositeAggregationResultsMultiAggregationsAndTypes() throws IOException {
@@ -420,7 +420,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             targetField, "keyword",
             targetField2, "keyword"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 10);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), Collections.emptyMap(), input, fieldTypeMap, expected, 10);
     }
 
     public void testExtractCompositeAggregationResultsWithDynamicType() throws IOException {
@@ -506,7 +506,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             targetField, "keyword",
             targetField2, "keyword"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 6);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), Collections.emptyMap(), input, fieldTypeMap, expected, 6);
     }
 
     public void testExtractCompositeAggregationResultsWithPipelineAggregation() throws IOException {
@@ -611,7 +611,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             targetField2, "keyword",
             aggName, "double"
         );
-        executeTest(groupBy, aggregationBuilders, pipelineAggregationBuilders, input, fieldTypeMap, expected, 10);
+        executeTest(groupBy, aggregationBuilders, pipelineAggregationBuilders, Collections.emptyMap(), input, fieldTypeMap, expected, 10);
     }
 
     public void testExtractCompositeAggregationResultsDocIDs() throws IOException {
@@ -714,10 +714,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 targetField2, "keyword"
             );
 
-        List<Map<String, Object>> resultFirstRun =
-            runExtraction(groupBy, aggregationBuilders, Collections.emptyList(), inputFirstRun, fieldTypeMap, stats);
-        List<Map<String, Object>> resultSecondRun =
-            runExtraction(groupBy, aggregationBuilders, Collections.emptyList(), inputSecondRun, fieldTypeMap, stats);
+        List<Map<String, Object>> resultFirstRun = runExtraction(groupBy, aggregationBuilders, Collections.emptyList(),
+                Collections.emptyMap(), inputFirstRun, fieldTypeMap, stats);
+        List<Map<String, Object>> resultSecondRun = runExtraction(groupBy, aggregationBuilders, Collections.emptyList(),
+                Collections.emptyMap(), inputSecondRun, fieldTypeMap, stats);
 
         assertNotEquals(resultFirstRun, resultSecondRun);
 
@@ -785,6 +785,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     private void executeTest(GroupConfig groups,
                              Collection<AggregationBuilder> aggregationBuilders,
                              Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
+                             Map<String, String> specialAggregations,
                              Map<String, Object> input,
                              Map<String, String> fieldTypeMap,
                              List<Map<String, Object>> expected,
@@ -796,6 +797,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         List<Map<String, Object>> result = runExtraction(groups,
             aggregationBuilders,
             pipelineAggregationBuilders,
+            specialAggregations,
             input,
             fieldTypeMap,
             stats);
@@ -815,6 +817,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     private List<Map<String, Object>> runExtraction(GroupConfig groups,
                                                     Collection<AggregationBuilder> aggregationBuilders,
                                                     Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
+                                                    Map<String, String> specialAggregations,
                                                     Map<String, Object> input,
                                                     Map<String, String> fieldTypeMap,
                                                     DataFrameIndexerTransformStats stats) throws IOException {
@@ -828,6 +831,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 groups,
                 aggregationBuilders,
                 pipelineAggregationBuilders,
+                specialAggregations,
                 fieldTypeMap,
                 stats).collect(Collectors.toList());
         }

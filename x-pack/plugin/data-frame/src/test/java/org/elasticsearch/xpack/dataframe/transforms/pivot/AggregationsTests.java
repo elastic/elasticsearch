@@ -7,6 +7,10 @@
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.Aggregations;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class AggregationsTests extends ESTestCase {
     public void testResolveTargetMapping() {
@@ -53,5 +57,63 @@ public class AggregationsTests extends ESTestCase {
         // weighted_avg
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", "double"));
+
+        // count
+        assertEquals("long", Aggregations.resolveTargetMapping("count", null));
+    }
+
+    public void testFilterSpecialAggregations() {
+        Map<String, Object> input = asMap(
+                "bucket_count",
+                    asMap("count",
+                            asMap()
+                    ));
+
+        Map<String, Object> output = Aggregations.filterSpecialAggregations(input);
+        assertEquals(0, output.size());
+
+        input = asMap(
+                "bucket_count",
+                    asMap("count",
+                        asMap()
+                            ),
+                "avg_price",
+                    asMap("avg",
+                        asMap("field",
+                              "price")
+                    ));
+
+        output = Aggregations.filterSpecialAggregations(input);
+        assertEquals(1, output.size());
+
+        input = asMap(
+                "max_price",
+                    asMap("max",
+                        asMap("field",
+                              "price")
+                        ),
+                "bucket_count",
+                    asMap("count",
+                        asMap()
+                            ),
+                "avg_price",
+                    asMap("avg",
+                        asMap("field",
+                              "price")
+                    ));
+
+        output = Aggregations.filterSpecialAggregations(input);
+        assertEquals(2, output.size());
+
+    }
+
+    static Map<String, Object> asMap(Object... fields) {
+        assert fields.length % 2 == 0;
+        final Map<String, Object> map = new HashMap<>();
+        for (int i = 0; i < fields.length; i += 2) {
+            String field = (String) fields[i];
+            map.put(field, fields[i + 1]);
+        }
+        return map;
     }
 }

@@ -30,9 +30,10 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.dataframe.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.Aggregations;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.dataframe.transforms.pivot.Aggregations.AggregationType;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.Aggregations.AggregationType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,6 +58,7 @@ public class PivotTests extends ESTestCase {
     private Client client;
 
     private final Set<String> supportedAggregations = Stream.of(AggregationType.values()).map(AggregationType::getName)
+            .filter(a -> {return Aggregations.isSpecialAggregation(a) == false;})
             .collect(Collectors.toSet());
     private final String[] unsupportedAggregations = { "stats" };
 

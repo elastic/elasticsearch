@@ -29,6 +29,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.Aggregations;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource;
@@ -70,6 +71,7 @@ public class Pivot {
     }
 
     public void validateConfig() {
+        // note: special aggregations are implicitly checked as they get only removed from the config if they are valid
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (Aggregations.isSupportedByDataframe(agg.getType()) == false) {
                 throw new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]");
@@ -166,11 +168,13 @@ public class Pivot {
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
+        Map<String, String> specialFunctions = config.getAggregationConfig().getSpecialAggregations();
 
         return AggregationResultUtils.extractCompositeAggregationResults(agg,
             groups,
             aggregationBuilders,
             pipelineAggregationBuilders,
+            specialFunctions,
             fieldTypeMap,
             dataFrameIndexerTransformStats);
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.MockDeprecatedAggregati
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,27 +36,36 @@ public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase
 
     public static AggregationConfig randomAggregationConfig() {
 
-        AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-        Map<String, Object> source = null;
+        AggregatorFactories.Builder builder = null;
+        Map<String, Object> source = new LinkedHashMap<>();
+        Map<String, String> specialAggregations = null;
 
         // ensure that the unlikely does not happen: 2 aggs share the same name
-        Set<String> names = new HashSet<>();
-        for (int i = 0; i < randomIntBetween(1, 20); ++i) {
-            AggregationBuilder aggBuilder = getRandomSupportedAggregation();
-            if (names.add(aggBuilder.getName())) {
-                builder.addAggregator(aggBuilder);
+        String[] names = Set.of(generateRandomAlphaArray(4, 20, 1, 10)).toArray(new String[0]);
+
+        int randomMix = randomIntBetween(1, 3);
+
+        if (randomMix <= 2) {
+            builder = new AggregatorFactories.Builder();
+
+            for (int i = 1; i < randomIntBetween(2, names.length - 1); ++i) {
+                AggregationBuilder aggBuilder = getRandomSupportedAggregation(names[i]);
+                    builder.addAggregator(aggBuilder);
+            }
+
+            try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                XContentBuilder content = builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+                source = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
+            } catch (IOException e) {
+                fail("failed to create random aggregation config: " + e.getMessage());
             }
         }
 
-        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-
-            XContentBuilder content = builder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            source = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
-        } catch (IOException e) {
-            fail("failed to create random aggregation config: " + e.getMessage());
+        if (randomMix >= 2) {
+            specialAggregations = getRandomSupportedSpecialAggregation(names[0], source);
         }
 
-        return new AggregationConfig(source, builder);
+        return new AggregationConfig(source, builder, specialAggregations);
     }
 
     public static AggregationConfig randomInvalidAggregationConfig() {
@@ -65,7 +75,7 @@ public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase
             source.put(key, randomAlphaOfLengthBetween(1, 20));
         }
 
-        return new AggregationConfig(source, null);
+        return new AggregationConfig(source, null, null);
     }
 
     @Before
@@ -132,19 +142,36 @@ public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase
         }
     }
 
-    private static AggregationBuilder getRandomSupportedAggregation() {
+    public static String[] generateRandomAlphaArray(int minArraySize,
+                                                    int maxArraySize,
+                                                    int minStringSize,
+                                                    int maxStringSize) {
+        Set<String> strings = new HashSet<>();
+        for (int i = 0; i < randomIntBetween(minArraySize, maxArraySize); ++i) {
+            strings.add(randomAlphaOfLengthBetween(minStringSize, maxStringSize));
+        }
+
+        return strings.toArray(new String[0]);
+    }
+
+    private static AggregationBuilder getRandomSupportedAggregation(String name) {
         final int numberOfSupportedAggs = 4;
         switch (randomIntBetween(1, numberOfSupportedAggs)) {
         case 1:
-            return AggregationBuilders.avg(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            return AggregationBuilders.avg(name).field(randomAlphaOfLengthBetween(1, 10));
         case 2:
-            return AggregationBuilders.min(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            return AggregationBuilders.min(name).field(randomAlphaOfLengthBetween(1, 10));
         case 3:
-            return AggregationBuilders.max(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            return AggregationBuilders.max(name).field(randomAlphaOfLengthBetween(1, 10));
         case 4:
-            return AggregationBuilders.sum(randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
+            return AggregationBuilders.sum(name).field(randomAlphaOfLengthBetween(1, 10));
         }
 
         return null;
+    }
+
+    private static Map<String, String> getRandomSupportedSpecialAggregation(String name, Map<String, Object> source) {
+        source.put(name, Collections.singletonMap("count", Collections.emptyMap()));
+        return Collections.singletonMap(name, "count");
     }
 }

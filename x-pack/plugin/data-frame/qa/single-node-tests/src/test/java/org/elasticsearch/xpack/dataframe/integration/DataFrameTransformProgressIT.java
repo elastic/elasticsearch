@@ -124,7 +124,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0)));
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-        AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
+        AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs, Collections.emptyMap());
         PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         DataFrameTransformConfig config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,

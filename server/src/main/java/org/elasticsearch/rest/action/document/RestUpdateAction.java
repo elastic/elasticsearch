@@ -83,8 +83,12 @@ public class RestUpdateAction extends BaseRestHandler {
         }
 
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
-        updateRequest.version(RestActions.parseVersion(request));
-        updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
+        if (request.hasParam("version")) {
+            updateRequest.version(RestActions.parseVersion(request));
+        }
+        if (request.hasParam("version_type")) {
+            updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
+        }
 
         updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
         updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));

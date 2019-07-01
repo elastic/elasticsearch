@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -23,18 +23,13 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
-public class ValidateJobConfigAction extends Action<AcknowledgedResponse> {
+public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
 
     public static final ValidateJobConfigAction INSTANCE = new ValidateJobConfigAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/validate";
 
     protected ValidateJobConfigAction() {
         super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -70,7 +70,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.localShardSearcher);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
     }

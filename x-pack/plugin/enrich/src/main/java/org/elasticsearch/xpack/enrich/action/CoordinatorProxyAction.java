@@ -21,10 +21,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * An internal action to locally manage the load of the search requests the originate from the enrich processor.
@@ -62,8 +64,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
         final BlockingQueue<Item> queue = new LinkedBlockingQueue<>();
-
-        int numberOfOutstandingRequests = 0;
+        final AtomicInteger numberOfOutstandingRequests = new AtomicInteger(0);
 
         public Coordinator(Client client, Settings settings) {
             this(client,
@@ -84,14 +85,14 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
         synchronized void coordinateLookups() {
             while (queue.isEmpty() == false &&
-                numberOfOutstandingRequests <= maxNumberOfConcurrentRequests) {
+                numberOfOutstandingRequests.get() <= maxNumberOfConcurrentRequests) {
 
-                final List<Item> items = new LinkedList<>();
+                final List<Item> items = new ArrayList<>();
                 queue.drainTo(items, maxLookupsPerRequest);
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 items.forEach(item -> multiSearchRequest.add(item.searchRequest));
 
-                numberOfOutstandingRequests++;
+                numberOfOutstandingRequests.incrementAndGet();
                 client.multiSearch(multiSearchRequest, ActionListener.wrap(response -> {
                     handleResponse(items, response, null);
                 }, e -> {
@@ -100,8 +101,8 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
             }
         }
 
-        synchronized void handleResponse(List<Item> items, MultiSearchResponse response, Exception e) {
-            numberOfOutstandingRequests--;
+        void handleResponse(List<Item> items, MultiSearchResponse response, Exception e) {
+            numberOfOutstandingRequests.decrementAndGet();
 
             if (response != null) {
                 assert items.size() == response.getResponses().length;
@@ -118,9 +119,10 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
             } else if (e != null) {
                 items.forEach(item -> item.actionListener.onFailure(e));
             } else {
-                assert false;
+                throw new AssertionError("no response and no error");
             }
 
+            // There may be room to for a new request now the numberOfOutstandingRequests has been decreased:
             coordinateLookups();
         }
 

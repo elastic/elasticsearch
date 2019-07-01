@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -29,12 +31,17 @@ public class EnrichRestartIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(EnrichPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(LocalStateEnrich.class, ReindexPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        return Settings.builder().put(super.transportClientSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
     public void testRestart() throws Exception {

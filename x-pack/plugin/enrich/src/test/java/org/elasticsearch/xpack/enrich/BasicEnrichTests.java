@@ -41,7 +41,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(EnrichPlugin.class, ReindexPlugin.class);
+        return Arrays.asList(LocalStateEnrich.class, ReindexPlugin.class);
     }
 
     public void testIngestDataWithEnrichProcessor() {

@@ -1099,7 +1099,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
         if (snapshotName == null && repository instanceof BlobStoreRepository == false) {
-            listener.onResponse(null);
+            listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
             return;
         }
         final RepositoryData repositoryData = repository.getRepositoryData();
@@ -1136,7 +1136,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private void cleanupRepo(String repositoryName, ActionListener<Void> listener, long repositoryStateId, boolean immediatePriority) {
+    public void cleanupRepo(String repositoryName, ActionListener<Void> listener, long repositoryStateId, boolean immediatePriority) {
         Priority priority = immediatePriority ? Priority.IMMEDIATE : Priority.NORMAL;
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
             @Override

@@ -32,8 +32,8 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
 
     @Override
     public void testSelectFromMissingIndex() throws IOException {
-        assertFoundOneProblem(command("SELECT * FROM test"));
-        assertEquals("line 1:15: Unknown index [test]" + END, readLine());
+        assertFoundOneProblem(command("SELECT * FROM \"te\"\"st\""));
+        assertEquals("line 1:15: Unknown index [te\"st]" + END, readLine());
     }
 
     @Override

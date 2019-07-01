@@ -1,4 +1,15 @@
 //
+// SELECT with escaping
+//
+selectAsEscapedIdentifier
+SELECT 'abc' AS "test""ing";
+
+  test"ing:s
+---------------
+abc
+;
+
+//
 // SELECT with = and !=
 //
 // Need to CAST as STRING since for boolean types jdbc CSV translates null -> false

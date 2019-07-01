@@ -44,7 +44,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
         this.expireAfter = expireAfter;
     }
 
-    public SnapshotRetentionConfiguration(StreamInput in) throws IOException {
+    SnapshotRetentionConfiguration(StreamInput in) throws IOException {
         this.expireAfter = in.readOptionalTimeValue();
     }
 
@@ -85,7 +85,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             return false;
         }
         SnapshotRetentionConfiguration other = (SnapshotRetentionConfiguration) obj;
-        return this.expireAfter.equals(other.expireAfter);
+        return Objects.equals(this.expireAfter, other.expireAfter);
     }
 
     @Override

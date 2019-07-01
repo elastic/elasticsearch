@@ -85,7 +85,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject {
             return false;
         }
         SnapshotRetentionConfiguration other = (SnapshotRetentionConfiguration) obj;
-        return this.expireAfter.equals(other.expireAfter);
+        return Objects.equals(this.expireAfter, other.expireAfter);
     }
 
     @Override

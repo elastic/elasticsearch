@@ -42,6 +42,14 @@ public class TimingStatsReporter {
         }
     }
 
+    public void finishReporting() {
+        // Don't flush if current timing stats are identical to the persisted ones
+        if (currentTimingStats.equals(persistedTimingStats)) {
+            return;
+        }
+        flush();
+    }
+
     public void flush() {
         persistedTimingStats = new TimingStats(currentTimingStats);
         bulkResultsPersister.persistTimingStats(persistedTimingStats);

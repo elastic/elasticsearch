@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -39,7 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class StartDatafeedAction extends Action<AcknowledgedResponse> {
+public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -50,11 +50,6 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
 
     private StartDatafeedAction() {
         super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

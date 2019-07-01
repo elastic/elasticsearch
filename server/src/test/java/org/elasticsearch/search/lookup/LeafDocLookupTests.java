@@ -49,13 +49,7 @@ public class LeafDocLookupTests extends ESTestCase {
         when(mapperService.fullName("alias")).thenReturn(fieldType);
 
         docValues = mock(ScriptDocValues.class);
-
-        AtomicFieldData atomicFieldData = mock(AtomicFieldData.class);
-        doReturn(docValues).when(atomicFieldData).getScriptValues();
-
-        IndexFieldData<?> fieldData = mock(IndexFieldData.class);
-        when(fieldData.getFieldName()).thenReturn("field");
-        doReturn(atomicFieldData).when(fieldData).load(anyObject());
+        IndexFieldData<?> fieldData = createFieldData(docValues);
 
         docLookup = new LeafDocLookup(mapperService,
             ignored -> fieldData,
@@ -67,8 +61,19 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues, fetchedDocValues);
     }
 
-    public void testLookupWithFieldAlias() {
+    public void testFieldAliases() {
         ScriptDocValues<?> fetchedDocValues = docLookup.get("alias");
         assertEquals(docValues, fetchedDocValues);
+    }
+
+    private IndexFieldData<?> createFieldData(ScriptDocValues scriptDocValues) {
+        AtomicFieldData atomicFieldData = mock(AtomicFieldData.class);
+        doReturn(scriptDocValues).when(atomicFieldData).getScriptValues();
+
+        IndexFieldData<?> fieldData = mock(IndexFieldData.class);
+        when(fieldData.getFieldName()).thenReturn("field");
+        doReturn(atomicFieldData).when(fieldData).load(anyObject());
+
+        return fieldData;
     }
 }

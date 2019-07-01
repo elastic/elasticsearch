@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -26,18 +26,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutRollupJobAction extends Action<AcknowledgedResponse> {
+public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutRollupJobAction INSTANCE = new PutRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/put";
 
     private PutRollupJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

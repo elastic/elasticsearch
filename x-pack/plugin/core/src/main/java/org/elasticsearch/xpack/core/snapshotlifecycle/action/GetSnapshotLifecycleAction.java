@@ -6,9 +6,9 @@
 
 package org.elasticsearch.xpack.core.snapshotlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,17 +23,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleAction.Response> {
+public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleAction.Response> {
     public static final GetSnapshotLifecycleAction INSTANCE = new GetSnapshotLifecycleAction();
     public static final String NAME = "cluster:admin/slm/get";
 
     protected GetSnapshotLifecycleAction() {
         super(NAME);
-    }
-
-    @Override
-    public GetSnapshotLifecycleAction.Response newResponse() {
-        throw new UnsupportedOperationException();
     }
 
     @Override

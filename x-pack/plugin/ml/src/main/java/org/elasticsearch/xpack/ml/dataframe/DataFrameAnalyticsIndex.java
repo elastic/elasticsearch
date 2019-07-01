@@ -41,7 +41,16 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 /**
  * {@link DataFrameAnalyticsIndex} class encapsulates logic for creating destination index based on source index metadata.
  */
-final class DataFrameAnalyticsIndex {
+public final class DataFrameAnalyticsIndex {
+
+    public static final String ID_COPY = "ml__id_copy";
+
+    // Metadata fields
+    static final String CREATION_DATE_MILLIS = "creation_date_in_millis";
+    static final String VERSION = "version";
+    static final String CREATED = "created";
+    static final String CREATED_BY = "created_by";
+    static final String ANALYTICS = "analytics";
 
     private static final String PROPERTIES = "properties";
     private static final String META = "_meta";
@@ -121,7 +130,7 @@ final class DataFrameAnalyticsIndex {
         Integer maxNumberOfReplicas = findMaxSettingValue(settingsResponse, IndexMetaData.SETTING_NUMBER_OF_REPLICAS);
 
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataFrameAnalyticsFields.ID);
+        settingsBuilder.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), ID_COPY);
         settingsBuilder.put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), SortOrder.ASC);
         if (maxNumberOfShards != null) {
             settingsBuilder.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, maxNumberOfShards);
@@ -148,15 +157,15 @@ final class DataFrameAnalyticsIndex {
 
     private static void addProperties(Map<String, Object> mappingsAsMap) {
         Map<String, Object> properties = getOrPutDefault(mappingsAsMap, PROPERTIES, HashMap::new);
-        properties.put(DataFrameAnalyticsFields.ID, Map.of("type", "keyword"));
+        properties.put(ID_COPY, Map.of("type", "keyword"));
     }
 
     private static void addMetaData(Map<String, Object> mappingsAsMap, String analyticsId, Clock clock) {
         Map<String, Object> metadata = getOrPutDefault(mappingsAsMap, META, HashMap::new);
-        metadata.put(DataFrameAnalyticsFields.CREATION_DATE_MILLIS, clock.millis());
-        metadata.put(DataFrameAnalyticsFields.CREATED_BY, "data-frame-analytics");
-        metadata.put(DataFrameAnalyticsFields.VERSION, Map.of(DataFrameAnalyticsFields.CREATED, Version.CURRENT));
-        metadata.put(DataFrameAnalyticsFields.ANALYTICS, analyticsId);
+        metadata.put(CREATION_DATE_MILLIS, clock.millis());
+        metadata.put(CREATED_BY, "data-frame-analytics");
+        metadata.put(VERSION, Map.of(CREATED, Version.CURRENT));
+        metadata.put(ANALYTICS, analyticsId);
     }
 
     private static <K, V> V getOrPutDefault(Map<K, Object> map, K key, Supplier<V> valueSupplier) {
@@ -176,7 +185,7 @@ final class DataFrameAnalyticsIndex {
         ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.getMappings().get(getIndexResponse.indices()[0]);
         String type = mappings.keysIt().next();
 
-        Map<String, Object> addedMappings = Map.of(PROPERTIES, Map.of(DataFrameAnalyticsFields.ID, Map.of("type", "keyword")));
+        Map<String, Object> addedMappings = Map.of(PROPERTIES, Map.of(ID_COPY, Map.of("type", "keyword")));
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(getIndexResponse.indices());
         putMappingRequest.type(type);

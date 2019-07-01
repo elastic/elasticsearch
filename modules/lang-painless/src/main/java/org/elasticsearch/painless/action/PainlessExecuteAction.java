@@ -30,7 +30,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -89,7 +89,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
+public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Response> {
 
     public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
     private static final String NAME = "cluster:admin/scripts/painless/execute";
@@ -99,8 +99,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
     }
 
     @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {

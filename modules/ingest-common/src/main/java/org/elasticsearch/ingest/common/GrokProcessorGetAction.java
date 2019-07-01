@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -45,7 +45,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction extends StreamableResponseAction<GrokProcessorGetAction.Response> {
 
     static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
     static final String NAME = "cluster:admin/ingest/processor/grok/get";

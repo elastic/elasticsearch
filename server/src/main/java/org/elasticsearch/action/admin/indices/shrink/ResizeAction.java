@@ -34,11 +34,6 @@ public class ResizeAction extends Action<ResizeResponse> {
     }
 
     @Override
-    public ResizeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<ResizeResponse> getResponseReader() {
         return ResizeResponse::new;
     }

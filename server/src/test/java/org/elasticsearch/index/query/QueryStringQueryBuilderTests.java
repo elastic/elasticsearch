@@ -766,26 +766,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would result in more than 10 states"));
     }
 
-    /**
-     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
-     */
-    public void testEnabledPositionIncrements() throws Exception {
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject(); {
-            builder.startObject("query_string"); {
-                builder.field("query", "text");
-                builder.field("default_field", STRING_FIELD_NAME);
-                builder.field("enable_position_increments", false);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) parseInnerQueryBuilder(createParser(builder));
-        assertFalse(queryBuilder.enablePositionIncrements());
-    }
-
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
         for (int i = 0; i < 3; i++) {
             final int len;
@@ -1438,6 +1418,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .analyzer("stop")
             )
             .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
+    public void testEnablePositionIncrement() throws Exception {
+        Query query = new QueryStringQueryBuilder("\"quick the fox\"")
+            .field(STRING_FIELD_NAME)
+            .analyzer("stop")
+            .enablePositionIncrements(false)
+            .toQuery(createShardContext());
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
         assertEquals(expected, query);
     }
 

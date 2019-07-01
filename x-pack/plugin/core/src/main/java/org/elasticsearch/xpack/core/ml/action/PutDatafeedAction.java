@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseAction;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
+public class PutDatafeedAction extends StreamableResponseAction<PutDatafeedAction.Response> {
 
     public static final PutDatafeedAction INSTANCE = new PutDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";

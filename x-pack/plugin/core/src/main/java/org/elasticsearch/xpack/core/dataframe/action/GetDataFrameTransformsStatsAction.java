@@ -44,11 +44,6 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
     }
 
     @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<Response> getResponseReader() {
         return Response::new;
     }
@@ -56,6 +51,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
     public static class Request extends BaseTasksRequest<Request> {
         private final String id;
         private PageParams pageParams = PageParams.defaultParams();
+        private boolean allowNoMatch = true;
 
         public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
@@ -75,6 +71,9 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             id = in.readString();
             expandedIds = Collections.unmodifiableList(in.readStringList());
             pageParams = new PageParams(in);
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                allowNoMatch = in.readBoolean();
+            }
         }
 
         @Override
@@ -104,12 +103,23 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             return pageParams;
         }
 
+        public boolean isAllowNoMatch() {
+            return allowNoMatch;
+        }
+
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeBoolean(allowNoMatch);
+            }
         }
 
         @Override
@@ -124,7 +134,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pageParams);
+            return Objects.hash(id, pageParams, allowNoMatch);
         }
 
         @Override
@@ -136,7 +146,9 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(id, other.id)
+                && Objects.equals(pageParams, other.pageParams)
+                && allowNoMatch == other.allowNoMatch;
         }
     }
 

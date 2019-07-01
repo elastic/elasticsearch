@@ -23,7 +23,7 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
     @Override
     protected Request createTestInstance() {
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 10)) : null;
-        Request request = new Request(randomAlphaOfLengthBetween(1, 10), randomBoolean(), randomBoolean(), timeout);
+        Request request = new Request(randomAlphaOfLengthBetween(1, 10), randomBoolean(), randomBoolean(), timeout, randomBoolean());
         if (randomBoolean()) {
             request.setExpandedIds(new HashSet<>(Arrays.asList(generateRandomStringArray(5, 6, false))));
         }
@@ -39,9 +39,10 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
         String id = randomAlphaOfLengthBetween(1, 10);
         boolean waitForCompletion = randomBoolean();
         boolean force = randomBoolean();
+        boolean allowNoMatch = randomBoolean();
 
-        Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10));
-        Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20));
+        Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10), allowNoMatch);
+        Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20), allowNoMatch);
 
         assertNotEquals(r1,r2);
         assertNotEquals(r1.hashCode(),r2.hashCode());
@@ -54,11 +55,11 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
                 DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + dataFrameId,
                 TaskId.EMPTY_TASK_ID, Collections.emptyMap());
 
-        Request request = new Request("unrelated", false, false, null);
+        Request request = new Request("unrelated", false, false, null, false);
         request.setExpandedIds(new HashSet<>(Arrays.asList("foo", "bar")));
         assertFalse(request.match(dataFrameTask));
 
-        Request matchingRequest = new Request(dataFrameId, false, false, null);
+        Request matchingRequest = new Request(dataFrameId, false, false, null, false);
         matchingRequest.setExpandedIds(Collections.singleton(dataFrameId));
         assertTrue(matchingRequest.match(dataFrameTask));
 

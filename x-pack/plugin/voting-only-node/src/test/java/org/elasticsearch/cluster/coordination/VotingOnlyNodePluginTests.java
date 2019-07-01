@@ -68,6 +68,18 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             equalTo(false));
     }
 
+    public void testBootstrapOnlyVotingOnlyNodes() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNodes(Settings.builder().put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true).build(),
+            Settings.EMPTY, Settings.EMPTY);
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
+            equalTo(3)));
+        assertThat(
+            VotingOnlyNodePlugin.isVotingOnlyNode(client().admin().cluster().prepareState().get().getState().nodes().getMasterNode()),
+            equalTo(false));
+    }
+
     public void testVotingOnlyNodesCannotBeMasterWithoutFullMasterNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();

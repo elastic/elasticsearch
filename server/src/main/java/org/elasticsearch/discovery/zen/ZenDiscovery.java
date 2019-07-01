@@ -165,7 +165,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
                         ClusterSettings clusterSettings, SeedHostsProvider hostsProvider, AllocationService allocationService,
                         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState,
-                        Consumer<String> reroute) {
+                        BiConsumer<String, ActionListener<Void>> reroute) {
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;

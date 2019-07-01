@@ -33,7 +33,6 @@ versions << [
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"

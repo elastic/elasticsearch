@@ -35,11 +35,6 @@ public class ListTasksAction extends Action<ListTasksResponse> {
     }
 
     @Override
-    public ListTasksResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<ListTasksResponse> getResponseReader() {
         return ListTasksResponse::new;
     }

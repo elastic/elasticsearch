@@ -75,6 +75,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.SettingUpgrader;
@@ -362,12 +363,15 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addStateApplier(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
+            clusterService.addLocalNodeMasterListener(
+                    new ConsistentSettingsService(settings, clusterService, settingsModule.getConsistentSettings())
+                            .newHashPublisher());
             final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
-            final DiskThresholdMonitor listener = new DiskThresholdMonitor(settings, clusterService::state,
-                clusterService.getClusterSettings(), client);
+            final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(settings, clusterService::state,
+                clusterService.getClusterSettings(), client, threadPool::relativeTimeInMillis);
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client,
-                listener::onNewInfo);
+                diskThresholdMonitor::onNewInfo);
             final UsageService usageService = new UsageService();
 
             ModulesBuilder modules = new ModulesBuilder();
@@ -502,7 +506,7 @@ public class Node implements Closeable {
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
                 metaDataCreateIndexService, metaDataIndexUpgradeService, clusterService.getClusterSettings());
 
-            final RoutingService routingService = new RoutingService(clusterService, clusterModule.getAllocationService());
+            final RoutingService routingService = new RoutingService(clusterService, clusterModule.getAllocationService()::reroute);
             final DiscoveryModule discoveryModule = new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
@@ -511,6 +515,7 @@ public class Node implements Closeable {
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter(), responseCollectorService,
                 searchTransportService);
+            diskThresholdMonitor.setRerouteAction(routingService::reroute);
 
             final SearchService searchService = newSearchService(clusterService, indicesService,
                 threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),

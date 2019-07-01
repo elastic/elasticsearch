@@ -30,11 +30,6 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionA
     }
 
     @Override
-    public ClearCcrRestoreSessionResponse newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Writeable.Reader<ClearCcrRestoreSessionResponse> getResponseReader() {
         return ClearCcrRestoreSessionResponse::new;
     }

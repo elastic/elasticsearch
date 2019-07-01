@@ -64,7 +64,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -91,10 +90,10 @@ public class JoinHelper {
 
     private AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
 
-    public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
-                      TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
-                      BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
-                      Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, Consumer<String> reroute) {
+    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
+               TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
+               BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
+               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, BiConsumer<String, ActionListener<Void>> reroute) {
         this.masterService = masterService;
         this.transportService = transportService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);

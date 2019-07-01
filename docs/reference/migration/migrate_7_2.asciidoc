@@ -9,14 +9,10 @@ your application to Elasticsearch 7.2.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming[7.2.0]
-
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
-
-// end::notable-breaking-changes[]
 
 [float]
 [[breaking_72_discovery_changes]]
@@ -30,3 +26,5 @@ In earlier versions you could include a range of ports in entries in the
 unexpectedly ignored the rest.  For instance if you set `discovery.seed_hosts:
 "10.11.12.13:9300-9310"` then {es} would only use `10.11.12.13:9300` for
 discovery. Seed host addresses containing port ranges are now rejected.
+
+// end::notable-breaking-changes[]

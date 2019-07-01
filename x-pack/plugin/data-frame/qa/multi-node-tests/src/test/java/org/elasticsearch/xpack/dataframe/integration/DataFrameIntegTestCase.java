@@ -143,25 +143,21 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field,
                                                                                        DateHistogramInterval interval,
-                                                                                       ZoneId zone,
-                                                                                       String format) {
+                                                                                       ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.FixedInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(String field,
                                                                                           DateHistogramInterval interval,
-                                                                                          ZoneId zone,
-                                                                                          String format) {
+                                                                                          ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.CalendarInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
@@ -204,19 +200,33 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), sourceIndices);
     }
 
+    protected DataFrameTransformConfig.Builder createTransformConfigBuilder(String id,
+                                                                            Map<String, SingleGroupSource> groups,
+                                                                            AggregatorFactories.Builder aggregations,
+                                                                            String destinationIndex,
+                                                                            QueryBuilder queryBuilder,
+                                                                            String... sourceIndices) throws Exception {
+        return DataFrameTransformConfig.builder()
+            .setId(id)
+            .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
+            .setDest(DestConfig.builder().setIndex(destinationIndex).build())
+            .setPivotConfig(createPivotConfig(groups, aggregations))
+            .setDescription("Test data frame transform config id: " + id);
+    }
+
     protected DataFrameTransformConfig createTransformConfig(String id,
                                                              Map<String, SingleGroupSource> groups,
                                                              AggregatorFactories.Builder aggregations,
                                                              String destinationIndex,
                                                              QueryBuilder queryBuilder,
                                                              String... sourceIndices) throws Exception {
-        return DataFrameTransformConfig.builder()
-            .setId(id)
-            .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
-            .setDest(DestConfig.builder().setIndex(destinationIndex).build())
-            .setPivotConfig(createPivotConfig(groups, aggregations))
-            .setDescription("Test data frame transform config id: " + id)
-            .build();
+        return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, sourceIndices).build();
+    }
+
+    protected void bulkIndexDocs(BulkRequest request) throws Exception {
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
+        BulkResponse response = restClient.bulk(request, RequestOptions.DEFAULT);
+        assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {

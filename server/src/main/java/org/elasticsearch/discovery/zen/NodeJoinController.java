@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -43,7 +44,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
@@ -62,7 +63,7 @@ public class NodeJoinController {
 
 
     public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
-                              ElectMasterService electMaster, Consumer<String> reroute) {
+                              ElectMasterService electMaster, BiConsumer<String, ActionListener<Void>> reroute) {
         this.masterService = masterService;
         joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, reroute) {
             @Override

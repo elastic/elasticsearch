@@ -63,7 +63,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
             response.readFrom(input);
             return response;
         });
-        jobException = in.readOptionalWriteable(ElasticsearchException::new);
+        jobException = in.readException();
     }
 
     @Override
@@ -74,7 +74,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(reindexResponse);
-        out.writeOptionalWriteable(jobException);
+        out.writeException(jobException);
     }
 
     @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -42,9 +43,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class TransportStartReindexJobAction
     extends TransportMasterNodeAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
@@ -82,10 +81,7 @@ public class TransportStartReindexJobAction
                                    ActionListener<StartReindexJobAction.Response> listener) {
         String generatedId = UUIDs.randomBase64UUID();
 
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ReindexPlugin.HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        ReindexJob job = new ReindexJob(request.getReindexRequest(), filteredHeaders);
+        ReindexJob job = new ReindexJob(request.getReindexRequest(), threadPool.getThreadContext().getHeaders());
 
         // TODO: Task name
         persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
@@ -140,22 +136,26 @@ public class TransportStartReindexJobAction
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
                     String executorNode = task.getExecutorNode();
                     GetReindexJobTaskAction.Request request = new GetReindexJobTaskAction.Request(executorNode, taskId);
-                    client.execute(GetReindexJobTaskAction.INSTANCE, request, new ActionListener<>() {
-                        @Override
-                        public void onResponse(GetReindexJobTaskAction.Responses responses) {
-                            List<GetReindexJobTaskAction.Response> tasks = responses.getTasks();
-                            if (tasks.size() > 1) {
-                                listener.onFailure(new IllegalStateException("Multiple nodes accessed"));
+                    ThreadContext threadContext = threadPool.getThreadContext();
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        threadContext.markAsSystemContext();
+                        client.execute(GetReindexJobTaskAction.INSTANCE, request, new ActionListener<>() {
+                            @Override
+                            public void onResponse(GetReindexJobTaskAction.Responses responses) {
+                                List<GetReindexJobTaskAction.Response> tasks = responses.getTasks();
+                                if (tasks.size() > 1) {
+                                    listener.onFailure(new IllegalStateException("Multiple nodes accessed"));
+                                }
+                                GetReindexJobTaskAction.Response response = tasks.get(0);
+                                listener.onResponse(new StartReindexJobAction.Response(true, response.getTaskId().toString()));
                             }
-                            GetReindexJobTaskAction.Response response = tasks.get(0);
-                            listener.onResponse(new StartReindexJobAction.Response(true, response.getTaskId().toString()));
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        });
+                    }
                 }
 
                 @Override

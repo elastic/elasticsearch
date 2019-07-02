@@ -106,7 +106,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                     @Override
                     public void onFailure(Exception ex) {
-                        updatePersistentTaskState(new ReindexJobState(null, new ElasticsearchException(ex)), new ActionListener<>() {
+                        updatePersistentTaskState(new ReindexJobState(null, wrapException(ex)), new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
                                 markAsFailed(ex);
@@ -120,6 +120,14 @@ public class ReindexTask extends AllocatedPersistentTask {
                         });
                     }
                 }));
+        }
+    }
+
+    private static ElasticsearchException wrapException(Exception ex) {
+        if (ex instanceof ElasticsearchException) {
+            return (ElasticsearchException) ex;
+        } else {
+            return new ElasticsearchException(ex);
         }
     }
 

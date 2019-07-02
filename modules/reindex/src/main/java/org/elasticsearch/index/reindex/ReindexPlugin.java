@@ -53,16 +53,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "reindex";
-    public static final Set<String> HEADER_FILTERS =
-        new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,7 +158,7 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
             }
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 Map<String, Object> objectMap = in.readMap();
-                this.mappings = objectMap == null ? null : Map.copyOf(objectMap);
+                this.mappings = objectMap == null ? null : Collections.unmodifiableMap(objectMap);
             }
         }
 
@@ -170,7 +171,7 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
         }
 
         public void setMappings(Map<String, Object> mappings) {
-            this.mappings = Map.copyOf(mappings);
+            this.mappings = Collections.unmodifiableMap(mappings);
         }
 
         /**
@@ -197,8 +198,8 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
          */
         public void setMappingsFromStringMap(Map<String, String> mappings) {
             Map<String, Object> fieldMappings = new HashMap<>();
-            mappings.forEach((k, v) -> fieldMappings.put(k, Map.of("type", v)));
-            this.mappings = Map.of("properties", fieldMappings);
+            mappings.forEach((k, v) -> fieldMappings.put(k, Collections.singletonMap("type", v)));
+            this.mappings = Collections.singletonMap("properties", fieldMappings);
         }
 
         @Override

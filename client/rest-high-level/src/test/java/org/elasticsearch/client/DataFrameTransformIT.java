@@ -60,6 +60,7 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -304,8 +305,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> mappings = preview.getMappings();
         assertThat(mappings, hasKey("properties"));
         Map<String, Object> fields = (Map<String, Object>)mappings.get("properties");
-        assertThat(fields.get("reviewer"), equalTo(Map.of("type", "keyword")));
-        assertThat(fields.get("avg_rating"), equalTo(Map.of("type", "double")));
+        assertThat(fields.get("reviewer"), equalTo(Collections.singletonMap("type", "keyword")));
+        assertThat(fields.get("avg_rating"), equalTo(Collections.singletonMap("type", "double")));
     }
 
     private DataFrameTransformConfig validDataFrameTransformConfig(String id, String source, String destination) {

@@ -106,7 +106,7 @@ public class ExecutionService {
     private final WatchExecutor executor;
     private final ExecutorService genericExecutor;
 
-    private CurrentExecutions currentExecutions;
+    private AtomicReference<CurrentExecutions> currentExecutions = new AtomicReference<>();
     private final AtomicBoolean paused = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
@@ -123,7 +123,7 @@ public class ExecutionService {
         this.client = client;
         this.genericExecutor = genericExecutor;
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
-        this.currentExecutions = new CurrentExecutions();
+        this.currentExecutions.set(new CurrentExecutions());
     }
 
     public void unPause() {
@@ -169,12 +169,12 @@ public class ExecutionService {
 
     // for testing only
     CurrentExecutions getCurrentExecutions() {
-        return currentExecutions;
+        return currentExecutions.get();
     }
 
     public List<WatchExecutionSnapshot> currentExecutions() {
         List<WatchExecutionSnapshot> currentExecutions = new ArrayList<>();
-        for (WatchExecution watchExecution : this.currentExecutions) {
+        for (WatchExecution watchExecution : this.currentExecutions.get()) {
             currentExecutions.add(watchExecution.createSnapshot());
         }
         // Lets show the longest running watch first:
@@ -279,7 +279,7 @@ public class ExecutionService {
         WatchRecord record = null;
         final String watchId = ctx.id().watchId();
         try {
-            boolean executionAlreadyExists = currentExecutions.put(watchId, new WatchExecution(ctx, Thread.currentThread()));
+            boolean executionAlreadyExists = currentExecutions.get().put(watchId, new WatchExecution(ctx, Thread.currentThread()));
             if (executionAlreadyExists) {
                 logger.trace("not executing watch [{}] because it is already queued", watchId);
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED, "Watch is already queued in thread pool");
@@ -334,7 +334,7 @@ public class ExecutionService {
 
                 triggeredWatchStore.delete(ctx.id());
             }
-            currentExecutions.remove(watchId);
+            currentExecutions.get().remove(watchId);
             logger.debug("finished [{}]/[{}]", watchId, ctx.id());
         }
         return record;
@@ -578,9 +578,10 @@ public class ExecutionService {
      * This clears out the current executions and sets new empty current executions
      * This is needed, because when this method is called, watcher keeps running, so sealing executions would be a bad idea
      */
-    private synchronized void clearExecutions() {
-        currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
-        currentExecutions = new CurrentExecutions();
+    private void clearExecutions() {
+        final CurrentExecutions currentExecutionsBeforeSetting = currentExecutions.getAndSet(new CurrentExecutions());
+        // clear old executions in background, no need to wait
+        genericExecutor.execute(() -> currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout));
     }
 
     // the watch execution task takes another runnable as parameter

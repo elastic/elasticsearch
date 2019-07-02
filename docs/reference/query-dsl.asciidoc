@@ -31,6 +31,8 @@ include::query-dsl/query_filter_context.asciidoc[]
 
 include::query-dsl/match-all-query.asciidoc[]
 
+include::query-dsl/match-none-query.asciidoc[]
+
 include::query-dsl/full-text-queries.asciidoc[]
 
 include::query-dsl/term-level-queries.asciidoc[]

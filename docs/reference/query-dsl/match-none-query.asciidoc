@@ -1,0 +1,20 @@
+[[query-dsl-match-none-query]]
+== Match none query
+
+Returns no documents. The `match_none` query is the inverse of the
+<<query-dsl-match-all-query, `match_all` query>>.
+
+[float]
+[[match-none-query-ex-request]]
+=== Example request
+
+[source,js]
+----
+GET /_search
+{
+    "query": {
+        "match_none": {} 
+    }
+}
+----
+// CONSOLE

@@ -1,46 +1,32 @@
 [[query-dsl-match-all-query]]
-== Match All Query
+== Match all query
 
-The most simple query, which matches all documents, giving them all a `_score`
-of `1.0`.
+Returns all documents in an index.
 
-[source,js]
---------------------------------------------------
-GET /_search
-{ 
-    "query": {
-        "match_all": {}
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-The `_score` can be changed with the `boost` parameter:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "match_all": { "boost" : 1.2 }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[[query-dsl-match-none-query]]
 [float]
-== Match None Query
-
-This is the inverse of the `match_all` query, which matches no documents.
+[[match-all-query-ex-request]]
+=== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
-        "match_none": {} 
+        "match_all": { 
+            "boost" : 1.2
+        }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
+
+[float]
+[[match-all-top-level-params]]
+=== Top-level parameters for `match_all`
+
+`boost` (Optional)::
++
+--
+(float) <<query-filter-context, Relevance score>> for all returned documents.
+Defaults to `1.0`.
+--

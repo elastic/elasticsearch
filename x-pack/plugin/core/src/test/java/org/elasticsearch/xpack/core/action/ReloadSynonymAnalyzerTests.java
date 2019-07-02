@@ -87,7 +87,7 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
         ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
                 .actionGet();
         assertNoFailures(reloadResponse);
-        Set<String> reloadedAnalyzers = reloadResponse.getReloadedIndicesDetails().get(indexName).getReloadedAnalyzers();
+        Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
         assertEquals(1, reloadedAnalyzers.size());
         assertTrue(reloadedAnalyzers.contains(analyzerName));
 

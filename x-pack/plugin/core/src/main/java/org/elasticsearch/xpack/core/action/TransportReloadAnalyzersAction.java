@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.IndexDetails;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.ReloadResult;
 
 import java.io.IOException;
@@ -68,14 +68,14 @@ public class TransportReloadAnalyzersAction
     @Override
     protected ReloadAnalyzersResponse newResponse(ReloadAnalyzersRequest request, int totalShards, int successfulShards, int failedShards,
             List<ReloadResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        Map<String, IndexDetails> reloadedIndicesDetails = new HashMap<String, IndexDetails>();
+        Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<String, ReloadDetails>();
         for (ReloadResult result : responses) {
             if (reloadedIndicesDetails.containsKey(result.index)) {
                 reloadedIndicesDetails.get(result.index).merge(result);;
             } else {
                 HashSet<String> nodeIds = new HashSet<String>();
                 nodeIds.add(result.nodeId);
-                IndexDetails details = new IndexDetails(result.index, nodeIds, new HashSet<String>(result.reloadedSearchAnalyzers));
+                ReloadDetails details = new ReloadDetails(result.index, nodeIds, new HashSet<String>(result.reloadedSearchAnalyzers));
                 reloadedIndicesDetails.put(result.index, details);
             }
         }

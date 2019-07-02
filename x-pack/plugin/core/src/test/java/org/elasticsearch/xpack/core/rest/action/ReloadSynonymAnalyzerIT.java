@@ -103,10 +103,10 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                     .actionGet();
             assertNoFailures(reloadResponse);
             assertEquals(cluster().numDataNodes(), reloadResponse.getSuccessfulShards());
-            assertTrue(reloadResponse.getReloadedIndicesDetails().containsKey("test"));
-            assertEquals("test", reloadResponse.getReloadedIndicesDetails().get("test").getIndexName());
+            assertTrue(reloadResponse.getReloadDetails().containsKey("test"));
+            assertEquals("test", reloadResponse.getReloadDetails().get("test").getIndexName());
             assertEquals(Collections.singleton("my_synonym_analyzer"),
-                    reloadResponse.getReloadedIndicesDetails().get("test").getReloadedAnalyzers());
+                    reloadResponse.getReloadDetails().get("test").getReloadedAnalyzers());
 
             analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
             assertEquals(3, analyzeResponse.getTokens().size());

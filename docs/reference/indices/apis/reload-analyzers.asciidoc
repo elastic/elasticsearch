@@ -82,7 +82,7 @@ analyzers that were reloaded:
         "successful" : 2,
         "failed" : 0
     },
-    "reloaded_nodes" : [
+    "reload_details" : [
         {
             "index" : "my_index",
             "reloaded_analyzers" : [

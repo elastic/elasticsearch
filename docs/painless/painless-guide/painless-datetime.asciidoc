@@ -599,7 +599,7 @@ if (doc.containsKey('start') && doc.containsKey('end')) { <1>
 <1> When a query's results span multiple indexes, some indexes may not
 contain a specific field. Use the `containsKey` method call on the `doc` input
 to ensure a field exists as part of the index for the current document.
-<2> Some field's within a document may have no values. Use the `size` method
+<2> Some fields within a document may have no values. Use the `size` method
 call on a field within the `doc` input to ensure that field has at least one
 value for the current document.
 

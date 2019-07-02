@@ -1,10 +1,6 @@
 [[getting-started]]
 = Getting started with {es}
 
-++++
-<titleabbrev>Getting started</titleabbrev>
-++++
-
 [partintro]
 --
 Ready to take {es} for a test drive and see for yourself how you can use the

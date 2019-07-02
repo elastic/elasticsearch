@@ -93,6 +93,91 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
+    public void testCoordinateLookupsMultiSearchError() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 5, 1, 100);
+
+        List<ActionListener<SearchResponse>> searchActionListeners = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            SearchRequest searchRequest = new SearchRequest("my-index");
+            searchRequest.source().query(new MatchQueryBuilder("my_field", String.valueOf(i)));
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> actionListener = Mockito.mock(ActionListener.class);
+            searchActionListeners.add(actionListener);
+            coordinator.queue.add(new Coordinator.Slot(searchRequest, actionListener));
+        }
+
+        SearchRequest searchRequest = new SearchRequest("my-index");
+        searchRequest.source().query(new MatchQueryBuilder("my_field", String.valueOf(5)));
+        @SuppressWarnings("unchecked")
+        ActionListener<SearchResponse> actionListener = Mockito.mock(ActionListener.class);
+        searchActionListeners.add(actionListener);
+        coordinator.schedule(searchRequest, actionListener);
+
+        // First batch of search requests have been sent off:
+        // (However still 5 should remain in the queue)
+        assertThat(coordinator.queue.size(), equalTo(0));
+        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(1));
+        assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
+        assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
+
+        RuntimeException e = new RuntimeException();
+        lookupFunction.capturedConsumers.get(0).accept(null, e);
+        assertThat(coordinator.queue.size(), equalTo(0));
+        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(0));
+        assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
+
+        // All individual action listeners for the search requests should have been invoked:
+        for (ActionListener<SearchResponse> searchActionListener : searchActionListeners) {
+            Mockito.verify(searchActionListener).onFailure(Mockito.eq(e));
+        }
+    }
+
+    public void testCoordinateLookupsMultiSearchItemError() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 5, 1, 100);
+
+        List<ActionListener<SearchResponse>> searchActionListeners = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            SearchRequest searchRequest = new SearchRequest("my-index");
+            searchRequest.source().query(new MatchQueryBuilder("my_field", String.valueOf(i)));
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> actionListener = Mockito.mock(ActionListener.class);
+            searchActionListeners.add(actionListener);
+            coordinator.queue.add(new Coordinator.Slot(searchRequest, actionListener));
+        }
+
+        SearchRequest searchRequest = new SearchRequest("my-index");
+        searchRequest.source().query(new MatchQueryBuilder("my_field", String.valueOf(5)));
+        @SuppressWarnings("unchecked")
+        ActionListener<SearchResponse> actionListener = Mockito.mock(ActionListener.class);
+        searchActionListeners.add(actionListener);
+        coordinator.schedule(searchRequest, actionListener);
+
+        // First batch of search requests have been sent off:
+        // (However still 5 should remain in the queue)
+        assertThat(coordinator.queue.size(), equalTo(0));
+        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(1));
+        assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
+        assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
+
+        RuntimeException e = new RuntimeException();
+        // Replying a response and that should trigger another coordination round
+        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[5];
+        for (int i = 0; i < 5; i++) {
+            responseItems[i] = new MultiSearchResponse.Item(null, e);
+        }
+        lookupFunction.capturedConsumers.get(0).accept(new MultiSearchResponse(responseItems, 1L), null);
+        assertThat(coordinator.queue.size(), equalTo(0));
+        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(0));
+        assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
+
+        // All individual action listeners for the search requests should have been invoked:
+        for (ActionListener<SearchResponse> searchActionListener : searchActionListeners) {
+            Mockito.verify(searchActionListener).onFailure(Mockito.eq(e));
+        }
+    }
+
     public void testQueueing() throws Exception {
         MockLookupFunction lookupFunction = new MockLookupFunction();
         Coordinator coordinator = new Coordinator(lookupFunction, 1, 1, 1);

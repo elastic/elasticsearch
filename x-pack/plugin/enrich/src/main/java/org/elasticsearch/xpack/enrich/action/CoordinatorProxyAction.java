@@ -112,7 +112,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
                 numberOfOutstandingRequests.incrementAndGet();
                 lookupFunction.accept(multiSearchRequest, (response, e) -> {
-                    handleResponse(slots, response, null);
+                    handleResponse(slots, response, e);
                 });
             }
         }

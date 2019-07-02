@@ -64,7 +64,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
         final Client client;
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
-        final BlockingQueue<Item> queue;
+        final BlockingQueue<Slot> queue;
         final AtomicInteger numberOfOutstandingRequests = new AtomicInteger(0);
 
         public Coordinator(Client client, Settings settings) {
@@ -87,7 +87,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
             // this will great natural back pressure from the enrich processor.
             // If there are no write threads available then write requests with ingestion will fail with 429 error code.
             try {
-                queue.put(new Item(searchRequest, listener));
+                queue.put(new Slot(searchRequest, listener));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("unable to add item to queue", e);
@@ -99,37 +99,37 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
             while (queue.isEmpty() == false &&
                 numberOfOutstandingRequests.get() < maxNumberOfConcurrentRequests) {
 
-                final List<Item> items = new ArrayList<>();
-                queue.drainTo(items, maxLookupsPerRequest);
+                final List<Slot> slots = new ArrayList<>();
+                queue.drainTo(slots, maxLookupsPerRequest);
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-                items.forEach(item -> multiSearchRequest.add(item.searchRequest));
+                slots.forEach(slot -> multiSearchRequest.add(slot.searchRequest));
 
                 numberOfOutstandingRequests.incrementAndGet();
                 client.multiSearch(multiSearchRequest, ActionListener.wrap(response -> {
-                    handleResponse(items, response, null);
+                    handleResponse(slots, response, null);
                 }, e -> {
-                    handleResponse(items, null, e);
+                    handleResponse(slots, null, e);
                 }));
             }
         }
 
-        void handleResponse(List<Item> items, MultiSearchResponse response, Exception e) {
+        void handleResponse(List<Slot> slots, MultiSearchResponse response, Exception e) {
             numberOfOutstandingRequests.decrementAndGet();
 
             if (response != null) {
-                assert items.size() == response.getResponses().length;
+                assert slots.size() == response.getResponses().length;
                 for (int i = 0; i < response.getResponses().length; i++) {
                     MultiSearchResponse.Item responseItem = response.getResponses()[i];
-                    Item item = items.get(i);
+                    Slot slot = slots.get(i);
 
                     if (responseItem.isFailure()) {
-                        item.actionListener.onFailure(responseItem.getFailure());
+                        slot.actionListener.onFailure(responseItem.getFailure());
                     } else {
-                        item.actionListener.onResponse(responseItem.getResponse());
+                        slot.actionListener.onResponse(responseItem.getResponse());
                     }
                 }
             } else if (e != null) {
-                items.forEach(item -> item.actionListener.onFailure(e));
+                slots.forEach(slot -> slot.actionListener.onFailure(e));
             } else {
                 throw new AssertionError("no response and no error");
             }
@@ -138,12 +138,12 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
             coordinateLookups();
         }
 
-        static class Item {
+        private static class Slot {
 
             final SearchRequest searchRequest;
             final ActionListener<SearchResponse> actionListener;
 
-            Item(SearchRequest searchRequest, ActionListener<SearchResponse> actionListener) {
+            Slot(SearchRequest searchRequest, ActionListener<SearchResponse> actionListener) {
                 this.searchRequest = searchRequest;
                 this.actionListener = actionListener;
             }

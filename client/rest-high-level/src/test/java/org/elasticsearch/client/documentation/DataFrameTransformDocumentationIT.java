@@ -448,6 +448,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::preview-data-frame-transform-execute
 
             assertNotNull(response.getDocs());
+            assertNotNull(response.getMappings());
         }
         {
             // tag::preview-data-frame-transform-execute-listener

@@ -38,6 +38,21 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
 
+    //these parsers should allow both ',' and '.' as a decimal point
+    public void testDecimalPointParsing(){
+        assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time");
+        assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time");
+
+        assertSameDate("2001-01-01T00:00:00.123Z", "date_optional_time");
+        assertSameDate("2001-01-01T00:00:00,123Z", "date_optional_time");
+
+        // only java.time has nanos parsing, but the results for 3digits should be the same
+        DateFormatter jodaFormatter = Joda.forPattern("strict_date_optional_time");
+        DateFormatter javaFormatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time_nanos", jodaFormatter, javaFormatter);
+        assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time_nanos", jodaFormatter, javaFormatter);
+    }
+
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");
         // the following fail under java 8 but work under java 10, needs investigation

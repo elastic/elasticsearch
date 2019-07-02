@@ -1,0 +1,109 @@
+[role="xpack"]
+[testenv="platinum"]
+[[put-dfanalytics]]
+=== Create {dfanalytics} API
+++++
+<titleabbrev>Create {dfanalytics}</titleabbrev>
+++++
+
+beta[]
+
+Instantiates a {dfanalytics} job.
+
+[discrete]
+[[ml-put-dfanalytics-request]]
+==== {api-request-title}
+
+`PUT _ml/data_frame/analytics/<data_frame_analytics_id>`
+
+[discrete]
+[[ml-put-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+You must have `machine_learning_admin` built-in role to use this API. You must 
+also have `read` and `view_index_metadata` privileges on the source index and 
+`read`, `create_index`, and `index` privileges on the destination index. For 
+more information, see {stack-ov}/security-privileges.html[Security privileges] 
+and {stack-ov}/built-in-roles.html[Built-in roles].
+
+[discrete]
+[[ml-put-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>` (required)::
+  (string) A numerical character string that uniquely identifies the 
+  {dfanalytics} job. This identifier can contain lowercase alphanumeric characters 
+  (a-z and 0-9), hyphens, and underscores. It must start and end with alphanumeric 
+  characters.
+
+[discrete]
+[[ml-put-dfanalytics-request-body]]
+==== {api-request-body-title}
+
+`source` (required)::
+  (object) The source configuration, consisting of `index` and optionally a 
+  `querry`.
+  
+`dest`(required)::
+  (object) The destination configuration, consisting of `index` and optionally 
+  `results_field` (`ml` by default).
+  
+`analysis` (required)::
+  (object) Defines the type of {dfanalytics} you want to perform on your source 
+  index. For example: `outlier_detection`. 
+  See {oldetection} resources.
+  
+`analyzed_fields` (optional)::
+  (object) You can specify both `includes` and/or `excludes` patterns. If 
+  `analyzed_fields` is not set, only the relevant fileds will be included. For 
+  example all the numeric fields for {oldetection}.
+
+[discrete]
+[[ml-put-dfanalytics-example]]
+==== {api-example-title}
+
+The following example creates the `loganalytics` {dfanalytics} job, the analysis 
+type is `outlier_detection`:
+
+[source,js]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/loganalytics
+{
+  "source": {
+    "index": "logdata"
+  },
+  "dest": {
+    "index": "logdata_out"
+  },
+  "analysis": {
+    "outlier_detection": {
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The API returns the following result:
+
+[source,js]
+----
+{
+    "id": "loganalytics",
+    "source": {
+        "index": "logdata",
+        "query": {
+            "match_all": {}
+        }
+    },
+    "dest": {
+        "index": "logdata_out",
+        "results_field": "ml"
+    },
+    "analysis": {
+        "outlier_detection": {}
+    },
+    "model_memory_limit": "1gb"
+}
+----
+// TESTRESPONSE

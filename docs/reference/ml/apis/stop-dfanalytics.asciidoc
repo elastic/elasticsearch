@@ -1,0 +1,63 @@
+[role="xpack"]
+[testenv="platinum"]
+[[stop-dfanalytics]]
+=== Stop {dfanalytics} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Stop {dfanalytics}</titleabbrev>
+++++
+
+beta[]
+
+Stops one or more {dfanalytics}.
+
+[discrete]
+[[ml-stop-dfanalytics-request]]
+==== {api-request-title}
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>/_stop`
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>/_stop`
+
+`POST _ml/data_frame/analytics/_all/_stop`
+
+[discrete]
+[[ml-stop-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+You must have `machine_learning_admin` built-in role to use this API. For more 
+information, see {stack-ov}/security-privileges.html[Security privileges] and 
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[discrete]
+[[ml-stop-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>` (required)::
+  (string) Identifier for the {dfanalytics} job. This identifier can contain
+  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
+  must start and end with alphanumeric characters.
+
+[discrete]
+[[ml-stop-dfanalytics-example]]
+==== {api-example-title}
+
+The following example stops the `loganalytics` {dfanalytics} job:
+
+[source,js]
+--------------------------------------------------
+POST _ml/data_frame/analytics/loganalytics/_stop
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:set up kibana samples]
+
+When the {dataframe-analytics} stops, you receive the following results:
+
+[source,js]
+----
+{
+  "stopped" : true
+}
+----
+// TESTRESPONSE

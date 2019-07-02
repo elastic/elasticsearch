@@ -1,0 +1,87 @@
+[role="xpack"]
+[testenv="platinum"]
+[[get-dfanalytics-stats]]
+=== Get {dfanalytics} statistics API
+++++
+<titleabbrev>Get {dfanalytics} stats</titleabbrev>
+++++
+
+beta[]
+
+Retrieves usage information for {dfanalytics}.
+
+[discrete]
+[[ml-get-dfanalytics-stats-request]]
+==== {api-request-title}
+
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>/_stats` +
+`GET _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>/_stats` +
+`GET _ml/data_frame/analytics/_stats` +
+`GET _ml/data_frame/analytics/_all/_stats` +
+`GET _ml/data_frame/analytics/*/_stats`
+
+[discrete]
+[[ml-get-dfanalytics-stats-prereq]]
+==== {api-prereq-title}
+
+You must have `monitor_ml` privilege to use this API. For more 
+information, see {stack-ov}/security-privileges.html[Security privileges] and 
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[discrete]
+[[ml-get-dfanalytics-stats-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+  (string) Identifier for the {dfanalytics} job. If you do not specify one of 
+  these options, the API returns information for the first hundred {dfanalytics} 
+  jobs.
+
+[discrete]
+[[ml-get-dfanalytics-stats-query-params]]
+==== {api-query-parms-title}
+
+`from` (optional)::
+  (integer) Skips the specified number of {dfanalytics} jobs. The default value 
+  is `0`.
+
+`size`(optional)::
+  (integer) Specifies the maximum number of {dfanalytics} jobs to obtain. The 
+  default value is `100`.
+
+[discrete]
+[[ml-get-dfanalytics-stats-response-body]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`data_frame_analytics`::
+  (array) An array of statistics objects for {dfanalytics}, which are
+  sorted by the `id` value in ascending order.
+  
+[discrete]
+[[ml-get-dfanalytics-stats-example]]
+==== {api-example-title}
+
+[source,js]
+--------------------------------------------------
+GET _ml/data_frame/analytics/loganalytics/_stats
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The API returns the following results:
+
+[source,js]
+----
+{
+    "count": 1,
+    "data_frame_analytics": [
+        {
+            "id": "loganalytics",
+            "state": "stopped"
+        }
+    ]
+}
+----
+// TESTRESPONSE

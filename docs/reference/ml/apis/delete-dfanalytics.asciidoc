@@ -1,0 +1,57 @@
+role="xpack"]
+[testenv="platinum"]
+[[delete-dfanalytics]]
+=== Delete {dfanalytics} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Delete {dfanalytics}</titleabbrev>
+++++
+
+beta[]
+
+Deletes an existing {dfanalytics} job.
+
+[discrete]
+[[ml-delete-dfanalytics-request]]
+==== {api-request-title}
+
+`DELETE _ml/data_frame/analytics/<data_frame_analytics_id>`
+
+[discrete]
+[[ml-delete-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+You must have `machine_learning_admin` built-in role to use this API. For more 
+information, see {stack-ov}/security-privileges.html[Security privileges] and 
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[discrete]
+[[ml-delete-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+  (string) Identifier for the {dfanalytics} job you want to delete.
+  
+[discrete]
+[[ml-delete-dfanalytics-example]]
+==== {api-example-title}
+
+The following example deletes the `loganalytics` {dfanalytics} job:
+
+[source,js]
+--------------------------------------------------
+DELETE _ml/data_frame/analytics/loganalytics
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The API returns the following result:
+
+[source,js]
+----
+{
+  "acknowledged" : true
+}
+----
+// TESTRESPONSE

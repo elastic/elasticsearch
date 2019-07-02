@@ -49,7 +49,6 @@ public class DieWithDignityIT extends ESRestTestCase {
         assertBusy(() -> {
             final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
             final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
-            assertThat(process.waitFor(), equalTo(0));
 
             try (InputStream is = process.getInputStream();
                  BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {

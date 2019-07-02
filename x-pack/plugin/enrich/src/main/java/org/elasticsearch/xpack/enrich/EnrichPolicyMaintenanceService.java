@@ -2,7 +2,6 @@ package org.elasticsearch.xpack.enrich;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ObjectPath;
@@ -34,6 +34,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         EnrichPolicyRunner.ENRICH_POLICY_FIELD_NAME;
     private static final IndicesOptions IGNORE_UNAVAILABLE = IndicesOptions.fromOptions(true, false, false, false);
 
+    private final Settings settings;
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -41,8 +42,9 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
     private volatile Scheduler.Cancellable cancellable;
 
-    EnrichPolicyMaintenanceService(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                          EnrichPolicyLocks enrichPolicyLocks) {
+    EnrichPolicyMaintenanceService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
+                                   EnrichPolicyLocks enrichPolicyLocks) {
+        this.settings = settings;
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -80,7 +82,8 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
     private void scheduleNext() {
         try {
-            cancellable = threadPool.schedule(this::execute, new TimeValue(15, TimeUnit.MINUTES), ThreadPool.Names.GENERIC);
+            TimeValue waitTime = EnrichPlugin.ENRICH_CLEANUP_PERIOD.get(settings);
+            cancellable = threadPool.schedule(this::execute, waitTime, ThreadPool.Names.GENERIC);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug("failed to schedule next [enrich] maintenance task; shutting down", e);

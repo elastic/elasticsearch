@@ -6,8 +6,15 @@
 package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest.GrantType;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -105,5 +112,36 @@ public class CreateTokenRequestTests extends ESTestCase {
         request.setRefreshToken(null);
         ve = request.validate();
         assertNull(ve);
+    }
+
+    public void testSerialization() throws IOException {
+        final String grantType = randomFrom(Arrays.stream(GrantType.values()).map(gt -> gt.getValue()).collect(Collectors.toList()));
+        final String username = randomBoolean() ? randomAlphaOfLength(5) : null;
+        final String scope = randomBoolean() ? randomAlphaOfLength(5) : null;
+        final SecureString password = randomBoolean() ? new SecureString(new char[] { 'p', 'a', 's', 's' }) : null;
+        final SecureString kerberosTicket = randomBoolean() ? new SecureString(new char[] { 'k', 'e', 'r', 'b' }) : null;
+        final String refreshToken = randomBoolean() ? randomAlphaOfLength(5) : null;
+        final CreateTokenRequest request = new CreateTokenRequest(grantType, username, password, kerberosTicket, scope, refreshToken);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            request.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                final CreateTokenRequest serialized = new CreateTokenRequest();
+                serialized.readFrom(in);
+                assertEquals(grantType, serialized.getGrantType());
+                if (scope != null) {
+                    assertEquals(scope, serialized.getScope());
+                }
+                if (password != null) {
+                    assertEquals(password, serialized.getPassword());
+                }
+                if (kerberosTicket != null) {
+                    assertEquals(kerberosTicket, serialized.getKerberosTicket());
+                }
+                if (refreshToken != null) {
+                    assertEquals(refreshToken, serialized.getRefreshToken());
+                }
+            }
+        }
     }
 }

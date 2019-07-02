@@ -161,8 +161,8 @@ include::revert-snapshot.asciidoc[]
 //SET/START/STOP
 include::set-upgrade-mode.asciidoc[]
 include::start-datafeed.asciidoc[]
-include::stop-datafeed.asciidoc[]
 include::start-dfanalytics.asciiidoc[]
+include::stop-datafeed.asciidoc[]
 include::stop-dfanalytics.asciidoc[]
 //UPDATE
 include::update-datafeed.asciidoc[]

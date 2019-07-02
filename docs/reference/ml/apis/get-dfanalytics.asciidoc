@@ -1,26 +1,27 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-dfanalytics]]
-=== Get {dfanalytics} API
+=== Get {dfanalytics-jobs} API
 [subs="attributes"]
 ++++
-<titleabbrev>Get {dfanalytics}</titleabbrev>
+<titleabbrev>Get {dfanalytics-jobs}</titleabbrev>
 ++++
 
 beta[]
 
-Retrieves configuration information for {dfanalytics}.
+Retrieves configuration information for {dfanalytics-jobs}.
 
-[discrete]
 [[ml-get-dfanalytics-request]]
 ==== {api-request-title}
 
 `GET _ml/data_frame/analytics/<data_frame_analytics_id>` +
+
 `GET _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>` +
+
 `GET _ml/data_frame/analytics/` +
+
 `GET _ml/data_frame/analytics/_all`
 
-[discrete]
 [[ml-get-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
@@ -28,42 +29,39 @@ Retrieves configuration information for {dfanalytics}.
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[ml-get-dfanalytics-desc]]
 ==== {api-description-title}
 
-You can get information for multiple {dfanalytics} jobs in a single API request 
-by using a comma-separated list of {dfanalytics} jobs or a wildcard expression. 
-You can get information for all {dfanalytics} jobs by using _all, by specifying 
-* as the `<data_frame_analytics_id>, or by omitting the `<data_frame_analytics_id>`.
+You can get information for multiple {dfanalytics-jobs} in a single API request 
+by using a comma-separated list of {dfanalytics-jobs} or a wildcard expression. 
+You can get information for all {dfanalytics-jobs} by using _all, by specifying 
+`*` as the `<data_frame_analytics_id>`, or by omitting the
+`<data_frame_analytics_id>`.
 
-[discrete]
 [[ml-get-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>` (Optional)::
-  (string) Identifier for the {dfanalytics} job. If you do not specify one of 
-  these options, the API returns information for the first hundred {dfanalytics} 
-  jobs.
+  (string) Identifier for the {dfanalytics-job}. If you do not specify one of 
+  these options, the API returns information for the first hundred
+  {dfanalytics-jobs}.
 
-[discrete]
 [[ml-get-dfanalytics-query-params]]
 ==== {api-query-parms-title}
 
 `from` (Optional)::
-  (integer) Skips the specified number of {dfanalytics} jobs. The default value 
+  (integer) Skips the specified number of {dfanalytics-jobs}. The default value 
   is `0`.
 
 `size` (Optional)::
-  (integer) Specifies the maximum number of {dfanalytics} jobs to obtain. The 
+  (integer) Specifies the maximum number of {dfanalytics-jobs} to obtain. The 
   default value is `100`.
 
-[discrete]
 [[ml-get-dfanalytics-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 The following example gets configuration information for the `loganalytics` 
-{dfanalytics} job:
+{dfanalytics-job}:
 
 [source,js]
 --------------------------------------------------

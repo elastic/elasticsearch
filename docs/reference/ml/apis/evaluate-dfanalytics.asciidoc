@@ -13,13 +13,11 @@ beta[]
 Evaluates the executed analysis on an index that is already annotated with a 
 field that marks each {dataframe} row with the results of the analytics.
 
-[discrete]
 [[ml-evaluate-dataframe-request]]
 ==== {api-request-title}
 
 `POST _ml/data_frame/_evaluate`
 
-[discrete]
 [[ml-evaluate-dataframe-prereq]]
 ==== {api-prereq-title}
 
@@ -27,7 +25,6 @@ field that marks each {dataframe} row with the results of the analytics.
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[ml-evaluate-dataframe-request-body]]
 ==== {api-request-body-title}
 
@@ -39,9 +36,8 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
   `binary_soft_classification`.
   See evaluate API resources.
 
-[discrete]
 [[ml-evaluate-dataframe-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

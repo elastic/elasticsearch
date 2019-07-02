@@ -1,23 +1,21 @@
 role="xpack"]
 [testenv="platinum"]
 [[delete-dfanalytics]]
-=== Delete {dfanalytics} API
+=== Delete {dfanalytics-jobs} API
 [subs="attributes"]
 ++++
-<titleabbrev>Delete {dfanalytics}</titleabbrev>
+<titleabbrev>Delete {dfanalytics-jobs}</titleabbrev>
 ++++
 
 beta[]
 
-Deletes an existing {dfanalytics} job.
+Deletes an existing {dfanalytics-job}.
 
-[discrete]
 [[ml-delete-dfanalytics-request]]
 ==== {api-request-title}
 
 `DELETE _ml/data_frame/analytics/<data_frame_analytics_id>`
 
-[discrete]
 [[ml-delete-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
@@ -25,18 +23,16 @@ Deletes an existing {dfanalytics} job.
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[ml-delete-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>` (Required)::
-  (string) Identifier for the {dfanalytics} job you want to delete.
-  
-[discrete]
-[[ml-delete-dfanalytics-example]]
-==== {api-example-title}
+  (string) Identifier for the {dfanalytics-job} you want to delete.
 
-The following example deletes the `loganalytics` {dfanalytics} job:
+[[ml-delete-dfanalytics-example]]
+==== {api-examples-title}
+
+The following example deletes the `loganalytics` {dfanalytics-job}:
 
 [source,js]
 --------------------------------------------------

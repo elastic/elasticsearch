@@ -1,23 +1,21 @@
 [role="xpack"]
 [testenv="platinum"]
 [[put-dfanalytics]]
-=== Create {dfanalytics} API
+=== Create {dfanalytics-jobs} API
 [subs="attributes"]
 ++++
-<titleabbrev>Create {dfanalytics}</titleabbrev>
+<titleabbrev>Create {dfanalytics-jobs}</titleabbrev>
 ++++
 
 beta[]
 
-Instantiates a {dfanalytics} job.
+Instantiates a {dfanalytics-job}.
 
-[discrete]
 [[ml-put-dfanalytics-request]]
 ==== {api-request-title}
 
 `PUT _ml/data_frame/analytics/<data_frame_analytics_id>`
 
-[discrete]
 [[ml-put-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
@@ -27,23 +25,21 @@ also have `read` and `view_index_metadata` privileges on the source index and
 more information, see {stack-ov}/security-privileges.html[Security privileges] 
 and {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>` (Required)::
   (string) A numerical character string that uniquely identifies the 
-  {dfanalytics} job. This identifier can contain lowercase alphanumeric characters 
+  {dfanalytics-job}. This identifier can contain lowercase alphanumeric characters 
   (a-z and 0-9), hyphens, and underscores. It must start and end with alphanumeric 
   characters.
 
-[discrete]
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 `source` (Required)::
   (object) The source configuration, consisting of `index` and optionally a 
-  `querry`.
+  `query`.
   
 `dest` (Required)::
   (object) The destination configuration, consisting of `index` and optionally 
@@ -59,9 +55,8 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
   `analyzed_fields` is not set, only the relevant fileds will be included. For 
   example all the numeric fields for {oldetection}.
 
-[discrete]
 [[ml-put-dfanalytics-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 The following example creates the `loganalytics` {dfanalytics} job, the analysis 
 type is `outlier_detection`:

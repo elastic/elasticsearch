@@ -1,27 +1,29 @@
 [role="xpack"]
 [testenv="platinum"]
 [[get-dfanalytics-stats]]
-=== Get {dfanalytics} statistics API
+=== Get {dfanalytics-job} statistics API
 [subs="attributes"]
 ++++
-<titleabbrev>Get {dfanalytics} stats</titleabbrev>
+<titleabbrev>Get {dfanalytics-job} stats</titleabbrev>
 ++++
 
 beta[]
 
-Retrieves usage information for {dfanalytics}.
+Retrieves usage information for {dfanalytics-jobs}.
 
-[discrete]
 [[ml-get-dfanalytics-stats-request]]
 ==== {api-request-title}
 
 `GET _ml/data_frame/analytics/<data_frame_analytics_id>/_stats` +
+
 `GET _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>/_stats` +
+
 `GET _ml/data_frame/analytics/_stats` +
+
 `GET _ml/data_frame/analytics/_all/_stats` +
+
 `GET _ml/data_frame/analytics/*/_stats`
 
-[discrete]
 [[ml-get-dfanalytics-stats-prereq]]
 ==== {api-prereq-title}
 
@@ -29,25 +31,23 @@ Retrieves usage information for {dfanalytics}.
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[ml-get-dfanalytics-stats-path-params]]
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>` (Optional)::
-  (string) Identifier for the {dfanalytics} job. If you do not specify one of 
-  these options, the API returns information for the first hundred {dfanalytics} 
-  jobs.
+  (string) Identifier for the {dfanalytics-job}. If you do not specify one of 
+  these options, the API returns information for the first hundred
+  {dfanalytics-jobs}.
 
-[discrete]
 [[ml-get-dfanalytics-stats-query-params]]
 ==== {api-query-parms-title}
 
 `from` (Optional)::
-  (integer) Skips the specified number of {dfanalytics} jobs. The default value 
+  (integer) Skips the specified number of {dfanalytics-jobs}. The default value 
   is `0`.
 
 `size` (Optional)::
-  (integer) Specifies the maximum number of {dfanalytics} jobs to obtain. The 
+  (integer) Specifies the maximum number of {dfanalytics-jobs} to obtain. The 
   default value is `100`.
 
 [discrete]
@@ -57,12 +57,11 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 The API returns the following information:
 
 `data_frame_analytics`::
-  (array) An array of statistics objects for {dfanalytics}, which are
+  (array) An array of statistics objects for {dfanalytics-jobs}, which are
   sorted by the `id` value in ascending order.
-  
-[discrete]
+
 [[ml-get-dfanalytics-stats-example]]
-==== {api-example-title}
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------

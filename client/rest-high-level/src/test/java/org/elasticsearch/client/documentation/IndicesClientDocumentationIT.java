@@ -80,6 +80,7 @@ import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
+import org.elasticsearch.client.indices.ReloadAnalyzersResponse.ReloadDetails;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -2774,12 +2775,16 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::reload-analyzers-response
             Shards shards = reloadResponse.shards(); // <1>
-            Map<String, List<String>> indicesNodes = reloadResponse.getReloadedIndicesNodes(); // <2>
-            List<String> nodeIds = indicesNodes.get("index"); // <3>
+            Map<String, ReloadDetails> reloadDetails = reloadResponse.getReloadedDetails(); // <2>
+            ReloadDetails details = reloadDetails.get("index"); // <3>
+            String indexName = details.getIndexName(); // <4>
+            Set<String> indicesNodes = details.getReloadedIndicesNodes(); // <5>
+            Set<String> analyzers = details.getReloadedAnalyzers();  // <6>
             // end::reload-analyzers-response
             assertNotNull(shards);
+            assertEquals("index", indexName);
             assertEquals(1, indicesNodes.size());
-            assertTrue(nodeIds.size() >= 1);
+            assertEquals(0, analyzers.size());
 
             // tag::reload-analyzers-execute-listener
             ActionListener<ReloadAnalyzersResponse> listener =

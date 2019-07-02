@@ -51,10 +51,6 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
         return this.reloadDetails;
     }
 
-    public Map<String, List<String>> getReloadedIndicesNodes() {
-        return reloadedIndicesNodes;
-    }
-
     /**
      * Override in subclass to add custom fields following the common `_shards` field
      */
@@ -109,7 +105,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
         private final Set<String> reloadedIndicesNodes;
         private final Set<String> reloadedAnalyzers;
 
-        ReloadDetails(String name, Set<String> reloadedIndicesNodes, Set<String> reloadedAnalyzers) {
+        public ReloadDetails(String name, Set<String> reloadedIndicesNodes, Set<String> reloadedAnalyzers) {
             this.indexName = name;
             this.reloadedIndicesNodes = reloadedIndicesNodes;
             this.reloadedAnalyzers = reloadedAnalyzers;

@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
+import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -62,13 +64,17 @@ public class ReloadAnalyzersResponseTests
             failures.add(failure);
             shardIds.add(failure.shardId());
         }
-        Map<String, List<String>> reloadedIndicesNodes = new HashMap<>();
+        Map<String, ReloadDetails> reloadedDetailsMap = new HashMap<>();
         int randomIndices = randomIntBetween(0, 5);
         for (int i = 0; i < randomIndices; i++) {
-            List<String> randomNodeIds = Arrays.asList(generateRandomStringArray(5, 5, false, true));
-            reloadedIndicesNodes.put(randomAlphaOfLengthBetween(5, 10), randomNodeIds);
+            String indexName = randomAlphaOfLengthBetween(5, 10);
+            Set<String> randomNodeIds = new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false, true)));
+            Set<String> randomAnalyzers = new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false, true)));
+
+            ReloadDetails reloadedDetails = new ReloadDetails(indexName, randomNodeIds, randomAnalyzers);
+            reloadedDetailsMap.put(indexName, reloadedDetails);
         }
-        return new org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse(total, successful, failed, failures, reloadedIndicesNodes);
+        return new org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse(total, successful, failed, failures, reloadedDetailsMap);
     }
 
     @Override
@@ -90,7 +96,16 @@ public class ReloadAnalyzersResponseTests
             assertThat(groupedFailure.shardId(), isIn(shardIds));
             assertThat(groupedFailure.reason(), containsString("reason=retention lease with ID [" + id + "] not found"));
         }
-        assertThat(clientInstance.getReloadedIndicesNodes(), equalTo(serverTestInstance.getReloadedIndicesNodes()));
+        Map<String, ReloadDetails> serverDetails = serverTestInstance.getReloadDetails();
+        assertThat(clientInstance.getReloadedDetails().size(), equalTo(serverDetails.size()));
+        for (Entry<String, org.elasticsearch.client.indices.ReloadAnalyzersResponse.ReloadDetails> entry : clientInstance
+                .getReloadedDetails().entrySet()) {
+            String indexName = entry.getKey();
+            assertTrue(serverDetails.keySet().contains(indexName));
+            assertEquals(serverDetails.get(indexName).getIndexName(), entry.getValue().getIndexName());
+            assertEquals(serverDetails.get(indexName).getReloadedAnalyzers(), entry.getValue().getReloadedAnalyzers());
+            assertEquals(serverDetails.get(indexName).getReloadedIndicesNodes(), entry.getValue().getReloadedIndicesNodes());
+        }
     }
 
 }

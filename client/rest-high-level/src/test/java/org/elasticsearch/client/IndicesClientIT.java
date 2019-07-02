@@ -1887,6 +1887,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ReloadAnalyzersResponse reloadResponse = execute(new ReloadAnalyzersRequest("test"), client.indices()::reloadAnalyzers,
             client.indices()::reloadAnalyzersAsync);
         assertNotNull(reloadResponse.shards());
-        assertTrue(reloadResponse.getReloadedIndicesNodes().containsKey("test"));
+        assertTrue(reloadResponse.getReloadedDetails().containsKey("test"));
     }
 }

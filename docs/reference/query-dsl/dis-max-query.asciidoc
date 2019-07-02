@@ -31,14 +31,14 @@ GET /_search
 ==== Top-level parameters for `dis_max`
 
 `queries` (Required)::
-Contains one or more query clauses. Returned documents **must match one or
-more** of these queries. If a document matches multiple queries, {es} uses the
-highest <<query-filter-context, relevance score>>.
+(array of query objects) Contains one or more query clauses. Returned documents
+**must match one or more** of these queries. If a document matches multiple
+queries, {es} uses the highest <<query-filter-context, relevance score>>.
 
 `tie_breaker` (Optional)::
 +
 --
-Floating point number between `0` and `1.0` used to increase the
+(float) Floating point number between `0` and `1.0` used to increase the
 <<query-filter-context, relevance scores>> of documents matching multiple query
 clauses. Defaults to `0.0`.
 

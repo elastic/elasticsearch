@@ -226,8 +226,8 @@ setup:
   - match:
       binary_soft_classification:
         precision:
-          0.0: 0.625
-          0.5: 1.0
+          '0.0': 0.625
+          '0.5': 1.0
 
 ---
 "Test binary_soft_classifition recall":
@@ -249,9 +249,9 @@ setup:
   - match:
       binary_soft_classification:
         recall:
-          0.0: 1.0
-          0.4: 0.8
-          0.5: 0.6
+          '0.0': 1.0
+          '0.4': 0.8
+          '0.5': 0.6
 
 ---
 "Test binary_soft_classifition confusion_matrix":
@@ -273,17 +273,17 @@ setup:
   - match:
       binary_soft_classification:
         confusion_matrix:
-          0.0:
+          '0.0':
             tp: 5
             fp: 3
             tn: 0
             fn: 0
-          0.3:
+          '0.3':
             tp: 5
             fp: 1
             tn: 2
             fn: 0
-          0.5:
+          '0.5':
             tp: 3
             fp: 0
             tn: 3

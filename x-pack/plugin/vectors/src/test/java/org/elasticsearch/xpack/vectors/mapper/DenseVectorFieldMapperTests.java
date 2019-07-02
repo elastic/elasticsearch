@@ -111,7 +111,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
             new SourceToParse("test-index", "_doc", "1", invalidDoc, XContentType.JSON)));
-        assertThat(e.getMessage(), containsString("has exceeded the number of dimensions [3] defined in mapping"));
+        assertThat(e.getCause().getMessage(), containsString("has exceeded the number of dimensions [3] defined in mapping"));
 
         // test that error is thrown when a document has number of dims less than defined in the mapping
         float[] invalidVector2 = new float[dims - 1];
@@ -120,6 +120,6 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject());
         MapperParsingException e2 = expectThrows(MapperParsingException.class, () -> mapper.parse(
             new SourceToParse("test-index", "_doc", "2", invalidDoc2, XContentType.JSON)));
-        assertThat(e2.getMessage(), containsString("has number of dimensions [2] less than defined in the mapping [3]"));
+        assertThat(e2.getCause().getMessage(), containsString("has number of dimensions [2] less than defined in the mapping [3]"));
     }
 }

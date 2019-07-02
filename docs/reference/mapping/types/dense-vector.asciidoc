@@ -22,8 +22,8 @@ PUT my_index
   "mappings": {
     "properties": {
       "my_vector": {
-        "type": "dense_vector", <1>
-        "dims": 3
+        "type": "dense_vector",
+        "dims": 3  <1>
       },
       "my_text" : {
         "type" : "keyword"

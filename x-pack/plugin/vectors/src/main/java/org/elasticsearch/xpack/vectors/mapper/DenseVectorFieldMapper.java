@@ -174,7 +174,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     @Override
     public void parse(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
-            throw new MapperParsingException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
         int dims = fieldType().dims(); //number of vector dimensions
 
@@ -185,7 +185,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         int dim = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
             if (dim++ >= dims) {
-                throw new MapperParsingException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
                     context.sourceToParse().id() + "] has exceeded the number of dimensions [" + dims + "] defined in mapping");
             }
             ensureExpectedToken(Token.VALUE_NUMBER, token, context.parser()::getTokenLocation);
@@ -197,13 +197,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             buf[offset++] = (byte) intValue;
         }
         if (dim != dims) {
-            throw new MapperParsingException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] of doc [" +
                 context.sourceToParse().id() + "] has number of dimensions [" + dim +
                 "] less than defined in the mapping [" +  dims +"]");
         }
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
         if (context.doc().getByKey(fieldType().name()) != null) {
-            throw new MapperParsingException("Field [" + name() + "] of type [" + typeName() +
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                 "] doesn't not support indexing multiple values for the same field in the same document");
         }
         context.doc().addWithKey(fieldType().name(), field);

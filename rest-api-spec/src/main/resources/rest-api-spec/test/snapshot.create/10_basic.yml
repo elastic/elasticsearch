@@ -40,6 +40,7 @@ setup:
 
   - do:
       snapshot.cleanup_repository:
+        repository: test_repo_create_1
 
   - match: { result.bytes: 0 }
   - match: { result.blobs: 0 }

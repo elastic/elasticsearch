@@ -40,7 +40,6 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
@@ -53,6 +52,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -593,7 +593,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
         TestRemoteScrollableHitSource(RestClient client) {
             super(RemoteScrollableHitSourceTests.this.logger, backoff(), RemoteScrollableHitSourceTests.this.threadPool,
-                    RemoteScrollableHitSourceTests.this::countRetry, RemoteScrollableHitSourceTests.this::failRequest, client,
+                    RemoteScrollableHitSourceTests.this::countRetry, r -> fail(), RemoteScrollableHitSourceTests.this::failRequest, client,
                     new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
         }
     }

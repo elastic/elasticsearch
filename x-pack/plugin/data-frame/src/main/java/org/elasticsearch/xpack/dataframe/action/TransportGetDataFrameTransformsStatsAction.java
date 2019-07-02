@@ -146,7 +146,8 @@ public class TransportGetDataFrameTransformsStatsAction extends
     private static void setNodeAttributes(DataFrameTransformStateAndStats dataFrameTransformStateAndStats,
                                                                      PersistentTasksCustomMetaData persistentTasksCustomMetaData,
                                                                      ClusterState state) {
-        var pTask = persistentTasksCustomMetaData.getTask(dataFrameTransformStateAndStats.getTransformId());
+        PersistentTasksCustomMetaData.PersistentTask<?> pTask =
+            persistentTasksCustomMetaData.getTask(dataFrameTransformStateAndStats.getTransformId());
         if (pTask != null) {
             dataFrameTransformStateAndStats.getTransformState()
                 .setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));

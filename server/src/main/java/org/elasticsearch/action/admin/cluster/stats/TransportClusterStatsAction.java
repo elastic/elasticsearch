@@ -82,8 +82,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     }
 
     @Override
-    protected ClusterStatsNodeRequest newNodeRequest(String nodeId, ClusterStatsRequest request) {
-        return new ClusterStatsNodeRequest(nodeId, request);
+    protected ClusterStatsNodeRequest newNodeRequest(ClusterStatsRequest request) {
+        return new ClusterStatsNodeRequest(request);
     }
 
     @Override
@@ -143,8 +143,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         public ClusterStatsNodeRequest() {
         }
 
-        ClusterStatsNodeRequest(String nodeId, ClusterStatsRequest request) {
-            super(nodeId);
+        ClusterStatsNodeRequest(ClusterStatsRequest request) {
             this.request = request;
         }
 

@@ -277,6 +277,8 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
+            DataFrameAnalyticsConfig.CREATE_TIME.getPreferredName(),
+            DataFrameAnalyticsConfig.VERSION.getPreferredName(),
             DataFrameAnalyticsDest.INDEX.getPreferredName(),
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
@@ -284,7 +286,7 @@ public final class ReservedFieldNames {
             OutlierDetection.NAME.getPreferredName(),
             OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
-            OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName(),
+            OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> {
+public class UpdateCalendarJobAction extends StreamableResponseActionType<PutCalendarAction.Response> {
     public static final UpdateCalendarJobAction INSTANCE = new UpdateCalendarJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/jobs/update";
 

@@ -34,7 +34,6 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class DieWithDignityIT extends ESRestTestCase {

@@ -38,6 +38,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.dataframe.MappingsMerger;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -122,7 +124,7 @@ public class TransportStartDataFrameAnalyticsAction
     }
 
     @Override
-    protected void masterOperation(StartDataFrameAnalyticsAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, StartDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         if (licenseState.isMachineLearningAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
@@ -157,23 +159,35 @@ public class TransportStartDataFrameAnalyticsAction
         );
 
         // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-        ActionListener<DataFrameAnalyticsConfig> validateListener = ActionListener.wrap(
+        ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
                 request.getId(), config.getModelMemoryLimit().getBytes(), memoryRequirementRefreshListener),
             listener::onFailure
         );
 
-        // Validate config
-        ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> {
-                new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
-                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, validateListener);
-            },
-            listener::onFailure
+        // Get config
+        getConfigAndValidate(request.getId(), configListener);
+    }
+
+    private void getConfigAndValidate(String id, ActionListener<DataFrameAnalyticsConfig> finalListener) {
+        // Validate mappings can be merged
+        ActionListener<DataFrameAnalyticsConfig> firstValidationListener = ActionListener.wrap(
+            config -> MappingsMerger.mergeMappings(client, config.getHeaders(), config.getSource().getIndex(), ActionListener.wrap(
+                    mappings -> finalListener.onResponse(config), finalListener::onFailure)),
+            finalListener::onFailure
         );
 
-        // Get config
-        configProvider.get(request.getId(), configListener);
+        // Validate source and dest; check data extraction is possible
+        ActionListener<DataFrameAnalyticsConfig> getConfigListener = ActionListener.wrap(
+            config -> {
+                new SourceDestValidator(clusterService.state(), indexNameExpressionResolver).check(config);
+                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, config, firstValidationListener);
+            },
+            finalListener::onFailure
+        );
+
+        // First, get the config
+        configProvider.get(id, getConfigListener);
     }
 
     private void waitForAnalyticsStarted(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,

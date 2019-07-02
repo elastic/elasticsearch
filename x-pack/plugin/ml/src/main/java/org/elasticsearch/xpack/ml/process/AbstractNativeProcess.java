@@ -42,6 +42,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private static final Duration WAIT_FOR_KILL_TIMEOUT = Duration.ofMillis(1000);
 
     private final String jobId;
+    private final NativeController nativeController;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
     private final InputStream processOutStream;
@@ -57,10 +58,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processKilled;
     private volatile boolean isReady;
 
-    protected AbstractNativeProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
-                                    OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                    Consumer<String> onProcessCrash) {
+    protected AbstractNativeProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
+                                    InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
+                                    List<Path> filesToDelete, Consumer<String> onProcessCrash) {
         this.jobId = jobId;
+        this.nativeController = nativeController;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = new BufferedOutputStream(processInStream);
         this.processOutStream = processOutStream;
@@ -183,7 +185,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             // The PID comes via the processes log stream.  We don't wait for it to arrive here,
             // but if the wait times out it implies the process has only just started, in which
             // case it should die very quickly when we close its input stream.
-            NativeControllerHolder.getNativeController().killProcess(cppLogHandler.getPid(Duration.ZERO));
+            nativeController.killProcess(cppLogHandler.getPid(Duration.ZERO));
 
             // Wait for the process to die before closing processInStream as if the process
             // is still alive when processInStream is closed it may start persisting state

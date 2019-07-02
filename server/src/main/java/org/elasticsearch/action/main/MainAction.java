@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.main;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class MainAction extends Action<MainResponse> {
+public class MainAction extends StreamableResponseActionType<MainResponse> {
 
     public static final String NAME = "cluster:monitor/main";
     public static final MainAction INSTANCE = new MainAction();

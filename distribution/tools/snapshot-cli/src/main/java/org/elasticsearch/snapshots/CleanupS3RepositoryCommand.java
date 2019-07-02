@@ -22,12 +22,12 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandLoggingConfigurator;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.env.Environment;
 
-public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
+public class CleanupS3RepositoryCommand extends Command {
 
     private final OptionSpec<String> regionOption;
     private final OptionSpec<String> endpointOption;
@@ -39,7 +39,8 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
     private final OptionSpec<Integer> parallelismOption;
 
     public CleanupS3RepositoryCommand() {
-        super("Command to cleanup orphaned segment files from the S3 repository");
+        super("Command to cleanup orphaned segment files from the S3 repository",
+            CommandLoggingConfigurator::configureLoggingWithoutConfig);
 
         regionOption = parser.accepts("region", "S3 region")
                 .withRequiredArg();
@@ -68,7 +69,7 @@ public class CleanupS3RepositoryCommand extends EnvironmentAwareCommand {
 
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
         String region = regionOption.value(options);
         String endpoint = endpointOption.value(options);
 

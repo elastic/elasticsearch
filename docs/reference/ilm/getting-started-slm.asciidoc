@@ -14,7 +14,8 @@ time.
 Before starting, it's important to understand the privileges that are needed
 when configuring SLM if you are using the security plugin. There are two
 built-in cluster privileges that can be used to assist: `manage_slm` and
-`read_slm`.
+`read_slm`. It's also good to note that the `create_snapshot` permission
+allows taking snapshots even for indices the role may not have access to.
 
 An example of configuring an administrator role for SLM follows:
 

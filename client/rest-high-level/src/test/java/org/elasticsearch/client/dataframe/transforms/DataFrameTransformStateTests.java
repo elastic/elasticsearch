@@ -39,7 +39,6 @@ public class DataFrameTransformStateTests extends ESTestCase {
                 DataFrameTransformState::fromXContent)
                 .supportsUnknownFields(true)
                 .randomFieldsExcludeFilter(field -> field.equals("current_position") ||
-                    field.equals("node") ||
                     field.equals("node.attributes"))
                 .test();
     }

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.painless.spi;
 
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Method represents the equivalent of a Java method available as a whitelisted class method
@@ -61,18 +64,30 @@ public class WhitelistMethod {
      */
     public final List<String> canonicalTypeNameParameters;
 
+    /** The {@link Map} of annotations for this method. */
+    public final Map<Class<?>, Object> painlessAnnotations;
+
     /**
      * Standard constructor. All values must be not {@code null} with the exception of
      * augmentedCanonicalClassName; augmentedCanonicalClassName will be {@code null} unless the method
      * is augmented as described in the class documentation.
      */
     public WhitelistMethod(String origin, String augmentedCanonicalClassName, String methodName,
-            String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
+            String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
+            List<Object> painlessAnnotations) {
 
         this.origin = Objects.requireNonNull(origin);
         this.augmentedCanonicalClassName = augmentedCanonicalClassName;
         this.methodName = methodName;
         this.returnCanonicalTypeName = Objects.requireNonNull(returnCanonicalTypeName);
         this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
+
+        if (painlessAnnotations.isEmpty()) {
+            this.painlessAnnotations = Collections.emptyMap();
+        } else {
+            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
     }
 }

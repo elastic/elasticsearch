@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Response;
 
-public class MoveToStepResponseTests extends AbstractStreamableTestCase<Response> {
+public class MoveToStepResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -17,8 +18,8 @@ public class MoveToStepResponseTests extends AbstractStreamableTestCase<Response
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 
     @Override

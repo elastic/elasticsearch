@@ -84,7 +84,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests various cluster operations (e.g., indexing) during disruptions.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
@@ -110,6 +109,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
         "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
+    // TestLogging for https://github.com/elastic/elasticsearch/issues/41068
     public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;

@@ -29,9 +29,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.Closeable;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -135,7 +135,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
             keysByIndex.compute(indexKey, (ignore2, set) -> {
                 if (set == null) {
-                    set = new HashSet<>();
+                    set = Sets.newConcurrentHashSet();
                 }
                 set.add(cacheKey);
                 return set;

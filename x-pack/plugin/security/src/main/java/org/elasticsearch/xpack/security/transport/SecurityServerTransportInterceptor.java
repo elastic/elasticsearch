@@ -136,11 +136,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
      * of some sort?
      */
     private boolean shouldRequireExistingAuthentication() {
-        // make a local copy of isStateNotRecovered as this is a volatile variable and it
-        // is used multiple times in the method. The copy to a local variable allows us to
-        // guarantee we use the same value wherever we would check the value for the state
-        // being recovered
-        final boolean stateNotRecovered = isStateNotRecovered;
         // If the license state is MISSING, then auth is not allowed.
         // However this makes it difficult to installing a valid license, because that might implicitly turn on security.
         // When security is enabled on the master node it will then reject any actions that do not have authentication headers
@@ -149,14 +144,12 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         // So, we always send authentication headers for actions that have an implied user (system-user or explicit-origin)
         // and then for other (user originated) actions we enforce that there is an authentication header that we can send, iff the
         // current license allows authentication.
-        return licenseState.isAuthAllowed() && stateNotRecovered == false;
+        return licenseState.isAuthAllowed() && isStateNotRecovered == false;
     }
 
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
                                                             AsyncSender sender, final boolean requireAuthentication) {
-        // There cannot be a request outgoing from this node that is not associated with a user
-        // unless we do not know the actual license of the cluster
         if (securityContext.getAuthentication() == null && requireAuthentication) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user

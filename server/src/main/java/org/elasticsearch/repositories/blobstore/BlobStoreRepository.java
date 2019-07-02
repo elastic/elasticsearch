@@ -62,7 +62,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -646,18 +645,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             RepositoryData repositoryData;
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-            final BytesReference out = Streams.readFully(blobContainer().readBlob(snapshotsIndexBlobName));
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, out,
-                    XContentType.JSON)) {
+            try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, blob)) {
                 repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
-            } catch (NotXContentException e) {
-                logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.length());
-                throw e;
             }
 
             // now load the incompatible snapshot ids, if they exist
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                    Streams.readFully(blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)), XContentType.JSON)) {
+            try (InputStream blob = blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, blob)) {
                 repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
             } catch (NoSuchFileException e) {
                 if (isReadOnly()) {

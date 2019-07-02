@@ -196,9 +196,12 @@ public class CoordinatorTests extends ESTestCase {
         });
 
         coordinator.coordinateLookups();
+        assertBusy(() -> {
+            assertThat(completed.get(), is(true));
+        });
+
         lookupFunction.capturedConsumers.get(0).accept(
             new MultiSearchResponse(new MultiSearchResponse.Item[]{new MultiSearchResponse.Item(emptySearchResponse(), null)}, 1L), null);
-        assertThat(completed.get(), is(true));
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
         assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));

@@ -40,10 +40,10 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 * <<put-dfanalytics,Create>> or 
 <<delete-dfanalytics,delete {dfanalytics} jobs>>
-* <<get-dfanalytics,Get {dfanalytics} jobs info>> or
+* <<ml-get-dfanalytics,Get {dfanalytics} jobs info>> or
 <<get-dfanalytics-stats,statistics>>
 * <<start-dfanalytics,Start>> or <<stop-dfanalytics,stop {dfanalytics} jobs>>
-* <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
+* <<evaluate-dataframe,Evaluate {dfanalytics}>>
 
 [float]
 [[ml-api-job-endpoint]]
@@ -162,7 +162,7 @@ include::revert-snapshot.asciidoc[]
 include::set-upgrade-mode.asciidoc[]
 include::start-datafeed.asciidoc[]
 include::stop-datafeed.asciidoc[]
-include::start-dfanalytics.asciidoc[]
+include::start-dfanalytics.asciiidoc[]
 include::stop-dfanalytics.asciidoc[]
 //UPDATE
 include::update-datafeed.asciidoc[]

@@ -2,6 +2,7 @@
 [testenv="platinum"]
 [[ml-get-dfanalytics]]
 === Get {dfanalytics} API
+[subs="attributes"]
 ++++
 <titleabbrev>Get {dfanalytics}</titleabbrev>
 ++++
@@ -23,7 +24,7 @@ Retrieves configuration information for {dfanalytics}.
 [[ml-get-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-You must have `monitor_ml` privilege to use this API. For more 
+* You must have `monitor_ml` privilege to use this API. For more 
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
@@ -40,7 +41,7 @@ You can get information for all {dfanalytics} jobs by using _all, by specifying
 [[ml-get-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
-`<data_frame_analytics_id>`::
+`<data_frame_analytics_id>` (Optional)::
   (string) Identifier for the {dfanalytics} job. If you do not specify one of 
   these options, the API returns information for the first hundred {dfanalytics} 
   jobs.
@@ -49,11 +50,11 @@ You can get information for all {dfanalytics} jobs by using _all, by specifying
 [[ml-get-dfanalytics-query-params]]
 ==== {api-query-parms-title}
 
-`from` (optional)::
+`from` (Optional)::
   (integer) Skips the specified number of {dfanalytics} jobs. The default value 
   is `0`.
 
-`size` (optional)::
+`size` (Optional)::
   (integer) Specifies the maximum number of {dfanalytics} jobs to obtain. The 
   default value is `100`.
 

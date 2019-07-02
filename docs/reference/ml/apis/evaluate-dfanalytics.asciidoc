@@ -1,4 +1,4 @@
-role="xpack"]
+[role="xpack"]
 [testenv="platinum"]
 [[evaluate-dataframe]]
 === Evaluate {dataframe} API
@@ -11,7 +11,7 @@ role="xpack"]
 beta[]
 
 Evaluates the executed analysis on an index that is already annotated with a 
-field that marks each {datafame} row with the results of the analytics.
+field that marks each {dataframe} row with the results of the analytics.
 
 [discrete]
 [[ml-evaluate-dataframe-request]]
@@ -23,7 +23,7 @@ field that marks each {datafame} row with the results of the analytics.
 [[ml-evaluate-dataframe-prereq]]
 ==== {api-prereq-title}
 
-You must have `monitor_ml` privilege to use this API. For more 
+* You must have `monitor_ml` privilege to use this API. For more 
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
@@ -31,10 +31,10 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[ml-evaluate-dataframe-request-body]]
 ==== {api-request-body-title}
 
-`index` (required)::
+`index` (Required)::
   (object) Defines the `index` in which the evaluation will be performed.
   
-`evaluation` (required)::
+`evaluation` (Required)::
   (object) Defines the type of evaluation you want to perform. For example: 
   `binary_soft_classification`.
   See evaluate API resources.
@@ -101,3 +101,4 @@ The API returns the following results:
     }
   }
 }
+----

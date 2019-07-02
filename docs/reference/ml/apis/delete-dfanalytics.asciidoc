@@ -2,7 +2,6 @@ role="xpack"]
 [testenv="platinum"]
 [[delete-dfanalytics]]
 === Delete {dfanalytics} API
-
 [subs="attributes"]
 ++++
 <titleabbrev>Delete {dfanalytics}</titleabbrev>
@@ -22,7 +21,7 @@ Deletes an existing {dfanalytics} job.
 [[ml-delete-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-You must have `machine_learning_admin` built-in role to use this API. For more 
+* You must have `machine_learning_admin` built-in role to use this API. For more 
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
@@ -30,7 +29,7 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[ml-delete-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
-`<data_frame_analytics_id>`::
+`<data_frame_analytics_id>` (Required)::
   (string) Identifier for the {dfanalytics} job you want to delete.
   
 [discrete]

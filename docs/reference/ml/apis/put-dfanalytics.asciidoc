@@ -2,6 +2,7 @@
 [testenv="platinum"]
 [[put-dfanalytics]]
 === Create {dfanalytics} API
+[subs="attributes"]
 ++++
 <titleabbrev>Create {dfanalytics}</titleabbrev>
 ++++
@@ -20,7 +21,7 @@ Instantiates a {dfanalytics} job.
 [[ml-put-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
-You must have `machine_learning_admin` built-in role to use this API. You must 
+* You must have `machine_learning_admin` built-in role to use this API. You must 
 also have `read` and `view_index_metadata` privileges on the source index and 
 `read`, `create_index`, and `index` privileges on the destination index. For 
 more information, see {stack-ov}/security-privileges.html[Security privileges] 
@@ -30,7 +31,7 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
-`<data_frame_analytics_id>` (required)::
+`<data_frame_analytics_id>` (Required)::
   (string) A numerical character string that uniquely identifies the 
   {dfanalytics} job. This identifier can contain lowercase alphanumeric characters 
   (a-z and 0-9), hyphens, and underscores. It must start and end with alphanumeric 
@@ -40,20 +41,20 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`source` (required)::
+`source` (Required)::
   (object) The source configuration, consisting of `index` and optionally a 
   `querry`.
   
-`dest`(required)::
+`dest` (Required)::
   (object) The destination configuration, consisting of `index` and optionally 
   `results_field` (`ml` by default).
   
-`analysis` (required)::
+`analysis` (Required)::
   (object) Defines the type of {dfanalytics} you want to perform on your source 
   index. For example: `outlier_detection`. 
   See {oldetection} resources.
   
-`analyzed_fields` (optional)::
+`analyzed_fields` (Optional)::
   (object) You can specify both `includes` and/or `excludes` patterns. If 
   `analyzed_fields` is not set, only the relevant fileds will be included. For 
   example all the numeric fields for {oldetection}.

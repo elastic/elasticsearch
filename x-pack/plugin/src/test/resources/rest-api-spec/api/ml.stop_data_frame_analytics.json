@@ -21,7 +21,7 @@
         "force": {
           "type": "boolean",
           "required": false,
-          "description": "True if the data frame analytics should be forcefully closed"
+          "description": "True if the data frame analytics should be forcefully stopped"
         },
         "timeout": {
           "type": "time",

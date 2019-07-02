@@ -888,30 +888,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testUnmappedWithMissingBadType() throws Exception {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-
-                Document document = new Document();
-                document.add(new NumericDocValuesField("unrelated_value", 100));
-                indexWriter.addDocument(document);
-
-                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-
-                    MappedFieldType fieldType1 = null;
-
-                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    final GeoPoint missingValue = new GeoPoint(42.39561, -71.13051);
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null)
-                        .field("field").missing(missingValue);
-                    expectThrows(AggregationExecutionException.class, () -> {
-                        createAggregator(aggregationBuilder, indexSearcher, fieldType1);
-                    });
-                }
-            }
-        }
-    }
-
     public void testGeoPointField() throws Exception {
         try (Directory directory = newDirectory()) {
             GeoPoint point = RandomGeoGenerator.randomPoint(random());
@@ -931,6 +907,36 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     expectThrows(AggregationExecutionException.class, () -> {
                         createAggregator(aggregationBuilder, indexSearcher, fieldType);
                     });
+                }
+            }
+        }
+    }
+
+    public void testIpField() throws Exception {
+        try (Directory directory = newDirectory()) {
+            final String field = "field";
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                document.add(new SortedSetDocValuesField("field",
+                    new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.100.42")))));
+                indexWriter.addDocument(document);
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    MappedFieldType fieldType = new IpFieldMapper.IpFieldType();
+                    fieldType.setHasDocValues(true);
+                    fieldType.setName("field");
+
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", null) .field(field);
+                    // Note - other places we throw IllegalArgumentException
+                    Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = (Terms) aggregator.buildAggregation(0L);
+                    assertEquals("_name", result.getName());
+                    assertEquals(1, result.getBuckets().size());
+                    assertEquals("192.168.100.42", result.getBuckets().get(0).getKey());
+                    assertEquals(1, result.getBuckets().get(0).getDocCount());
                 }
             }
         }

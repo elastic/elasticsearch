@@ -192,17 +192,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             + "]. It can only be applied to numeric or string fields.");
     }
 
-    @Override
-    protected ValuesSource resolveMissingAny(Object missing) {
-        if (missing instanceof Number) {
-            return ValuesSource.Numeric.EMPTY;
-        } else if (missing instanceof String) {
-            return ValuesSource.Bytes.WithOrdinals.EMPTY;
-        }
-        throw new AggregationExecutionException("Unsupported missing value [" + missing.toString() +
-            "] expected type to be one of [numeric, string]");
-    }
-
     // return the SubAggCollectionMode that this aggregation should use based on the expected size
     // and the cardinality of the field
     static SubAggCollectionMode subAggCollectionMode(int expectedSize, long maxOrd) {

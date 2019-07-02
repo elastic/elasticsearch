@@ -40,7 +40,6 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final EnrichPolicyLocks enrichPolicyLocks;
-    private final ConcurrentMap<String, Boolean> markedIndices = new ConcurrentHashMap<>();
 
     private volatile Scheduler.Cancellable cancellable;
 
@@ -86,7 +85,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             cancellable = threadPool.schedule(this::execute, new TimeValue(15, TimeUnit.MINUTES), ThreadPool.Names.GENERIC);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
-                logger.debug("failed to schedule next maintenance task; shutting down", e);
+                logger.debug("failed to schedule next [enrich] maintenance task; shutting down", e);
             } else {
                 throw e;
             }
@@ -95,38 +94,11 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
     private void execute() {
         logger.debug("triggering scheduled [enrich] maintenance task");
-        deleteMarkedIndices();
+        cleanUpEnrichIndices();
         scheduleNext();
     }
 
-    private void deleteMarkedIndices() {
-        final String[] markedForDeletion = markedIndices.keySet().toArray(String[]::new);
-        if (markedForDeletion.length == 0) {
-            markNewIndicesForDeletion();
-        } else {
-            DeleteIndexRequest deleteIndices = new DeleteIndexRequest()
-                .indices(markedForDeletion)
-                .indicesOptions(IGNORE_UNAVAILABLE);
-            client.admin().indices().delete(deleteIndices, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    logger.debug("Completed deletion of stale enrich indices [{}]", () -> Arrays.toString(markedForDeletion));
-                    for (String deletedIndex : markedForDeletion) {
-                        markedIndices.remove(deletedIndex);
-                    }
-                    markNewIndicesForDeletion();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Could not delete enrich indices that were marked for deletion", e);
-                    markNewIndicesForDeletion();
-                }
-            });
-        }
-    }
-
-    private void markNewIndicesForDeletion() {
+    private void cleanUpEnrichIndices() {
         final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
         GetIndexRequest indices = new GetIndexRequest()
             .indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
@@ -141,11 +113,12 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                     // If executions were kicked off, we can't be sure that the indices we are about to process are a
                     // stable state of the system (they could be new indices created by a policy that hasn't been published yet).
                     if (enrichPolicyLocks.isSafe(lockState)) {
-                        for (String indexName : getIndexResponse.getIndices()) {
-                            if (shouldRemoveIndex(getIndexResponse, policies, indexName)) {
-                                markedIndices.put(indexName, true);
-                            }
-                        }
+                        String[] removeIndices = Arrays.stream(getIndexResponse.getIndices())
+                            .filter(indexName -> shouldRemoveIndex(getIndexResponse, policies, indexName))
+                            .toArray(String[]::new);
+                        deleteIndices(removeIndices);
+                    } else {
+                        logger.debug("Skipping enrich index cleanup since enrich policy was executed while gathering indices");
                     }
                 }
 
@@ -176,5 +149,24 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             .anyMatch((aliasMetaData -> aliasMetaData.getAlias().equals(aliasName)));
         // Index is not currently published to the enrich alias. Should be marked for removal.
         return hasAlias == false;
+    }
+
+    private void deleteIndices(String[] removeIndices) {
+        if (removeIndices.length != 0) {
+            DeleteIndexRequest deleteIndices = new DeleteIndexRequest()
+                .indices(removeIndices)
+                .indicesOptions(IGNORE_UNAVAILABLE);
+            client.admin().indices().delete(deleteIndices, new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    logger.debug("Completed deletion of stale enrich indices [{}]", () -> Arrays.toString(removeIndices));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Could not delete enrich indices that were marked for deletion", e);
+                }
+            });
+        }
     }
 }

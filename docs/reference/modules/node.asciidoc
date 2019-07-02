@@ -178,10 +178,11 @@ reasonably fast persistent storage and a reliable and low-latency network
 connection to the rest of the cluster, since they are on the critical path for
 <<cluster-state-publishing,publishing cluster state updates>>.
 
-Similar to dedicated master-eligible nodes, it is a good idea in bigger
-clusters to use dedicated voting-only master-eligible nodes as tiebreakers
-in elections. To create a dedicated voting-only master-eligible node in the
-{default-dist}, set:
+Voting-only master-eligible nodes may also fill other roles in your cluster.
+For instance, a node may be both a data node and a voting-only master-eligible
+node. A _dedicated_ voting-only master-eligible nodes is a voting-only
+master-eligible node that fills no other roles in the cluster. To create a
+dedicated voting-only master-eligible node in the {default-dist}, set:
 
 [source,yaml]
 -------------------

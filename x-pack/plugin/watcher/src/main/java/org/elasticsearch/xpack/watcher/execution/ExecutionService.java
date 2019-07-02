@@ -580,8 +580,7 @@ public class ExecutionService {
      */
     private void clearExecutions() {
         final CurrentExecutions currentExecutionsBeforeSetting = currentExecutions.getAndSet(new CurrentExecutions());
-        // clear old executions in background, no need to wait
-        genericExecutor.execute(() -> currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout));
+        currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout);
     }
 
     // the watch execution task takes another runnable as parameter

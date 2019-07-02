@@ -10,62 +10,77 @@
 
 Updates certain properties of a {dfeed}.
 
-==== Request
+[[ml-update-datafeed-request]]
+==== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
-===== Description
+[[ml-update-datafeed-prereqs]]
+==== {api-prereq-title}
 
-NOTE: If you update the `delayed_data_check_config` property, you must stop and
+* If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-update-datafeed-desc]]
+==== {api-description-title}
+
+If you update the `delayed_data_check_config` property, you must stop and
 start the {dfeed} for the change to be applied.
 
-==== Path Parameters
+IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
+which roles the user who updated it had at the time of update and runs the query
+using those same roles.
 
-`feed_id` (required)::
-  (string) Identifier for the {dfeed}
+[[ml-update-datafeed-path-parms]]
+==== {api-path-parms-title}
 
-==== Request Body
+`<feed_id>` (Required)::
+  (string) Identifier for the {dfeed}.
+
+[[ml-update-datafeed-request-body]]
+==== {api-request-body-title}
 
 The following properties can be updated after the {dfeed} is created:
 
-`aggregations`::
+`aggregations` (Optional)::
   (object) If set, the {dfeed} performs aggregation searches.
   For more information, see <<ml-datafeed-resource>>.
 
-`chunking_config`::
+`chunking_config` (Optional)::
   (object) Specifies how data searches are split into time chunks.
   See <<ml-datafeed-chunking-config>>.
   
-`delayed_data_check_config`::
+`delayed_data_check_config` (Optional)::
   (object) Specifies whether the data feed checks for missing data and 
   the size of the window. See <<ml-datafeed-delayed-data-check-config>>.  
 
-`frequency`::
+`frequency` (Optional)::
   (time units) The interval at which scheduled queries are made while the
   {dfeed} runs in real time. The default value is either the bucket span for short
   bucket spans, or, for longer bucket spans, a sensible fraction of the bucket
   span. For example: `150s`.
 
-`indices`::
+`indices` (Optional)::
   (array) An array of index names. Wildcards are supported. For example:
   `["it_ops_metrics", "server*"]`.
 
-`job_id`::
+`job_id` (Optional)::
  (string) A numerical character string that uniquely identifies the job.
 
-`query`::
+`query` (Optional)::
   (object) The {es} query domain-specific language (DSL). This value
   corresponds to the query object in an {es} search POST body. All the
   options that are supported by {es} can be used, as this object is
   passed verbatim to {es}. By default, this property has the following
   value: `{"match_all": {"boost": 1}}`.
 
-`query_delay`::
+`query_delay` (Optional)::
   (time units) The number of seconds behind real-time that data is queried. For
   example, if data from 10:04 a.m. might not be searchable in {es} until
   10:06 a.m., set this property to 120 seconds. The default value is `60s`.
 
-`script_fields`::
+`script_fields` (Optional)::
   (object) Specifies scripts that evaluate custom expressions and returns
   script fields to the {dfeed}.
   The <<ml-detectorconfig,detector configuration objects>> in a job can contain
@@ -73,29 +88,15 @@ The following properties can be updated after the {dfeed} is created:
   For more information,
   see {ref}/search-request-script-fields.html[Script Fields].
 
-`scroll_size`::
+`scroll_size` (Optional)::
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.
 
-
-==== Authorization
-
-If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security Privileges].
-
-
-==== Security Integration
-
-When {es} {security-features} are enabled, your {dfeed} remembers which roles the
-user who updated it had at the time of update and runs the query using those
-same roles.
-
-
-==== Examples
+[[ml-update-datafeed-example]]
+==== {api-examples-title}
 
 The following example updates the query for the `datafeed-total-requests`
 {dfeed} so that only log entries of error level are analyzed:

@@ -45,6 +45,7 @@ import org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
+import org.elasticsearch.client.dataframe.transforms.NodeAttributes;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
@@ -447,6 +448,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::preview-data-frame-transform-execute
 
             assertNotNull(response.getDocs());
+            assertNotNull(response.getMappings());
         }
         {
             // tag::preview-data-frame-transform-execute-listener
@@ -510,7 +512,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         // tag::get-data-frame-transform-stats-request-options
         request.setPageParams(new PageParams(0, 100)); // <1>
         request.setAllowNoMatch(true); // <2>
-        // end::get-data-frame-transform-stats-request-params
+        // end::get-data-frame-transform-stats-request-options
 
         {
             // tag::get-data-frame-transform-stats-execute
@@ -532,6 +534,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 stateAndStats.getTransformStats();              // <4>
             DataFrameTransformProgress progress =
                 stateAndStats.getTransformState().getProgress(); // <5>
+            NodeAttributes node =
+                stateAndStats.getTransformState().getNode(); // <6>
             // end::get-data-frame-transform-stats-response
 
             assertEquals(IndexerState.STOPPED, indexerState);

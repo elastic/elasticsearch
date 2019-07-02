@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
@@ -79,7 +79,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             }
         };
 
-        final Map<Action, TransportAction> actions = new HashMap<>();
+        final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         client.initialize(actions, () -> "local", null);

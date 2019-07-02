@@ -29,6 +29,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -101,7 +102,7 @@ public class TransportPutDataFrameTransformAction
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
+    protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
 
         if (!licenseState.isDataFrameAllowed()) {

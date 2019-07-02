@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -32,7 +33,7 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, true);
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("polygon ((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0))",
             wkt.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))));
         assertEquals(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})),
@@ -73,16 +74,17 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
 
     public void testWKTValidation() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> new WellKnownText(false, true).fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3))"));
+            () -> new WellKnownText(false, new GeographyValidator(true)).fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3))"));
         assertEquals("first and last points of the linear ring must be the same (it must close itself): " +
             "lats[0]=1.0 lats[2]=3.0 lons[0]=3.0 lons[2]=5.0 alts[0]=5.0 alts[2]=3.0", ex.getMessage());
 
         ex = expectThrows(IllegalArgumentException.class,
-            () -> new WellKnownText(randomBoolean(), false).fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3, 3 1 5))"));
+            () -> new WellKnownText(randomBoolean(), new GeographyValidator(false)).fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3, 3 1 5))"));
         assertEquals("found Z value [5.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
         ex = expectThrows(IllegalArgumentException.class,
-            () -> new WellKnownText(false, randomBoolean()).fromWKT("polygon ((3 1, 4 2, 5 3, 3 1), (0.5 1.5, 2.5 1.5, 2.0 1.0))"));
+            () -> new WellKnownText(false, new GeographyValidator(randomBoolean())).fromWKT(
+                "polygon ((3 1, 4 2, 5 3, 3 1), (0.5 1.5, 2.5 1.5, 2.0 1.0))"));
         assertEquals("first and last points of the linear ring must be the same (it must close itself): " +
             "lats[0]=1.5 lats[2]=1.0 lons[0]=0.5 lons[2]=2.0", ex.getMessage());
     }

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.ack;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * This action acks a watch in memory, and the index
  */
-public class AckWatchAction extends Action<AckWatchResponse> {
+public class AckWatchAction extends StreamableResponseActionType<AckWatchResponse> {
 
     public static final AckWatchAction INSTANCE = new AckWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/ack";

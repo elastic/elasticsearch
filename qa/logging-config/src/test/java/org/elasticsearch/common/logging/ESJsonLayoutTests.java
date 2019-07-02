@@ -23,10 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
-/*
-  Because this test is testing ESJsonLayout in isolation, ESMessageField pattern converter is not configured
-  Status logger is printing out warnings about this to std error (causing tests to fail)
- */
+
 public class ESJsonLayoutTests extends ESTestCase {
     @BeforeClass
     public static void initNodeName() {

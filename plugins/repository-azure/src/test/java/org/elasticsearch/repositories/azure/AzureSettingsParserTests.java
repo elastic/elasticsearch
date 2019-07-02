@@ -49,11 +49,9 @@ public class AzureSettingsParserTests extends ESTestCase {
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.loadLegacy(settings);
         assertThat(tuple.v1(), notNullValue());
         assertThat(tuple.v1().getAccount(), is("myaccount1"));
-        assertThat(tuple.v1().getKey(), is("mykey1"));
         assertThat(tuple.v2().keySet(), hasSize(1));
         assertThat(tuple.v2().get("azure2"), notNullValue());
         assertThat(tuple.v2().get("azure2").getAccount(), is("myaccount2"));
-        assertThat(tuple.v2().get("azure2").getKey(), is("mykey2"));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             getConcreteSetting(DEPRECATED_ACCOUNT_SETTING, "azure1"),
             getConcreteSetting(DEPRECATED_KEY_SETTING, "azure1"),
@@ -72,7 +70,6 @@ public class AzureSettingsParserTests extends ESTestCase {
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.loadLegacy(settings);
         assertThat(tuple.v1(), notNullValue());
         assertThat(tuple.v1().getAccount(), is("myaccount1"));
-        assertThat(tuple.v1().getKey(), is("mykey1"));
         assertThat(tuple.v2().keySet(), hasSize(0));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{
             getConcreteSetting(DEPRECATED_ACCOUNT_SETTING, "azure1"),

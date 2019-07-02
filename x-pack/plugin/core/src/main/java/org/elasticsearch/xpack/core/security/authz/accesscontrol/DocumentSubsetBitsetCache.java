@@ -41,7 +41,7 @@ import java.util.concurrent.ExecutionException;
 
 /**
  * This is a cache for {@link BitSet} instances that are used with the {@link DocumentSubsetReader}.
- * It bounded by memory size and access time.
+ * It is bounded by memory size and access time.
  *
  * @see org.elasticsearch.index.cache.bitset.BitsetFilterCache
  */
@@ -56,10 +56,9 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * cache is never filled.
      */
     static final Setting<TimeValue> CACHE_TTL_SETTING =
-        Setting.timeSetting("xpack.security.dls_fls.bitset.cache.ttl", TimeValue.timeValueHours(24 * 7), Property.NodeScope);
+        Setting.timeSetting("xpack.security.dls.bitset.cache.ttl", TimeValue.timeValueHours(24 * 7), Property.NodeScope);
 
-    static final Setting<ByteSizeValue> CACHE_BYTES_SETTING =
-        Setting.byteSizeSetting("xpack.security.dls_fls.bitset.cache.max_bytes",
+    static final Setting<ByteSizeValue> CACHE_SIZE_SETTING = Setting.byteSizeSetting("xpack.security.dls.bitset.cache.size",
             new ByteSizeValue(50, ByteSizeUnit.MB), Property.NodeScope);
 
     private static final BitSet NULL_MARKER = new FixedBitSet(0);
@@ -71,7 +70,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     public DocumentSubsetBitsetCache(Settings settings) {
         this.logger = LogManager.getLogger(getClass());
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
-        final ByteSizeValue size = CACHE_BYTES_SETTING.get(settings);
+        final ByteSizeValue size = CACHE_SIZE_SETTING.get(settings);
         this.bitsetCache = CacheBuilder.<BitsetCacheKey, BitSet>builder()
             .setExpireAfterAccess(ttl)
             .setMaximumWeight(size.getBytes())
@@ -160,7 +159,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     public static List<Setting<?>> getSettings() {
-        return List.of(CACHE_TTL_SETTING, CACHE_BYTES_SETTING);
+        return List.of(CACHE_TTL_SETTING, CACHE_SIZE_SETTING);
     }
 
     public Map<String, Object> usageStats() {

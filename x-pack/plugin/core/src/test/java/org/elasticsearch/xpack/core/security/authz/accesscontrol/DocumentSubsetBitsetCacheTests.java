@@ -91,7 +91,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         // Enough to hold exactly 2 bit-sets in the cache
         final long maxCacheBytes = expectedBytesPerBitSet * 2;
         final Settings settings = Settings.builder()
-            .put(DocumentSubsetBitsetCache.CACHE_BYTES_SETTING.getKey(), maxCacheBytes + "b")
+            .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
         final DocumentSubsetBitsetCache cache = new DocumentSubsetBitsetCache(settings);
         assertThat(cache.entryCount(), equalTo(0));

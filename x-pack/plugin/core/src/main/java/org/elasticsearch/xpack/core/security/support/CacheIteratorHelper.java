@@ -15,7 +15,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 
 /**
- * A utility class to facilitating iterating over (and modifying) a {@link org.elasticsearch.common.cache.Cache}.
+ * A utility class to facilitate iterating over (and modifying) a {@link org.elasticsearch.common.cache.Cache}.
  * The semantics of the cache are such that when iterating (with the potential to call {@link Iterator#remove()}), we must prevent any
  * other modifications.
  * This class provides the necessary methods to support this constraint in a clear manner.

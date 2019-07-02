@@ -1,3 +1,6 @@
+import java.nio.file.Files
+import java.nio.file.Paths
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,8 +24,8 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-  compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
+  compile project(":server")
+  compile project(":libs:elasticsearch-cli")
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   testCompile project(":test:framework")
@@ -84,3 +87,30 @@ thirdPartyTest {
 }
 
 check.dependsOn(thirdPartyTest)
+
+def vendorPath = Paths.get("${project.buildDir}/libs/vendor")
+
+task copyRuntimeLibs(type: Copy) {
+  doFirst {
+    Files.createDirectories(vendorPath)
+  }
+  into vendorPath.toString()
+  from configurations.compile, configurations.runtime
+}
+
+task buildTarArchive(dependsOn: copyRuntimeLibs, type: Tar) {
+  compression Compression.GZIP
+  archiveBaseName.set('snapshot-cli')
+  destinationDirectory.set(project.buildDir)
+  into "snapshot-cli-${version}", {
+    into "bin", {
+      from file("${project.projectDir}/src/bin")
+    }
+    into "libs", {
+      from jar.getArchiveFile()
+      from file("${project.buildDir}/libs")
+    }
+  }
+}
+
+assemble.dependsOn(buildTarArchive)

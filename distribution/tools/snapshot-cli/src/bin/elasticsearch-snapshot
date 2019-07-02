@@ -1,6 +1,12 @@
 #!/bin/bash
 
-ES_MAIN_CLASS=org.elasticsearch.snapshots.SnapshotToolCli \
-  ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/snapshot-cli \
-  "`dirname "$0"`"/elasticsearch-cli \
-  "$@"
+JARS_PATH="./libs"
+
+unset CLASSPATH
+for J in $(cd "${JARS_PATH}"; ls *.jar); do
+CLASSPATH=${CLASSPATH}${CLASSPATH:+:}${JARS_PATH}/${J}
+done
+for J in $(cd "${JARS_PATH}/vendor"; ls *.jar); do
+CLASSPATH=${CLASSPATH}${CLASSPATH:+:}${JARS_PATH}/vendor/${J}
+done
+exec java -cp "${CLASSPATH}" org.elasticsearch.snapshots.SnapshotToolCli "$@"

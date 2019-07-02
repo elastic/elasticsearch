@@ -261,7 +261,7 @@ node.voting_only: false <2>
 node.data: false <3>
 node.ingest: true <4>
 node.ml: false <5>
-cluster.remote.connect: false <5>
+cluster.remote.connect: false <6>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
 <2> The `node.voting_only` role is disabled by default.

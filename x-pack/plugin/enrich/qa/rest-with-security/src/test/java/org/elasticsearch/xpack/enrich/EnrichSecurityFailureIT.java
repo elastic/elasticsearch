@@ -36,7 +36,7 @@ public class EnrichSecurityFailureIT extends ESRestTestCase {
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
         putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
             "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
-        ResponseException exc = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(putPolicyRequest)));
+        ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
         assertTrue(exc.getMessage().contains("action [cluster:admin/xpack/enrich/put] is unauthorized for user [test_enrich_no_privs]"));
     }
 }

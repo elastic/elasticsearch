@@ -92,8 +92,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -291,8 +291,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
-            super(nodeId);
+        NodeRequest(TransportNodesListShardStoreMetaData.Request request) {
             this.shardId = request.shardId;
         }
 

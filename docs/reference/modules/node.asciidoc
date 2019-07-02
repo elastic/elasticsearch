@@ -108,18 +108,20 @@ To create a dedicated master-eligible node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: true <1>
-node.data: false <2>
-node.ingest: false <3>
-node.ml: false <4>
-xpack.ml.enabled: true <5>
-cluster.remote.connect: false <6>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: false <5>
+xpack.ml.enabled: true <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> The `node.master` role is enabled by default.
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default).
-<5> The `xpack.ml.enabled` setting is enabled by default.
-<6> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> The `xpack.ml.enabled` setting is enabled by default.
+<7> Disable {ccs} (enabled by default).
 
 To create a dedicated master-eligible node in the {oss-dist}, set:
 
@@ -176,6 +178,29 @@ reasonably fast persistent storage and a reliable and low-latency network
 connection to the rest of the cluster, since they are on the critical path for
 <<cluster-state-publishing,publishing cluster state updates>>.
 
+Similar to dedicated master-eligible nodes, it is a good idea in bigger
+clusters to use dedicated voting-only master-eligible nodes as tiebreakers
+in elections. To create a dedicated voting-only master-eligible node in the
+{default-dist}, set:
+
+[source,yaml]
+-------------------
+node.master: true <1>
+node.voting_only: true <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: false <5>
+xpack.ml.enabled: true <6>
+cluster.remote.connect: false <7>
+-------------------
+<1> The `node.master` role is enabled by default.
+<2> Enable the `node.voting_only` role (disabled by default).
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> The `xpack.ml.enabled` setting is enabled by default.
+<7> Disable {ccs} (enabled by default).
+
 [float]
 [[data-node]]
 === Data Node
@@ -192,16 +217,18 @@ To create a dedicated data node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: true <2>
-node.ingest: false <3>
-node.ml: false <4>
-cluster.remote.connect: false <5>
+node.voting_only: false <2>
+node.data: true <3>
+node.ingest: false <4>
+node.ml: false <5>
+cluster.remote.connect: false <6>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> The `node.data` role is enabled by default.
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default).
-<5> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> The `node.data` role is enabled by default.
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> Disable {ccs} (enabled by default).
 
 To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]
@@ -230,16 +257,18 @@ To create a dedicated ingest node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: false <2>
-node.ingest: true <3>
-node.ml: false <4>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: true <4>
+node.ml: false <5>
 cluster.remote.connect: false <5>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> The `node.ingest` role is enabled by default.
-<4> Disable the `node.ml` role (enabled by default).
-<5> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> The `node.ingest` role is enabled by default.
+<5> Disable the `node.ml` role (enabled by default).
+<6> Disable {ccs} (enabled by default).
 
 To create a dedicated ingest node in the {oss-dist}, set:
 
@@ -281,16 +310,18 @@ To create a dedicated coordinating node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: false <2>
-node.ingest: false <3>
-node.ml: false <4>
-cluster.remote.connect: false <5>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: false <5>
+cluster.remote.connect: false <6>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default).
-<5> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> Disable {ccs} (enabled by default).
 
 To create a dedicated coordinating node in the {oss-dist}, set:
 
@@ -325,18 +356,20 @@ To create a dedicated {ml} node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: false <2>
-node.ingest: false <3>
-node.ml: true <4>
-xpack.ml.enabled: true <5>
-cluster.remote.connect: false <6>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: true <5>
+xpack.ml.enabled: true <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> The `node.ml` role is enabled by default.
-<5> The `xpack.ml.enabled` setting is enabled by default.
-<6> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> The `node.ml` role is enabled by default.
+<6> The `xpack.ml.enabled` setting is enabled by default.
+<7> Disable {ccs} (enabled by default).
 
 [float]
 [[change-node-role]]

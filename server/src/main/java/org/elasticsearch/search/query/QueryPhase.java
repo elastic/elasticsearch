@@ -236,9 +236,6 @@ public class QueryPhase implements SearchPhase {
                     System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
                     sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
                     searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
-                    if (LOGGER.isTraceEnabled()) {
-                        LOGGER.trace("Sort optimization on the field [" + oldSortFields[0].getField() + "] was enabled!");
-                    }
                 }
             }
 
@@ -492,6 +489,7 @@ public class QueryPhase implements SearchPhase {
             if (docCount <= 512) { // skipping small segments as estimateMedianCount doesn't work well on them
                 continue;
             }
+            assert(pointValues.size() == docCount); // TODO: modify the code to handle multiple values
             globalDocCount += docCount;
             long medianValue = estimateMedianValue(pointValues);
             long medianCount = estimatePointCount(pointValues, medianValue, medianValue);

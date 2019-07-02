@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.apache.logging.log4j.util.BiConsumer;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,21 +63,25 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
     public static class Coordinator {
 
-        final Client client;
+        final BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction;
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
         final BlockingQueue<Slot> queue;
         final AtomicInteger numberOfOutstandingRequests = new AtomicInteger(0);
 
         public Coordinator(Client client, Settings settings) {
-            this(client,
+            this(
+                (request, consumer) -> client.multiSearch(request,
+                    ActionListener.wrap(response -> consumer.accept(response, null), e -> consumer.accept(null, e))),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings),
-                EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings));
+                EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings)
+            );
         }
 
-        Coordinator(Client client, int maxLookupsPerRequest, int maxNumberOfConcurrentRequests, int queueCapacity) {
-            this.client = client;
+        Coordinator(BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction,
+                    int maxLookupsPerRequest, int maxNumberOfConcurrentRequests, int queueCapacity) {
+            this.lookupFunction = lookupFunction;
             this.maxLookupsPerRequest = maxLookupsPerRequest;
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
             this.queue = new ArrayBlockingQueue<>(queueCapacity);
@@ -84,7 +90,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
         void schedule(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
             // Use put(...), because if queue is full then this method will wait until a free slot becomes available
             // The calling thread here is a write thread (write tp is used by ingest) and
-            // this will great natural back pressure from the enrich processor.
+            // this will create natural back pressure from the enrich processor.
             // If there are no write threads available then write requests with ingestion will fail with 429 error code.
             try {
                 queue.put(new Slot(searchRequest, listener));
@@ -105,11 +111,9 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
                 slots.forEach(slot -> multiSearchRequest.add(slot.searchRequest));
 
                 numberOfOutstandingRequests.incrementAndGet();
-                client.multiSearch(multiSearchRequest, ActionListener.wrap(response -> {
+                lookupFunction.accept(multiSearchRequest, (response, e) -> {
                     handleResponse(slots, response, null);
-                }, e -> {
-                    handleResponse(slots, null, e);
-                }));
+                });
             }
         }
 
@@ -138,14 +142,14 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
             coordinateLookups();
         }
 
-        private static class Slot {
+        static class Slot {
 
             final SearchRequest searchRequest;
             final ActionListener<SearchResponse> actionListener;
 
             Slot(SearchRequest searchRequest, ActionListener<SearchResponse> actionListener) {
-                this.searchRequest = searchRequest;
-                this.actionListener = actionListener;
+                this.searchRequest = Objects.requireNonNull(searchRequest);
+                this.actionListener = Objects.requireNonNull(actionListener);
             }
         }
 

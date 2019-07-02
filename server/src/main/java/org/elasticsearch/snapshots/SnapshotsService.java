@@ -1133,14 +1133,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener Listener for cleanup result
      */
     public void cleanupRepo(String repositoryName, ActionListener<RepositoryCleanupResult> listener) {
-        // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
         if (repository instanceof BlobStoreRepository == false) {
             listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
             return;
         }
         final long repositoryStateId = repository.getRepositoryData().getGenId();
-        clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask() {
+        final Snapshot placeHolder = new Snapshot(repositoryName, null);
+        clusterService.submitStateUpdateTask("cleanup repository", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
@@ -1153,19 +1153,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // However other snapshots are running - cannot continue
                     throw new IllegalStateException("Cannot clean up - a snapshot is currently running");
                 }
-                // add the snapshot deletion to the cluster state
+                // add the empty snapshot deletion to the cluster state
                 SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
-                    new Snapshot(repositoryName, null),
-                    System.currentTimeMillis(),
-                    repositoryStateId
-                );
+                    placeHolder, threadPool.absoluteTimeInMillis(), repositoryStateId);
                 if (deletionsInProgress != null) {
                     deletionsInProgress = deletionsInProgress.withAddedEntry(entry);
                 } else {
                     deletionsInProgress = SnapshotDeletionsInProgress.newInstance(entry);
                 }
-                clusterStateBuilder.putCustom(SnapshotDeletionsInProgress.TYPE, deletionsInProgress);
-                return clusterStateBuilder.build();
+                return clusterStateBuilder.putCustom(SnapshotDeletionsInProgress.TYPE, deletionsInProgress).build();
             }
 
             @Override
@@ -1187,7 +1183,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             private void after(@Nullable Exception e, @Nullable RepositoryCleanupResult result) {
-                removeSnapshotDeletionFromClusterState(null, e, ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(result)));
+                removeSnapshotDeletionFromClusterState(
+                    placeHolder, e, ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(result)));
             }
         });
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -29,9 +30,16 @@ import java.util.function.LongConsumer;
 
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
-    private final long bytes;
+    public static final ObjectParser<RepositoryCleanupResult, Void> PARSER =
+        new ObjectParser<>(RepositoryCleanupResult.class.getName(), true, RepositoryCleanupResult::new);
 
-    private final long blobs;
+    private long bytes;
+
+    private long blobs;
+
+    private RepositoryCleanupResult() {
+        this(0L, 0L);
+    }
 
     private RepositoryCleanupResult(long bytes, long blobs) {
         this.bytes = bytes;

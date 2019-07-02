@@ -53,7 +53,7 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
         assertThat(params.size(), equalTo(3));
         assertThat(params.get(OutlierDetection.N_NEIGHBORS.getPreferredName()), equalTo(42));
         assertThat(params.get(OutlierDetection.METHOD.getPreferredName()), equalTo(OutlierDetection.Method.LDOF));
-        assertThat((Double) params.get(OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName()),
+        assertThat((Double) params.get(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName()),
             is(closeTo(0.42, 1E-9)));
     }
 }

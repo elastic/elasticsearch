@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -35,6 +36,11 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
     private RepositoryCleanupResult(long bytes, long blobs) {
         this.bytes = bytes;
         this.blobs = blobs;
+    }
+
+    public RepositoryCleanupResult(StreamInput in) throws IOException {
+        bytes = in.readLong();
+        blobs = in.readLong();
     }
 
     public static Progress start() {

@@ -66,6 +66,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -1094,14 +1095,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshotName    snapshotName
      * @param listener        listener
      */
-    public void deleteSnapshot(final String repositoryName, @Nullable String snapshotName, final ActionListener<Void> listener,
+    public void deleteSnapshot(final String repositoryName, final String snapshotName, final ActionListener<Void> listener,
                                final boolean immediatePriority) {
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
-        if (snapshotName == null && repository instanceof BlobStoreRepository == false) {
-            listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
-            return;
-        }
         final RepositoryData repositoryData = repository.getRepositoryData();
         final Optional<SnapshotId> incompatibleSnapshotId =
             repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
@@ -1115,29 +1112,32 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // if nothing found by the same name, then look in the cluster state for current in progress snapshots
         long repoGenId = repositoryData.getGenId();
         if (matchedEntry.isPresent() == false) {
-            final List<SnapshotsInProgress.Entry> currentInProgress = currentSnapshots(repositoryName, Collections.emptyList());
-            Optional<SnapshotsInProgress.Entry> matchedInProgress = currentInProgress.stream()
+            Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(repositoryName, Collections.emptyList()).stream()
                                .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
             if (matchedInProgress.isPresent()) {
                 matchedEntry = matchedInProgress.map(s -> s.snapshot().getSnapshotId());
                 // Derive repository generation if a snapshot is in progress because it will increment the generation when it finishes
                 repoGenId = matchedInProgress.get().getRepositoryStateId() + 1L;
-            } else if (currentInProgress.isEmpty() == false) {
-                repoGenId = currentInProgress.get(0).getRepositoryStateId() + 1L;
             }
         }
-        if (snapshotName != null && matchedEntry.isPresent() == false) {
+        if (matchedEntry.isPresent() == false) {
             throw new SnapshotMissingException(repositoryName, snapshotName);
         }
-        if (matchedEntry.isPresent()) {
-            deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repoGenId, immediatePriority);
-        } else {
-            cleanupRepo(repositoryName, listener, repoGenId, immediatePriority);
-        }
+        deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repoGenId, immediatePriority);
     }
 
-    public void cleanupRepo(String repositoryName, ActionListener<Void> listener, long repositoryStateId, boolean immediatePriority) {
-        Priority priority = immediatePriority ? Priority.IMMEDIATE : Priority.NORMAL;
+    public void cleanupRepo(final String repositoryName, final ActionListener<RepositoryCleanupResult> listener) {
+        // First, look for the snapshot in the repository
+        final Repository repository = repositoriesService.repository(repositoryName);
+        if (repository instanceof BlobStoreRepository == false) {
+            listener.onFailure(new IllegalArgumentException("Repository [" + repositoryName + "] does not support repository cleanup"));
+            return;
+        }
+        cleanupRepo(repositoryName, listener, repository.getRepositoryData().getGenId());
+    }
+
+    private void cleanupRepo(String repositoryName, ActionListener<RepositoryCleanupResult> listener, long repositoryStateId) {
+        Priority priority = Priority.NORMAL;
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -1168,7 +1168,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
-                after(e);
+                after(e, null);
             }
 
             @Override
@@ -1179,13 +1179,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         Repository repository = repositoriesService.repository(repositoryName);
                         assert repository instanceof BlobStoreRepository;
                         ((BlobStoreRepository) repository)
-                            .cleanup(repositoryStateId, ActionListener.wrap(v -> after(null), e -> after(e)));
+                            .cleanup(repositoryStateId, ActionListener.wrap(result -> after(null, result), e -> after(e, null)));
                     }
                 });
             }
 
-            private void after(@Nullable Exception e) {
-                removeSnapshotDeletionFromClusterState(null, e, listener);
+            private void after(@Nullable Exception e, @Nullable RepositoryCleanupResult result) {
+                removeSnapshotDeletionFromClusterState(null, e, ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(result)));
             }
         });
     }

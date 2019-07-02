@@ -51,6 +51,7 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilde
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
@@ -463,12 +464,12 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     /**
      * Cleans up repository.
      */
-    ActionFuture<AcknowledgedResponse> cleanupRepository(CleanupRepositoryRequest repository);
+    ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest repository);
 
     /**
      * Cleans up repository.
      */
-    void cleanupRepository(CleanupRepositoryRequest repository, ActionListener<AcknowledgedResponse> listener);
+    void cleanupRepository(CleanupRepositoryRequest repository, ActionListener<CleanupRepositoryResponse> listener);
 
     /**
      * Verifies a repository.

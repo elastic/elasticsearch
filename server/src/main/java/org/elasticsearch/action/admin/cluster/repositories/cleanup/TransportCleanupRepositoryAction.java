@@ -20,7 +20,6 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,7 +38,7 @@ import java.io.IOException;
 
 // TODO: add response that includes stats?
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest,
-                                                                                      AcknowledgedResponse> {
+                                                                                      CleanupRepositoryResponse> {
 
     private final SnapshotsService snapshotsService;
 
@@ -57,20 +57,19 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse(false);
+    protected CleanupRepositoryResponse newResponse() {
+        return new CleanupRepositoryResponse(RepositoryCleanupResult.start().finish());
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+    protected CleanupRepositoryResponse read(StreamInput in) throws IOException {
+        return new CleanupRepositoryResponse(in);
     }
 
     @Override
     protected void masterOperation(Task task, CleanupRepositoryRequest request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
-        snapshotsService.deleteSnapshot(request.repository(), null,
-            ActionListener.map(listener, v -> new AcknowledgedResponse(true)), false);
+                                   ActionListener<CleanupRepositoryResponse> listener) {
+        snapshotsService.cleanupRepo(request.repository(), ActionListener.map(listener, CleanupRepositoryResponse::new));
     }
 
     @Override

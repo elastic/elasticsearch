@@ -81,6 +81,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -437,13 +438,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param repositoryStateId Current repository state id
      * @param listener Lister to complete when done
      */
-    public void cleanup(long repositoryStateId, ActionListener<Void> listener) {
+    public void cleanup(long repositoryStateId, ActionListener<RepositoryCleanupResult> listener) {
         ActionListener.completeWith(listener, () -> {
             // TODO: ensure state id
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
             final RepositoryData repositoryData = repositoryData(repositoryStateId);
             cleanupStaleIndices(foundIndices, repositoryData.getIndices());
-            return null;
+            return RepositoryCleanupResult.start().finish();
         });
     }
 

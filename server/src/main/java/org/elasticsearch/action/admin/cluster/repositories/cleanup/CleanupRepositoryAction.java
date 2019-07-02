@@ -19,14 +19,13 @@
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public final class CleanupRepositoryAction extends ActionType<AcknowledgedResponse> {
+public final class CleanupRepositoryAction extends ActionType<CleanupRepositoryResponse> {
 
     public static final CleanupRepositoryAction INSTANCE = new CleanupRepositoryAction();
     public static final String NAME = "cluster:admin/repository/cleanup";
 
     private CleanupRepositoryAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, CleanupRepositoryResponse::new);
     }
 }

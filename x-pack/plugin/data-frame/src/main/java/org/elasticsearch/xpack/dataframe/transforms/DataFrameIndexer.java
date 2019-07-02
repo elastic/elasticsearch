@@ -129,7 +129,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected void onFinish(ActionListener<Void> listener) {
-        // reset the page size, so we do not memorize a low page size forever, the pagesize will be re-calculated on start
+        // reset the page size, so we do not memorize a low page size forever
         pageSize = pivot.getInitialPageSize();
         // reset the changed bucket to free memory
         changedBuckets = null;

@@ -37,7 +37,7 @@ public final class CleanupRepositoryResponse extends ActionResponse implements T
 
     static {
         PARSER.declareObject((response, cleanupResult) -> response.result = cleanupResult,
-            RepositoryCleanupResult.PARSER, new ParseField("snapshot"));
+            RepositoryCleanupResult.PARSER, new ParseField("results"));
     }
 
     private RepositoryCleanupResult result;

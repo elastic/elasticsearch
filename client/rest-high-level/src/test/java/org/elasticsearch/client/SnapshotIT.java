@@ -142,8 +142,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CleanupRepositoryRequest request = new CleanupRepositoryRequest("test");
         CleanupRepositoryResponse response = execute(request, highLevelClient().snapshot()::cleanupRepository,
             highLevelClient().snapshot()::cleanupRepositoryAsync);
-        assertThat(response.result().bytes(), equalTo(0));
-        assertThat(response.result().blobs(), equalTo(0));
+        assertThat(response.result().bytes(), equalTo(0L));
+        assertThat(response.result().blobs(), equalTo(0L));
     }
 
     public void testCreateSnapshot() throws IOException {

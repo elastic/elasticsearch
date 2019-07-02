@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,6 +33,11 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
 
     public static final ObjectParser<RepositoryCleanupResult, Void> PARSER =
         new ObjectParser<>(RepositoryCleanupResult.class.getName(), true, RepositoryCleanupResult::new);
+
+    static {
+        PARSER.declareLong((result, bytes) -> result.bytes = bytes, new ParseField("bytes"));
+        PARSER.declareLong((result, blobs) -> result.blobs = blobs, new ParseField("blobs"));
+    }
 
     private long bytes;
 

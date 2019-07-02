@@ -27,8 +27,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -122,9 +120,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         return executeCommand(abort, Collections.emptyMap());
     }
 
-    private MockTerminal executeCommand(boolean abort, Map<String, String> nonDefaultArguments)
-            throws Exception {
-        final Environment environment = TestEnvironment.newEnvironment(node().settings());
+    private MockTerminal executeCommand(boolean abort, Map<String, String> nonDefaultArguments) throws Exception {
         final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
         final OptionSet options = command.getParser().parse(
                 "--safety_gap_millis", nonDefaultArguments.getOrDefault("safety_gap_millis", "0"),
@@ -148,7 +144,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         terminal.addTextInput(input);
 
         try {
-            command.execute(terminal, options, environment);
+            command.execute(terminal, options);
         } catch (ElasticsearchException e) {
             if (abort && e.getMessage().contains("Aborted by user")) {
                 return terminal;

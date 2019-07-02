@@ -245,6 +245,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         logger.info("--> Execute repository cleanup");
         final CleanupRepositoryResponse response = client().admin().cluster().prepareCleanupRepository("test-repo").get();
+        assertCleanupResponse(response, 3L, 1L);
+    }
+
+    protected void assertCleanupResponse(CleanupRepositoryResponse response, long bytes, long blobs) {
         assertThat(response.result().blobs(), equalTo(1L));
         assertThat(response.result().bytes(), equalTo(3L));
     }

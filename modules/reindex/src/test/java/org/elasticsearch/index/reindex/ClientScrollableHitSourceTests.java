@@ -1,10 +1,29 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.index.reindex;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -67,7 +86,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
     }
 
     private static class ExpectedException extends RuntimeException {
-        public ExpectedException(Throwable cause) {
+        ExpectedException(Throwable cause) {
             super(cause);
         }
     }
@@ -80,14 +99,16 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         assertThat(ex.getCause(), instanceOf(EsRejectedExecutionException.class));
     }
 
-    private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler) throws InterruptedException {
+    private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures,
+                                       Consumer<Exception> failureHandler) throws InterruptedException {
         BlockingQueue<ScrollableHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
         ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
-            threadPool, actualSearchRetries::incrementAndGet, responses::add, failureHandler, new ParentTaskAssigningClient(client, parentTask),
+            threadPool, actualSearchRetries::incrementAndGet, responses::add, failureHandler,
+            new ParentTaskAssigningClient(client, parentTask),
             new SearchRequest().scroll("1m"));
 
         hitSource.start();
@@ -161,27 +182,27 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
     }
 
     private static class ExecuteRequest<Request extends ActionRequest, Response extends ActionResponse> {
-        private final Action<Response> action;
+        private final ActionType<Response> action;
         private final Request request;
         private final ActionListener<Response> listener;
 
-        public ExecuteRequest(Action<Response> action, Request request, ActionListener<Response> listener) {
+        ExecuteRequest(ActionType<Response> action, Request request, ActionListener<Response> listener) {
             this.action = action;
             this.request = request;
             this.listener = listener;
         }
 
-        public void respond(Action<Response> action, Function<Request, Response> response) {
+        public void respond(ActionType<Response> action, Function<Request, Response> response) {
             assertEquals(action, this.action);
             listener.onResponse(response.apply(request));
         }
 
-        public void fail(Action<Response> action, Exception response) {
+        public void fail(ActionType<Response> action, Exception response) {
             assertEquals(action, this.action);
             listener.onFailure(response);
         }
 
-        public void validateRequest(Action<Response> action, Consumer<? super Request> validator) {
+        public void validateRequest(ActionType<Response> action, Consumer<? super Request> validator) {
             assertEquals(action, this.action);
             validator.accept(request);
         }
@@ -190,20 +211,21 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
     private static class MockClient extends AbstractClient {
         private ExecuteRequest<?,?> executeRequest;
 
-        public MockClient(ThreadPool threadPool) {
+        MockClient(ThreadPool threadPool) {
             super(Settings.EMPTY, threadPool);
         }
 
         @Override
-        protected synchronized  <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action,
-                                                                                                   Request request, ActionListener<Response> listener) {
+        protected synchronized  <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(ActionType<Response> action,
+                       Request request, ActionListener<Response> listener) {
 
             this.executeRequest = new ExecuteRequest<>(action, request, listener);
             this.notifyAll();
         }
 
         @SuppressWarnings("unchecked")
-        public <Request extends ActionRequest, Response extends ActionResponse> void respondx(Action<Response> action,
+        public <Request extends ActionRequest, Response extends ActionResponse> void respondx(ActionType<Response> action,
                                                                                               Function<Request, Response> response) {
             ExecuteRequest<?, ?> executeRequest;
             synchronized (this) {
@@ -213,13 +235,13 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ((ExecuteRequest<Request, Response>) executeRequest).respond(action, response);
         }
 
-        public <Response extends ActionResponse> void respond(Action<Response> action,
+        public <Response extends ActionResponse> void respond(ActionType<Response> action,
                                                               Response response) {
             respondx(action, req -> response);
         }
 
         @SuppressWarnings("unchecked")
-        public <Response extends ActionResponse> void fail(Action<Response> action, Exception response) {
+        public <Response extends ActionResponse> void fail(ActionType<Response> action, Exception response) {
             ExecuteRequest<?, ?> executeRequest;
             synchronized (this) {
                 executeRequest = this.executeRequest;
@@ -228,7 +250,8 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ((ExecuteRequest<?, Response>) executeRequest).fail(action, response);
         }
 
-        public <Request extends ActionRequest, Response extends ActionResponse> void validateRequest(Action<Response> action,
+        @SuppressWarnings("unchecked")
+        public <Request extends ActionRequest, Response extends ActionResponse> void validateRequest(ActionType<Response> action,
                                                                                                      Consumer<? super Request> validator) {
             ((ExecuteRequest<Request, Response>) executeRequest).validateRequest(action, validator);
         }

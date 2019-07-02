@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.snapshots;
 
 import joptsimple.OptionSet;
@@ -15,9 +33,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
-import org.elasticsearch.repositories.blobstore.S3BlobStoreTestUtil;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -25,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,16 +52,13 @@ import static org.hamcrest.Matchers.not;
 
 public class S3CleanupTests extends ESSingleNodeTestCase {
 
-    private BlobStoreTestUtil util;
+    private BlobStoreRepository repository;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         createRepository("test-repo");
-        BlobStoreRepository repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class)
-                .repository("test-repo");
-        util = new S3BlobStoreTestUtil(repository);
-        util.deleteAndAssertEmpty(repository.basePath());
+        repository = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
     }
 
     @Override
@@ -248,7 +264,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
             assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
             logger.info("--> check that there is no inconsistencies after running the tool");
-            util.assertConsistency();
+            BlobStoreTestUtil.assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC));
 
             logger.info("--> create several dangling indices");
             int numOfFiles = 0;
@@ -263,12 +279,12 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                     files.add(file);
                     numOfFiles++;
                 }
-                size += util.createDanglingIndex(name, files);
+                size += BlobStoreTestUtil.createDanglingIndex(repository, name, files);
             }
             Set<String> danglingIndices = indexToFiles.keySet();
 
             logger.info("--> ensure dangling index folders are visible");
-            util.assertCorruptionVisible(indexToFiles);
+            assertBusy(() -> BlobStoreTestUtil.assertCorruptionVisible(repository, indexToFiles), 10L, TimeUnit.MINUTES);
 
             logger.info("--> execute cleanup tool, corruption is created latter than snapshot, there is nothing to cleanup");
             terminal = executeCommand(false);
@@ -315,7 +331,8 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                     containsString("Total bytes freed: " + size));
 
             logger.info("--> verify that there is no inconsistencies");
-            util.assertConsistency();
+            assertBusy(() -> BlobStoreTestUtil.assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC)),
+                10L, TimeUnit.MINUTES);
 
             logger.info("--> perform cleanup by removing snapshots");
             assertTrue(client().admin()

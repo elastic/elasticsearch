@@ -34,8 +34,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
@@ -48,77 +50,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class BlobStoreTestUtil {
+public final class BlobStoreTestUtil {
 
-    private final BlobStoreRepository repository;
-    private final ExecutorService executor;
-
-    public BlobStoreTestUtil(BlobStoreRepository repository) {
-        this.repository = repository;
-        this.executor = repository.threadPool().executor(ThreadPool.Names.GENERIC);
-    }
-
-    public void deleteAndAssertEmpty(BlobPath path) throws Exception {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        executor.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                repository.blobStore().blobContainer(path).delete();
-                future.onResponse(null);
-            }
-        });
-        future.actionGet();
-        final BlobPath parent = path.parent();
-        if (parent == null) {
-            assertChildren(path, Collections.emptyList());
-        } else {
-            assertDeleted(parent, path.toArray()[path.toArray().length - 1]);
-        }
-    }
-
-    protected void assertDeleted(BlobPath path, String name) throws Exception {
-        assertThat(listChildren(path), not(contains(name)));
-    }
-
-    public void assertChildren(BlobPath path, Collection<String> children) throws Exception {
-        final Set<String> foundChildren = listChildren(path);
-        if (children.isEmpty()) {
-            assertThat(foundChildren, empty());
-        } else {
-            assertThat(foundChildren, containsInAnyOrder(children.toArray(Strings.EMPTY_ARRAY)));
-        }
-    }
-
-    private Set<String> listChildren(BlobPath path) {
-        final PlainActionFuture<Set<String>> future = PlainActionFuture.newFuture();
-        executor.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repository.blobStore();
-                future.onResponse(blobStore.blobContainer(path).children().keySet());
-            }
-        });
-        return future.actionGet();
+    public static void assertRepoConsistency(InternalTestCluster testCluster, String repoName) {
+        final BlobStoreRepository repo =
+            (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
      * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata
+     * @param repository BlobStoreRepository to check
+     * @param executor Executor to run all repository calls on. This is needed since the production {@link BlobStoreRepository}
+     *                 implementations assert that all IO inducing calls happen on the generic or snapshot thread-pools and hence callers
+     *                 of this assertion must pass an executor on those when using such an implementation.
      */
-    public void assertConsistency() throws Exception {
+    public static void assertConsistency(BlobStoreRepository repository, Executor executor) {
         final PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
         executor.execute(new ActionRunnable<>(listener) {
             @Override
@@ -182,16 +141,17 @@ public class BlobStoreTestUtil {
         }
     }
 
-    public long createDanglingIndex(String name, Set<String> files) throws InterruptedException,
-            ExecutionException {
+
+    public static long createDanglingIndex(BlobStoreRepository repository, String name, Set<String> files)
+            throws InterruptedException, ExecutionException {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final AtomicLong totalSize = new AtomicLong();
-        executor.execute(new ActionRunnable<>(future) {
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repository.blobStore();
                 BlobContainer container =
-                        blobStore.blobContainer(repository.basePath().add("indices").add(name));
+                    blobStore.blobContainer(repository.basePath().add("indices").add(name));
                 for (String file : files) {
                     int size = randomIntBetween(0, 10);
                     totalSize.addAndGet(size);
@@ -204,21 +164,21 @@ public class BlobStoreTestUtil {
         return totalSize.get();
     }
 
-    public void assertCorruptionVisible(Map<String, Set<String>> indexToFiles) throws Exception {
+    public static void assertCorruptionVisible(BlobStoreRepository repository, Map<String, Set<String>> indexToFiles) {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        executor.execute(new ActionRunnable<>(future) {
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repository.blobStore();
                 for (String index : indexToFiles.keySet()) {
                     if (blobStore.blobContainer(repository.basePath().add("indices"))
-                            .children().containsKey(index) == false) {
+                        .children().containsKey(index) == false) {
                         future.onResponse(false);
                         return;
                     }
                     for (String file : indexToFiles.get(index)) {
                         if (blobStore.blobContainer(repository.basePath().add("indices").add(index))
-                                .blobExists(file) == false) {
+                            .blobExists(file) == false) {
                             future.onResponse(false);
                             return;
                         }
@@ -230,7 +190,7 @@ public class BlobStoreTestUtil {
         assertTrue(future.actionGet());
     }
 
-    public void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
+    public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs) {
         final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
         repository.threadPool().generic().execute(new ActionRunnable<>(future) {
             @Override
@@ -249,4 +209,5 @@ public class BlobStoreTestUtil {
             }
         }
     }
+
 }

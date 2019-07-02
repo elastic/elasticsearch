@@ -29,10 +29,17 @@ dependencies {
   testCompile project(":plugins:repository-s3")
 }
 
+dependencyLicenses {
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+}
+
 test {
   // these are tested explicitly in separate test tasks
   exclude '**/S3CleanupTests.class'
 }
+
+// Disabled to quiet the testing convention check since we only run third party tests
+test.enabled = false
 
 String s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
 String s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
@@ -75,3 +82,5 @@ thirdPartyTest {
   dependsOn tasks.postProcessFixture
   nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
 }
+
+check.dependsOn(thirdPartyTest)

@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
@@ -6,6 +24,9 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.repositories.IndexId;
 
@@ -16,12 +37,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public abstract class AbstractRepository implements Repository {
-    private final static long DEFAULT_SAFETY_GAP_MILLIS = 3600 * 1000;
+    private static final long DEFAULT_SAFETY_GAP_MILLIS = 3600 * 1000;
     private static final int DEFAULT_PARALLELISM = 100;
 
     protected final Terminal terminal;
@@ -70,7 +90,8 @@ public abstract class AbstractRepository implements Repository {
             return;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(parallelism);
+        ExecutorService executor = EsExecutors.newScaling("snapshot_cleanup", 0, parallelism, 10L, TimeUnit.SECONDS,
+            EsExecutors.daemonThreadFactory("snapshot_cleanup_tool"), new ThreadContext(Settings.EMPTY));
         try {
             PlainActionFuture<Collection<String>> orphanedIndicesFuture = new PlainActionFuture<>();
             GroupedActionListener<String> groupedOrphanedIndicesListener = new GroupedActionListener<>(orphanedIndicesFuture,

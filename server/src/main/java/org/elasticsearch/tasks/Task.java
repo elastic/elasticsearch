@@ -101,13 +101,6 @@ public class Task {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
-        final TaskId parentTask;
-        // TODO: Find real solution
-        if (this.getAction().contains("reindex")) {
-            parentTask = TaskId.EMPTY_TASK_ID;
-        } else {
-            parentTask = this.parentTask;
-        }
         return new TaskInfo(new TaskId(localNodeId, getId()), getType(), getAction(), description, status, startTime,
                 System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask, headers);
     }

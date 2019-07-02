@@ -29,7 +29,8 @@ document the same relevance score.
 <<query-dsl-dis-max-query,`dis_max` query>>::
 Returns documents matching one or more wrapped queries. If a returned document
 matches more than one of these queries, the `dis_max` query assigns the document
-the highest relevance score from any matching query.
+the highest relevance score from any matching query, plus a tie breaking
+increment for any additional matching subqueries.
 
 <<query-dsl-function-score-query,`function_score` query>>::
 Changes the relevance scores of documents returned by a wrapped query. You can

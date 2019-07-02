@@ -411,7 +411,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
                         reduceBucketConsumer, false);
                 A reduced = (A) aggs.get(0).doReduce(toReduce, context);
-                InternalAggregationTestCase.assertMultiBucketConsumer(reduced, reduceBucketConsumer);
+                doAssertReducedMultiBucketConsumer(reduced, reduceBucketConsumer);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);
             }
@@ -427,10 +427,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
                 }
             }
-            InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;
         }
 
+    }
+
+    protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
+        InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
     private static class ShardSearcher extends IndexSearcher {

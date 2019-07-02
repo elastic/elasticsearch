@@ -31,10 +31,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class ReloadAnalyzersResponse extends BroadcastResponse  {
 
     private final Map<String, ReloadDetails> reloadDetails;
-    private final static ParseField RELOAD_DETAILS_FIELD = new ParseField("reload_details");
-    private final static ParseField INDEX_FIELD = new ParseField("index");
-    private final static ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
-    private final static ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
+    private static final ParseField RELOAD_DETAILS_FIELD = new ParseField("reload_details");
+    private static final ParseField INDEX_FIELD = new ParseField("index");
+    private static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
+    private static final ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
 
 
     public ReloadAnalyzersResponse() {

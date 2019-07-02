@@ -1,76 +1,59 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
   testCompile project(':x-pack:qa')
 }
 
-task remoteClusterTest(type: RestIntegTestTask) {
+task 'remote-cluster'(type: RestIntegTestTask) {
   mustRunAfter(precommit)
+  runner {
+    systemProperty 'tests.rest.suite', 'remote_cluster'
+  }
 }
 
-remoteClusterTestCluster {
-  numNodes = 2
-  clusterName = 'remote-cluster'
-  setting 'cluster.remote.connect', false
+testClusters.'remote-cluster' {
+  distribution = "DEFAULT"
+  numberOfNodes = 2
+  setting 'cluster.remote.connect', "false"
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  setupCommand 'setupDummyUser',
-          'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
+
+  user username: "test_user", password: "x-pack-test-password"
+}
+
+task 'mixed-cluster'(type: RestIntegTestTask) {
+  dependsOn 'remote-cluster'
+  runner {
+    useCluster testClusters.'remote-cluster'
+    systemProperty 'tests.rest.suite', 'multi_cluster'
   }
 }
 
-remoteClusterTestRunner {
-  systemProperty 'tests.rest.suite', 'remote_cluster'
-}
-
-task mixedClusterTest(type: RestIntegTestTask) {}
-
-mixedClusterTestCluster {
-  dependsOn remoteClusterTestRunner
+testClusters.'mixed-cluster' {
+  distribution = "DEFAULT"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  setupCommand 'setupDummyUser',
-          'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
+  setting 'cluster.remote.my_remote_cluster.seeds', {
+    testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }
-  setting 'cluster.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
-  setting 'cluster.remote.connections_per_cluster', 1
-  setting 'cluster.remote.connect', true
-}
+  setting 'cluster.remote.connections_per_cluster', "1"
+  setting 'cluster.remote.connect', "true"
 
-mixedClusterTestRunner {
-  systemProperty 'tests.rest.suite', 'multi_cluster'
-  finalizedBy 'remoteClusterTestCluster#node0.stop','remoteClusterTestCluster#node1.stop'
+  user username: "test_user", password: "x-pack-test-password"
 }
 
 task integTest {
-  dependsOn = [mixedClusterTest]
+  dependsOn 'mixed-cluster'
 }
 
 test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

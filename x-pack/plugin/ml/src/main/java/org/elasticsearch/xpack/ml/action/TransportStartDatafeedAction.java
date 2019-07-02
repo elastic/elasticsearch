@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -33,6 +34,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -134,12 +137,17 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(StartDatafeedAction.Request request, ClusterState state,
+    protected AcknowledgedResponse newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected void masterOperation(Task task, StartDatafeedAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         StartDatafeedAction.DatafeedParams params = request.getParams();
         if (licenseState.isMachineLearningAllowed() == false) {

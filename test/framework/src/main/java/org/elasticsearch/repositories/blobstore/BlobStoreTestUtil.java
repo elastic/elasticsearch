@@ -141,7 +141,6 @@ public final class BlobStoreTestUtil {
         }
     }
 
-
     public static long createDanglingIndex(BlobStoreRepository repository, String name, Set<String> files)
             throws InterruptedException, ExecutionException {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
@@ -209,5 +208,4 @@ public final class BlobStoreTestUtil {
             }
         }
     }
-
 }

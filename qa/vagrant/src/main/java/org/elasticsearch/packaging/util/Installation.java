@@ -104,7 +104,6 @@ public class Installation {
         public final Path elasticsearchCertutil = platformExecutable("elasticsearch-certutil");
         public final Path elasticsearchShard = platformExecutable("elasticsearch-shard");
         public final Path elasticsearchNode = platformExecutable("elasticsearch-node");
-        public final Path elasticsearchSnapshot = platformExecutable("elasticsearch-snapshot");
         public final Path elasticsearchSetupPasswords = platformExecutable("elasticsearch-setup-passwords");
         public final Path elasticsearchSyskeygen = platformExecutable("elasticsearch-syskeygen");
         public final Path elasticsearchUsers = platformExecutable("elasticsearch-users");

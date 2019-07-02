@@ -202,8 +202,7 @@ public class Packages {
             "elasticsearch-plugin",
             "elasticsearch-keystore",
             "elasticsearch-shard",
-            "elasticsearch-node",
-            "elasticsearch-snapshot"
+            "elasticsearch-node"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         Stream.of(

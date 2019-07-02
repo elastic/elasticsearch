@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -849,19 +850,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public synchronized void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
         // refresh indexAnalyzers and search analyzers
         final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
         final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
         final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+        final List<String> reloadedAnalyzers = new ArrayList<>();
         for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
             if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
                 ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
-                Settings analyzerSettings = settings.get(namedAnalyzer.name());
-                analyzer.reload(namedAnalyzer.name(), analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                String analyzerName = namedAnalyzer.name();
+                Settings analyzerSettings = settings.get(analyzerName);
+                analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                reloadedAnalyzers.add(analyzerName);
             }
         }
+        return reloadedAnalyzers;
     }
 }

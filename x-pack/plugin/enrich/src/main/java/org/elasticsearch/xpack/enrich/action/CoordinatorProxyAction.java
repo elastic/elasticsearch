@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -78,7 +78,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
             this.client = client;
             this.maxLookupsPerRequest = maxLookupsPerRequest;
             this.maxNumberOfConcurrentRequests = maxNumberOfConcurrentRequests;
-            this.queue = new LinkedBlockingQueue<>(queueCapacity);
+            this.queue = new ArrayBlockingQueue<>(queueCapacity);
         }
 
         void schedule(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {

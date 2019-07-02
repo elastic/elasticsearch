@@ -129,8 +129,6 @@ import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShardTests.getEngineFromShard;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesExist;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesMissing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
@@ -500,7 +498,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .addAlias("test-idx-3", "alias-123")
                 .addAlias("test-idx-1", "alias-1")
                 .get());
-        assertAliasesExist(client.admin().indices().prepareAliasesExist("alias-123").get());
+
+        assertFalse(client.admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
 
         logger.info("--> snapshot");
         assertThat(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -509,7 +508,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  delete all indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2", "test-idx-3");
-        assertAliasesMissing(client.admin().indices().prepareAliasesExist("alias-123", "alias-1").get());
+        assertTrue(client.admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertTrue(client.admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot with aliases");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -519,7 +519,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards())));
 
         logger.info("--> check that aliases are restored");
-        assertAliasesExist(client.admin().indices().prepareAliasesExist("alias-123", "alias-1").get());
+        assertFalse(client.admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertFalse(client.admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
 
         logger.info("-->  update aliases");
         assertAcked(client.admin().indices().prepareAliases().removeAlias("test-idx-3", "alias-123"));
@@ -528,7 +529,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  delete and close indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         assertAcked(client.admin().indices().prepareClose("test-idx-3"));
-        assertAliasesMissing(client.admin().indices().prepareAliasesExist("alias-123", "alias-1").get());
+        assertTrue(client.admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertTrue(client.admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
 
         logger.info("--> restore snapshot without aliases");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true)
@@ -538,8 +540,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards())));
 
         logger.info("--> check that aliases are not restored and existing aliases still exist");
-        assertAliasesMissing(client.admin().indices().prepareAliasesExist("alias-123", "alias-1").get());
-        assertAliasesExist(client.admin().indices().prepareAliasesExist("alias-3").get());
+        assertTrue(client.admin().indices().prepareGetAliases("alias-123").get().getAliases().isEmpty());
+        assertTrue(client.admin().indices().prepareGetAliases("alias-1").get().getAliases().isEmpty());
+        assertFalse(client.admin().indices().prepareGetAliases("alias-3").get().getAliases().isEmpty());
     }
 
     public void testRestoreTemplates() throws Exception {
@@ -840,6 +843,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDataFileFailureDuringSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
@@ -1321,6 +1326,18 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
                     "plus two because one backup index-N file should remain and incompatible-snapshots");
         assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
+    }
+
+    public void testGetSnapshotsNoRepos() {
+        ensureGreen();
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster()
+                .prepareGetSnapshots(new String[]{"_all"})
+                .setSnapshots(randomFrom("_all", "*"))
+                .get();
+
+        assertTrue(getSnapshotsResponse.getRepositories().isEmpty());
+        assertTrue(getSnapshotsResponse.getFailedResponses().isEmpty());
+        assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
     }
 
     public void testGetSnapshotsMultipleRepos() {

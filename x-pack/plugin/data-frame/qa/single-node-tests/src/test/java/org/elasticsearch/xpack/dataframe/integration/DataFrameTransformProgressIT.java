@@ -130,11 +130,14 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        SearchResponse response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        SearchResponse response = restClient.search(
+            TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT);
 
         DataFrameTransformProgress progress =
             TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
@@ -151,10 +154,12 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
-        response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT);
         progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
@@ -168,10 +173,12 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
-        response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT);
         progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(0L));

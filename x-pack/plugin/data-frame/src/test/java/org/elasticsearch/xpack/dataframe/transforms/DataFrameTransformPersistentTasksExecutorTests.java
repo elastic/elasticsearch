@@ -35,9 +35,10 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -70,22 +71,22 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
             .add(new DiscoveryNode("past-data-node-1",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                 Version.V_7_2_0))
             .add(new DiscoveryNode("current-data-node-with-2-tasks",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                 Version.CURRENT))
             .add(new DiscoveryNode("non-data-node-1",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
                 Version.CURRENT))
             .add(new DiscoveryNode("current-data-node-with-1-tasks",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
+                new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
                 Version.CURRENT));
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))

@@ -1,12 +1,16 @@
 [[getting-started]]
 = Getting started with {es}
 
+++++
+<titleabbrev>Getting started</titleabbrev>
+++++
+
 [partintro]
 --
 Ready to take {es} for a test drive and see for yourself how you can use the
 REST APIs to store, search, and analyze data?
 
-Step through this getting started tutorial to:
+Follow this getting started tutorial to:
 
 . Get an {es} instance up and running
 . Index some sample documents

@@ -61,7 +61,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     private final SearchRequest firstSearchRequest;
 
     public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail, ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
+                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
+                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;

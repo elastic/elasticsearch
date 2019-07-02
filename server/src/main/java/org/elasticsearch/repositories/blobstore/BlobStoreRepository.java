@@ -674,35 +674,39 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData repositoryData(long indexGen) throws IOException {
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+        if (indexGen < 0) {
+            assert indexGen == RepositoryData.EMPTY_REPO_GEN;
+            return RepositoryData.EMPTY;
+        }
+        final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
-            RepositoryData repositoryData;
-            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-            try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, blob)) {
-                repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
-            }
+        RepositoryData repositoryData;
+        // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+        try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName);
+             XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                 LoggingDeprecationHandler.INSTANCE, blob)) {
+            repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
+        }
 
-            // now load the incompatible snapshot ids, if they exist
-            try (InputStream blob = blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, blob)) {
-                repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
-            } catch (NoSuchFileException e) {
-                if (isReadOnly()) {
-                    logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
-                            "reason is that there are no incompatible snapshots in the repository",
-                        metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
-                } else {
-                    // write an empty incompatible-snapshots blob - we do this so that there
-                    // is a blob present, which helps speed up some cloud-based repositories
-                    // (e.g. S3), which retry if a blob is missing with exponential backoff,
-                    // delaying the read of repository data and sometimes causing a timeout
-                    writeIncompatibleSnapshots(RepositoryData.EMPTY);
-                }
+        // now load the incompatible snapshot ids, if they exist
+        try (InputStream blob = blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
+             XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                 LoggingDeprecationHandler.INSTANCE, blob)) {
+            repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
+        } catch (NoSuchFileException e) {
+            if (isReadOnly()) {
+                logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
+                        "reason is that there are no incompatible snapshots in the repository",
+                    metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
+            } else {
+                // write an empty incompatible-snapshots blob - we do this so that there
+                // is a blob present, which helps speed up some cloud-based repositories
+                // (e.g. S3), which retry if a blob is missing with exponential backoff,
+                // delaying the read of repository data and sometimes causing a timeout
+                writeIncompatibleSnapshots(RepositoryData.EMPTY);
             }
-            return repositoryData;
+        }
+        return repositoryData;
     }
 
     private static String testBlobPrefix(String seed) {

@@ -42,8 +42,8 @@ setup:
       snapshot.cleanup_repository:
         repository: test_repo_create_1
 
-  - match: { result.bytes: 0 }
-  - match: { result.blobs: 0 }
+  - match: { results.bytes: 0 }
+  - match: { results.blobs: 0 }
 
 ---
 "Create a snapshot for missing index":

@@ -468,8 +468,8 @@ public class OpenIdConnectAuthenticator {
             httpPost.setEntity(new UrlEncodedFormEntity(params));
             httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
             UsernamePasswordCredentials creds =
-                new UsernamePasswordCredentials(URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
-                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8));
+                new UsernamePasswordCredentials(URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8.name()),
+                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8.name()));
             httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {

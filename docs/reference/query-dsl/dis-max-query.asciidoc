@@ -5,7 +5,13 @@ Returns documents matching one or more wrapped queries, called query clauses or
 clauses.
 
 If a returned document matches multiple query clauses, the `dis_max` query
-assigns the document the highest relevance score from any matching clause.
+assigns the document the highest relevance score from any matching clause, plus
+a tie breaking increment for any additional matching subqueries.
+
+This is useful when searching for a word in multiple fields with different boost
+factors. If the query is "albino elephant," this ensures that "albino" matching
+one field and "elephant" matching another gets a higher score than "albino"
+matching both fields.
 
 [[query-dsl-dis-max-query-ex-request]]
 ==== Example request
@@ -17,8 +23,8 @@ GET /_search
     "query": {
         "dis_max" : {
             "queries" : [
-                { "match" : { "title" : "Quick pets" }},
-                { "match" : { "body" : "Quick pets" }}
+                { "match" : { "title" : "Albino elephant" }},
+                { "match" : { "body" : "Albino elephant" }}
             ],
             "tie_breaker" : 0.7
         }
@@ -42,12 +48,17 @@ queries, {es} uses the highest <<query-filter-context, relevance score>>.
 <<query-filter-context, relevance scores>> of documents matching multiple query
 clauses. Defaults to `0.0`.
 
+You can use the `tie_breaker` value to assign higher relevance scores to
+documents that contain the same term in multiple fields than documents that
+contain this term in only the best of those multiple fields, without confusing
+this with the better case of two different terms in the multiple fields.
+
 If a document matches multiple clauses, the `dis_max` query calculates the
 relevance score for the document as follows:
 
-. Take the highest relevance score from a matching clause.
+. Take the relevance score from a matching clause with the highest score.
 . Multiply the score from any other matching clauses by the `tie_breaker` value.
-. Add the highest score to the multiplied scores and normalize.
+. Add the highest score to the multiplied scores.
 
 If the `tie_breaker` value is greater than `0.0`, all matching clauses count,
 but the clause with the highest score counts most.

@@ -8,10 +8,8 @@ If a returned document matches multiple query clauses, the `dis_max` query
 assigns the document the highest relevance score from any matching clause, plus
 a tie breaking increment for any additional matching subqueries.
 
-This is useful when searching for a word in multiple fields with different boost
-factors. If the query is "albino elephant," this ensures that "albino" matching
-one field and "elephant" matching another gets a higher score than "albino"
-matching both fields.
+You can use the `dis_max` to search for a term in fields mapped with different
+<<mapping-boost,boost>> factors.
 
 [[query-dsl-dis-max-query-ex-request]]
 ==== Example request
@@ -23,8 +21,8 @@ GET /_search
     "query": {
         "dis_max" : {
             "queries" : [
-                { "match" : { "title" : "Albino elephant" }},
-                { "match" : { "body" : "Albino elephant" }}
+                { "term" : { "title" : "Quick pets" }},
+                { "term" : { "body" : "Quick pets" }}
             ],
             "tie_breaker" : 0.7
         }

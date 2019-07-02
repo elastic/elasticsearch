@@ -10,10 +10,12 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 public class JdbcNoSqlTestCase extends JdbcIntegrationTestCase {
+    
     public void testJdbcExceptionMessage() throws SQLException {
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM bla").executeQuery());
-            assertTrue(e.getMessage().startsWith("X-Pack/SQL do not seem to be available on the Elasticsearch node using the access path"));
+            assertTrue(e.getMessage().startsWith("X-Pack/SQL does not seem to be available on the Elasticsearch"
+                    + " node using the access path"));
         }
     }
 }

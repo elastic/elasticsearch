@@ -193,7 +193,7 @@ public class IndexResolverTests extends ESTestCase {
 
     // covers the scenario described in https://github.com/elastic/elasticsearch/issues/43876
     public void testMultipleCompatibleIndicesWithDifferentFields() {
-        int indicesCount = randomIntBetween(3, 15);
+        int indicesCount = randomIntBetween(2, 15);
         EsIndex[] expectedIndices = new EsIndex[indicesCount];
         
         // each index will have one field with different name than all others

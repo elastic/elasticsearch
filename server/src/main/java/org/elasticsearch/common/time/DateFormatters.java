@@ -97,62 +97,63 @@ public class DateFormatters {
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
-    private static DateTimeFormatter strictDateOptionalTimeParser(char decimalPoint) {
-        return new DateTimeFormatterBuilder()
-            .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-            .optionalStart()
-            .appendLiteral('T')
-            .optionalStart()
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(decimalPoint)
-            .appendFraction(NANO_OF_SECOND, 1, 9, false)
-            .optionalEnd()
-            .optionalEnd()
-            .optionalStart()
-            .appendZoneOrOffsetId()
-            .optionalEnd()
-            .optionalStart()
-            .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .toFormatter(Locale.ROOT);
-    }
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .optionalStart()
+        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendLiteral(',')
+        .appendFraction(NANO_OF_SECOND, 1, 9, false)
+        .optionalEnd()
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_NO_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
 
     /**
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional.
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME =
-        new JavaDateFormatter("strict_date_optional_time", STRICT_DATE_OPTIONAL_TIME_PRINTER,
-            strictDateOptionalTimeParser(','), strictDateOptionalTimeParser('.'));
+        new JavaDateFormatter("strict_date_optional_time", STRICT_DATE_OPTIONAL_TIME_PRINTER, STRICT_DATE_OPTIONAL_TIME_FORMATTER);
 
-    private static DateTimeFormatter strictDateOptionalTimeWithNanosParser(char decimalPoint) {
-        return new DateTimeFormatterBuilder()
-            .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-            .optionalStart()
-            .appendLiteral('T')
-            .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-            .optionalStart()
-            .appendLiteral(decimalPoint)
-            .appendFraction(NANO_OF_SECOND, 3, 9, false)
-            .optionalEnd()
-            .optionalStart()
-            .appendZoneOrOffsetId()
-            .optionalEnd()
-            .optionalStart()
-            .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .optionalEnd()
-            .optionalEnd()
-            .toFormatter(Locale.ROOT);
-    }
+    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .optionalStart()
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendLiteral(",")
+        .appendFraction(NANO_OF_SECOND, 1, 9, false)
+        .optionalEnd()
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .optionalStart()
+        .append(TIME_ZONE_FORMATTER_NO_COLON)
+        .optionalEnd()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder()
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
@@ -180,9 +181,7 @@ public class DateFormatters {
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional with nanosecond resolution.
      */
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter("strict_date_optional_time_nanos",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS,
-        strictDateOptionalTimeWithNanosParser(','),
-        strictDateOptionalTimeWithNanosParser('.'));
+        STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS);
 
     /**
      * Returns a ISO 8601 compatible date time formatter and parser.
@@ -190,10 +189,7 @@ public class DateFormatters {
      * existing joda time ISO date formatter
      */
     private static final DateFormatter ISO_8601 = new JavaDateFormatter("iso8601", STRICT_DATE_OPTIONAL_TIME_PRINTER,
-        is8601Parser(","), is8601Parser("."));
-
-    private static DateTimeFormatter is8601Parser(String decimalPoint) {
-        return new DateTimeFormatterBuilder()
+        new DateTimeFormatterBuilder()
             .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
             .optionalStart()
             .appendLiteral('T')
@@ -206,7 +202,10 @@ public class DateFormatters {
             .appendLiteral(':')
             .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
             .optionalStart()
-            .appendLiteral(decimalPoint)
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(",")
             .appendFraction(NANO_OF_SECOND, 1, 9, false)
             .optionalEnd()
             .optionalEnd()
@@ -219,8 +218,7 @@ public class DateFormatters {
             .append(TIME_ZONE_FORMATTER_NO_COLON)
             .optionalEnd()
             .optionalEnd()
-            .toFormatter(Locale.ROOT);
-    }
+            .toFormatter(Locale.ROOT));
 
     /////////////////////////////////////////
     //
@@ -934,10 +932,7 @@ public class DateFormatters {
      */
     private static final DateFormatter DATE_OPTIONAL_TIME = new JavaDateFormatter("date_optional_time",
         STRICT_DATE_OPTIONAL_TIME_PRINTER,
-        dateOptionalTimeParser(','), dateOptionalTimeParser('.'));
-
-    private static DateTimeFormatter dateOptionalTimeParser(char decimalPoint) {
-        return new DateTimeFormatterBuilder()
+        new DateTimeFormatterBuilder()
             .append(DATE_FORMATTER)
             .optionalStart()
             .appendLiteral('T')
@@ -951,7 +946,10 @@ public class DateFormatters {
             .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
             .optionalEnd()
             .optionalStart()
-            .appendLiteral(decimalPoint)
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(',')
             .appendFraction(NANO_OF_SECOND, 1, 9, false)
             .optionalEnd()
             .optionalStart().appendZoneOrOffsetId().optionalEnd()
@@ -959,8 +957,7 @@ public class DateFormatters {
             .optionalEnd()
             .optionalEnd()
             .optionalEnd()
-            .toFormatter(Locale.ROOT);
-    }
+            .toFormatter(Locale.ROOT));
 
     private static final DateTimeFormatter HOUR_MINUTE_SECOND_FORMATTER = new DateTimeFormatterBuilder()
         .append(HOUR_MINUTE_FORMATTER)

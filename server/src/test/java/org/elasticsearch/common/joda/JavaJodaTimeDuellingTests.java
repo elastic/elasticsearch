@@ -38,13 +38,6 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
 
-    public void testDecimalPointNotCombined() {
-        assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "iso8601");
-        assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
-        assertParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time");
-        assertParseException("2001-01-01T00:00:00.123,123Z", "date_optional_time");
-    }
-
     //these parsers should allow both ',' and '.' as a decimal point
     public void testDecimalPointParsing(){
         assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time");

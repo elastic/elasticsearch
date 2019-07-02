@@ -56,6 +56,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
@@ -312,12 +313,15 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param pathStr Name of path to delete
      */
-    void deleteDirectory(String pathStr) throws IOException {
+    void deleteDirectory(String pathStr, LongConsumer resultConsumer) throws IOException {
         SocketAccess.doPrivilegedVoidIOException(() -> {
             Page<Blob> page = client().get(bucketName).list(BlobListOption.prefix(pathStr));
             do {
                 final Collection<String> blobsToDelete = new ArrayList<>();
-                page.getValues().forEach(b -> blobsToDelete.add(b.getName()));
+                page.getValues().forEach(b -> {
+                    blobsToDelete.add(b.getName());
+                    resultConsumer.accept(b.getSize());
+                });
                 deleteBlobsIgnoringIfNotExists(blobsToDelete);
                 page = page.getNextPage();
             } while (page != null);

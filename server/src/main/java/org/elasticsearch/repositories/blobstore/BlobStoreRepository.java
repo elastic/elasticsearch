@@ -107,6 +107,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -421,7 +422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .orElse(Collections.emptyList()),
                 snapshotId,
                 ActionListener.map(listener, v -> {
-                    cleanupStaleIndices(foundIndices, survivingIndices);
+                    cleanupStaleIndices(foundIndices, survivingIndices, l -> {});
                     return null;
                 })
             );
@@ -433,7 +434,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * TODO: Add top level blob cleanup
      * TODO: Add shard level cleanups
      * <ul>
-     *     <li>Deleting stale indices {@link #cleanupStaleIndices(Map, Map)}</li>
+     *     <li>Deleting stale indices {@link #cleanupStaleIndices}</li>
      * </ul>
      * @param repositoryStateId Current repository state id
      * @param listener Lister to complete when done
@@ -443,12 +444,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // TODO: ensure state id
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
             final RepositoryData repositoryData = repositoryData(repositoryStateId);
-            cleanupStaleIndices(foundIndices, repositoryData.getIndices());
-            return RepositoryCleanupResult.start().finish();
+            final RepositoryCleanupResult.Progress progress = RepositoryCleanupResult.start();
+            cleanupStaleIndices(foundIndices, repositoryData.getIndices(), progress);
+            return progress.finish();
         });
     }
 
-    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Map<String, IndexId> survivingIndices) {
+    private void cleanupStaleIndices(Map<String, BlobContainer> foundIndices, Map<String, IndexId> survivingIndices,
+                                     LongConsumer progress) {
         try {
             final Set<String> survivingIndexIds = survivingIndices.values().stream()
                 .map(IndexId::getId).collect(Collectors.toSet());
@@ -457,7 +460,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     if (survivingIndexIds.contains(indexSnId) == false) {
                         logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexSnId);
-                        indexEntry.getValue().delete();
+                        indexEntry.getValue().delete(progress);
                         logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexSnId);
                     }
                 } catch (IOException e) {

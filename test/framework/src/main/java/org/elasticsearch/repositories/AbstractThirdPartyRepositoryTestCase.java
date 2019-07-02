@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -77,7 +78,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         repo.threadPool().generic().execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
-                repo.blobStore().blobContainer(path).delete();
+                repo.blobStore().blobContainer(path).delete(l -> {});
                 future.onResponse(null);
             }
         });
@@ -226,26 +227,41 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 .state(),
             equalTo(SnapshotState.SUCCESS));
 
-        logger.info("--> creating a dangling index folder");
         final BlobStoreRepository repo =
             (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
+
+        logger.info("--> creating a dangling index folder");
+
+        createDanglingIndex(repo, genericExec);
+
+        logger.info("--> deleting a snapshot to trigger repository cleanup");
+        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
+
+        assertConsistentRepository(repo, genericExec);
+
+        logger.info("--> Create dangling index");
+        createDanglingIndex(repo, genericExec);
+
+        logger.info("--> Execute repository cleanup");
+        final CleanupRepositoryResponse response = client().admin().cluster().prepareCleanupRepository("test-repo").get();
+        assertThat(response.result().blobs(), equalTo(1L));
+        assertThat(response.result().bytes(), equalTo(3L));
+    }
+
+    private void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         genericExec.execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo"))
-                    .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
+                blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
+                    .writeBlob("bar", new ByteArrayInputStream(new byte[3]), 3, false);
                 future.onResponse(null);
             }
         });
         future.actionGet();
         assertTrue(assertCorruptionVisible(repo, genericExec));
-        logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
-
-        assertConsistentRepository(repo, genericExec);
     }
 
     protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
@@ -255,8 +271,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
                 future.onResponse(
-                    blobStore.blobContainer(BlobPath.cleanPath().add("indices")).children().containsKey("foo")
-                        && blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo")).blobExists("bar")
+                    blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
+                        && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists("bar")
                 );
             }
         });

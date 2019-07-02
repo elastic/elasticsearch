@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
     private final HdfsBlobStore store;
@@ -79,7 +80,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
+    public void delete(LongConsumer resultConsumer) throws IOException {
+        // TODO: See if we can get precise result reporting.
+        resultConsumer.accept(0);
         store.execute(fileContext -> fileContext.delete(path, true));
     }
 

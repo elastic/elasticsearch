@@ -59,6 +59,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 public class MockRepository extends FsRepository {
@@ -335,9 +336,9 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void delete() throws IOException {
+            public void delete(LongConsumer resultConsumer) throws IOException {
                 for (BlobContainer child : children().values()) {
-                    child.delete();
+                    child.delete(resultConsumer);
                 }
                 for (String blob : listBlobs().values().stream().map(BlobMetaData::name).collect(Collectors.toList())) {
                     deleteBlobIgnoringIfNotExists(blob);

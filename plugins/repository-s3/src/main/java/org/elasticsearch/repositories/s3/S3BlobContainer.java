@@ -56,6 +56,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -131,7 +132,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
+    public void delete(LongConsumer resultConsumer) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             ObjectListing prevListing = null;
             while (true) {
@@ -145,8 +146,11 @@ class S3BlobContainer extends AbstractBlobContainer {
                     listObjectsRequest.setPrefix(keyPath);
                     list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
                 }
-                final List<String> blobsToDelete =
-                    list.getObjectSummaries().stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
+                final List<String> blobsToDelete = new ArrayList<>();
+                    list.getObjectSummaries().forEach(s3ObjectSummary -> {
+                        resultConsumer.accept(s3ObjectSummary.getSize());
+                        blobsToDelete.add(s3ObjectSummary.getKey());
+                    });
                 if (list.isTruncated()) {
                     doDeleteBlobs(blobsToDelete, false);
                     prevListing = list;

@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
 public class BlobContainerWrapper implements BlobContainer {
     private BlobContainer delegate;
@@ -65,8 +66,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
-        delegate.delete();
+    public void delete(LongConsumer resultConsumer) throws IOException {
+        delegate.delete(resultConsumer);
     }
 
     @Override

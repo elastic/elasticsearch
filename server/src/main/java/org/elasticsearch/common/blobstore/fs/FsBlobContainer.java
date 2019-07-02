@@ -45,6 +45,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -110,7 +111,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         if (Files.isDirectory(blobPath)) {
             // delete directory recursively as long as it is empty (only contains empty directories),
             // which is the reason we aren't deleting any files, only the directories on the post-visit
-            Files.walkFileTree(blobPath, new SimpleFileVisitor<Path>() {
+            Files.walkFileTree(blobPath, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
                     Files.delete(dir);
@@ -123,8 +124,22 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
-        IOUtils.rm(path);
+    public void delete(LongConsumer resultConsumer) throws IOException {
+        Files.walkFileTree(path, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException impossible) throws IOException {
+                assert impossible == null;
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                resultConsumer.accept(attrs.size());
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     @Override

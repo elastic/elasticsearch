@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
@@ -87,8 +88,8 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
-        blobStore.deleteDirectory(path().buildAsString());
+    public void delete(LongConsumer resultConsumer) throws IOException {
+        blobStore.deleteDirectory(path().buildAsString(), resultConsumer);
     }
 
     @Override

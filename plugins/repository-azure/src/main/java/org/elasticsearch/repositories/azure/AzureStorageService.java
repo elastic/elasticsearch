@@ -67,6 +67,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -192,7 +193,7 @@ public class AzureStorageService {
         });
     }
 
-    void deleteBlobDirectory(String account, String container, String path, Executor executor)
+    void deleteBlobDirectory(String account, String container, String path, Executor executor, LongConsumer resultConsumer)
             throws URISyntaxException, StorageException, IOException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
@@ -208,7 +209,16 @@ public class AzureStorageService {
                 executor.execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
+                        final long len;
+                        if (blobItem instanceof CloudBlob) {
+                            len = ((CloudBlob) blobItem).getProperties().getLength();
+                        } else {
+                            len = -1L;
+                        }
                         deleteBlob(account, container, blobPath);
+                        if (len >= 0) {
+                            resultConsumer.accept(len);
+                        }
                     }
 
                     @Override

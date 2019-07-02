@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.stream.LongStream;
+import java.util.function.LongConsumer;
 
 public final class RepositoryCleanupResult implements Writeable, ToXContentObject {
 
@@ -43,6 +43,14 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
         blobs = in.readLong();
     }
 
+    public long bytes() {
+        return bytes;
+    }
+
+    public long blobs() {
+        return blobs;
+    }
+
     public static Progress start() {
         return new Progress();
     }
@@ -58,16 +66,17 @@ public final class RepositoryCleanupResult implements Writeable, ToXContentObjec
         return builder.startObject().field("bytes", bytes).field("blobs", blobs).endObject();
     }
 
-    public static final class Progress {
+    public static final class Progress implements LongConsumer {
 
         private long bytesCounter;
 
         private long blobsCounter;
 
-        public void add(long[] sizes) {
+        @Override
+        public void accept(long size) {
             synchronized (this) {
-                blobsCounter += sizes.length;
-                bytesCounter += LongStream.of(sizes).sum();
+                ++blobsCounter;
+                bytesCounter += size;
             }
         }
 

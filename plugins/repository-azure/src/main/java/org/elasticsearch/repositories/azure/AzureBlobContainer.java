@@ -42,6 +42,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.function.LongConsumer;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
@@ -127,9 +128,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete() throws IOException {
+    public void delete(LongConsumer resultConsumer) throws IOException {
         try {
-            blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
+            blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME), resultConsumer);
         } catch (URISyntaxException | StorageException e) {
             throw new IOException(e);
         }

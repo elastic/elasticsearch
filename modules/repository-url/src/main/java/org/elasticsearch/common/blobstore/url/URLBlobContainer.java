@@ -35,6 +35,7 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
 /**
  * URL blob implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}
@@ -97,7 +98,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void delete() {
+    public void delete(LongConsumer resultConsumer) {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 

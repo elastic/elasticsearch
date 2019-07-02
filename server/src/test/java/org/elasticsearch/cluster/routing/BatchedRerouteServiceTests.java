@@ -20,7 +20,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
@@ -41,9 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.startsWith;
 
-public class RoutingServiceTests extends ESTestCase {
+public class BatchedRerouteServiceTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
@@ -60,38 +58,19 @@ public class RoutingServiceTests extends ESTestCase {
         threadPool.shutdown();
     }
 
-    public void testRejectionUnlessStarted() {
-        final RoutingService routingService = new RoutingService(clusterService, (s, r) -> s);
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-
-        if (randomBoolean()) {
-            routingService.start();
-            routingService.stop();
-        } else if (randomBoolean()) {
-            routingService.close();
-        }
-
-        routingService.reroute("test", future);
-        assertTrue(future.isDone());
-        assertThat(expectThrows(IllegalStateException.class, future::actionGet).getMessage(),
-            startsWith("rejecting delayed reroute [test] in state ["));
-    }
-
     public void testReroutesWhenRequested() throws InterruptedException {
         final AtomicLong rerouteCount = new AtomicLong();
-        final RoutingService routingService = new RoutingService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
             rerouteCount.incrementAndGet();
             return s;
         });
-
-        routingService.start();
 
         long rerouteCountBeforeReroute = 0L;
         final int iterations = between(1, 100);
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
             rerouteCountBeforeReroute = Math.max(rerouteCountBeforeReroute, rerouteCount.get());
-            routingService.reroute("iteration " + i, ActionListener.wrap(countDownLatch::countDown));
+            batchedRerouteService.reroute("iteration " + i, ActionListener.wrap(countDownLatch::countDown));
         }
         countDownLatch.await(10, TimeUnit.SECONDS);
         assertThat(rerouteCountBeforeReroute, lessThan(rerouteCount.get()));
@@ -116,17 +95,15 @@ public class RoutingServiceTests extends ESTestCase {
         cyclicBarrier.await(); // wait for master thread to be blocked
 
         final AtomicBoolean rerouteExecuted = new AtomicBoolean();
-        final RoutingService routingService = new RoutingService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
             assertTrue(rerouteExecuted.compareAndSet(false, true)); // only called once
             return s;
         });
 
-        routingService.start();
-
         final int iterations = between(1, 100);
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
-            routingService.reroute("iteration " + i, ActionListener.wrap(countDownLatch::countDown));
+            batchedRerouteService.reroute("iteration " + i, ActionListener.wrap(countDownLatch::countDown));
         }
 
         cyclicBarrier.await(); // allow master thread to continue;
@@ -136,18 +113,17 @@ public class RoutingServiceTests extends ESTestCase {
 
     public void testNotifiesOnFailure() throws InterruptedException {
 
-        final RoutingService routingService = new RoutingService(clusterService, (s, r) -> {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(clusterService, (s, r) -> {
             if (rarely()) {
                 throw new ElasticsearchException("simulated");
             }
             return randomBoolean() ? s : ClusterState.builder(s).build();
         });
-        routingService.start();
 
         final int iterations = between(1, 100);
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
-            routingService.reroute("iteration " + i, ActionListener.wrap(countDownLatch::countDown));
+            batchedRerouteService.reroute("iteration " + i, ActionListener.wrap(countDownLatch::countDown));
             if (rarely()) {
                 clusterService.getMasterService().setClusterStatePublisher(
                     randomBoolean()

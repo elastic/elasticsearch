@@ -122,19 +122,21 @@ public class ClusterFormationFailureHelper {
         private final List<TransportAddress> resolvedAddresses;
         private final List<DiscoveryNode> foundPeers;
         private final long currentTerm;
+        private final ElectionStrategy electionStrategy;
 
         ClusterFormationState(Settings settings, ClusterState clusterState, List<TransportAddress> resolvedAddresses,
-                              List<DiscoveryNode> foundPeers, long currentTerm) {
+                              List<DiscoveryNode> foundPeers, long currentTerm, ElectionStrategy electionStrategy) {
             this.settings = settings;
             this.clusterState = clusterState;
             this.resolvedAddresses = resolvedAddresses;
             this.foundPeers = foundPeers;
             this.currentTerm = currentTerm;
+            this.electionStrategy = electionStrategy;
         }
 
         String getDescription() {
-            final List<String> clusterStateNodes
-                = StreamSupport.stream(clusterState.nodes().spliterator(), false).map(DiscoveryNode::toString).collect(Collectors.toList());
+            final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
+                .map(n -> n.value.toString()).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
                 "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
@@ -188,7 +190,9 @@ public class ClusterFormationFailureHelper {
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
             final String isQuorumOrNot
-                = CoordinationState.isElectionQuorum(voteCollection, clusterState) ? "is a quorum" : "is not a quorum";
+                = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), currentTerm, clusterState.term(),
+                    clusterState.version(), clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(),
+                    voteCollection) ? "is a quorum" : "is not a quorum";
 
             return String.format(Locale.ROOT,
                 "master not discovered or elected yet, an election requires %s, have discovered %s which %s; %s",

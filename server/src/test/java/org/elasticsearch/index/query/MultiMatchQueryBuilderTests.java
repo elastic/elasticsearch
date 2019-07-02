@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -59,15 +60,9 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
-public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatchQueryBuilder> {
+public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
     private static final String MISSING_WILDCARD_FIELD_NAME = "missing_*";
     private static final String MISSING_FIELD_NAME = "missing";
-
-    @Override
-    protected boolean isCacheable(MultiMatchQueryBuilder queryBuilder) {
-        return queryBuilder.fuzziness() != null
-                || isCacheable(queryBuilder.fields().keySet(), queryBuilder.value().toString());
-    }
 
     @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
@@ -241,10 +236,9 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
-        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryFieldMissing() throws Exception {
@@ -266,23 +260,6 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
     }
 
     public void testToQueryBooleanPrefixMultipleFields() throws IOException {
-        {
-            final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
-            builder.type(Type.BOOL_PREFIX);
-            final Query query = builder.toQuery(createShardContext());
-            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-            final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
-            assertThat(disMaxQuery.getDisjuncts(), hasSize(2));
-            for (Query disjunctQuery : disMaxQuery.getDisjuncts()) {
-                assertThat(disjunctQuery, instanceOf(BooleanQuery.class));
-                final BooleanQuery booleanQuery = (BooleanQuery) disjunctQuery;
-                assertThat(booleanQuery.clauses(), hasSize(2));
-                assertThat(assertBooleanSubQuery(booleanQuery, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
-                assertThat(assertBooleanSubQuery(booleanQuery, PrefixQuery.class, 1).getPrefix(),
-                    equalTo(new Term(STRING_FIELD_NAME, "bar")));
-            }
-        }
-
         {
             // STRING_FIELD_NAME_2 is a keyword field
             final MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_FIELD_NAME_2);
@@ -451,9 +428,9 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
             query = qb.toQuery(context);
             expected = new DisjunctionMaxQuery(
                 Arrays.asList(
+                    new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]"),
                     new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f),
-                    new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
                 ), 0.0f
             );
             assertEquals(expected, query);
@@ -571,8 +548,26 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
+    }
+
+    /**
+     * "now" on date fields should make the query non-cachable.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit a date field with "now", this should diable cachability
+        MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("now", DATE_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

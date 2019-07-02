@@ -62,6 +62,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
@@ -72,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -84,12 +86,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStringQueryBuilder> {
-    @Override
-    protected boolean isCacheable(QueryStringQueryBuilder queryBuilder) {
-        return queryBuilder.fuzziness() != null
-                || isCacheable(queryBuilder.fields().keySet(), queryBuilder.queryString());
-    }
+public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -109,8 +106,11 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         int numTerms = randomIntBetween(0, 5);
         String query = "";
         for (int i = 0; i < numTerms; i++) {
-            //min length 4 makes sure that the text is not an operator (AND/OR) so toQuery won't break
-            query += (randomBoolean() ? STRING_FIELD_NAME + ":" : "") + randomAlphaOfLengthBetween(4, 10) + " ";
+            // min length 4 makes sure that the text is not an operator (AND/OR) so toQuery won't break
+            // also avoid "now" since we might hit dqte fields later and this complicates caching checks
+            String term = randomValueOtherThanMany(s -> s.toLowerCase(Locale.ROOT).contains("now"),
+                    () -> randomAlphaOfLengthBetween(4, 10));
+            query += (randomBoolean() ? STRING_FIELD_NAME + ":" : "") + term + " ";
         }
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
         if (randomBoolean()) {
@@ -519,13 +519,11 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryDisMaxQuery() throws Exception {
@@ -768,50 +766,40 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would result in more than 10 states"));
     }
 
-    /**
-     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
-     */
-    public void testEnabledPositionIncrements() throws Exception {
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject(); {
-            builder.startObject("query_string"); {
-                builder.field("query", "text");
-                builder.field("default_field", STRING_FIELD_NAME);
-                builder.field("enable_position_increments", false);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) parseInnerQueryBuilder(createParser(builder));
-        assertFalse(queryBuilder.enablePositionIncrements());
-    }
-
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
-        int length = randomIntBetween(1, 10);
-        StringBuilder queryString = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            queryString.append("a");
-        }
-        queryString.append("~");
+        for (int i = 0; i < 3; i++) {
+            final int len;
+            final int expectedEdits;
+            switch (i) {
+                case 0:
+                    len = randomIntBetween(1, 2);
+                    expectedEdits = 0;
+                    break;
 
-        int expectedEdits;
-        if (length <= 2) {
-            expectedEdits = 0;
-        } else if (3 <= length && length <= 5) {
-            expectedEdits = 1;
-        } else {
-            expectedEdits = 2;
-        }
+                case 1:
+                    len = randomIntBetween(3, 5);
+                    expectedEdits = 1;
+                    break;
 
-        Query query = queryStringQuery(queryString.toString()).defaultField(STRING_FIELD_NAME).fuzziness(Fuzziness.AUTO)
-            .toQuery(createShardContext());
-        assertThat(query, instanceOf(FuzzyQuery.class));
-        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
-        assertEquals(expectedEdits, fuzzyQuery.getMaxEdits());
+                default:
+                    len = randomIntBetween(6, 20);
+                    expectedEdits = 2;
+                    break;
+            }
+            char[] bytes = new char[len];
+            Arrays.fill(bytes, 'a');
+            String queryString = new String(bytes);
+            for (int j = 0; j < 2; j++) {
+                Query query = queryStringQuery(queryString + (j == 0 ? "~" : "~auto"))
+                    .defaultField(STRING_FIELD_NAME)
+                    .fuzziness(Fuzziness.AUTO)
+                    .toQuery(createShardContext());
+                assertThat(query, instanceOf(FuzzyQuery.class));
+                FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
+                assertEquals(expectedEdits, fuzzyQuery.getMaxEdits());
+            }
+        }
     }
-
     public void testFuzzyNumeric() throws Exception {
         QueryStringQueryBuilder query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();
@@ -1433,6 +1421,19 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         assertEquals(expected, query);
     }
 
+    public void testEnablePositionIncrement() throws Exception {
+        Query query = new QueryStringQueryBuilder("\"quick the fox\"")
+            .field(STRING_FIELD_NAME)
+            .analyzer("stop")
+            .enablePositionIncrements(false)
+            .toQuery(createShardContext());
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
+        assertEquals(expected, query);
+    }
+
     public void testWithPrefixStopWords() throws Exception {
         Query query = new QueryStringQueryBuilder("the* quick fox")
             .field(STRING_FIELD_NAME)
@@ -1541,6 +1542,19 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
     }
 
+    public void testMergeBoosts() throws IOException {
+        Query query = new QueryStringQueryBuilder("first")
+            .type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
+            .field(STRING_FIELD_NAME, 0.3f)
+            .field(STRING_FIELD_NAME.substring(0, STRING_FIELD_NAME.length()-2) + "*", 0.5f)
+            .toQuery(createShardContext());
+        List<Query> terms = new ArrayList<>();
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME, "first")), 0.075f));
+        terms.add(new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "first")), 0.5f));
+        Query expected = new DisjunctionMaxQuery(terms, 1.0f);
+        assertEquals(expected, query);
+    }
+
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)
@@ -1557,8 +1571,43 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
+    }
+
+    /**
+     * Query terms that contain "now" can trigger a query to not be cacheable.
+     * This test checks the search context cacheable flag is updated accordingly.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit all fields, this should contain a date field and should diable cachability
+        String query = "now " + randomAlphaOfLengthBetween(4, 10);
+        QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
+        assertQueryCachability(queryStringQueryBuilder, false);
+
+        // if we hit a date field with "now", this should diable cachability
+        queryStringQueryBuilder = new QueryStringQueryBuilder("now");
+        queryStringQueryBuilder.field(DATE_FIELD_NAME);
+        assertQueryCachability(queryStringQueryBuilder, false);
+
+        // everything else is fine on all fields
+        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
+        queryStringQueryBuilder = new QueryStringQueryBuilder(query);
+        assertQueryCachability(queryStringQueryBuilder, true);
+    }
+
+    private void assertQueryCachability(QueryStringQueryBuilder qb, boolean cachingExpected) throws IOException {
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(qb, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
+                context.isCacheable());
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -28,8 +29,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -98,6 +101,14 @@ public class SeedHostsResolverTests extends ESTestCase {
             EsExecutors.newScaling(
                 getClass().getName() + "/" + getTestName(), 0, 2, 60, TimeUnit.SECONDS, threadFactory, threadPool.getThreadContext());
         closeables = new Stack<>();
+    }
+
+    private void recreateSeedHostsResolver(TransportService transportService, Settings settings) {
+        if (seedHostsResolver != null) {
+            seedHostsResolver.stop();
+        }
+        seedHostsResolver = new SeedHostsResolver("test_node", settings, transportService, hostsResolver -> transportAddresses);
+        seedHostsResolver.start();
     }
 
     @After
@@ -176,6 +187,7 @@ public class SeedHostsResolverTests extends ESTestCase {
                 Collections.emptySet());
         closeables.push(transportService);
         final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
+            new CancellableThreads(),
             executorService,
             logger,
             IntStream.range(9300, 9310)
@@ -228,6 +240,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
 
         final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
+            new CancellableThreads(),
             executorService,
             logger,
             Arrays.asList(hostname),
@@ -286,6 +299,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(3, 5));
         try {
             final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
+                new CancellableThreads(),
                 executorService,
                 logger,
                 Arrays.asList("hostname1", "hostname2"),
@@ -303,7 +317,63 @@ public class SeedHostsResolverTests extends ESTestCase {
         }
     }
 
-    public void testInvalidHosts() {
+    public void testCancellationOnClose() throws InterruptedException {
+        final NetworkService networkService = new NetworkService(Collections.emptyList());
+        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch conditionLatch = new CountDownLatch(1);
+        final Transport transport = new MockNioTransport(
+            Settings.EMPTY,
+            Version.CURRENT,
+            threadPool,
+            networkService,
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService()) {
+
+            @Override
+            public BoundTransportAddress boundAddress() {
+                return new BoundTransportAddress(
+                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9500)},
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9500)
+                );
+            }
+
+            @Override
+            public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+                if ("hostname1".equals(address)) {
+                    return new TransportAddress[]{new TransportAddress(TransportAddress.META_ADDRESS, 9300)};
+                } else if ("hostname2".equals(address)) {
+                    try {
+                        conditionLatch.countDown();
+                        latch.await();
+                        throw new AssertionError("should never be called");
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                } else {
+                    throw new UnknownHostException(address);
+                }
+            }
+
+        };
+        closeables.push(transport);
+
+        final TransportService transportService =
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null,
+                Collections.emptySet());
+        closeables.push(transportService);
+        recreateSeedHostsResolver(transportService,
+            Settings.builder().put(SeedHostsResolver.DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey(), "10m").build());
+
+        final PlainActionFuture<List<TransportAddress>> fut = new PlainActionFuture<>();
+        threadPool.generic().execute((() -> fut.onResponse(seedHostsResolver.resolveHosts(Arrays.asList("hostname1", "hostname2")))));
+
+        conditionLatch.await();
+        seedHostsResolver.stop();
+        assertThat(FutureUtils.get(fut, 10, TimeUnit.SECONDS), hasSize(0));
+    }
+
+    public void testInvalidHosts() throws IllegalAccessException {
         final Logger logger = mock(Logger.class);
         final Transport transport = new MockNioTransport(
             Settings.EMPTY,
@@ -328,6 +398,7 @@ public class SeedHostsResolverTests extends ESTestCase {
                 Collections.emptySet());
         closeables.push(transportService);
         final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
+            new CancellableThreads(),
             executorService,
             logger,
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),

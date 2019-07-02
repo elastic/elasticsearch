@@ -178,8 +178,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
-            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, mapperService, null, scriptService,
-                    xContentRegistry(), namedWriteableRegistry, null, null, System::currentTimeMillis, null);
+            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, mapperService, null,
+                    scriptService, xContentRegistry(), namedWriteableRegistry, null, null, System::currentTimeMillis, null);
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());

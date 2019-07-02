@@ -17,7 +17,7 @@ import java.util.function.BiConsumer;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -74,7 +74,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
-    private Map<Action<?>, Map<ActionRequest, ActionListener<?>>> actions;
+    private Map<ActionType<?>, Map<ActionRequest, ActionListener<?>>> actions;
 
     @Before
     public void setUpManager() {
@@ -90,7 +90,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Client client = new FilterClient(mockClient) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 final Map<ActionRequest, ActionListener<?>> map = actions.getOrDefault(action, new HashMap<>());
                 map.put(request, listener);
                 actions.put(action, map);
@@ -155,8 +155,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(clusterStateBuilder));
 
         assertTrue(listenerCalled.get());
-        assertNull(previousState.get().indexStatus);
-        assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexStatus);
+        assertNull(previousState.get().indexHealth);
+        assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexHealth);
 
         // reset and call with no change to the index
         listenerCalled.set(false);
@@ -191,8 +191,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         event = new ClusterChangedEvent("different index health", clusterStateBuilder.build(), previousClusterState);
         manager.clusterChanged(event);
         assertTrue(listenerCalled.get());
-        assertEquals(ClusterHealthStatus.GREEN, previousState.get().indexStatus);
-        assertEquals(ClusterHealthStatus.RED, currentState.get().indexStatus);
+        assertEquals(ClusterHealthStatus.GREEN, previousState.get().indexHealth);
+        assertEquals(ClusterHealthStatus.RED, currentState.get().indexHealth);
 
         // swap prev and current
         listenerCalled.set(false);
@@ -201,8 +201,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         event = new ClusterChangedEvent("different index health swapped", previousClusterState, clusterStateBuilder.build());
         manager.clusterChanged(event);
         assertTrue(listenerCalled.get());
-        assertEquals(ClusterHealthStatus.RED, previousState.get().indexStatus);
-        assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexStatus);
+        assertEquals(ClusterHealthStatus.RED, previousState.get().indexHealth);
+        assertEquals(ClusterHealthStatus.GREEN, currentState.get().indexHealth);
     }
 
     public void testWriteBeforeStateNotRecovered() throws Exception {
@@ -247,7 +247,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(prepareRunnableCalled.get(), is(true));
     }
 
-    public void testListeneredNotCalledBeforeStateNotRecovered() throws Exception {
+    public void testListenerNotCalledBeforeStateNotRecovered() throws Exception {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
         manager.addIndexStateListener((prev, current) -> {
             listenerCalled.set(true);
@@ -307,6 +307,31 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertTrue(manager.isIndexUpToDate());
     }
 
+    public void testProcessClosedIndexState() throws Exception {
+        // Index initially exists
+        final ClusterState.Builder indexAvailable = createClusterState(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
+            RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME, IndexMetaData.State.OPEN);
+        markShardsAvailable(indexAvailable);
+
+        manager.clusterChanged(event(indexAvailable));
+        assertThat(manager.indexExists(), is(true));
+        assertThat(manager.isAvailable(), is(true));
+
+        // Now close it
+        final ClusterState.Builder indexClosed = createClusterState(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
+            RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME, IndexMetaData.State.CLOSE);
+        if (randomBoolean()) {
+            // In old/mixed cluster versions closed indices have no routing table
+            indexClosed.routingTable(RoutingTable.EMPTY_ROUTING_TABLE);
+        } else {
+            markShardsAvailable(indexClosed);
+        }
+
+        manager.clusterChanged(event(indexClosed));
+        assertThat(manager.indexExists(), is(true));
+        assertThat(manager.isAvailable(), is(false));
+    }
+
     private void assertInitialState() {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
@@ -322,18 +347,23 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName) throws IOException {
-        return createClusterState(indexName, aliasName, templateName, templateName, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT);
+        return createClusterState(indexName, aliasName, templateName, IndexMetaData.State.OPEN);
+    }
+
+    public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName,
+                                                          IndexMetaData.State state) throws IOException {
+        return createClusterState(indexName, aliasName, templateName, templateName, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT, state);
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, int format)
             throws IOException {
-        return createClusterState(indexName, aliasName, templateName, templateName, format);
+        return createClusterState(indexName, aliasName, templateName, templateName, format, IndexMetaData.State.OPEN);
     }
 
     private static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, String buildMappingFrom,
-            int format) throws IOException {
+                                                           int format, IndexMetaData.State state) throws IOException {
         IndexTemplateMetaData.Builder templateBuilder = getIndexTemplateMetaData(templateName);
-        IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, aliasName, buildMappingFrom, format);
+        IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, aliasName, buildMappingFrom, format, state);
 
         MetaData.Builder metaDataBuilder = new MetaData.Builder();
         metaDataBuilder.put(templateBuilder);
@@ -354,7 +384,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 .build();
     }
 
-    private static IndexMetaData.Builder getIndexMetadata(String indexName, String aliasName, String templateName, int format)
+    private static IndexMetaData.Builder getIndexMetadata(String indexName, String aliasName, String templateName, int format,
+                                                          IndexMetaData.State state)
             throws IOException {
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
         indexMetaData.settings(Settings.builder()
@@ -364,6 +395,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), format)
                 .build());
         indexMetaData.putAlias(AliasMetaData.builder(aliasName).build());
+        indexMetaData.state(state);
         final Map<String, String> mappings = getTemplateMappings(templateName);
         for (Map.Entry<String, String> entry : mappings.entrySet()) {
             indexMetaData.putMapping(entry.getKey(), entry.getValue());

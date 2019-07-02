@@ -44,11 +44,6 @@ public class CCRFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Cross Cluster Replication";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isCcrAllowed();
     }

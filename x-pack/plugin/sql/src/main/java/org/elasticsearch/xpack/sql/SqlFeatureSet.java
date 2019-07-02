@@ -46,11 +46,6 @@ public class SqlFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "SQL access to Elasticsearch";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isSqlAllowed();
     }

@@ -58,7 +58,6 @@ public class ClusterDeprecationChecks {
                 "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " uses the [ecs] option which needs to be removed to work in 8.0");
         }
         return null;
-
     }
 
     static DeprecationIssue checkTemplatesWithTooManyFields(ClusterState state) {

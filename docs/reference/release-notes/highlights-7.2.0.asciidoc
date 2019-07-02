@@ -10,5 +10,94 @@ coming[7.2.0]
 //Installation and Upgrade Guide
 
 // tag::notable-highlights[]
+[discrete]
+==== {dataframes-cap}
+
+beta[] You can now transform your data with
+{stack-ov}/ml-dataframes.html[data frames]. There is a new {kib} wizard that
+guides you through the process of creating a {dataframe-transform} to pivot and
+summarize your data and store it in a new index. Alternatively, you can use
+{ref}/data-frame-apis.html[{dataframe} APIs] to preview, create, and manage
+the transforms.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Closed indices are now replicated
+
+Elasticsearch 7.2.0 brings better support for closed indices by allowing
+shards of closed indices to be replicated.
+As soon as an index is closed, Elasticsearch takes care of safely tearing down
+the "opened" shards before reinitializing them as "closed" shards, which require
+fewer resources. Closed shards can later be promoted to primary shards or
+automatically recovered during {ref}/recovery.html[peer recovery]
+The data is also automatically replicated by the
+cluster to ensure that enough shard copies are safely kept around at all
+times (configurable with `index.number_of_replicas`).
+
+In addition to that, it is now possible to snapshot closed indices using
+the {ref}/modules-snapshots.html[Snapshot/Restore API]. To include a closed index
+when creating a snapshot on Elasticsearch 7.2+, the `expand_wildcards`
+parameter must be explicitly set to either `all` or `closed` .
+
+Note that only indices closed in Elasticsearch 7.2+ are automatically
+replicated. Indices closed on previous versions of Elasticsearch will
+remain non replicated unless they are opened and closed again in 7.2+.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Geo features in SQL
+beta[] This release introduces the first set of geo features to SQL.
+The implementation is based on the OpenGIS® Implementation Standard for Geographic
+information - "Simple feature access". This is the current de-facto standard for GIS
+system implementation. This release includes a small subset of SQL option AKA ISO 19125-2.
+
+For this initial beta release, we added support for returning
+geo_shapes and geo_points as results, added support for a few geo functions
+(ST_AsText, ST_Distance, ST_GeometryType, ST_GeometryFromText, ST_X, ST_Y, and ST_Z)
+, and added a limited support for using geo_points in distance queries. For example:
+SELECT * FROM my_index WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) < 20.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== OpenId Connect authentication realm
+
+This release introduces OpenId Connect as an authentication realm.
+Elasticsearch (with the assistance of Kibana or another web component) can now serve as an
+OpenID Connect Relying Party (RP). {es} supports the Authorization Code Grant and Implicit
+flows as described in http://ela.st/oidc-spec. It also supports consuming and verifying signed ID Tokens
+, RP initiated single sign on (SSO), 3rd party initiated SSO, and RP initiated single logout.
+
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Search as you type field mapping type
+
+The `search_as_you_type` field type is a text-like field optimized to
+provide out-of-the-box support for queries that serve an as-you-type completion
+use case. It creates a series of subfields that are analyzed to index terms
+that can be efficiently matched by a query that partially matches the entire
+indexed text value. Both prefix completion (i.e matching terms starting at the
+beginning of the input) and infix completion (i.e. matching terms at any
+position within the input) are supported.
+
+// end::notable-highlights[]
+
+
+// tag::notable-highlights[]
+[float]
+==== Distance Feature Query
+
+The `distance_feature` query is a specialized query that only works on `date`, `date_nanos`, or `geo_point`
+fields. The query boosts documents scores based on proximity to some given origin.
+For example, you can use this query to give higher scores to documents with dates
+closer to a certain date or locations closer to a certain location.
 
 // end::notable-highlights[]

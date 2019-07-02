@@ -36,13 +36,13 @@ apply plugin: 'base'
 // parent to copy to the root of the distribution
 ext.logsDir = new File(buildDir, 'logs-hack/logs')
 task createLogsDir(type: EmptyDirTask) {
-  dir "${logsDir}"
-  dirMode 0755
+  dir = "${logsDir}"
+  dirMode = 0755
 }
 ext.pluginsDir= new File(buildDir, 'plugins-hack/plugins')
 task createPluginsDir(type: EmptyDirTask) {
-  dir "${pluginsDir}"
-  dirMode 0755
+  dir = "${pluginsDir}"
+  dirMode = 0755
 }
 
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, boolean oss, boolean jdk) {

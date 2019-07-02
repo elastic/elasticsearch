@@ -47,7 +47,16 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
 
     protected boolean acknowledged;
 
-    public AcknowledgedResponse() {
+    public AcknowledgedResponse(StreamInput in) throws IOException {
+        super(in);
+        acknowledged = in.readBoolean();
+    }
+
+    public AcknowledgedResponse(StreamInput in, boolean readAcknowledged) throws IOException {
+        super(in);
+        if (readAcknowledged) {
+            acknowledged = in.readBoolean();
+        }
     }
 
     public AcknowledgedResponse(boolean acknowledged) {
@@ -64,8 +73,7 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        acknowledged = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

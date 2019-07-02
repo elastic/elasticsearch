@@ -49,7 +49,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         for (int i = 0; i < featureSetCount; i++) {
             XPackFeatureSet fs = mock(XPackFeatureSet.class);
             when(fs.name()).thenReturn(randomAlphaOfLength(5));
-            when(fs.description()).thenReturn(randomAlphaOfLength(10));
             when(fs.available()).thenReturn(randomBoolean());
             when(fs.enabled()).thenReturn(randomBoolean());
             featureSets.add(fs);
@@ -131,11 +130,6 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             for (XPackFeatureSet fs : featureSets) {
                 assertThat(features, hasKey(fs.name()));
                 assertThat(features.get(fs.name()).name(), equalTo(fs.name()));
-                if (!request.isVerbose()) {
-                    assertThat(features.get(fs.name()).description(), is(nullValue()));
-                } else {
-                    assertThat(features.get(fs.name()).description(), is(fs.description()));
-                }
                 assertThat(features.get(fs.name()).available(), equalTo(fs.available()));
                 assertThat(features.get(fs.name()).enabled(), equalTo(fs.enabled()));
             }

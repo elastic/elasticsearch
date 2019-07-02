@@ -52,6 +52,8 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -65,6 +67,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -347,12 +350,26 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    @BeforeClass
+    public static void setPossibleRoles() {
+        DiscoveryNode.setPossibleRoles(DiscoveryNodeRole.BUILT_IN_ROLES);
+    }
+
+    @AfterClass
+    public static void clearPossibleRoles() {
+        DiscoveryNode.setPossibleRoles(Collections.emptySet());
+    }
+
     /**
      * Whether or not we check after each test whether it has left warnings behind. That happens if any deprecated feature or syntax
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
      */
     protected boolean enableWarningsCheck() {
         return true;
+    }
+
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return false;
     }
 
     @After
@@ -385,7 +402,13 @@ public abstract class ESTestCase extends LuceneTestCase {
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            assertNull("unexpected warning headers", warnings);
+            if (warnings != null && enableJodaDeprecationWarningsCheck() == false) {
+                List<String> filteredWarnings = filterJodaDeprecationWarnings(warnings);
+                assertThat( filteredWarnings, empty());
+
+            } else {
+                assertNull("unexpected warning headers", warnings);
+            }
         } finally {
             resetDeprecationLogger(false);
         }
@@ -418,18 +441,33 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-            final Set<String> actualWarningValues =
-                    actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
-            for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
+            if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
+                List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
+                assertWarnings(filteredWarnings, expectedWarnings);
+            } else {
+                assertWarnings(actualWarnings, expectedWarnings);
             }
-            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
-                expectedWarnings.length, actualWarnings.size());
         } finally {
             resetDeprecationLogger(true);
         }
+    }
+
+    private List<String> filterJodaDeprecationWarnings(List<String> actualWarnings) {
+        return actualWarnings.stream()
+                             .filter(m -> m.contains(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS) == false)
+                             .collect(Collectors.toList());
+    }
+
+    private void assertWarnings(List<String> actualWarnings, String[] expectedWarnings) {
+        assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
+        final Set<String> actualWarningValues =
+                actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
+        for (String msg : expectedWarnings) {
+            assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
+        }
+        assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
+                + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
+            expectedWarnings.length, actualWarnings.size());
     }
 
     /**

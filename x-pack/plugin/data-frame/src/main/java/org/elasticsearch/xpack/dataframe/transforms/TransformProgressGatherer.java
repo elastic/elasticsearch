@@ -11,6 +11,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -49,10 +51,20 @@ public final class TransformProgressGatherer {
     public static SearchRequest getSearchRequest(DataFrameTransformConfig config) {
         SearchRequest request = new SearchRequest(config.getSource().getIndex());
         request.allowPartialSearchResults(false);
+        BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
+        config.getPivotConfig()
+            .getGroupConfig()
+            .getGroups()
+            .values()
+            // TODO change once we allow missing_buckets
+            .forEach(src -> existsClauses.must(QueryBuilders.existsQuery(src.getField())));
+
         request.source(new SearchSourceBuilder()
             .size(0)
             .trackTotalHits(true)
-            .query(config.getSource().getQueryConfig().getQuery()));
+            .query(QueryBuilders.boolQuery()
+                .filter(config.getSource().getQueryConfig().getQuery())
+                .filter(existsClauses)));
         return request;
     }
 

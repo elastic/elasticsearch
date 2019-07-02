@@ -34,9 +34,9 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("half_float", Aggregations.resolveTargetMapping("min", "half_float"));
 
         // sum
-        assertEquals("int", Aggregations.resolveTargetMapping("sum", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("sum", "double"));
-        assertEquals("half_float", Aggregations.resolveTargetMapping("sum", "half_float"));
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", "half_float"));
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", null));
 
         // geo_centroid
         assertEquals("geo_point", Aggregations.resolveTargetMapping("geo_centroid", "geo_point"));

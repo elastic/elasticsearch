@@ -585,8 +585,8 @@ final class RequestConverters {
         if (updateByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
             params.putParam("scroll", updateByQueryRequest.getScrollTime());
         }
-        if (updateByQueryRequest.getSize() > 0) {
-            params.putParam("size", Integer.toString(updateByQueryRequest.getSize()));
+        if (updateByQueryRequest.getMaxDocs() > 0) {
+            params.putParam("max_docs", Integer.toString(updateByQueryRequest.getMaxDocs()));
         }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -613,8 +613,8 @@ final class RequestConverters {
         if (deleteByQueryRequest.getScrollTime() != AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT) {
             params.putParam("scroll", deleteByQueryRequest.getScrollTime());
         }
-        if (deleteByQueryRequest.getSize() > 0) {
-            params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
+        if (deleteByQueryRequest.getMaxDocs() > 0) {
+            params.putParam("max_docs", Integer.toString(deleteByQueryRequest.getMaxDocs()));
         }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -1037,13 +1037,6 @@ final class RequestConverters {
         Params withParentTaskId(TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
-            }
-            return this;
-        }
-
-        Params withVerify(boolean verify) {
-            if (verify) {
-                return putParam("verify", Boolean.TRUE.toString());
             }
             return this;
         }

@@ -8,11 +8,11 @@
 === {dataframe-transforms-cap}
 
 * <<preview-data-frame-transform,Preview {dataframe-transforms}>>
-* <<put-data-frame-transform,Create {dataframe-transforms}>>,
+* <<put-data-frame-transform,Create>> or 
 <<delete-data-frame-transform,delete {dataframe-transforms}>>
-* <<get-data-frame-transform,Get {dataframe-transform} info>>,
-<<get-data-frame-transform-stats,Get {dataframe-transform} statistics>>
-* <<start-data-frame-transform,Start {dataframe-transforms}>>, <<stop-data-frame-transform,Stop {dataframe-transforms}>>
+* <<get-data-frame-transform,Get {dataframe-transform} info>> or
+<<get-data-frame-transform-stats,statistics>>
+* <<start-data-frame-transform,Start>> or <<stop-data-frame-transform,stop {dataframe-transforms}>>
 
 //CREATE
 include::put-transform.asciidoc[]

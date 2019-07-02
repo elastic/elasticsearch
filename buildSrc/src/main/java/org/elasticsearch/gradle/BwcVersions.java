@@ -109,7 +109,7 @@ public class BwcVersions {
     }
 
     protected BwcVersions(List<String> versionLines, Version currentVersionProperty) {
-        SortedSet<Version> allVersions = versionLines.stream()
+        this(versionLines.stream()
             .map(LINE_PATTERN::matcher)
             .filter(Matcher::matches)
             .map(match -> new Version(
@@ -117,8 +117,11 @@ public class BwcVersions {
                 Integer.parseInt(match.group(2)),
                 Integer.parseInt(match.group(3))
             ))
-            .collect(Collectors.toCollection(TreeSet::new));
+            .collect(Collectors.toCollection(TreeSet::new)), currentVersionProperty);
+    }
 
+    // for testkit tests, until BwcVersions is extracted into an extension
+    public BwcVersions(SortedSet<Version> allVersions, Version currentVersionProperty) {
         if (allVersions.isEmpty()) {
             throw new IllegalArgumentException("Could not parse any versions");
         }

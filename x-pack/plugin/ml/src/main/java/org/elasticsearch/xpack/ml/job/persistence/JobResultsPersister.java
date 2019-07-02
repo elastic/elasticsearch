@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
@@ -119,6 +120,17 @@ public class JobResultsPersister {
                     indexResult(id, bucketInfluencer, "bucket influencer");
                 }
             }
+        }
+
+        /**
+         * Persist timing stats
+         *
+         * @param timingStats timing stats to persist
+         * @return this
+         */
+        public Builder persistTimingStats(TimingStats timingStats) {
+            indexResult(TimingStats.documentId(timingStats.getJobId()), timingStats, TimingStats.TYPE.getPreferredName());
+            return this;
         }
 
         /**

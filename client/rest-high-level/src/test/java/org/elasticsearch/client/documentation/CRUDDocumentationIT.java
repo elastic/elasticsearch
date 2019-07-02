@@ -824,9 +824,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::reindex-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::reindex-request-conflicts
-            // tag::reindex-request-size
-            request.setSize(10); // <1>
-            // end::reindex-request-size
+            // tag::reindex-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::reindex-request-maxDocs
             // tag::reindex-request-sourceSize
             request.setSourceBatchSize(100); // <1>
             // end::reindex-request-sourceSize
@@ -1026,9 +1026,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::update-by-query-request-query
-            // tag::update-by-query-request-size
-            request.setSize(10); // <1>
-            // end::update-by-query-request-size
+            // tag::update-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::update-by-query-request-maxDocs
             // tag::update-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::update-by-query-request-scrollSize
@@ -1148,9 +1148,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-by-query-request-query
             request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
             // end::delete-by-query-request-query
-            // tag::delete-by-query-request-size
-            request.setSize(10); // <1>
-            // end::delete-by-query-request-size
+            // tag::delete-by-query-request-maxDocs
+            request.setMaxDocs(10); // <1>
+            // end::delete-by-query-request-maxDocs
             // tag::delete-by-query-request-scrollSize
             request.setBatchSize(100); // <1>
             // end::delete-by-query-request-scrollSize

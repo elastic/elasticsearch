@@ -974,6 +974,9 @@
             "follower_settings_version": {
               "type": "long"
             },
+            "follower_aliases_version": {
+              "type": "long"
+            },
             "total_read_time_millis": {
               "type": "long"
             },

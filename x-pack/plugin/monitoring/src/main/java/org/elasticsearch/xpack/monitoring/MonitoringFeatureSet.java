@@ -44,11 +44,6 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Monitoring for the Elastic Stack";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isMonitoringAllowed();
     }

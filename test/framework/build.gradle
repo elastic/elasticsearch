@@ -18,11 +18,11 @@
  */
 
 dependencies {
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
-  compile "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}"
-  compile "org.elasticsearch:elasticsearch-nio:${version}"
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch:elasticsearch-cli:${version}"
+  compile project(":client:rest")
+  compile project(":client:sniffer")
+  compile project(':libs:elasticsearch-nio')
+  compile project(":server")
+  compile project(":libs:elasticsearch-cli")
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"
   compile "org.hamcrest:hamcrest:${versions.hamcrest}"

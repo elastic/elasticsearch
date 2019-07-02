@@ -150,7 +150,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(numRefreshes, index.getTotal().refresh.getTotal());
     }
 
-    public void testFreezeAndUnfreeze() throws InterruptedException, ExecutionException {
+    public void testFreezeAndUnfreeze() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).build());
         client().prepareIndex("index", "_doc", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("index", "_doc", "2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
@@ -241,7 +241,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(0, index.getTotal().refresh.getTotal());
     }
 
-    public void testCanMatch() throws ExecutionException, InterruptedException, IOException {
+    public void testCanMatch() throws IOException, ExecutionException, InterruptedException {
         createIndex("index");
         client().prepareIndex("index", "_doc", "1").setSource("field", "2010-01-05T02:00").setRefreshPolicy(IMMEDIATE).execute()
             .actionGet();
@@ -371,7 +371,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             final Index index = client().admin().cluster().prepareState().get().getState().metaData().index(indexName).getIndex();
             final IndexService indexService = indicesService.indexService(index);
             assertThat(indexService.hasShard(0), is(true));
-            assertThat(indexService.getShard(0).getGlobalCheckpoint(), greaterThanOrEqualTo(nbNoOps - 1L));
+            assertThat(indexService.getShard(0).getLastKnownGlobalCheckpoint(), greaterThanOrEqualTo(nbNoOps - 1L));
         });
 
         assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
@@ -408,5 +408,40 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertThat(recoveryState.getTranslog().totalOperations(), equalTo(0));
             assertThat(recoveryState.getTranslog().recoveredPercent(), equalTo(100.0f));
         }
+    }
+
+    public void testTranslogStats() throws Exception {
+        final String indexName = "test";
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+
+        final int nbDocs = randomIntBetween(0, 50);
+        int uncommittedOps = 0;
+        for (long i = 0; i < nbDocs; i++) {
+            final IndexResponse indexResponse = client().prepareIndex(indexName, "_doc", Long.toString(i)).setSource("field", i).get();
+            assertThat(indexResponse.status(), is(RestStatus.CREATED));
+
+            if (rarely()) {
+                client().admin().indices().prepareFlush(indexName).get();
+                uncommittedOps = 0;
+            } else {
+                uncommittedOps += 1;
+            }
+        }
+
+        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
+        assertThat(stats.getIndex(indexName), notNullValue());
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedOps));
+
+        assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
+        assertIndexFrozen(indexName);
+
+        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_CLOSED;
+        stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions).clear().setTranslog(true).get();
+        assertThat(stats.getIndex(indexName), notNullValue());
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
     }
 }

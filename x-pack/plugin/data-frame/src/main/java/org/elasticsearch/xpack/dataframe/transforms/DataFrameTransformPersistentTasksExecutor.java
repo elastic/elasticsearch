@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
@@ -83,7 +85,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             logger.debug(reason);
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
-        return super.getAssignment(params, clusterState);
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, (node) ->
+            node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
+        );
+        return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
@@ -111,12 +116,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
                 .setAuditor(auditor)
                 .setClient(client)
-                .setIndexerState(currentIndexerState(transformPTaskState))
-                // If the transform persistent task state is `null` that means this is a "first run".
-                // If we have state then the task has relocated from another node in which case this
-                // state is preferred
-                .setInitialPosition(transformPTaskState == null ? null : transformPTaskState.getPosition())
-                .setProgress(transformPTaskState == null ? null : transformPTaskState.getProgress())
                 .setTransformsCheckpointService(dataFrameTransformsCheckpointService)
                 .setTransformsConfigManager(transformsConfigManager);
 
@@ -127,25 +126,42 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
         Long previousCheckpoint = transformPTaskState != null ? transformPTaskState.getCheckpoint() : null;
 
-        // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<DataFrameTransformStateAndStats> transformStatsActionListener = ActionListener.wrap(
             stateAndStats -> {
-                indexerBuilder.setInitialStats(stateAndStats.getTransformStats());
-                if (transformPTaskState == null) { // prefer the persistent task state
-                    indexerBuilder.setInitialPosition(stateAndStats.getTransformState().getPosition());
-                    indexerBuilder.setProgress(stateAndStats.getTransformState().getProgress());
-                }
+                logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
+                indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
+                    .setInitialPosition(stateAndStats.getTransformState().getPosition())
+                    .setProgress(stateAndStats.getTransformState().getProgress())
+                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()));
+                logger.debug("[{}] Loading existing state: [{}], position [{}]",
+                    transformId,
+                    stateAndStats.getTransformState(),
+                    stateAndStats.getTransformState().getPosition());
 
-                final Long checkpoint = previousCheckpoint != null ? previousCheckpoint : stateAndStats.getTransformState().getCheckpoint();
+                final Long checkpoint = stateAndStats.getTransformState().getCheckpoint();
                 startTask(buildTask, indexerBuilder, checkpoint, startTaskListener);
             },
             error -> {
                 if (error instanceof ResourceNotFoundException == false) {
-                    logger.error("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
+                    logger.warn("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
                 }
                 startTask(buildTask, indexerBuilder, previousCheckpoint, startTaskListener);
+            }
+        );
+
+        // <3> set the in progress checkpoint for the indexer, get the in progress checkpoint
+        ActionListener<DataFrameTransformCheckpoint> getTransformCheckpointListener = ActionListener.wrap(
+            cp -> {
+                indexerBuilder.setInProgressOrLastCheckpoint(cp);
+                transformsConfigManager.getTransformStats(transformId, transformStatsActionListener);
+            },
+            error -> {
+                String msg = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
+                logger.error(msg, error);
+                markAsFailed(buildTask, msg);
             }
         );
 
@@ -153,7 +169,17 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(
             fieldMappings -> {
                 indexerBuilder.setFieldMappings(fieldMappings);
-                transformsConfigManager.getTransformStats(transformId, transformStatsActionListener);
+
+                long inProgressCheckpoint = transformPTaskState == null ? 0L :
+                    Math.max(transformPTaskState.getCheckpoint(), transformPTaskState.getInProgressCheckpoint());
+
+                logger.debug("Restore in progress or last checkpoint: {}", inProgressCheckpoint);
+
+                if (inProgressCheckpoint == 0) {
+                    getTransformCheckpointListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
+                } else {
+                    transformsConfigManager.getTransformCheckpoint(transformId, inProgressCheckpoint, getTransformCheckpointListener);
+                }
             },
             error -> {
                 String msg = DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,

@@ -29,6 +29,8 @@ public final class FileStructureUtils {
     public static final String MAPPING_TYPE_SETTING = "type";
     public static final String MAPPING_FORMAT_SETTING = "format";
     public static final String MAPPING_PROPERTIES_SETTING = "properties";
+    public static final Map<String, String> DATE_MAPPING_WITHOUT_FORMAT =
+        Collections.singletonMap(MAPPING_TYPE_SETTING, "date");
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
@@ -231,7 +233,7 @@ public final class FileStructureUtils {
         Collection<String> fieldValuesAsStrings = fieldValues.stream().map(Object::toString).collect(Collectors.toList());
         Map<String, String> mapping = guessScalarMapping(explanation, fieldName, fieldValuesAsStrings, timeoutChecker);
         timeoutChecker.check("mapping determination");
-        return new Tuple<>(mapping, calculateFieldStats(fieldValuesAsStrings, timeoutChecker));
+        return new Tuple<>(mapping, calculateFieldStats(mapping, fieldValuesAsStrings, timeoutChecker));
     }
 
     private static Stream<Object> flatten(Object value) {
@@ -323,13 +325,14 @@ public final class FileStructureUtils {
 
     /**
      * Calculate stats for a set of field values.
+     * @param mapping The  mapping for the field.
      * @param fieldValues Values of the field for which field stats are to be calculated.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The stats calculated from the field values.
      */
-    static FieldStats calculateFieldStats(Collection<String> fieldValues, TimeoutChecker timeoutChecker) {
+    static FieldStats calculateFieldStats(Map<String, String> mapping, Collection<String> fieldValues, TimeoutChecker timeoutChecker) {
 
-        FieldStatsCalculator calculator = new FieldStatsCalculator();
+        FieldStatsCalculator calculator = new FieldStatsCalculator(mapping);
         calculator.accept(fieldValues);
         timeoutChecker.check("field stats calculation");
         return calculator.calculate(NUM_TOP_HITS);

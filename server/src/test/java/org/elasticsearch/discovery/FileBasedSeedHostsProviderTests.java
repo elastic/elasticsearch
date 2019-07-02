@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -116,7 +117,8 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
     public void testUnicastHostsDoesNotExist() {
         final FileBasedSeedHostsProvider provider = new FileBasedSeedHostsProvider(createTempDir().toAbsolutePath());
         final List<TransportAddress> addresses = provider.getSeedAddresses(hosts ->
-            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, transportService, TimeValue.timeValueSeconds(10)));
+            SeedHostsResolver.resolveHostsLists(new CancellableThreads(), executorService, logger, hosts, transportService,
+                TimeValue.timeValueSeconds(10)));
         assertEquals(0, addresses.size());
     }
 
@@ -145,6 +147,7 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
         }
 
         return new FileBasedSeedHostsProvider(configPath).getSeedAddresses(hosts ->
-            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, transportService, TimeValue.timeValueSeconds(10)));
+            SeedHostsResolver.resolveHostsLists(new CancellableThreads(), executorService, logger, hosts, transportService,
+                TimeValue.timeValueSeconds(10)));
     }
 }

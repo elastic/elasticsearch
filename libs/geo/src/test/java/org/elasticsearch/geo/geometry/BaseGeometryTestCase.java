@@ -22,6 +22,7 @@ package org.elasticsearch.geo.geometry;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.test.AbstractWireTestCase;
 
@@ -53,7 +54,7 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
     @SuppressWarnings("unchecked")
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         String text = wkt.toWKT(instance);
         try {
             return (T) wkt.fromWKT(text);

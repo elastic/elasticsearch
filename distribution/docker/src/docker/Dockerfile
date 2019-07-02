@@ -20,7 +20,7 @@ RUN groupadd -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 
-COPY ${elasticsearch} /opt/
+${source_elasticsearch}
 
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
 RUN grep ES_DISTRIBUTION_TYPE=tar /usr/share/elasticsearch/bin/elasticsearch-env \

@@ -23,13 +23,13 @@ apply plugin: 'nebula.maven-scm'
 group = 'org.elasticsearch.client'
 
 dependencies {
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.plugin:transport-netty4-client:${version}"
-  compile "org.elasticsearch.plugin:reindex-client:${version}"
-  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
-  compile "org.elasticsearch.plugin:percolator-client:${version}"
-  compile "org.elasticsearch.plugin:parent-join-client:${version}"
-  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
+  compile project(":server")
+  compile project(":modules:transport-netty4")
+  compile project(":modules:reindex")
+  compile project(":modules:lang-mustache")
+  compile project(":modules:percolator")
+  compile project(":modules:parent-join")
+  compile project(":modules:rank-eval")
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"

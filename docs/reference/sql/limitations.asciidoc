@@ -87,8 +87,8 @@ It is recommended to use `LIMIT` for queries that use sorting by aggregation, es
 SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 --------------------------------------------------
 
-It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*512*) is passed, an exception will be
-returned as {es-sql} is unable to track (and sort) all the results returned.
+It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
+an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
 
 [float]
 === Using aggregation functions on top of scalar functions

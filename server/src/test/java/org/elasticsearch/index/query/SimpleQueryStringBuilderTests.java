@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,15 +66,13 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
-    @Override
-    protected boolean isCacheable(SimpleQueryStringBuilder queryBuilder) {
-        return isCacheable(queryBuilder.fields().keySet(), queryBuilder.value());
-    }
+public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        String queryText = randomAlphaOfLengthBetween(1, 10);
+        // we avoid strings with "now" since those can have different caching policies that are checked elsewhere
+        String queryText = randomValueOtherThanMany(s -> s.toLowerCase(Locale.ROOT).contains("now"),
+                () -> randomAlphaOfLengthBetween(1, 10));
         SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryText);
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
@@ -104,7 +103,7 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
         int fieldCount = randomIntBetween(0, 2);
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
-            if (randomBoolean()) {
+            if (i == 0) {
                 String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
                 fields.put(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
@@ -786,8 +785,43 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
+    }
+
+    /**
+     * Query terms that contain "now" can trigger a query to not be cacheable.
+     * This test checks the search context cacheable flag is updated accordingly.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit all fields, this should contain a date field and should diable cachability
+        String query = "now " + randomAlphaOfLengthBetween(4, 10);
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, false);
+
+        // if we hit a date field with "now", this should diable cachability
+        queryBuilder = new SimpleQueryStringBuilder("now");
+        queryBuilder.field(DATE_FIELD_NAME);
+        assertQueryCachability(queryBuilder, false);
+
+        // everything else is fine on all fields
+        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
+        queryBuilder = new SimpleQueryStringBuilder(query);
+        assertQueryCachability(queryBuilder, true);
+    }
+
+    private void assertQueryCachability(SimpleQueryStringBuilder qb, boolean cachingExpected) throws IOException {
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(qb, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertEquals("query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(), cachingExpected,
+                context.isCacheable());
     }
 }

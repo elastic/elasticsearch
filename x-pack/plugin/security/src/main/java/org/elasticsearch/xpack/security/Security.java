@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -120,7 +119,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -226,6 +225,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -461,6 +461,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
+        getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
@@ -691,8 +692,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled) {
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-                module.setSearcherWrapper(indexService ->
-                        new SecurityIndexSearcherWrapper(
+                module.setReaderWrapper(indexService ->
+                        new SecurityIndexReaderWrapper(
                                 shardId -> indexService.newQueryShardContext(shardId.id(),
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...
@@ -984,35 +985,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
-            return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
-                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings), settings)
-                .andThen(new ValidateUpgradedSecurityIndex())
-                .andThen(new ValidateLicenseCanBeDeserialized())
+            return new ValidateUpgradedSecurityIndex()
                 .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
-    }
-
-    static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
-        private final boolean isTLSEnabled;
-        private final String discoveryType;
-        private final Settings settings;
-
-        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType, Settings settings) {
-            this.isTLSEnabled = isTLSEnabled;
-            this.discoveryType = discoveryType;
-            this.settings = settings;
-        }
-
-        @Override
-        public void accept(DiscoveryNode node, ClusterState state) {
-            License license = LicenseService.getLicense(state.metaData());
-            if (isTLSEnabled == false && "single-node".equals(discoveryType) == false
-                && XPackLicenseState.isTransportTlsRequired(license, settings)) {
-                throw new IllegalStateException("Transport TLS ([" + XPackSettings.TRANSPORT_SSL_ENABLED.getKey() +
-                    "]) is required for license type [" + license.operationMode().description() + "] when security is enabled");
-            }
-        }
     }
 
     static final class ValidateUpgradedSecurityIndex implements BiConsumer<DiscoveryNode, ClusterState> {

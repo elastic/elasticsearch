@@ -48,7 +48,8 @@ public class DeprecationChecks {
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::tooManyFieldsCheck,
-            IndexDeprecationChecks::chainedMultiFieldsCheck
+            IndexDeprecationChecks::chainedMultiFieldsCheck,
+            IndexDeprecationChecks::deprecatedDateTimeFormat
         ));
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =

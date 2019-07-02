@@ -41,12 +41,19 @@ The following parameters can be specified in the body of a POST request and
 pertain to creating a token:
 
 `grant_type`::
-(string) The type of grant. Supported grant types are: `password`,
-`client_credentials` and `refresh_token`.
+(string) The type of grant. Supported grant types are: `password`, `_kerberos`,
+`client_credentials` and `refresh_token`. The `_kerberos` grant type
+is supported internally and implements SPNEGO based Kerberos support. The `_kerberos`
+grant type may change from version to version.
 
 `password`::
 (string) The user's password. If you specify the `password` grant type, this 
 parameter is required. This parameter is not valid with any other supported
+grant type.
+
+`kerberos_ticket`::
+(string) base64 encoded kerberos ticket. If you specify the `_kerberos` grant type,
+this parameter is required. This parameter is not valid with any other supported
 grant type.
 
 `refresh_token`::
@@ -161,3 +168,33 @@ be used one time.
 --------------------------------------------------
 // TESTRESPONSE[s/dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==/$body.access_token/]
 // TESTRESPONSE[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
+
+The following example obtains a access token and refresh token using the `kerberos` grant type,
+which simply creates a token in exchange for the base64 encoded kerberos ticket:
+
+[source,js]
+--------------------------------------------------
+POST /_security/oauth2/token
+{
+  "grant_type" : "_kerberos",
+  "kerberos_ticket" : "YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAgEFoQMCAQ6iBtaDcp4cdMODwOsIvmvdX//sye8NDJZ8Gstabor3MOGryBWyaJ1VxI4WBVZaSn1WnzE06Xy2"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The API will return a new token and refresh token if kerberos authentication is successful.
+Each refresh token may only be used one time. When the mutual authentication is requested in the Spnego GSS context,
+ a base64 encoded token will be returned by the server in the `kerberos_authentication_response_token`
+ for clients to consume and finalize the authentication.
+
+[source,js]
+--------------------------------------------------
+{
+  "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+  "type" : "Bearer",
+  "expires_in" : 1200,
+  "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+  "kerberos_authentication_response_token": "YIIB6wYJKoZIhvcSAQICAQBuggHaMIIB1qADAg"
+}
+--------------------------------------------------
+// NOTCONSOLE

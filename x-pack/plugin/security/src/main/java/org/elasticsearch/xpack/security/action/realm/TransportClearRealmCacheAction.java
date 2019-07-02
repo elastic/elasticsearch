@@ -46,8 +46,8 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
     }
 
     @Override
-    protected ClearRealmCacheRequest.Node newNodeRequest(String nodeId, ClearRealmCacheRequest request) {
-        return new ClearRealmCacheRequest.Node(request, nodeId);
+    protected ClearRealmCacheRequest.Node newNodeRequest(ClearRealmCacheRequest request) {
+        return new ClearRealmCacheRequest.Node(request);
     }
 
     @Override

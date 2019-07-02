@@ -1,9 +1,9 @@
 {
   "msearch": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_msearch",
       "paths": ["/_msearch", "/{index}/_msearch"],
       "deprecated_paths" : [
         {
@@ -43,8 +43,8 @@
         },
         "max_concurrent_shard_requests" : {
           "type" : "number",
-          "description" : "The number of concurrent shard requests each sub search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
-          "default" : "The default grows with the number of nodes in the cluster but is at most 256."
+          "description" : "The number of concurrent shard requests each sub search executes concurrently per node. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+          "default" : 5
         },
         "rest_total_hits_as_int" : {
           "type" : "boolean",

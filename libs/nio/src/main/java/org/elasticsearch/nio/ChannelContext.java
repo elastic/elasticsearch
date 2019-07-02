@@ -95,7 +95,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
         return closeContext.isDone() == false;
     }
 
-    void handleException(Exception e) {
+    protected void handleException(Exception e) {
         exceptionHandler.accept(e);
     }
 

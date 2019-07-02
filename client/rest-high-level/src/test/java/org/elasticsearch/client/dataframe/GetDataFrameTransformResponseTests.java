@@ -35,7 +35,6 @@ import java.util.List;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-
 public class GetDataFrameTransformResponseTests extends ESTestCase {
 
     public void testXContentParser() throws IOException {
@@ -79,6 +78,9 @@ public class GetDataFrameTransformResponseTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+
+        return new NamedXContentRegistry(namedXContents);
     }
 }

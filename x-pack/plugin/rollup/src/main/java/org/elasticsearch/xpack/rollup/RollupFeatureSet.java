@@ -34,11 +34,6 @@ public class RollupFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Time series pre-aggregation and rollup";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isRollupAllowed();
     }

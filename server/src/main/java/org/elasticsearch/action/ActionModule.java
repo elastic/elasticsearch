@@ -85,6 +85,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredSc
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.exists.TransportAliasesExistAction;
@@ -118,6 +119,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappi
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
@@ -204,6 +206,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -359,7 +362,8 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
-    private final TransportPutMappingAction.RequestValidators mappingRequestValidators;
+    private final RequestValidators<PutMappingRequest> mappingRequestValidators;
+    private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -391,9 +395,10 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
-        mappingRequestValidators = new TransportPutMappingAction.RequestValidators(
-            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
-        );
+        mappingRequestValidators = new RequestValidators<>(
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
+        indicesAliasesRequestRequestValidators = new RequestValidators<>(
+                actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
         if (transportClient) {
             restController = null;
@@ -419,7 +424,7 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
+                ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
                 Class<?>... supportTransportActions) {
                 register(new ActionHandler<>(action, transportAction, supportTransportActions));
             }
@@ -661,7 +666,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestMasterAction(settings, restController));
         registerHandler.accept(new RestNodesAction(settings, restController));
         registerHandler.accept(new RestTasksAction(settings, restController, nodesInCluster));
-        registerHandler.accept(new RestIndicesAction(settings, restController, indexNameExpressionResolver));
+        registerHandler.accept(new RestIndicesAction(settings, restController));
         registerHandler.accept(new RestSegmentsAction(settings, restController));
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings, restController));
@@ -690,17 +695,18 @@ public class ActionModule extends AbstractModule {
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
-        bind(TransportPutMappingAction.RequestValidators.class).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
 
         if (false == transportClient) {
             // Supporting classes only used when not a transport client
             bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
             bind(TransportLivenessAction.class).asEagerSingleton();
 
-            // register Action -> transportAction Map used by NodeClient
+            // register ActionType -> transportAction Map used by NodeClient
             @SuppressWarnings("rawtypes")
-            MapBinder<Action, TransportAction> transportActionsBinder
-                    = MapBinder.newMapBinder(binder(), Action.class, TransportAction.class);
+            MapBinder<ActionType, TransportAction> transportActionsBinder
+                    = MapBinder.newMapBinder(binder(), ActionType.class, TransportAction.class);
             for (ActionHandler<?, ?> action : actions.values()) {
                 // bind the action as eager singleton, so the map binder one will reuse it
                 bind(action.getTransportAction()).asEagerSingleton();

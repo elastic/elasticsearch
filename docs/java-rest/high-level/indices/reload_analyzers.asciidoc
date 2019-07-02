@@ -41,7 +41,10 @@ executed operation as follows:
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Shard statistics. Note that reloading does not happen on each shard of an
-index, but once on each node the index has shards on. The executed shard count
-can therefore differ from the number of shards of the index.
-<2> Map of indices the request was executed on
-<3> Node ids of the nodes for each index that analyzers where reloaded on
+index, but once on each node the index has shards on. The reported shard count
+can therefore differ from the number of index shards
+<2> Reloading details of all indices the request was executed on
+<3> Details can be retrieved by index name
+<4> The reloaded index name
+<5> The nodes the index was reloaded on
+<6> The analyzer names that were reloaded

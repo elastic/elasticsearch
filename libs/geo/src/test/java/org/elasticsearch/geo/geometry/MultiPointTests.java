@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, true);
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("multipoint (2.0 1.0)", wkt.toWKT(
             new MultiPoint(Collections.singletonList(new Point(1, 2)))));
         assertEquals(new MultiPoint(Collections.singletonList(new Point(1 ,2))),

@@ -373,7 +373,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "   \"group_by\": {"
             + "     \"by_hr\": {"
             + "       \"date_histogram\": {"
-            + "         \"fixed_interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd_HH\""
+            + "         \"fixed_interval\": \"1h\",\"field\":\"timestamp\""
             + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
@@ -407,7 +407,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config += " \"pivot\": {"
             + "   \"group_by\": {"
             + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
-            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\"}}},"
             + "   \"aggregations\": {"
             + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
@@ -457,7 +457,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " \"pivot\": {"
             + "   \"group_by\": {"
             + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
-            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\"}}},"
             + "   \"aggregations\": {"
             + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
@@ -497,7 +497,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config +="    \"pivot\": { \n" +
             "        \"group_by\": {\n" +
             "            \"by_day\": {\"date_histogram\": {\n" +
-            "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"\n" +
+            "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\"\n" +
             "            }}\n" +
             "        },\n" +
             "    \n" +

@@ -391,6 +391,10 @@ public class ElasticsearchMappings {
         .endObject();
     }
 
+    /**
+     * {@link DataFrameAnalyticsConfig} mapping.
+     * Does not include mapping for CREATE_TIME as this mapping is added by {@link #addJobConfigFields} method.
+     */
     public static void addDataFrameAnalyticsFields(XContentBuilder builder) throws IOException {
         builder.startObject(DataFrameAnalyticsConfig.ID.getPreferredName())
             .field(TYPE, KEYWORD)
@@ -428,12 +432,16 @@ public class ElasticsearchMappings {
                         .startObject(OutlierDetection.METHOD.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
-                        .startObject(OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName())
+                        .startObject(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                     .endObject()
                 .endObject()
             .endObject()
+        .endObject()
+        // re-used: CREATE_TIME
+        .startObject(DataFrameAnalyticsConfig.VERSION.getPreferredName())
+            .field(TYPE, KEYWORD)
         .endObject();
     }
 

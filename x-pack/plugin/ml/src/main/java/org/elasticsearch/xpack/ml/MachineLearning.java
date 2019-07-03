@@ -42,12 +42,14 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -198,6 +200,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.MemoryUsageEstimationProcess
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactory;
+import org.elasticsearch.xpack.ml.inference.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
@@ -295,7 +298,7 @@ import java.util.function.UnaryOperator;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
-public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
+public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, IngestPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -615,6 +618,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings, client, clusterService, dataFrameAnalyticsManager.get(),
                     memoryTracker.get())
         );
+    }
+
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Collections.singletonMap(InferenceProcessor.TYPE, new InferenceProcessor.Factory());
     }
 
     @Override

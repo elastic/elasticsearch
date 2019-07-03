@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
 
@@ -50,7 +51,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
 
     @Override
     public AnalyticsProcess createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig,
-                                                   ExecutorService executorService) {
+                                                   ExecutorService executorService, Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
                 true, false, true, true, false, false);
@@ -62,8 +63,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, nativeController, processPipes.getLogStream().get(),
                 processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
-                filesToDelete, reason -> {});
-
+                filesToDelete, onProcessCrash);
 
         try {
             analyticsProcess.start(executorService);

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
- * Action for retrieving one or more application privileges from the security index
+ * ActionType for retrieving builtin privileges from security
  */
-public final class GetBuiltinPrivilegesAction extends Action<GetBuiltinPrivilegesResponse> {
+public final class GetBuiltinPrivilegesAction extends StreamableResponseActionType<GetBuiltinPrivilegesResponse> {
 
     public static final GetBuiltinPrivilegesAction INSTANCE = new GetBuiltinPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/privilege/builtin/get";

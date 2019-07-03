@@ -56,6 +56,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -110,7 +111,8 @@ public class TextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, TextFieldMapper> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
-        private PrefixFieldType prefixFieldType;
+        private int minPrefixChars = -1;
+        private int maxPrefixChars = -1;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -161,6 +163,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder indexPrefixes(int minChars, int maxChars) {
+
             if (minChars > maxChars) {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
             }
@@ -170,8 +173,8 @@ public class TextFieldMapper extends FieldMapper {
             if (maxChars >= 20) {
                 throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
             }
-            this.prefixFieldType = new PrefixFieldType(name(), name() + "._index_prefix", minChars, maxChars);
-            fieldType().setPrefixFieldType(this.prefixFieldType);
+            this.minPrefixChars = minChars;
+            this.maxPrefixChars = maxChars;
             return this;
         }
 
@@ -188,7 +191,18 @@ public class TextFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             PrefixFieldMapper prefixMapper = null;
-            if (prefixFieldType != null) {
+            if (minPrefixChars != -1) {
+                /**
+                 * Mappings before v7.2.1 use {@link Builder#name} instead of {@link Builder#fullName}
+                 * to build prefix field names so we preserve the name that was used at creation time
+                 * even if it is different from the expected one (in case the field is nested under an object
+                 * or a multi-field). This way search will continue to work on old indices and new indices
+                 * will use the expected full name.
+                 **/
+                String fullName = context.indexCreatedVersion().before(Version.V_7_2_1) ? name() : buildFullName(context);
+                PrefixFieldType prefixFieldType =
+                    new PrefixFieldType(fullName, fullName + "._index_prefix", minPrefixChars, maxPrefixChars);
+                fieldType().setPrefixFieldType(prefixFieldType);
                 if (fieldType().isSearchable() == false) {
                     throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
                 }

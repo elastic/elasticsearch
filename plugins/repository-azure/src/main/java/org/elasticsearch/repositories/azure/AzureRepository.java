@@ -75,7 +75,6 @@ public class AzureRepository extends BlobStoreRepository {
 
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
-    private final Environment environment;
     private final AzureStorageService storageService;
     private final boolean readonly;
 
@@ -83,7 +82,6 @@ public class AzureRepository extends BlobStoreRepository {
             AzureStorageService storageService, ThreadPool threadPool) {
         super(metadata, environment.settings(),  Repository.COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, threadPool);
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
-        this.environment = environment;
         this.storageService = storageService;
 
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
@@ -115,7 +113,7 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
+        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, threadPool);
 
         logger.debug(() -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
@@ -124,7 +122,7 @@ public class AzureRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected BlobPath basePath() {
+    public BlobPath basePath() {
         return basePath;
     }
 

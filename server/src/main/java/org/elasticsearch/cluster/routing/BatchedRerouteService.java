@@ -25,32 +25,22 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 
 import java.util.function.BiFunction;
 
 /**
- * A {@link RoutingService} listens to clusters state. When this service
- * receives a {@link ClusterChangedEvent} the cluster state will be verified and
- * the routing tables might be updated.
- * <p>
- * Note: The {@link RoutingService} is responsible for cluster wide operations
- * that include modifications to the cluster state. Such an operation can only
- * be performed on the clusters master node. Unless the local node this service
- * is running on is the clusters master node this service will not perform any
- * actions.
- * </p>
+ * A {@link BatchedRerouteService} is a {@link RerouteService} that batches together reroute requests to avoid unnecessary extra reroutes.
+ * This component only does meaningful work on the elected master node. Reroute requests will fail with a {@link NotMasterException} on
+ * other nodes.
  */
-public class RoutingService extends AbstractLifecycleComponent {
-    private static final Logger logger = LogManager.getLogger(RoutingService.class);
+public class BatchedRerouteService implements RerouteService {
+    private static final Logger logger = LogManager.getLogger(BatchedRerouteService.class);
 
     private static final String CLUSTER_UPDATE_TASK_SOURCE = "cluster_reroute";
 
@@ -61,33 +51,19 @@ public class RoutingService extends AbstractLifecycleComponent {
     @Nullable // null if no reroute is currently pending
     private PlainListenableActionFuture<Void> pendingRerouteListeners;
 
-    @Inject
-    public RoutingService(ClusterService clusterService, BiFunction<ClusterState, String, ClusterState> reroute) {
+    /**
+     * @param reroute Function that computes the updated cluster state after it has been rerouted.
+     */
+    public BatchedRerouteService(ClusterService clusterService, BiFunction<ClusterState, String, ClusterState> reroute) {
         this.clusterService = clusterService;
         this.reroute = reroute;
-    }
-
-    @Override
-    protected void doStart() {
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     /**
      * Initiates a reroute.
      */
+    @Override
     public final void reroute(String reason, ActionListener<Void> listener) {
-        if (lifecycle.started() == false) {
-            listener.onFailure(new IllegalStateException(
-                "rejecting delayed reroute [" + reason + "] in state [" + lifecycleState() + "]"));
-            return;
-        }
         final PlainListenableActionFuture<Void> currentListeners;
         synchronized (mutex) {
             if (pendingRerouteListeners != null) {

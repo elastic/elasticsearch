@@ -21,7 +21,7 @@ import java.util.Collections;
 public class GetDataFrameAnalyticsAction extends StreamableResponseActionType<GetDataFrameAnalyticsAction.Response> {
 
     public static final GetDataFrameAnalyticsAction INSTANCE = new GetDataFrameAnalyticsAction();
-    public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/get";
+    public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/get";
 
     private GetDataFrameAnalyticsAction() {
         super(NAME);

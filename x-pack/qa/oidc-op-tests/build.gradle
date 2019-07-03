@@ -45,7 +45,7 @@ testClusters.integTest {
     setting 'xpack.security.authc.realms.oidc.c2id.op.userinfo_endpoint', { "http://127.0.0.1:${ephemeralPort}/c2id/userinfo" }
     setting 'xpack.security.authc.realms.oidc.c2id.op.jwkset_path', 'op-jwks.json'
     setting 'xpack.security.authc.realms.oidc.c2id.rp.redirect_uri', 'https://my.fantastic.rp/cb'
-    setting 'xpack.security.authc.realms.oidc.c2id.rp.client_id', 'elasticsearch-rp'
+    setting 'xpack.security.authc.realms.oidc.c2id.rp.client_id', 'https://my.elasticsearch.org/rp'
     keystore 'xpack.security.authc.realms.oidc.c2id.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
     setting 'xpack.security.authc.realms.oidc.c2id.rp.response_type', 'code'
     setting 'xpack.security.authc.realms.oidc.c2id.claims.principal', 'sub'

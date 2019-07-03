@@ -39,7 +39,8 @@ public final class XPackRestTestConstants {
     public static final String DATA_FRAME_INTERNAL_INDEX = ".data-frame-internal-1";
     public static final String DATA_FRAME_NOTIFICATIONS_INDEX = ".data-frame-notifications-1";
 
-    public static final List<String> DATA_FRAME_TEMPLATES = List.of(DATA_FRAME_INTERNAL_INDEX, DATA_FRAME_NOTIFICATIONS_INDEX);
+    public static final List<String> DATA_FRAME_TEMPLATES =
+        Collections.unmodifiableList(Arrays.asList(DATA_FRAME_INTERNAL_INDEX, DATA_FRAME_NOTIFICATIONS_INDEX));
 
     private XPackRestTestConstants() {
     }

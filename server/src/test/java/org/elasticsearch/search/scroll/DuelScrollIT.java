@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -163,9 +164,13 @@ public class DuelScrollIT extends ESIntegTestCase {
             }
         } else {
             if (randomBoolean()) {
-                sort = SortBuilders.fieldSort("nested.field3").missing(1);
+                sort = SortBuilders.fieldSort("nested.field3")
+                    .setNestedSort(new NestedSortBuilder("nested"))
+                    .missing(1);
             } else {
-                sort = SortBuilders.fieldSort("nested.field4").missing("1");
+                sort = SortBuilders.fieldSort("nested.field4")
+                    .setNestedSort(new NestedSortBuilder("nested"))
+                    .missing("1");
             }
         }
         sort.order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);

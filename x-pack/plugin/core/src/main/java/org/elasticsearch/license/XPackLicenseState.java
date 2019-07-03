@@ -697,6 +697,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if support for flattened object fields should be enabled.
+     * <p>
+     * Flattened fields are available for all license types except {@link OperationMode#MISSING}.
+     */
+    public synchronized boolean isFlattenedAllowed() {
+        return status.active;
+    }
+
+    /**
      * Determine if Vectors support should be enabled.
      * <p>
      *  Vectors is available for all license types except {@link OperationMode#MISSING}

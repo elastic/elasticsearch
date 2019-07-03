@@ -440,9 +440,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public void cleanup(long repositoryStateId, ActionListener<RepositoryCleanupResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            // TODO: ensure state id
+            final RepositoryData repositoryData = getRepositoryData();
+            if (repositoryData.getGenId() != repositoryStateId) {
+                // the index file was updated by a concurrent operation, so we were operating on stale
+                // repository data
+                throw new RepositoryException(metadata.name(), "concurrent modification of the repository, expected current generation [" +
+                    repositoryStateId + "], actual current generation [" + repositoryData.getGenId() +
+                    "] - possibly due to simultaneous snapshot deletion or creation requests");
+            }
             final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
-            final RepositoryData repositoryData = repositoryData(repositoryStateId);
             final RepositoryCleanupResult.Progress progress = RepositoryCleanupResult.start();
             cleanupStaleIndices(foundIndices, repositoryData.getIndices(), progress);
             return progress.finish();

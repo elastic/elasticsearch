@@ -57,7 +57,9 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 [float]
 [[types-array-handling]]
 === Array handling
-In {es}, arrays do not require a dedicated field datatype. See <<array>>.
+In {es}, arrays do not require a dedicated field datatype. Any field can contain
+zero or more values by default, however, all values in the array must be of the
+same datatype. See <<array>>.
 
 [float]
 === Multi-fields

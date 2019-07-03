@@ -7,6 +7,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43662")
 public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
@@ -119,7 +121,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         }
 
         DataFrameTransformConfig config = DataFrameTransformConfig.builder()
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(30)))
             .setPivotConfig(PivotConfig.builder()
                 .setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("stars").field("stars")))
                 .setGroups(GroupConfig.builder().groupBy("user_id", TermsGroupSource.builder().setField("user_id").build()).build())
@@ -148,24 +150,28 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
             assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
         },
-        60,
+        120,
         TimeUnit.SECONDS);
 
         DataFrameTransformStateAndStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        // Add a new user and write data to it and all the old users
-        List<String> entities = new ArrayList<>(ENTITIES);
-        entities.add("user_" + ENTITIES.size() + 1);
+        // Add a new user and write data to it
+        // This is so we can have more reliable data counts, as writing to existing entities requires
+        // rescanning the past data
+        List<String> entities = new ArrayList<>(1);
+        entities.add("user_" + ENTITIES.size() + expectedLastCheckpoint);
         int docs = 5;
+        // Index the data very recently in the past so that the transform sync delay can catch up to reading it in our spin
+        // wait later.
         putData(CONTINUOUS_DATA_FRAME_SOURCE, docs, TimeValue.timeValueSeconds(1), entities);
-        long totalDocsWritten = docs * entities.size();
 
         waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, expectedLastCheckpoint);
 
-        assertBusy(() ->assertThat(
+        assertBusy(() -> assertThat(
             getTransformStats(CONTINUOUS_DATA_FRAME_ID).getTransformStats().getNumDocuments(),
-            greaterThanOrEqualTo(totalDocsWritten + previousStateAndStats.getTransformStats().getNumDocuments()))
-        );
+            greaterThanOrEqualTo(docs + previousStateAndStats.getTransformStats().getNumDocuments())),
+            120,
+            TimeUnit.SECONDS);
         DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         assertThat(stateAndStats.getTransformState().getTaskState(),
@@ -173,7 +179,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(stateAndStats.getTransformStats().getOutputDocuments(),
             greaterThan(previousStateAndStats.getTransformStats().getOutputDocuments()));
         assertThat(stateAndStats.getTransformStats().getNumDocuments(),
-            greaterThanOrEqualTo(totalDocsWritten + previousStateAndStats.getTransformStats().getNumDocuments()));
+            greaterThanOrEqualTo(docs + previousStateAndStats.getTransformStats().getNumDocuments()));
     }
 
     private void putTransform(String id, DataFrameTransformConfig config) throws IOException {

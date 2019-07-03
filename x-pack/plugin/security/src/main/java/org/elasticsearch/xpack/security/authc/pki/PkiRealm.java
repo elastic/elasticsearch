@@ -184,13 +184,13 @@ public class PkiRealm extends Realm implements CachingRealm {
         String dn = token.credentials()[0].getSubjectX500Principal().toString();
         Matcher matcher = principalPattern.matcher(dn);
         if (false == matcher.find()) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("Could not extract principal from DN [{}] using pattern [{}]", dn,
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("could not extract principal from DN [{}] using pattern [{}]", dn,
                     principalPattern.toString()));
             return null;
         }
         String principal = matcher.group(1);
         if (Strings.isNullOrEmpty(principal)) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("The extracted principal from DN [{}] using pattern [{}] is empty",
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("the extracted principal from DN [{}] using pattern [{}] is empty",
                     dn, principalPattern.toString()));
             return null;
         }
@@ -204,9 +204,9 @@ public class PkiRealm extends Realm implements CachingRealm {
                 return true;
             } catch (CertificateException e) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Failed certificate validation for Subject DN [" + token.dn() + "]", e);
+                    logger.trace("failed certificate validation for Subject DN [" + token.dn() + "]", e);
                 } else if (logger.isDebugEnabled()) {
-                    logger.debug("Failed certificate validation for Subject DN [{}]", token.dn());
+                    logger.debug("failed certificate validation for Subject DN [{}]", token.dn());
                 }
             }
             return false;

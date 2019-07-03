@@ -207,7 +207,16 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             if (datehistogramAgg == null) {
                 return null;
             }
-            return (String)datehistogramAgg.get(DateHistogramGroupConfig.INTERVAL);
+            if (datehistogramAgg.get(DateHistogramGroupConfig.INTERVAL) != null) {
+                return (String)datehistogramAgg.get(DateHistogramGroupConfig.INTERVAL);
+            }
+            if (datehistogramAgg.get(DateHistogramGroupConfig.CALENDAR_INTERVAL) != null) {
+                return (String)datehistogramAgg.get(DateHistogramGroupConfig.CALENDAR_INTERVAL);
+            }
+            if (datehistogramAgg.get(DateHistogramGroupConfig.FIXED_INTERVAL) != null) {
+                return (String)datehistogramAgg.get(DateHistogramGroupConfig.FIXED_INTERVAL);
+            }
+            return null;
         }
 
         private String getTimezone() {

@@ -104,8 +104,7 @@ public class MultiGetItemResponse implements Streamable {
         if (in.readBoolean()) {
             failure = MultiGetResponse.Failure.readFailure(in);
         } else {
-            response = new GetResponse();
-            response.readFrom(in);
+            response = new GetResponse(in);
         }
     }
 

@@ -154,7 +154,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             final String proxyAddress,
             final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
             final ActionListener<Void> connectListener) {
-        this.seedNodes = Collections.unmodifiableList(new ArrayList<>(seedNodes));
+        this.seedNodes = List.copyOf(seedNodes);
         this.proxyAddress = proxyAddress;
         connectHandler.connect(connectListener);
     }
@@ -176,6 +176,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     @Override
     public void onNodeDisconnected(DiscoveryNode node) {
         boolean remove = connectedNodes.remove(node);
+        logger.trace("node disconnected: {}, removed: {}", node, remove);
         if (remove && connectedNodes.size() < maxNumRemoteConnections) {
             // try to reconnect and fill up the slot of the disconnected node
             connectHandler.forceConnect();

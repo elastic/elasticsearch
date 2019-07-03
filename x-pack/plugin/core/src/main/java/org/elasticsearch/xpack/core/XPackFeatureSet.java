@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -13,21 +12,14 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 public interface XPackFeatureSet {
 
     String name();
 
-    String description();
-
     boolean available();
 
     boolean enabled();
-
-    Map<String, Object> nativeCodeInfo();
-
-    void usage(ActionListener<Usage> listener);
 
     abstract class Usage implements ToXContentObject, NamedWriteable {
 

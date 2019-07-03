@@ -82,15 +82,13 @@ The `_uid` field has been removed in favour of the <<mapping-id-field,`_id` fiel
 === memcached
 
 The `memcached` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 [role="exclude",id="modules-thrift"]
 === Thrift
 
 The `thrift` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 // QUERY DSL
 
@@ -245,13 +243,6 @@ as a query in ``query context'' and as a filter in ``filter context'' (see
 === Terms Filter
 
 The `terms` filter has been replaced by the <<query-dsl-terms-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
-[role="exclude",id="query-dsl-type-filter"]
-=== Type Filter
-
-The `type` filter has been replaced by the <<query-dsl-type-query>>. It behaves
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
 
@@ -512,10 +503,10 @@ See {painless}/painless-debugging.html[Painless Debugging] in the
 guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="painless-api-reference"]
-=== Painless API Reference
+=== Painless Contexts API Reference
 
-See the {painless}/painless-api-reference.html[Painless API Reference] in
-the guide to the {painless}/index.html[Painless Scripting Language].
+See the {painless}/painless-api-reference.html[Painless Contexts API Reference]
+in the guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude", id="security-api-roles"]
 === Role management APIs
@@ -594,3 +585,39 @@ formation module>>.
 === {xpack} settings in {es}
 
 include::{asciidoc-dir}/../../shared/settings.asciidoc[]
+
+[role="exclude",id="_faster_phrase_queries_with_literal_index_phrases_literal"]
+
+See <<faster-phrase-queries>>.
+
+[role="exclude",id="_faster_prefix_queries_with_literal_index_prefixes_literal.html"]
+
+See <<faster-prefix-queries>>.
+
+[role="exclude",id="setup-xpack"]
+=== Set up {xpack}
+
+{xpack} is an Elastic Stack extension that provides security, alerting,
+monitoring, reporting, machine learning, and many other capabilities. By default, 
+when you install {es}, {xpack} is installed.
+
+[role="exclude",id="setup-xpack-client"]
+=== Configuring {xpack} Java Clients
+
+The `TransportClient` is deprecated in favour of the
+{java-rest}/java-rest-high.html[Java High Level REST Client] and was removed in
+Elasticsearch 8.0. The
+{java-rest}/java-rest-high-level-migration.html[migration guide] describes all
+the steps needed to migrate.
+
+[role="exclude",id="query-dsl-common-terms-query"]
+=== Common Terms Query
+
+The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
+query>> instead. The `match` query skips blocks of documents efficiently,
+without any configuration, if the total number of hits is not tracked.
+
+[role="exclude",id="xpack-api"]
+=== X-Pack APIs
+
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 

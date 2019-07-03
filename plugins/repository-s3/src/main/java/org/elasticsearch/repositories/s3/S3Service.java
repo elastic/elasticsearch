@@ -29,13 +29,12 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -52,8 +51,8 @@ class S3Service implements Closeable {
     /**
      * Client settings calculated from static configuration and settings in the keystore.
      */
-    private volatile Map<String, S3ClientSettings> staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
-        .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default")).immutableMap();
+    private volatile Map<String, S3ClientSettings> staticClientSettings =
+            Map.of("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default"));
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
@@ -71,7 +70,7 @@ class S3Service implements Closeable {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClients();
-        this.staticClientSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        this.staticClientSettings = Maps.ofEntries(clientsSettings.entrySet());
         derivedClientSettings = emptyMap();
         assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
         // clients are built lazily by {@link client}
@@ -96,7 +95,7 @@ class S3Service implements Closeable {
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
             clientReference.incRef();
-            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
+            clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
         }
     }
@@ -125,9 +124,11 @@ class S3Service implements Closeable {
                     return existing;
                 }
                 final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData);
-                derivedClientSettings = MapBuilder.newMapBuilder(derivedClientSettings).put(
-                    staticSettings, MapBuilder.newMapBuilder(derivedSettings).put(repositoryMetaData, newSettings).immutableMap()
-                ).immutableMap();
+                derivedClientSettings =
+                        Maps.copyMayWithAddedOrReplacedEntry(
+                                derivedClientSettings,
+                                staticSettings,
+                                Maps.copyMapWithAddedEntry(derivedSettings, repositoryMetaData, newSettings));
                 return newSettings;
             }
         }

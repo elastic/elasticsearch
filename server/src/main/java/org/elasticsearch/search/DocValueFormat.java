@@ -21,7 +21,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;
@@ -237,7 +237,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
-            return GeoHashUtils.stringEncode(value);
+            return Geohash.stringEncode(value);
         }
 
         @Override

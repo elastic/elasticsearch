@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -71,7 +71,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoHashUtils::longEncode);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, Geohash::longEncode);
         return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
                 pipelineAggregators, metaData);
     }

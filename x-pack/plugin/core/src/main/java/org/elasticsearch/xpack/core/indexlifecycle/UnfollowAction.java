@@ -55,19 +55,6 @@ public final class UnfollowAction implements LifecycleAction {
     }
 
     @Override
-    public List<StepKey> toStepKeys(String phase) {
-        StepKey indexingCompleteStep = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
-        StepKey waitForFollowShardTasksStep = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
-        StepKey pauseFollowerIndexStep = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
-        StepKey closeFollowerIndexStep = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
-        StepKey unfollowIndexStep = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
-        StepKey openFollowerIndexStep = new StepKey(phase, NAME, OpenFollowerIndexStep.NAME);
-        StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForYellowStep.NAME);
-        return Arrays.asList(indexingCompleteStep, waitForFollowShardTasksStep, pauseFollowerIndexStep,
-            closeFollowerIndexStep, unfollowIndexStep, openFollowerIndexStep, waitForYellowStep);
-    }
-
-    @Override
     public boolean isSafeAction() {
         // There are no settings to change, so therefor this action should be safe:
         return true;

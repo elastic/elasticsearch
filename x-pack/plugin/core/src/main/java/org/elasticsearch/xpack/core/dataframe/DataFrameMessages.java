@@ -21,9 +21,9 @@ public class DataFrameMessages {
             "Failed to validate data frame configuration";
     public static final String REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist data frame configuration";
     public static final String REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
-    public static final String REST_PUT_DATA_FRAME_FAILED_TO_CREATE_DEST_INDEX = "Failed to create dest index";
-    public static final String REST_PUT_DATA_FRAME_DEST_INDEX_ALREADY_EXISTS = "dest index [{0}] already exists";
     public static final String REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
+    public static final String REST_PUT_DATA_FRAME_DEST_IN_SOURCE = "Destination index [{0}] is included in source expression [{1}]";
+    public static final String REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX = "Destination index [{0}] should refer to a single index";
     public static final String REST_PUT_DATA_FRAME_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
 
@@ -38,7 +38,9 @@ public class DataFrameMessages {
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION =
             "Failed to parse transform configuration for data frame transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION =
-        "Failed to parse transform statistics for data frame transform [{0}]";
+            "Failed to parse transform statistics for data frame transform [{0}]";
+    public static final String FAILED_TO_LOAD_TRANSFORM_CHECKPOINT =
+            "Failed to load data frame transform configuration for transform [{0}]";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM =
             "Data frame transform configuration must specify exactly 1 function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY =
@@ -57,14 +59,18 @@ public class DataFrameMessages {
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
             "Failed to parse aggregation for data frame pivot transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE =
-            "Search returned with out of memory error, reducing number of buckets per search from [{0}] to [{1}]";
+            "Insufficient memory for search, reducing number of buckets per search from [{0}] to [{1}]";
     public static final String LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE =
-            "Search returned with out of memory error after repeated page size reductions to [{0}], unable to continue pivot, "
+            "Insufficient memory for search after repeated page size reductions to [{0}], unable to continue pivot, "
             + "please simplify job or increase heap size on data nodes.";
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
             "Failed to parse transform checkpoints for [{0}]";
 
+
+    public static final String ID_TOO_LONG = "The id cannot contain more than {0} characters.";
+    public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or " +
+        "underscores; must start and end with alphanumeric";
     private DataFrameMessages() {
     }
 

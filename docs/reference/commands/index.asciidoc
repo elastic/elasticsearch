@@ -9,7 +9,6 @@ tasks from the command line:
 
 * <<certgen>>
 * <<certutil>>
-* <<migrate-tool>>
 * <<node-tool>>
 * <<saml-metadata>>
 * <<setup-passwords>>
@@ -21,7 +20,6 @@ tasks from the command line:
 
 include::certgen.asciidoc[]
 include::certutil.asciidoc[]
-include::migrate-tool.asciidoc[]
 include::node-tool.asciidoc[]
 include::saml-metadata.asciidoc[]
 include::setup-passwords.asciidoc[]

@@ -58,7 +58,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -152,7 +151,6 @@ public class RestoreService implements ClusterStateApplier {
 
     private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
 
-    @Inject
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetaDataCreateIndexService createIndexService,
                           MetaDataIndexUpgradeService metaDataIndexUpgradeService, ClusterSettings clusterSettings) {
@@ -301,13 +299,18 @@ public class RestoreService implements ClusterStateApplier {
                             } else {
                                 validateExistingIndex(currentIndexMetaData, snapshotIndexMetaData, renamedIndexName, partial);
                                 // Index exists and it's closed - open it in metadata and start recovery
-                                IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
-                                                                                    .state(IndexMetaData.State.OPEN);
-                                indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
-                                indexMdBuilder.mappingVersion(Math.max(snapshotIndexMetaData.getMappingVersion(),
-                                                                        currentIndexMetaData.getMappingVersion() + 1));
-                                indexMdBuilder.settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(),
-                                                                        currentIndexMetaData.getSettingsVersion() + 1));
+                                IndexMetaData.Builder indexMdBuilder =
+                                        IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
+                                indexMdBuilder.version(
+                                        Math.max(snapshotIndexMetaData.getVersion(), 1 + currentIndexMetaData.getVersion()));
+                                indexMdBuilder.mappingVersion(
+                                        Math.max(snapshotIndexMetaData.getMappingVersion(), 1 + currentIndexMetaData.getMappingVersion()));
+                                indexMdBuilder.settingsVersion(
+                                        Math.max(
+                                                snapshotIndexMetaData.getSettingsVersion(),
+                                                1 + currentIndexMetaData.getSettingsVersion()));
+                                indexMdBuilder.aliasesVersion(
+                                        Math.max(snapshotIndexMetaData.getAliasesVersion(), 1 + currentIndexMetaData.getAliasesVersion()));
 
                                 for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
                                     indexMdBuilder.primaryTerm(shard,

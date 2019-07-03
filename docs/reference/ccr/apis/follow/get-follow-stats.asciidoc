@@ -114,6 +114,9 @@ The `shards` array consists of objects containing the following fields:
 `indices[].shards[].follower_settings_version`::
   (long) the index settings version the follower is synced up to
 
+`indices[].shards[].follower_aliases_version`::
+  (long) the index aliases version the follower is synced up to
+
 `indices[].shards[].total_read_time_millis`::
   (long) the total time reads were outstanding, measured from the time a read
   was sent to the leader to the time a reply was returned to the follower
@@ -217,6 +220,7 @@ The API returns the following results:
           "write_buffer_operation_count" : 64,
           "follower_mapping_version" : 4,
           "follower_settings_version" : 2,
+          "follower_aliases_version" : 8,
           "total_read_time_millis" : 32768,
           "total_read_remote_exec_time_millis" : 16384,
           "successful_read_requests" : 32,
@@ -246,6 +250,7 @@ The API returns the following results:
 // TESTRESPONSE[s/"write_buffer_operation_count" : 64/"write_buffer_operation_count" : $body.indices.0.shards.0.write_buffer_operation_count/]
 // TESTRESPONSE[s/"follower_mapping_version" : 4/"follower_mapping_version" : $body.indices.0.shards.0.follower_mapping_version/]
 // TESTRESPONSE[s/"follower_settings_version" : 2/"follower_settings_version" : $body.indices.0.shards.0.follower_settings_version/]
+// TESTRESPONSE[s/"follower_aliases_version" : 8/"follower_aliases_version" : $body.indices.0.shards.0.follower_aliases_version/]
 // TESTRESPONSE[s/"total_read_time_millis" : 32768/"total_read_time_millis" : $body.indices.0.shards.0.total_read_time_millis/]
 // TESTRESPONSE[s/"total_read_remote_exec_time_millis" : 16384/"total_read_remote_exec_time_millis" : $body.indices.0.shards.0.total_read_remote_exec_time_millis/]
 // TESTRESPONSE[s/"successful_read_requests" : 32/"successful_read_requests" : $body.indices.0.shards.0.successful_read_requests/]

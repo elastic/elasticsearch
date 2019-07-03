@@ -14,18 +14,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -75,7 +75,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9000);
 
         DiscoveryNode node = new DiscoveryNode("df-node-name", "df-node-id", transportAddress, attributes,
-                EnumSet.noneOf(DiscoveryNode.Role.class),
+                Set.of(),
                 Version.CURRENT);
 
         Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null);

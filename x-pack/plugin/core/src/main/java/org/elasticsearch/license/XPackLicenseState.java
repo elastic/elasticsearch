@@ -95,13 +95,18 @@ public class XPackLicenseState {
         switch (newMode) {
             case BASIC:
                 switch (currentMode) {
-                    case TRIAL:
                     case STANDARD:
+                        return new String[] {
+                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
+                        };
+                    case TRIAL:
                     case GOLD:
                     case PLATINUM:
                         return new String[] {
-                            "The following X-Pack security functionality will be disabled: authentication, authorization, " +
-                                "ip filtering, and auditing. Please restart your node after applying the license.",
+                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
+                            "Authentication will be limited to the native and file realms.",
+                            "Security tokens and API keys will not be supported.",
+                            "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
                             "A custom authorization engine will be ignored."
@@ -125,7 +130,7 @@ public class XPackLicenseState {
             case STANDARD:
                 switch (currentMode) {
                     case BASIC:
-                        // ^^ though technically it was already disabled, it's not bad to remind them
+                        // ^^ though technically it doesn't change the feature set, it's not bad to remind them
                     case GOLD:
                     case PLATINUM:
                     case TRIAL:
@@ -277,7 +282,7 @@ public class XPackLicenseState {
     public XPackLicenseState(Settings settings) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.isSecurityExplicitlyEnabled = isSecurityEnabled && settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
+        this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
     }
 
     private XPackLicenseState(XPackLicenseState xPackLicenseState) {
@@ -285,6 +290,10 @@ public class XPackLicenseState {
         this.isSecurityEnabled = xPackLicenseState.isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = xPackLicenseState.isSecurityExplicitlyEnabled;
         this.status = xPackLicenseState.status;
+    }
+
+    private static boolean isSecurityExplicitlyEnabled(Settings settings) {
+        return settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
     }
 
     /**
@@ -331,8 +340,17 @@ public class XPackLicenseState {
         OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled =
             isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-        return isSecurityCurrentlyEnabled && (mode == OperationMode.STANDARD || mode == OperationMode.GOLD
-            || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+        if (isSecurityCurrentlyEnabled) {
+            switch (mode) {
+                case BASIC:
+                case STANDARD:
+                case GOLD:
+                case PLATINUM:
+                case TRIAL:
+                    return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -405,6 +423,7 @@ public class XPackLicenseState {
                     return AllowedRealmType.ALL;
                 case GOLD:
                     return AllowedRealmType.DEFAULT;
+                case BASIC:
                 case STANDARD:
                     return AllowedRealmType.NATIVE;
                 default:
@@ -423,6 +442,24 @@ public class XPackLicenseState {
             isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (status.mode == OperationMode.PLATINUM || status.mode == OperationMode.TRIAL)
                 && status.active;
+    }
+
+    /**
+     * @return whether the Elasticsearch {@code TokenService} is allowed based on the license {@link OperationMode}
+     */
+    public synchronized boolean isTokenServiceAllowed() {
+        final OperationMode mode = status.mode;
+        final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+    }
+
+    /**
+     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the current node/cluster state
+     */
+    public synchronized boolean isApiKeyServiceAllowed() {
+        final OperationMode mode = status.mode;
+        final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled;
     }
 
     /**
@@ -572,6 +609,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Voting only node functionality is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isVotingOnlyAllowed() {
+        return status.active;
+    }
+
+    /**
      * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
      * @return {@code true} as long as there is a valid license
      */
@@ -651,6 +697,24 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if support for flattened object fields should be enabled.
+     * <p>
+     * Flattened fields are available for all license types except {@link OperationMode#MISSING}.
+     */
+    public synchronized boolean isFlattenedAllowed() {
+        return status.active;
+    }
+
+    /**
+     * Determine if Vectors support should be enabled.
+     * <p>
+     *  Vectors is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isVectorsAllowed() {
+        return status.active;
+    }
+
+    /**
      * Determine if ODBC support should be enabled.
      * <p>
      * ODBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
@@ -674,24 +738,54 @@ public class XPackLicenseState {
     public synchronized boolean isSecurityAvailable() {
         OperationMode mode = status.mode;
         return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
-                mode == OperationMode.TRIAL;
+                mode == OperationMode.TRIAL || mode == OperationMode.BASIC;
     }
 
     /**
-     * @return true if security has been disabled by a trial license which is the case of the
-     *         default distribution post 6.3.0. The conditions necessary for this are:
+     * @return true if security has been disabled due it being the default setting for this license type.
+     *  The conditions necessary for this are:
      *         <ul>
-     *             <li>A trial license</li>
+     *             <li>A trial or basic license</li>
      *             <li>xpack.security.enabled not specified as a setting</li>
      *         </ul>
      */
-    public synchronized boolean isSecurityDisabledByTrialLicense() {
-        return status.mode == OperationMode.TRIAL && isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+    public synchronized boolean isSecurityDisabledByLicenseDefaults() {
+        switch (status.mode) {
+            case TRIAL:
+            case BASIC:
+                return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+        }
+        return false;
+    }
+
+    public static boolean isTransportTlsRequired(License license, Settings settings) {
+        if (license == null) {
+            return false;
+        }
+        switch (license.operationMode()) {
+            case STANDARD:
+            case GOLD:
+            case PLATINUM:
+                return XPackSettings.SECURITY_ENABLED.get(settings);
+            case BASIC:
+                return XPackSettings.SECURITY_ENABLED.get(settings) && isSecurityExplicitlyEnabled(settings);
+            case MISSING:
+            case TRIAL:
+                return false;
+            default:
+                throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
+        }
     }
 
     private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,
                                              final boolean isSecurityEnabled) {
-        return mode == OperationMode.TRIAL ? isSecurityExplicitlyEnabled : isSecurityEnabled;
+        switch (mode) {
+            case TRIAL:
+            case BASIC:
+                return isSecurityExplicitlyEnabled;
+            default:
+                return isSecurityEnabled;
+        }
     }
 
     /**

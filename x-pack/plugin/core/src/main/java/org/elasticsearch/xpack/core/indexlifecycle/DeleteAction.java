@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,14 +64,6 @@ public class DeleteAction implements LifecycleAction {
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, deleteStepKey, client);
         DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
         return Arrays.asList(waitForNoFollowersStep, deleteStep);
-    }
-
-    @Override
-    public List<StepKey> toStepKeys(String phase) {
-        Step.StepKey waitForNoFollowerStepKey = new Step.StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
-        Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, DeleteStep.NAME);
-
-        return Arrays.asList(waitForNoFollowerStepKey, deleteStepKey);
     }
 
     @Override

@@ -2,7 +2,6 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.GradleRunner;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -25,10 +24,8 @@ import org.gradle.testkit.runner.GradleRunner;
 public class JarHellTaskIT extends GradleIntegrationTestCase {
 
     public void testJarHellDetected() {
-        BuildResult result = GradleRunner.create()
-            .withProjectDir(getProjectDir("jarHell"))
+        BuildResult result = getGradleRunner("jarHell")
             .withArguments("clean", "precommit", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
-            .withPluginClasspath()
             .buildAndFail();
 
         assertTaskFailed(result, ":jarHell");

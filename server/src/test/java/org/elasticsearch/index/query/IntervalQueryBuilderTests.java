@@ -49,12 +49,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource());
-    }
-
-    @Override
-    public void testUnknownField() throws IOException {
-        super.testUnknownField();
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
     }
 
     private static final String[] filters = new String[]{
@@ -62,15 +57,9 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         "overlapping", "not_overlapping", "before", "after"
     };
 
-    private IntervalsSourceProvider.IntervalFilter createRandomFilter() {
-        if (randomInt(20) > 18) {
-            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(), randomFrom(filters));
-        }
-        return null;
-    }
-
     private static final String MASKED_FIELD = "masked_field";
     private static final String NO_POSITIONS_FIELD = "no_positions_field";
+    private static final String PREFIXED_FIELD = "prefixed_field";
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -82,46 +71,64 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             .field("type", "text")
             .field("index_options", "freqs")
             .endObject()
+            .startObject(PREFIXED_FIELD)
+            .field("type", "text")
+            .startObject("index_prefixes").endObject()
+            .endObject()
             .endObject().endObject().endObject();
 
         mapperService.merge("_doc",
             new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
-    private IntervalsSourceProvider createRandomSource() {
-        String useField = rarely() ? MASKED_FIELD : null;
+    private IntervalsSourceProvider createRandomSource(int depth) {
+        if (depth > 3) {
+            return createRandomMatch(depth + 1);
+        }
         switch (randomInt(20)) {
             case 0:
             case 1:
                 int orCount = randomInt(4) + 1;
                 List<IntervalsSourceProvider> orSources = new ArrayList<>();
                 for (int i = 0; i < orCount; i++) {
-                    orSources.add(createRandomSource());
+                    orSources.add(createRandomSource(depth + 1));
                 }
-                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter());
+                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1));
             case 2:
             case 3:
                 int count = randomInt(5) + 1;
                 List<IntervalsSourceProvider> subSources = new ArrayList<>();
                 for (int i = 0; i < count; i++) {
-                    subSources.add(createRandomSource());
+                    subSources.add(createRandomSource(depth + 1));
                 }
                 boolean ordered = randomBoolean();
                 int maxGaps = randomInt(5) - 1;
-                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter();
+                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1);
                 return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
             default:
-                int wordCount = randomInt(4) + 1;
-                List<String> words = new ArrayList<>();
-                for (int i = 0; i < wordCount; i++) {
-                    words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
-                }
-                String text = String.join(" ", words);
-                boolean mOrdered = randomBoolean();
-                int maxMGaps = randomInt(5) - 1;
-                String analyzer = randomFrom("simple", "keyword", "whitespace");
-                return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(), useField);
+                return createRandomMatch(depth + 1);
         }
+    }
+
+    private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth) {
+        if (depth < 3 && randomInt(20) > 18) {
+            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1), randomFrom(filters));
+        }
+        return null;
+    }
+
+    private IntervalsSourceProvider createRandomMatch(int depth) {
+        String useField = rarely() ? MASKED_FIELD : null;
+        int wordCount = randomInt(4) + 1;
+        List<String> words = new ArrayList<>();
+        for (int i = 0; i < wordCount; i++) {
+            words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
+        }
+        String text = String.join(" ", words);
+        boolean mOrdered = randomBoolean();
+        int maxMGaps = randomInt(5) - 1;
+        String analyzer = randomFrom("simple", "keyword", "whitespace");
+        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1), useField);
     }
 
     @Override
@@ -362,7 +369,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         QueryShardContext baseContext = createShardContext();
         QueryShardContext context = new QueryShardContext(baseContext.getShardId(), baseContext.getIndexSettings(),
-            null, null, baseContext.getMapperService(), null,
+            null, null, null, baseContext.getMapperService(), null,
             scriptService,
             null, null, null, null, null, null);
 
@@ -383,5 +390,107 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     }
 
+    public void testPrefixes() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.prefix("term"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createShardContext());
+            });
+
+        String no_positions_fixed_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\", \"use_field\" : \"" + NO_POSITIONS_FIELD + "\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_fixed_field_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(prefix_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String short_prefix_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"t\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(short_prefix_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.or(
+            Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.wildcard("t?")),
+            Intervals.term("t")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fix_field_prefix_json =  "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"term\", \"use_field\" : \"" + PREFIXED_FIELD + "\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(fix_field_prefix_json);
+        // This looks weird, but it's fine, because the innermost fixField wins
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.fixField(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("term"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String keyword_json = "{ \"intervals\" : { \"" + PREFIXED_FIELD + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"Term\", \"analyzer\" : \"keyword\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(keyword_json);
+        expected = new IntervalQuery(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String keyword_fix_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"prefix\" : { \"prefix\" : \"Term\", \"analyzer\" : \"keyword\", \"use_field\" : \"" + PREFIXED_FIELD + "\" } } } }";
+        builder = (IntervalQueryBuilder) parseQuery(keyword_fix_field_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.fixField(PREFIXED_FIELD, Intervals.fixField(PREFIXED_FIELD + "._index_prefix", Intervals.term("Term"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+    }
+
+    public void testWildcard() throws IOException {
+
+        String json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\" } } } }";
+
+        IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+        Query expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard("te?m"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String no_positions_json = "{ \"intervals\" : { \"" + NO_POSITIONS_FIELD + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"term\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(no_positions_json);
+            builder1.toQuery(createShardContext());
+        });
+
+        String keyword_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"analyzer\" : \"keyword\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(keyword_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.wildcard("Te?m"));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fixed_field_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(fixed_field_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard("te?m")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        String fixed_field_json_no_positions = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"" + NO_POSITIONS_FIELD + "\" } } } }";
+        expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder1 = (IntervalQueryBuilder) parseQuery(fixed_field_json_no_positions);
+            builder1.toQuery(createShardContext());
+        });
+
+        String fixed_field_analyzer_json = "{ \"intervals\" : { \"" + STRING_FIELD_NAME + "\": { " +
+            "\"wildcard\" : { \"pattern\" : \"Te?m\", \"use_field\" : \"masked_field\", \"analyzer\" : \"keyword\" } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(fixed_field_analyzer_json);
+        expected = new IntervalQuery(STRING_FIELD_NAME, Intervals.fixField(MASKED_FIELD, Intervals.wildcard("Te?m")));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+    }
 
 }

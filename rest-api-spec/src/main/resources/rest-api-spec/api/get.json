@@ -1,10 +1,17 @@
 {
   "get": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
-      "path": "/{index}/_doc/{id}",
-      "paths": ["/{index}/_doc/{id}", "/{index}/{type}/{id}"],
+      "paths": ["/{index}/_doc/{id}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type" : "string",
@@ -25,10 +32,6 @@
         "stored_fields": {
           "type": "list",
           "description" : "A comma-separated list of stored fields to return in the response"
-        },
-        "parent": {
-          "type" : "string",
-          "description" : "The ID of the parent document"
         },
         "preference": {
           "type" : "string",
@@ -55,14 +58,6 @@
           "description" : "A list of fields to exclude from the returned _source field"
         },
         "_source_includes": {
-          "type" : "list",
-          "description" : "A list of fields to extract and return from the _source field"
-        },
-        "_source_exclude": {
-          "type" : "list",
-          "description" : "A list of fields to exclude from the returned _source field"
-        },
-        "_source_include": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },

@@ -6,12 +6,8 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
@@ -19,32 +15,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-import static java.util.Collections.emptyList;
-
-public class PutDataFrameTransformActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
-
+public class PutDataFrameTransformActionRequestTests extends AbstractSerializingDataFrameTestCase<Request> {
     private String transformId;
-
-    private NamedWriteableRegistry namedWriteableRegistry;
-    private NamedXContentRegistry namedXContentRegistry;
-
-    @Before
-    public void registerAggregationNamedObjects() throws Exception {
-        // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return namedXContentRegistry;
-    }
 
     @Before
     public void setupTransformId() {
@@ -57,8 +29,8 @@ public class PutDataFrameTransformActionRequestTests extends AbstractStreamableX
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

@@ -110,6 +110,12 @@ public class IntervalBuilderTests extends ESTestCase {
 
     }
 
+    public void testEmptyTokenStream() throws IOException {
+        CannedTokenStream ts = new CannedTokenStream();
+        IntervalsSource source = BUILDER.analyzeText(new CachingTokenFilter(ts), 0, true);
+        assertSame(IntervalBuilder.NO_INTERVALS, source);
+    }
+
     public void testSimpleSynonyms() throws IOException {
 
         CannedTokenStream ts = new CannedTokenStream(

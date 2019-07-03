@@ -98,7 +98,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -141,16 +140,6 @@ public abstract class Engine implements Closeable {
      *  reduce index buffer sizes on inactive shards.
      */
     protected volatile long lastWriteNanos = System.nanoTime();
-
-    /*
-     * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
-     * An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
-     * This marker is started uninitialized (-2), and the optimization using seq_no will be disabled if this marker is uninitialized.
-     * The value of this marker never goes backwards, and is updated/changed differently on primary and replica:
-     * 1. A primary initializes this marker once using the max_seq_no from its history, then advances when processing an update or delete.
-     * 2. A replica never advances this marker by itself but only inherits from its primary (via advanceMaxSeqNoOfUpdatesOrDeletes).
-     */
-    private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -804,9 +793,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * @return the local checkpoint for this Engine
+     * @return the persisted local checkpoint for this Engine
      */
-    public abstract long getLocalCheckpoint();
+    public abstract long getPersistedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -922,7 +911,7 @@ public abstract class Engine implements Closeable {
             map.put(extension, length);
         }
 
-        if (useCompoundFile && directory != null) {
+        if (useCompoundFile) {
             try {
                 directory.close();
             } catch (IOException e) {
@@ -944,7 +933,7 @@ public abstract class Engine implements Closeable {
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
-    protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
@@ -965,15 +954,14 @@ public abstract class Engine implements Closeable {
 
         // now, correlate or add the committed ones...
         if (lastCommittedSegmentInfos != null) {
-            SegmentInfos infos = lastCommittedSegmentInfos;
-            for (SegmentCommitInfo info : infos) {
+            for (SegmentCommitInfo info : lastCommittedSegmentInfos) {
                 Segment segment = segments.get(info.info.name);
                 if (segment == null) {
                     segment = new Segment(info.info.name);
                     segment.search = false;
                     segment.committed = true;
-                    segment.docCount = info.info.maxDoc();
-                    segment.delDocCount = info.getDelCount();
+                    segment.delDocCount = info.getDelCount() + info.getSoftDelCount();
+                    segment.docCount = info.info.maxDoc() - segment.delDocCount;
                     segment.version = info.info.getVersion();
                     segment.compound = info.info.getUseCompoundFile();
                     try {
@@ -1154,7 +1142,7 @@ public abstract class Engine implements Closeable {
      */
     @SuppressWarnings("finally")
     private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
+        ExceptionsHelper.maybeError(maybeFatal).ifPresent(error -> {
             try {
                 logger.error(maybeMessage, error);
             } finally {
@@ -1794,11 +1782,8 @@ public abstract class Engine implements Closeable {
 
             CommitId commitId = (CommitId) o;
 
-            if (!Arrays.equals(id, commitId.id)) {
-                return false;
-            }
+            return Arrays.equals(id, commitId.id);
 
-            return true;
         }
 
         @Override
@@ -1961,25 +1946,13 @@ public abstract class Engine implements Closeable {
      * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
      * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
-     * @see #reinitializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
      */
-    public final long getMaxSeqNoOfUpdatesOrDeletes() {
-        return maxSeqNoOfUpdatesOrDeletes.get();
-    }
-
-    /**
-     * A primary shard calls this method to re-initialize the max_seq_no_of_updates marker using the
-     * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
-     */
-    public abstract void reinitializeMaxSeqNoOfUpdatesOrDeletes();
+    public abstract long getMaxSeqNoOfUpdatesOrDeletes();
 
     /**
      * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method
      * to advance this marker to at least the given sequence number.
      */
-    public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
-        maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
-        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo : maxSeqNoOfUpdatesOrDeletes.get() + " < " + seqNo;
-    }
+    public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
 }

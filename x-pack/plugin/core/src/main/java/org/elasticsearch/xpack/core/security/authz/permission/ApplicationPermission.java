@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -54,7 +53,7 @@ public final class ApplicationPermission {
                     Automatons.unionAndMinimize(Arrays.asList(existing.resourceAutomaton, patterns)));
             }
         }));
-        this.permissions = Collections.unmodifiableList(new ArrayList<>(permissionsByPrivilege.values()));
+        this.permissions = List.copyOf(permissionsByPrivilege.values());
     }
 
     /**

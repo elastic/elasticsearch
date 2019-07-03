@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -29,7 +28,7 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
     }
 
     public DeletePrivilegesResponse(Collection<String> found) {
-        this.found = Collections.unmodifiableSet(new HashSet<>(found));
+        this.found = Set.copyOf(found);
     }
 
     @Override

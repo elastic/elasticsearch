@@ -587,6 +587,20 @@
     - length: { tokens: 1 }
     - match:  { tokens.0.token: avion }
 
+    - do:
+        catch: bad_request
+        indices.create:
+          index: test2
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_elision:
+                    type: elision
+    - match: { status: 400 }
+    - match: { error.type: illegal_argument_exception }
+    - match: { error.reason: "elision filter requires [articles] or [articles_path] setting" }
+
 ---
 "stemmer":
     - do:
@@ -1134,30 +1148,6 @@
     - match:  { tokens.8.token: に落 }
     - match:  { tokens.9.token: 落ち }
     - match:  { tokens.10.token: ちた }
-
----
-"delimited_payload_filter_error":
-    - do:
-        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
-        indices.create:
-          index: test
-          body:
-            settings:
-              analysis:
-                filter:
-                  my_delimited_payload_filter:
-                    type: delimited_payload_filter
-                    delimiter: ^
-                    encoding: identity
-
-    # Test pre-configured token filter too:
-    - do:
-        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
-        indices.analyze:
-          body:
-            text:      foo|5
-            tokenizer: keyword
-            filter:    [delimited_payload_filter]
 
 ---
 "delimited_payload":

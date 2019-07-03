@@ -29,5 +29,6 @@ class ExtraTypes {
     static final int INTERVAL_HOUR_MINUTE = 111;
     static final int INTERVAL_HOUR_SECOND = 112;
     static final int INTERVAL_MINUTE_SECOND = 113;
+    static final int GEOMETRY = 114;
 
 }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.monitoring.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,10 +80,7 @@ public class MonitoringBulkResponse extends ActionResponse {
         super.readFrom(in);
         tookInMillis = in.readVLong();
         error = in.readOptionalWriteable(Error::new);
-
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            ignored = in.readBoolean();
-        }
+        ignored = in.readBoolean();
     }
 
     @Override
@@ -92,10 +88,7 @@ public class MonitoringBulkResponse extends ActionResponse {
         super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeOptionalWriteable(error);
-
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeBoolean(ignored);
-        }
+        out.writeBoolean(ignored);
     }
 
     public static class Error implements Writeable, ToXContentObject {

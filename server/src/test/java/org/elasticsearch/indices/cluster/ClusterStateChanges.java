@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -40,7 +41,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
@@ -213,7 +213,7 @@ public class ClusterStateChanges {
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -227,8 +227,8 @@ public class ClusterStateChanges {
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
         ClusterState newState = MetaDataIndexStateServiceUtils.addIndexClosedBlocks(concreteIndices, blockedIndices, state);
 
-        newState = MetaDataIndexStateServiceUtils.closeRoutingTable(newState, blockedIndices, blockedIndices.keySet().stream()
-            .collect(Collectors.toMap(Function.identity(), index -> new AcknowledgedResponse(true))));
+        newState = MetaDataIndexStateServiceUtils.closeRoutingTable(newState, blockedIndices,
+            blockedIndices.keySet().stream().collect(Collectors.toMap(Function.identity(), CloseIndexResponse.IndexResult::new)));
         return allocationService.reroute(newState, "indices closed");
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -46,6 +48,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     FieldCapabilitiesIndexResponse> {
 
     private static final String ACTION_NAME = FieldCapabilitiesAction.NAME + "[index]";
+    public static final ActionType<FieldCapabilitiesIndexResponse> TYPE =
+        new ActionType<>(ACTION_NAME, FieldCapabilitiesIndexResponse::new);
 
     private final IndicesService indicesService;
 
@@ -114,8 +118,8 @@ public class TransportFieldCapabilitiesIndexAction extends TransportSingleShardA
     }
 
     @Override
-    protected FieldCapabilitiesIndexResponse newResponse() {
-        return new FieldCapabilitiesIndexResponse();
+    protected Writeable.Reader<FieldCapabilitiesIndexResponse> getResponseReader() {
+        return FieldCapabilitiesIndexResponse::new;
     }
 
     @Override

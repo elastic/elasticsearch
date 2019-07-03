@@ -24,10 +24,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -77,6 +79,12 @@ import java.util.function.LongSupplier;
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+    public static final ActionType<BulkShardResponse> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public BulkShardResponse newResponse() {
+            return new BulkShardResponse();
+        }
+    };
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
@@ -341,11 +349,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static BulkItemResponse processUpdateResponse(final UpdateRequest updateRequest, final String concreteIndex,
                                                           BulkItemResponse operationResponse, final UpdateHelper.Result translate) {
         final BulkItemResponse response;
-        DocWriteResponse.Result translatedResult = translate.getResponseResult();
         if (operationResponse.isFailed()) {
             response = new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, operationResponse.getFailure());
         } else {
-
+            final DocWriteResponse.Result translatedResult = translate.getResponseResult();
             final UpdateResponse updateResponse;
             if (translatedResult == DocWriteResponse.Result.CREATED || translatedResult == DocWriteResponse.Result.UPDATED) {
                 final IndexRequest updateIndexRequest = translate.action();

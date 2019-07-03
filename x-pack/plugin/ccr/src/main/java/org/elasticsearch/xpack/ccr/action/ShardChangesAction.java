@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -50,7 +52,7 @@ import java.util.concurrent.TimeoutException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class ShardChangesAction extends Action<ShardChangesAction.Response> {
+public class ShardChangesAction extends ActionType<ShardChangesAction.Response> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
@@ -60,16 +62,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends SingleShardRequest<Request> {
 
         private long fromSeqNo;
         private int maxOperationCount;
-        private ShardId shardId;
-        private String expectedHistoryUUID;
+        private final ShardId shardId;
+        private final String expectedHistoryUUID;
         private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_READ_POLL_TIMEOUT;
         private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE;
 
@@ -81,7 +83,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.expectedHistoryUUID = expectedHistoryUUID;
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            fromSeqNo = in.readVLong();
+            maxOperationCount = in.readVInt();
+            shardId = new ShardId(in);
+            expectedHistoryUUID = in.readString();
+            pollTimeout = in.readTimeValue();
+            maxBatchSize = new ByteSizeValue(in);
+
+            // Starting the clock in order to know how much time is spent on fetching operations:
+            relativeStartNanos = System.nanoTime();
         }
 
         public ShardId getShard() {
@@ -142,20 +154,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            fromSeqNo = in.readVLong();
-            maxOperationCount = in.readVInt();
-            shardId = ShardId.readShardId(in);
-            expectedHistoryUUID = in.readString();
-            pollTimeout = in.readTimeValue();
-            maxBatchSize = new ByteSizeValue(in);
-
-            // Starting the clock in order to know how much time is spent on fetching operations:
-            relativeStartNanos = System.nanoTime();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(fromSeqNo);
@@ -213,6 +211,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return settingsVersion;
         }
 
+        private long aliasesVersion;
+
+        public long getAliasesVersion() {
+            return aliasesVersion;
+        }
+
         private long globalCheckpoint;
 
         public long getGlobalCheckpoint() {
@@ -246,17 +250,34 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         Response() {
         }
 
-        Response(
-            final long mappingVersion,
-            final long settingsVersion,
-            final long globalCheckpoint,
-            final long maxSeqNo,
-            final long maxSeqNoOfUpdatesOrDeletes,
-            final Translog.Operation[] operations,
-            final long tookInMillis) {
+        Response(StreamInput in) throws IOException {
+            super(in);
+            mappingVersion = in.readVLong();
+            settingsVersion = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                aliasesVersion = in.readVLong();
+            } else {
+                aliasesVersion = 0;
+            }
+            globalCheckpoint = in.readZLong();
+            maxSeqNo = in.readZLong();
+            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
+            operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
+            tookInMillis = in.readVLong();
+        }
 
+        Response(
+                final long mappingVersion,
+                final long settingsVersion,
+                final long aliasesVersion,
+                final long globalCheckpoint,
+                final long maxSeqNo,
+                final long maxSeqNoOfUpdatesOrDeletes,
+                final Translog.Operation[] operations,
+                final long tookInMillis) {
             this.mappingVersion = mappingVersion;
             this.settingsVersion = settingsVersion;
+            this.aliasesVersion = aliasesVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
@@ -265,15 +286,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            mappingVersion = in.readVLong();
-            settingsVersion = in.readVLong();
-            globalCheckpoint = in.readZLong();
-            maxSeqNo = in.readZLong();
-            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
-            operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
-            tookInMillis = in.readVLong();
+        public void readFrom(final StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -281,6 +295,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeVLong(aliasesVersion);
+            }
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
@@ -295,6 +312,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final Response that = (Response) o;
             return mappingVersion == that.mappingVersion &&
                     settingsVersion == that.settingsVersion &&
+                    aliasesVersion == that.aliasesVersion &&
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
                     maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes &&
@@ -307,6 +325,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return Objects.hash(
                     mappingVersion,
                     settingsVersion,
+                    aliasesVersion,
                     globalCheckpoint,
                     maxSeqNo,
                     maxSeqNoOfUpdatesOrDeletes,
@@ -351,9 +370,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final IndexMetaData indexMetaData = indexService.getMetaData();
             final long mappingVersion = indexMetaData.getMappingVersion();
             final long settingsVersion = indexMetaData.getSettingsVersion();
+            final long aliasesVersion = indexMetaData.getAliasesVersion();
             return getResponse(
                     mappingVersion,
                     settingsVersion,
+                    aliasesVersion,
                     seqNoStats,
                     maxSeqNoOfUpdatesOrDeletes,
                     operations,
@@ -426,12 +447,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
                     final long mappingVersion = indexMetaData.getMappingVersion();
                     final long settingsVersion = indexMetaData.getSettingsVersion();
+                    final long aliasesVersion = indexMetaData.getAliasesVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
                     final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                     listener.onResponse(
                             getResponse(
                                     mappingVersion,
                                     settingsVersion,
+                                    aliasesVersion,
                                     latestSeqNoStats,
                                     maxSeqNoOfUpdatesOrDeletes,
                                     EMPTY_OPERATIONS_ARRAY,
@@ -459,8 +482,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Writeable.Reader<Response> getResponseReader() {
+            return Response::new;
         }
 
     }
@@ -531,6 +554,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     static Response getResponse(
             final long mappingVersion,
             final long settingsVersion,
+            final long aliasesVersion,
             final SeqNoStats seqNoStats,
             final long maxSeqNoOfUpdates,
             final Translog.Operation[] operations,
@@ -540,6 +564,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         return new Response(
                 mappingVersion,
                 settingsVersion,
+                aliasesVersion,
                 seqNoStats.getGlobalCheckpoint(),
                 seqNoStats.getMaxSeqNo(),
                 maxSeqNoOfUpdates,

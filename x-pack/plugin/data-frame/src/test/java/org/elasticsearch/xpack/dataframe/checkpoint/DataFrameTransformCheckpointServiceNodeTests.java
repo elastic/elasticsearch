@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.checkpoint;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -39,12 +39,12 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.junit.After;
 import org.junit.Before;
 
@@ -88,8 +88,8 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
 
             if (request instanceof GetIndexRequest) {
                 // for this test we only need the indices

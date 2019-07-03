@@ -101,8 +101,8 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         valueFieldType.setName(valueField);
 
         // Setup the composite agg
-        //TODO swap this over to DateHistoConfig.Builder once DateInterval is in
-        DateHistogramGroupConfig dateHistoGroupConfig = new DateHistogramGroupConfig(timestampField, DateHistogramInterval.DAY);
+        DateHistogramGroupConfig dateHistoGroupConfig
+            = new DateHistogramGroupConfig.CalendarInterval(timestampField, DateHistogramInterval.DAY);
         CompositeAggregationBuilder compositeBuilder =
             new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
                 RollupIndexer.createValueSourceBuilders(dateHistoGroupConfig));
@@ -169,7 +169,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         DateHistogramValuesSourceBuilder dateHisto
                 = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
                 .field(timestampField)
-                .interval(1);
+                .fixedInterval(new DateHistogramInterval("1ms"));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
                 singletonList(dateHisto));
@@ -292,7 +292,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         DateHistogramValuesSourceBuilder dateHisto
                 = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
                     .field(timestampField)
-                    .dateHistogramInterval(new DateHistogramInterval("1d"));
+                    .calendarInterval(new DateHistogramInterval("1d"));
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,
                 singletonList(dateHisto));
@@ -560,7 +560,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         DateHistogramValuesSourceBuilder dateHisto
             = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
             .field(timestampField)
-            .dateHistogramInterval(new DateHistogramInterval("1d"))
+            .calendarInterval(new DateHistogramInterval("1d"))
             .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));  // adds a timezone so that we aren't on default UTC
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,

@@ -74,7 +74,7 @@ public class UpdateResponseTests extends ESTestCase {
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
-            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields));
+            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields, null));
 
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"books\",\"_type\":\"book\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +

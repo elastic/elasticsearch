@@ -3,5 +3,5 @@
 apply from: '../../build.gradle'
 
 dependencies {
-  testCompile project(':libs:secure-sm')
+  testCompile project(':libs:elasticsearch-secure-sm')
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -94,6 +95,7 @@ public class RepositoriesService implements ClusterStateApplier {
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         final RepositoryMetaData newRepositoryMetaData = new RepositoryMetaData(request.name(), request.type(), request.settings());
+        validate(request.name());
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
@@ -417,6 +419,20 @@ public class RepositoriesService implements ClusterStateApplier {
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", e);
         }
     }
+
+    private static void validate(final String repositoryName) {
+        if (Strings.hasLength(repositoryName) == false) {
+            throw new RepositoryException(repositoryName, "cannot be empty");
+        }
+        if (repositoryName.contains("#")) {
+            throw new RepositoryException(repositoryName, "must not contain '#'");
+        }
+        if (Strings.validFileName(repositoryName) == false) {
+            throw new RepositoryException(repositoryName,
+                "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+        }
+    }
+
 
     private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {

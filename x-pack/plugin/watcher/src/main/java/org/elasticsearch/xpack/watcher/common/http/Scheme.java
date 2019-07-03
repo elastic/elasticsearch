@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import java.util.Locale;
+import java.util.Objects;
 
 public enum Scheme {
 
@@ -29,6 +30,7 @@ public enum Scheme {
     }
 
     public static Scheme parse(String value) {
+        Objects.requireNonNull(value, "Scheme should not be Null");
         value = value.toLowerCase(Locale.ROOT);
         switch (value) {
             case "http":

@@ -72,7 +72,6 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
-        when(shardSearchRequest.types()).thenReturn(new String[]{});
 
         IndexShard indexShard = mock(IndexShard.class);
         QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);

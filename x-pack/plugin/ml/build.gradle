@@ -9,15 +9,29 @@ esplugin {
     extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
+
+repositories {
+    ivy {
+        name "ml-cpp"
+        url "https://prelert-artifacts.s3.amazonaws.com"
+        metadataSources {
+            // no repository metadata, look directly for the artifact
+            artifact()
+        }
+        patternLayout {
+            artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+        }
+    }
+}
+
 configurations {
     nativeBundle {
         resolutionStrategy.dependencySubstitution {
             if (findProject(':ml-cpp') != null) {
                 substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
-            } else {
-                substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:cpp-snapshot")
             }
         }
+        resolutionStrategy.cacheChangingModulesFor 2, 'hours'
     }
 }
 
@@ -36,18 +50,22 @@ compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(':modules:lang-painless:spi')
     compileOnly project(path: xpackModule('core'), configuration: 'default')
-    compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
     // ml deps
-    compile project(':libs:grok')
+    compile project(':libs:elasticsearch-grok')
     compile "com.ibm.icu:icu4j:${versions.icu4j}"
     compile "net.sf.supercsv:super-csv:${versions.supercsv}"
-    nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
+    nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
+      changing = true
+    }
     testCompile 'org.ini4j:ini4j:0.5.2'
 }
 
@@ -59,7 +77,7 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    // normal es plugins do not publish the jar but we need to since users need it for extensions
     archives jar
     testArtifacts testJar
 }
@@ -79,10 +97,6 @@ project.afterEvaluate {
     project.tasks.findByName('generateNotice').outputs.upToDateWhen {
         extractNativeLicenses.state.upToDate
     }
-}
-
-run {
-    plugin xpackModule('core')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

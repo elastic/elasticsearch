@@ -60,7 +60,9 @@ public class RetentionLeasesTests extends ESTestCase {
         final long higherPrimaryTerm = randomLongBetween(lowerPrimaryTerm + 1, Long.MAX_VALUE);
         final RetentionLeases right = new RetentionLeases(higherPrimaryTerm, randomLongBetween(1, Long.MAX_VALUE), Collections.emptyList());
         assertTrue(right.supersedes(left));
+        assertTrue(right.supersedes(left.primaryTerm(), left.version()));
         assertFalse(left.supersedes(right));
+        assertFalse(left.supersedes(right.primaryTerm(), right.version()));
     }
 
     public void testSupersedesByVersion() {
@@ -70,7 +72,9 @@ public class RetentionLeasesTests extends ESTestCase {
         final RetentionLeases left = new RetentionLeases(primaryTerm, lowerVersion, Collections.emptyList());
         final RetentionLeases right = new RetentionLeases(primaryTerm, higherVersion, Collections.emptyList());
         assertTrue(right.supersedes(left));
+        assertTrue(right.supersedes(left.primaryTerm(), left.version()));
         assertFalse(left.supersedes(right));
+        assertFalse(left.supersedes(right.primaryTerm(), right.version()));
     }
 
     public void testRetentionLeasesRejectsDuplicates() {

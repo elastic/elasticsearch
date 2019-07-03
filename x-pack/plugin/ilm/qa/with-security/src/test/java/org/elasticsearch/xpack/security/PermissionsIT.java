@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
@@ -87,7 +88,7 @@ public class PermissionsIT extends ESRestTestCase {
     /**
      * Tests that a policy that simply deletes an index after 0s succeeds when an index
      * with user `test_admin` is created referencing a policy created by `test_ilm` when both
-     * users have read/write permissions on the the index. The goal is to verify that one
+     * users have read/write permissions on the index. The goal is to verify that one
      * does not need to be the same user who created both the policy and the index to have the
      * index be properly managed by ILM.
      */
@@ -137,6 +138,7 @@ public class PermissionsIT extends ESRestTestCase {
      * Tests when the user is limited by alias of an index is able to write to index
      * which was rolled over by an ILM policy.
      */
+    @TestLogging("org.elasticsearch:DEBUG")
     public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy()
             throws IOException, InterruptedException {
         /*

@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -23,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
+public class GetDatafeedsAction extends StreamableResponseActionType<GetDatafeedsAction.Response> {
 
     public static final GetDatafeedsAction INSTANCE = new GetDatafeedsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/get";
@@ -58,18 +57,14 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
+            allowNoDatafeeds = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
-            }
+            out.writeBoolean(allowNoDatafeeds);
         }
 
         public String getDatafeedId() {

@@ -33,12 +33,14 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
     static final ParseField COLUMNAR = new ParseField("columnar");
     static final ParseField FIELD_MULTI_VALUE_LENIENCY = new ParseField("field_multi_value_leniency");
+    static final ParseField INDEX_INCLUDE_FROZEN = new ParseField("index_include_frozen");
 
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
         PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
+        PARSER.declareBoolean(SqlQueryRequest::indexIncludeFrozen, INDEX_INCLUDE_FROZEN);
     }
 
     private String cursor = "";
@@ -48,6 +50,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
      */
     private Boolean columnar = Boolean.FALSE;
     private boolean fieldMultiValueLeniency = Protocol.FIELD_MULTI_VALUE_LENIENCY;
+    private boolean indexIncludeFrozen = Protocol.INDEX_INCLUDE_FROZEN;
 
     public SqlQueryRequest() {
         super();
@@ -55,11 +58,12 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
                            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency) {
+            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
         super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
         this.columnar = columnar;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
+        this.indexIncludeFrozen = indexIncludeFrozen;
     }
 
     @Override
@@ -115,11 +119,21 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return fieldMultiValueLeniency;
     }
 
+    public SqlQueryRequest indexIncludeFrozen(boolean include) {
+        this.indexIncludeFrozen = include;
+        return this;
+    }
+
+    public boolean indexIncludeFrozen() {
+        return indexIncludeFrozen;
+    }
+
     public SqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         cursor = in.readString();
         columnar = in.readOptionalBoolean();
         fieldMultiValueLeniency = in.readBoolean();
+        indexIncludeFrozen = in.readBoolean();
     }
 
     @Override
@@ -128,11 +142,12 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeString(cursor);
         out.writeOptionalBoolean(columnar);
         out.writeBoolean(fieldMultiValueLeniency);
+        out.writeBoolean(indexIncludeFrozen);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor, columnar);
+        return Objects.hash(super.hashCode(), cursor, columnar, fieldMultiValueLeniency, indexIncludeFrozen);
     }
 
     @Override
@@ -140,7 +155,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return super.equals(obj)
                 && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
                 && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
-                && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency;
+                && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
+                && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen;
     }
 
     @Override
@@ -152,7 +168,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
         return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
-            pageTimeout(), filter(), columnar(), cursor(), requestInfo(), fieldMultiValueLeniency())
+                pageTimeout(), filter(), columnar(), cursor(), requestInfo(), fieldMultiValueLeniency(), indexIncludeFrozen())
                 .toXContent(builder, params);
     }
 

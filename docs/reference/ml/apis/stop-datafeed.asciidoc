@@ -2,16 +2,16 @@
 [testenv="platinum"]
 [[ml-stop-datafeed]]
 === Stop {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {dfeeds}</titleabbrev>
 ++++
 
 Stops one or more {dfeeds}.
 
-A {dfeed} that is stopped ceases to retrieve data from {es}.
-A {dfeed} can be started and stopped multiple times throughout its lifecycle.
-
-==== Request
+[[ml-stop-datafeed-request]]
+==== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_stop` +
 
@@ -19,39 +19,42 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 `POST _ml/datafeeds/_all/_stop`
 
+[[ml-stop-datafeed-prereqs]]
+==== {api-prereq-title}
 
-===== Description
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-stop-datafeed-desc]]
+==== {api-description-title}
+
+A {dfeed} that is stopped ceases to retrieve data from {es}.
+A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 You can stop multiple {dfeeds} in a single API request by using a
 comma-separated list of {dfeeds} or a wildcard expression. You can close all
 {dfeeds} by using `_all` or by specifying `*` as the `<feed_id>`.
 
+[[ml-stop-datafeed-path-parms]]
+==== {api-path-parms-title}
 
-==== Path Parameters
-
-`feed_id`::
+`<feed_id>` (Required)::
   (string) Identifier for the {dfeed}. It can be a {dfeed} identifier or a
   wildcard expression.
 
+[[ml-stop-datafeed-request-body]]
+==== {api-request-body-title}
 
-==== Request Body
-
-`force`::
+`force` (Optional)::
   (boolean) If true, the {dfeed} is stopped forcefully.
 
-`timeout`::
+`timeout` (Optional)::
   (time) Controls the amount of time to wait until a {dfeed} stops.
   The default value is 20 seconds.
 
-
-==== Authorization
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-
-
-==== Examples
+[[ml-stop-datafeed-example]]
+==== {api-examples-title}
 
 The following example stops the `datafeed-total-requests` {dfeed}:
 

@@ -52,7 +52,7 @@ public class RefreshStats implements Streamable, Writeable, ToXContentFragment {
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             externalTotal = in.readVLong();
             externalTotalTimeInMillis = in.readVLong();
         }
@@ -63,7 +63,7 @@ public class RefreshStats implements Streamable, Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeVLong(externalTotal);
             out.writeVLong(externalTotalTimeInMillis);
         }

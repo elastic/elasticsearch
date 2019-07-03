@@ -344,14 +344,13 @@ The response to a cleanup request looks as follows:
 [source,js]
 --------------------------------------------------
 {
-  "result": {
+  "results": {
     "bytes": 20,
     "blobs": 5
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
+// TESTRESPONSE
 
 Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
 be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and

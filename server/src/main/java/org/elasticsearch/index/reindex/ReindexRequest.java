@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -294,6 +296,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, params.paramAsBoolean("serialize_params", false));
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean serializeParams) throws IOException {
         builder.startObject();
         {
             // build source
@@ -336,8 +342,31 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.field("conflicts", "proceed");
             }
         }
-        builder.endObject();
-        return builder;
+        {
+            // Serialize query params
+            if (serializeParams) {
+                builder.startObject("params");
+                builder.field("refresh", isRefresh());
+                if (DEFAULT_SCROLL_TIMEOUT.equals(getScrollTime()) == false) {
+                    builder.field("scroll_millis", getScrollTime().getMillis());
+                }
+                if (DEFAULT_TIMEOUT.equals(getTimeout()) == false) {
+                    builder.field("timeout_millis", getTimeout().getMillis());
+                }
+                if (getSlices() != DEFAULT_SLICES) {
+                    builder.field("slices", getSlices());
+                }
+                if (getRequestsPerSecond() != Float.POSITIVE_INFINITY) {
+                    builder.field("requests_per_second", getRequestsPerSecond());
+                }
+                if (ActiveShardCount.DEFAULT.equals(getWaitForActiveShards()) == false) {
+                    builder.field("wait_for_active_shards", getWaitForActiveShards().toString());
+                }
+
+                builder.endObject();
+            }
+        }
+        return builder.endObject();
     }
 
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
@@ -382,6 +411,26 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
             ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
+        PARSER.declareObject(ReindexRequest::setParams, (p, c) -> ReindexParams.fromXContent(p), new ParseField("params"));
+    }
+
+    private static void setParams(ReindexRequest reindexRequest, ReindexParams params) {
+        reindexRequest.setRefresh(params.refresh);
+        if (params.scroll != null) {
+            reindexRequest.setScroll(params.scroll);
+        }
+        if (params.timeout != null) {
+            reindexRequest.setTimeout(params.timeout);
+        }
+        if (params.slices != null) {
+            reindexRequest.setSlices(params.slices);
+        }
+        if (params.requestsPerSecond != null) {
+            reindexRequest.setRequestsPerSecond(params.requestsPerSecond);
+        }
+        if (params.waitForActiveShardCount != null) {
+            reindexRequest.setWaitForActiveShards(params.waitForActiveShardCount);
+        }
     }
 
     public static ReindexRequest fromXContent(XContentParser parser) throws IOException {
@@ -497,5 +546,58 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     private static void failOnSizeSpecified() {
         throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
+    }
+
+    private static class ReindexParams {
+
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<ReindexParams, Void> PARAMS_PARSER
+            = new ConstructingObjectParser<>("reindex_params", a -> new ReindexParams(
+                (Boolean) a[0], (Long) a[1], (Long) a[2], (Integer) a[3], (Float) a[4], (String) a[5]));
+
+        static {
+            PARAMS_PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField("refresh"));
+            PARAMS_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("scroll_millis"));
+            PARAMS_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("timeout_millis"));
+            PARAMS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField("slices"));
+            PARAMS_PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField("requests_per_second"));
+            PARAMS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("wait_for_active_shards"));
+        }
+
+        private final boolean refresh;
+        private final TimeValue scroll;
+        private final TimeValue timeout;
+        private final Integer slices;
+        private final Float requestsPerSecond;
+        private final ActiveShardCount waitForActiveShardCount;
+
+
+        private ReindexParams(boolean refresh, Long scroll, Long timeout, Integer slices, Float requestsPerSecond,
+                              String waitForActiveShardCount) {
+            this.refresh = refresh;
+            if (scroll != null) {
+                this.scroll = TimeValue.timeValueMillis(scroll);
+            } else {
+                this.scroll = null;
+            }
+            if (timeout != null) {
+                this.timeout = TimeValue.timeValueMillis(timeout);
+            } else {
+                this.timeout = null;
+            }
+
+            this.slices = slices;
+            this.requestsPerSecond = requestsPerSecond;
+
+            if (waitForActiveShardCount != null) {
+                this.waitForActiveShardCount = ActiveShardCount.parseString(waitForActiveShardCount);
+            } else {
+                this.waitForActiveShardCount = null;
+            }
+        }
+
+        public static ReindexParams fromXContent(XContentParser parser) throws IOException {
+            return PARAMS_PARSER.parse(parser, null);
+        }
     }
 }

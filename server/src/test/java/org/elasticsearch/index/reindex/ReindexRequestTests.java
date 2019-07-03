@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,6 +70,13 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     }
 
     @Override
+    protected ToXContent.Params getToXContentParams() {
+        HashMap<String, String> params = new HashMap<>();
+        params.put("serialize_params", Boolean.TRUE.toString());
+        return new ToXContent.MapParams(params);
+    }
+
+    @Override
     protected ReindexRequest createTestInstance() {
         ReindexRequest reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices("source");
@@ -110,6 +118,30 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
 
+        if (randomBoolean()) {
+            reindexRequest.setRefresh(randomBoolean());
+        }
+
+        if (randomBoolean()) {
+            reindexRequest.setScroll(TimeValue.timeValueSeconds(randomIntBetween(30, 60)));
+        }
+
+        if (randomBoolean()) {
+            reindexRequest.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(30, 60)));
+        }
+
+        if (randomBoolean()) {
+            reindexRequest.setSlices(randomInt(10));
+        }
+
+        if (randomBoolean()) {
+            reindexRequest.setRequestsPerSecond((float) randomInt(10) + 1);
+        }
+
+        if (randomBoolean()) {
+            reindexRequest.setWaitForActiveShards(randomInt(3));
+        }
+
         return reindexRequest;
     }
 
@@ -136,6 +168,13 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(expectedInstance.getDestination().routing(), newInstance.getDestination().routing());
         assertEquals(expectedInstance.getDestination().opType(), newInstance.getDestination().opType());
         assertEquals(expectedInstance.getDestination().type(), newInstance.getDestination().type());
+
+        assertEquals(expectedInstance.isRefresh(), newInstance.isRefresh());
+        assertEquals(expectedInstance.getScrollTime(), newInstance.getScrollTime());
+        assertEquals(expectedInstance.getTimeout(), newInstance.getTimeout());
+        assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
+        assertEquals(expectedInstance.getRequestsPerSecond(), newInstance.getRequestsPerSecond(), 0.1);
+        assertEquals(expectedInstance.getWaitForActiveShards(), newInstance.getWaitForActiveShards());
     }
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {

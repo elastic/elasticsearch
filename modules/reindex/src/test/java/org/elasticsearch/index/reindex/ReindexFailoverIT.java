@@ -20,14 +20,14 @@
 package org.elasticsearch.index.reindex;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -38,7 +38,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -88,39 +87,36 @@ public class ReindexFailoverIT extends ReindexTestCase {
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
-        StartReindexJobAction.Request request = new StartReindexJobAction.Request(copy.request(), false);
+        ReindexRequest reindexRequest = copy.request();
+        reindexRequest.setScroll(TimeValue.timeValueSeconds(25));
+        StartReindexJobAction.Request request = new StartReindexJobAction.Request(reindexRequest, false);
 
         copy.source().setSize(100);
-        client().execute(StartReindexJobAction.INSTANCE, request).get();
+        StartReindexJobAction.Response response = client().execute(StartReindexJobAction.INSTANCE, request).get();
+        TaskId taskId = new TaskId(response.getTaskId());
 
-        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
-        Optional<TaskInfo> taskInfo = listTasksResponse.getTasks().stream().filter(t -> t.getAction().contains("reindex"))
-            .findFirst();
-        if (taskInfo.isPresent()) {
-            String nodeId = taskInfo.get().getTaskId().getNodeId();
-            String nodeName = nodeIdToName.get(nodeId);
+        String nodeId = taskId.getNodeId();
+        String nodeName = nodeIdToName.get(nodeId);
 
-            logger.info("--> restarting node: " + nodeName);
-            internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
+        logger.info("--> restarting node: " + nodeName);
+        internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
 
-            logger.info("--> waiting to cluster to heal");
-            ensureStableCluster(4);
+        logger.info("--> waiting to cluster to heal");
+        ensureStableCluster(4);
 
-            ensureYellow("dest");
-            refresh();
+        ensureYellow("dest");
+        refresh();
 
-            for (int i = 0; i < docCount; i++) {
-                int docId = i;
-                assertBusy(() -> {
-                    GetResponse getResponse = client().prepareGet("dest", "_doc", Integer.toString(docId)).get();
-                    assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
-                });
-            }
-
-            assertEquals(docCount, client().prepareSearch("dest").get().getHits().getTotalHits().value);
+        for (int i = 0; i < docCount; i++) {
+            int docId = i;
+            assertBusy(() -> {
+                GetResponse getResponse = client().prepareGet("dest", "_doc", Integer.toString(docId)).get();
+                assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
+            });
         }
-    }
 
+        assertEquals(docCount, client().prepareSearch("dest").get().getHits().getTotalHits().value);
+    }
 
     @Override
     protected boolean ignoreExternalCluster() {

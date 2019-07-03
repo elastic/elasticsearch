@@ -82,7 +82,8 @@ public class ReindexJob implements PersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(REINDEX_REQUEST, reindexRequest);
+        builder.field(REINDEX_REQUEST);
+        reindexRequest.toXContent(builder, params, true);
         builder.field(HEADERS, headers);
         return builder.endObject();
     }

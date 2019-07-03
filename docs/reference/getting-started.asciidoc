@@ -1,106 +1,33 @@
 [[getting-started]]
-= Getting started
+= Getting started with {es}
 
 [partintro]
 --
+Ready to take {es} for a test drive and see for yourself how you can use the
+REST APIs to store, search, and analyze data?
 
-Elasticsearch is a highly scalable open-source full-text search and analytics engine. It allows you to store, search, and analyze big volumes of data quickly and in near real time. It is generally used as the underlying engine/technology that powers applications that have complex search features and requirements.
+Follow this getting started tutorial to:
 
-Here are a few sample use-cases that Elasticsearch could be used for:
+. Get an {es} instance up and running
+. Index some sample documents
+. Search for documents using the {es} query language
+. Analyze the results using bucket and metrics aggregations
 
-* You run an online web store where you allow your customers to search for products that you sell. In this case, you can use Elasticsearch to store your entire product catalog and inventory and provide search and autocomplete suggestions for them.
-* You want to collect log or transaction data and you want to analyze and mine this data to look for trends, statistics, summarizations, or anomalies. In this case, you can use Logstash (part of the Elasticsearch/Logstash/Kibana stack) to collect, aggregate, and parse your data, and then have Logstash feed this data into Elasticsearch. Once the data is in Elasticsearch, you can run searches and aggregations to mine any information that is of interest to you.
-* You run a price alerting platform which allows price-savvy customers to specify a rule like "I am interested in buying a specific electronic gadget and I want to be notified if the price of gadget falls below $X from any vendor within the next month". In this case you can scrape vendor prices, push them into Elasticsearch and use its reverse-search (Percolator) capability to match price movements against customer queries and eventually push the alerts out to the customer once matches are found.
-* You have analytics/business-intelligence needs and want to quickly investigate, analyze, visualize, and ask ad-hoc questions on a lot of data (think millions or billions of records). In this case, you can use Elasticsearch to store your data and then use Kibana (part of the Elasticsearch/Logstash/Kibana stack) to build custom dashboards that can visualize aspects of your data that are important to you. Additionally, you can use the Elasticsearch aggregations functionality to perform complex business intelligence queries against your data.
 
-For the rest of this tutorial, you will be guided through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
+Need more context?
+
+Check out the <<elasticsearch-intro,
+Elasticsearch Introduction>> to learn the lingo and understand the basics of
+how {es} works. If you're already familiar with {es} and want to see how it works
+with the rest of the stack, you might want to jump to the
+{stack-gs}/get-started-elastic-stack.html[Elastic Stack
+Tutorial] to see how to set up a system monitoring solution with {es}, {kib},
+{beats},  and {ls}.
+
+TIP: The fastest way to get started with {es} is to
+https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day
+trial of Elasticsearch Service] in the cloud.
 --
-
-[[getting-started-concepts]]
-== Basic Concepts
-
-There are a few concepts that are core to Elasticsearch. Understanding these concepts from the outset will tremendously help ease the learning process.
-
-[float]
-=== Near Realtime (NRT)
-
-Elasticsearch is a near-realtime search platform. What this means is there is a slight latency (normally one second) from the time you index a document until the time it becomes searchable.
-
-[float]
-=== Cluster
-
-A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of a cluster if the node is set up to join the cluster by its name.
-
-Make sure that you don't reuse the same cluster names in different
-environments, otherwise you might end up with nodes joining the wrong cluster.
-For instance you could use `logging-dev`, `logging-stage`, and `logging-prod`
-for the development, staging, and production clusters.
-
-Note that it is valid and perfectly fine to have a cluster with only a single node in it. Furthermore, you may also have multiple independent clusters each with its own unique cluster name.
-
-[float]
-=== Node
-
-A node is a single server that is part of your cluster, stores your data, and participates in the cluster's indexing and search
-capabilities. Just like a cluster, a node is identified by a name which by default is a random Universally Unique IDentifier (UUID) that is assigned to the node at startup. You can define any node name you want if you do not want the default.  This name is important for administration purposes where you want to identify which servers in your network correspond to which nodes in your Elasticsearch cluster.
-
-A node can be configured to join a specific cluster by the cluster name. By default, each node is set up to join a cluster named `elasticsearch` which means that if you start up a number of nodes on your network and--assuming they can discover each other--they will all automatically form and join a single cluster named `elasticsearch`.
-
-In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default form a new single-node cluster named `elasticsearch`.
-
-[float]
-=== Index
-
-An index is a collection of documents that have somewhat similar characteristics. For example, you can have an index for customer data, another index for a product catalog, and yet another index for order data. An index is identified by a name (that must be all lowercase) and this name is used to refer to the index when performing indexing, search, update, and delete operations against the documents in it.
-
-In a single cluster, you can define as many indexes as you want.
-
-[float]
-=== Type
-
-deprecated[6.0.0,See <<removal-of-types>>]
-
-A type used to be a logical category/partition of your index to allow you to store different types of documents in the same index, e.g. one type for users, another type for blog posts.  It is no longer possible to create multiple types in an index, and the whole concept of types will be removed in a later version.  See <<removal-of-types>> for more.
-
-[float]
-=== Document
-
-A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format. Within an index, you can store as many documents as you want.
-
-[[getting-started-shards-and-replicas]]
-[float]
-=== Shards & Replicas
-
-An index can potentially store a large amount of data that can exceed the hardware limits of a single node. For example, a single index of a billion documents taking up 1TB of disk space may not fit on the disk of a single node or may be too slow to serve search requests from a single node alone.
-
-To solve this problem, Elasticsearch provides the ability to subdivide your index into multiple pieces called shards. When you create an index, you can simply define the number of shards that you want. Each shard is in itself a fully-functional and independent "index" that can be hosted on any node in the cluster.
-
-Sharding is important for two primary reasons:
-
-* It allows you to horizontally split/scale your content volume
-* It allows you to distribute and parallelize operations across shards (potentially on multiple nodes) thus increasing performance/throughput
-
-
-The mechanics of how a shard is distributed and also how its documents are aggregated back into search requests are completely managed by Elasticsearch and is transparent to you as the user.
-
-In a network/cloud environment where failures can be expected anytime, it is very useful and highly recommended to have a failover mechanism in case a shard/node somehow goes offline or disappears for whatever reason. To this end, Elasticsearch allows you to make one or more copies of your index's shards into what are called replica shards, or replicas for short.
-
-Replication is important for two primary reasons:
-
-* It provides high availability in case a shard/node fails. For this reason, it is important to note that a replica shard is never allocated on the same node as the original/primary shard that it was copied from.
-* It allows you to scale out your search volume/throughput since searches can be executed on all replicas in parallel.
-
-
-To summarize, each index can be split into multiple shards. An index can also be replicated zero (meaning no replicas) or more times. Once replicated, each index will have primary shards (the original shards that were replicated from) and replica shards (the copies of the primary shards).
-
-The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may also change the number of replicas dynamically anytime. You can change the number of shards for an existing index using the {ref}/indices-shrink-index.html[`_shrink`] and {ref}/indices-split-index.html[`_split`] APIs, however this is not a trivial task and pre-planning for the correct number of shards is the optimal approach.
-
-By default, each index in Elasticsearch is allocated one primary shard and one replica which means that if you have at least two nodes in your cluster, your index will have one primary shard and another replica shard (one complete replica) for a total of two shards per index.
-
-NOTE: Each Elasticsearch shard is a Lucene index.  There is a maximum number of documents you can have in a single Lucene index.  As of https://issues.apache.org/jira/browse/LUCENE-5843[`LUCENE-5843`], the limit is `2,147,483,519` (= Integer.MAX_VALUE - 128) documents.
-You can monitor shard sizes using the {ref}/cat-shards.html[`_cat/shards`] API.
-
-With that out of the way, let's get started with the fun part...
 
 [[getting-started-install]]
 == Installation

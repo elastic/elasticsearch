@@ -36,7 +36,6 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -50,7 +49,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests relating to the loss of the master.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 

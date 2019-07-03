@@ -49,12 +49,13 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
   destination index. When the source index matches multiple indices, these 
   settings will be set to the maximum values found in the source indices.
   
-  The mappings of the source indicies are also attempted to being copied over
+  The mappings of the source indices are also attempted to be copied over
   `dest`, however, if the mappings of any of the fields don't match among the 
-  source indicies, the attempt will fail with an error message.
+  source indices, the attempt will fail with an error message.
   
-  If `dest` already exists, then it will be use as is. This makes it possible to 
-  set up the destination index in advance with custom settings and mappings.
+  If the destination index already exists, then it will be use as is. This makes 
+  it possible to set up the destination index in advance with custom settings 
+  and mappings.
   
 `analysis` (Required)::
   (object) Defines the type of {dfanalytics} you want to perform on your source 

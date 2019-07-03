@@ -163,7 +163,7 @@ if (useFixture) {
   def minioAddress = {
     int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
-    return 'http://127.0.0.1:' + minioPort
+    'http://127.0.0.1:' + minioPort
   }
 
   File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')

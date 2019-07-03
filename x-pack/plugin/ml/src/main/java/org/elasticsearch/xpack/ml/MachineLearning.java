@@ -501,7 +501,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
-            analyticsProcessFactory = (jobId, analyticsProcessConfig, executorService) -> null;
+            analyticsProcessFactory = (jobId, analyticsProcessConfig, executorService, onProcessCrash) -> null;
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));

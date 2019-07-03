@@ -165,7 +165,8 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("Could not delete enrich indices that were marked for deletion", e);
+                    logger.error(() -> "Enrich maintenance task could not delete abandoned enrich indices [" +
+                        Arrays.toString(removeIndices) + "]", e);
                 }
             });
         }

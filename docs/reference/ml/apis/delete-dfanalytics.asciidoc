@@ -7,7 +7,7 @@
 <titleabbrev>Delete {dfanalytics-jobs}</titleabbrev>
 ++++
 
-beta[]
+experimental[]
 
 Deletes an existing {dfanalytics-job}.
 

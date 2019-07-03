@@ -8,10 +8,15 @@
 <titleabbrev>Evaluate {dfanalytics}</titleabbrev>
 ++++
 
-beta[]
+experimental[]
 
 Evaluates the executed analysis on an index that is already annotated with a 
-field that marks each {dataframe} row with the results of the analytics.
+field that contains the results of the analytics (the `ground truth`) for each 
+{dataframe} row. Evaluation is typically done via calculating a set of metrics 
+that capture various aspects of the quality of the results over the data for 
+which we have the `ground truth`. For different types of analyses different 
+metrics are suitable. This API packages together commonly used metrics for 
+various analyses.
 
 [[ml-evaluate-dataframe-request]]
 ==== {api-request-title}

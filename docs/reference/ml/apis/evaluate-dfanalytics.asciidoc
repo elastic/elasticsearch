@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[evaluate-dataframe]]
+[[evaluate-dfanalytics]]
 === Evaluate {dfanalytics} API
 
 [subs="attributes"]
@@ -18,19 +18,19 @@ which we have the `ground truth`. For different types of analyses different
 metrics are suitable. This API packages together commonly used metrics for 
 various analyses.
 
-[[ml-evaluate-dataframe-request]]
+[[ml-evaluate-dfanalytics-request]]
 ==== {api-request-title}
 
 `POST _ml/data_frame/_evaluate`
 
-[[ml-evaluate-dataframe-prereq]]
+[[ml-evaluate-dfanalytics-prereq]]
 ==== {api-prereq-title}
 
 * You must have `monitor_ml` privilege to use this API. For more 
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[[ml-evaluate-dataframe-request-body]]
+[[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 `index` (Required)::
@@ -41,7 +41,7 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
   `binary_soft_classification`.
   See evaluate API resources.
 
-[[ml-evaluate-dataframe-example]]
+[[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}
 
 [source,js]

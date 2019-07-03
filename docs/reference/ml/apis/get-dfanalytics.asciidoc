@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="platinum"]
-[[ml-get-dfanalytics]]
+[[get-dfanalytics]]
 === Get {dfanalytics-jobs} API
 [subs="attributes"]
 ++++

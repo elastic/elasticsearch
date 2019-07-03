@@ -52,6 +52,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -239,7 +241,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     public Map<String, BlobContainer> children() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             ObjectListing prevListing = null;
-            final var entries = new ArrayList<Map.Entry<String, BlobContainer>>();
+            final Map<String, BlobContainer> entries = new HashMap<>();
             while (true) {
                 ObjectListing list;
                 if (prevListing != null) {
@@ -258,7 +260,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                         // Stripping the trailing slash off of the common prefix
                         final String last = name.substring(0, name.length() - 1);
                         final BlobPath path = path().add(last);
-                        entries.add(entry(last, blobStore.blobContainer(path)));
+                        entries.put(last, blobStore.blobContainer(path));
                     }
                 }
                 assert list.getObjectSummaries().stream().noneMatch(s -> {
@@ -275,7 +277,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     break;
                 }
             }
-            return Maps.ofEntries(entries);
+            return Collections.unmodifiableMap(entries);
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when listing children of [" +  path().buildAsString() + ']', e);
         }

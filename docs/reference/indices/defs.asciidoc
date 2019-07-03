@@ -1,0 +1,11 @@
+[[index-api-definitions]]
+== Index API definitions
+++++
+<titleabbrev>Definitions</titleabbrev>
+++++
+
+These resource definitions are used in index APIs.
+
+* <<index-apis-conditions,Conditions>>
+
+include::{docdir}/indices/resources/conditions-resource.asciidoc[]

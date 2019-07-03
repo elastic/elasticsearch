@@ -1,0 +1,28 @@
+[[index-apis-conditions]]
+=== Conditions objects
+++++
+<titleabbrev>Conditions</titleabbrev>
+++++
+
+The `conditions` resource contains one or more conditions. If an index meets any
+of these conditions when you call the <<indices-rollover-index,roll over API>>,
+{es} points the provided alias to a new index.
+
+[float]
+[[index-apis-conditions-properties]]
+==== {api-definitions-title}
+
+`max_age` (Optional)::
+(<<time-units, time units>>) Maximum age of the index.
+
+`max_docs` (Optional)::
++
+--
+(integer) Maximum number of documents the index should contain.
+
+This maximum does not include documents from replicas.
+--
+
+`max_size` (Optional)::
+(<<byte-units, byte units>>) Maximum estimated size of the primary shard of the
+index.

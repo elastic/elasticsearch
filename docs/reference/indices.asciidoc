@@ -57,6 +57,10 @@ index settings, aliases, mappings, and index templates.
 * <<indices-flush>>
 * <<indices-forcemerge>>
 
+[float]
+[[indices-definitions]]
+== Definitions:
+* <<index-api-definitions>>
 --
 
 include::indices/create-index.asciidoc[]
@@ -108,4 +112,6 @@ include::indices/flush.asciidoc[]
 include::indices/refresh.asciidoc[]
 
 include::indices/forcemerge.asciidoc[]
+
+include::indices/defs.asciidoc[]
 

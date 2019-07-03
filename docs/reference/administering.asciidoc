@@ -9,6 +9,8 @@ cluster.
 
 --
 
+include::{docdir}/administering/rollover-index.asciidoc[]
+
 [[backup-cluster]]
 == Back up a cluster
 

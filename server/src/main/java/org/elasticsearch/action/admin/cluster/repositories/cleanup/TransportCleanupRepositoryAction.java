@@ -36,7 +36,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-// TODO: add response that includes stats?
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest,
                                                                                       CleanupRepositoryResponse> {
 

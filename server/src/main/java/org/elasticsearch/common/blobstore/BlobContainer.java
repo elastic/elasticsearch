@@ -112,6 +112,9 @@ public interface BlobContainer {
 
     /**
      * Deletes this container and all its contents from the repository.
+     * @param resultConsumer Long consumer that implementations can invoke with the byte size of each deleted blob when deleting it.
+     *                       If invoking the result consumer exactly once per deleted blob is not possible for an implementation it must at
+     *                       least invoke the consumer once during the delete process if any data was deleted.
      * @throws IOException on failure
      */
     void delete(LongConsumer resultConsumer) throws IOException;

@@ -77,10 +77,6 @@ public class XPackSettings {
     public static final Setting<Boolean> DLS_FLS_ENABLED = Setting.boolSetting("xpack.security.dls_fls.enabled", true,
             Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling safe terms enum behavior. Defaults to false. */
-    public static final Setting<Boolean> STRICT_TERMS_ENUM = Setting.boolSetting("xpack.security.strict_terms_enum.enabled", true,
-        Setting.Property.NodeScope);
-
     /** Setting for enabling or disabling Logstash extensions. Defaults to true. */
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope);
@@ -206,7 +202,6 @@ public class XPackSettings {
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);
         settings.add(DLS_FLS_ENABLED);
-        settings.add(STRICT_TERMS_ENUM);
         settings.add(LOGSTASH_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
         settings.add(HTTP_SSL_ENABLED);

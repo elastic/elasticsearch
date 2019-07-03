@@ -23,6 +23,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -295,7 +296,9 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
         @Override
         public SeekStatus seekCeil(BytesRef term) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("This query type is disallowed when " +
+                IndexMetaData.INDEX_PRIORITY_SETTING.getKey() +
+                " is set to true, as it can inadvertently leak terms that DLS would not permit.");
         }
 
         @Override
@@ -305,7 +308,9 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
         @Override
         public void seekExact(long ord) throws IOException {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("This query type is disallowed when " +
+                IndexMetaData.INDEX_PRIORITY_SETTING.getKey() +
+                " is set to true, as it can inadvertently leak terms that DLS would not permit.");
         }
     }
 

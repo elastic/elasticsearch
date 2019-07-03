@@ -1,0 +1,178 @@
+setup:
+  - skip:
+      version: " - 7.4.0"
+      reason: Behavior was changed in 7.4.0
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "mixed_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["test_*"], "privileges": ["read"], "query": "{\"match\": {\"user\": \"u1\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+          "password" : "x-pack-test-password",
+          "roles" : [ "mixed_role" ],
+          "full_name" : "user with mixed privileges to multiple indices"
+          }
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+            strict_terms_enum.enabled: "true"
+          mappings:
+            properties:
+              user:
+                type: keyword
+              followers:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test_index_lenient
+        body:
+          settings:
+            number_of_shards: 1
+            # This is the default value, simply making ot obvious here
+            strict_terms_enum.enabled: "false"
+          mappings:
+            properties:
+              user:
+                type: keyword
+              followers:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "u1"}}'
+          - '{"user": "u1", "name": "This is the first user name"}'
+          - '{"index": {"_index": "test_index", "_id": "u2"}}'
+          - '{"user": "u2", "name": "This is the second user name"}'
+          - '{"index": {"_index": "test_index", "_id": "u3"}}'
+          - '{"user": "u3", "name": "This is the third user name"}'
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "u1"}}'
+          - '{"user": "u1", "name": "This is the first user name"}'
+          - '{"index": {"_index": "test_index", "_id": "u2"}}'
+          - '{"user": "u2", "name": "This is the second user name"}'
+          - '{"index": {"_index": "test_index", "_id": "u3"}}'
+          - '{"user": "u3", "name": "This is the third user name"}'
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "mixed_role"
+        ignore: 404
+
+---
+"Fuzzy queries should fail":
+
+  - do:
+      catch: /unsupported_operation_exception/
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index
+        body: { "query": { "fuzzy": { "user": {"value": "aser", "rewrite": "constant_score_boolean" } } } }
+
+---
+"Fuzzy queries with constant score rewrite method should fail":
+
+  - do:
+      catch: /unsupported_operation_exception/
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index
+        body: { "query": { "fuzzy": { "user": {"value": "aser", "rewrite": "constant_score" } } } }
+
+---
+"Fuzzy queries should not fail with strict_terms_enum.enabled false":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index_lenient
+        body: { "query": { "fuzzy": { "user": "aser" } } }
+
+---
+"Wildcard queries should fail":
+
+  - do:
+      catch: /unsupported_operation_exception/
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index
+        body: { "query": { "wildcard": { "user": {"value": "This*", "rewrite": "constant_score_boolean" } } } }
+
+---
+"Wildcard queries with constant_score rewrite method should fail":
+
+  - do:
+      catch: /unsupported_operation_exception/
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index
+        body: { "query": { "wildcard": { "user": {"value": "This*", "rewrite": "constant_score" } } } }
+
+---
+"Wildcard queries should not fail with strict_terms_enum.enabled false":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index_lenient
+        body: { "query": { "wildcard": { "user": {"value": "This*", "rewrite": "constant_score_boolean" } } } }
+
+---
+"Prefix queries should fail":
+
+  - do:
+      catch: /unsupported_operation_exception/
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index
+        body: { "query": { "prefix": { "user": {"value": "This is", "rewrite": "constant_score_boolean" } } } }
+
+---
+"Prefix queries with constant_score rewrite method should fail":
+
+  - do:
+      catch: /unsupported_operation_exception/
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index
+        body: { "query": { "prefix": { "user": {"value": "This is", "rewrite": "constant_score" } } } }
+
+---
+"Prefix queries should not fail with strict_terms_enum.enabled false":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        index: test_index_lenient
+        body: { "query": { "prefix": { "user": {"value": "This is", "rewrite": "constant_score_boolean" } } } }

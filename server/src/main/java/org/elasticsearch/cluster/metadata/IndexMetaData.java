@@ -204,6 +204,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final Setting<Version> SETTING_INDEX_VERSION_CREATED =
             Setting.versionSetting(SETTING_VERSION_CREATED, Version.V_EMPTY, Property.IndexScope, Property.PrivateIndex);
 
+    public static final String SETTING_STRICT_TERMS_ENUM = "index.strict_terms_enum.enabled";
+    public static final Setting<Boolean> INDEX_STRICT_TERMS_ENUM_SETTING =
+        Setting.boolSetting(SETTING_STRICT_TERMS_ENUM, false, Property.Dynamic, Property.IndexScope);
+
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";

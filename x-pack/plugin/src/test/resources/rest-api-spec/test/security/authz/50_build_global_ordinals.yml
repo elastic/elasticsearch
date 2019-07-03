@@ -35,6 +35,7 @@ setup:
         body:
           settings:
             number_of_shards: 1
+            strict_terms_enum.enabled: "true"
           mappings:
             properties:
               user:
@@ -68,6 +69,7 @@ teardown:
           - '{"user": "u3", "followers": ["u1"]}'
           - '{"index": {"_index": "test_index", "_id": "u4"}}'
           - '{"user": "u4", "followers": ["u3"]}'
+  # we perform the second bulk request with refresh on purpose in order to have multiple segments
   - do:
       bulk:
         refresh: true

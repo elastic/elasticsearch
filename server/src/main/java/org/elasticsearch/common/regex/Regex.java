@@ -88,7 +88,7 @@ public class Regex {
         if (pattern == null || str == null) {
             return false;
         }
-        int firstIndex = pattern.indexOf('*');
+        final int firstIndex = pattern.indexOf('*');
         if (firstIndex == -1) {
             return pattern.equals(str);
         }
@@ -96,14 +96,14 @@ public class Regex {
             if (pattern.length() == 1) {
                 return true;
             }
-            int nextIndex = pattern.indexOf('*', firstIndex + 1);
+            final int nextIndex = pattern.indexOf('*', firstIndex + 1);
             if (nextIndex == -1) {
                 return str.endsWith(pattern.substring(1));
             } else if (nextIndex == 1) {
                 // Double wildcard "**" - skipping the first "*"
                 return simpleMatch(pattern.substring(1), str);
             }
-            String part = pattern.substring(1, nextIndex);
+            final String part = pattern.substring(1, nextIndex);
             int partIndex = str.indexOf(part);
             while (partIndex != -1) {
                 if (simpleMatch(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
@@ -113,8 +113,12 @@ public class Regex {
             }
             return false;
         }
+        final String patternBeforeFirstIndex = pattern.substring(0, firstIndex);
+        if (firstIndex == pattern.length() - 1) {
+            return str.startsWith(patternBeforeFirstIndex);
+        }
         return (str.length() >= firstIndex &&
-                pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex)) &&
+                patternBeforeFirstIndex.equals(str.substring(0, firstIndex)) &&
                 simpleMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
     }
 

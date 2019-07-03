@@ -57,6 +57,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -880,6 +881,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
             .map(zipFile -> project.zipTree(zipFile).matching(filter))
             .flatMap(tree -> tree.getFiles().stream())
+            .sorted(Comparator.comparing(File::getName))
             .collect(Collectors.toList());
     }
 
@@ -901,8 +903,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Classpath
-    private Set<File> getDistributionClasspath() {
-        return project.fileTree(getExtractedDistributionDir()).matching(filter -> filter.include("**/*.jar")).getFiles();
+    private List<File> getDistributionClasspath() {
+        ArrayList<File> files = new ArrayList<>(project.fileTree(getExtractedDistributionDir()).matching(filter -> filter.include("**/*.jar")).getFiles());
+        files.sort(Comparator.comparing(File::getName));
+
+        return files;
     }
 
     @InputFiles

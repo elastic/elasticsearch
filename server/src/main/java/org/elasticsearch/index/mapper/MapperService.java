@@ -748,10 +748,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public Collection<String> simpleMatchToFullName(String pattern) {
+    public Set<String> simpleMatchToFullName(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return Collections.singletonList(pattern);
+            return Collections.singleton(pattern);
         }
         return fieldTypes.simpleMatchToFullName(pattern);
     }
@@ -848,19 +848,23 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public synchronized void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
         // refresh indexAnalyzers and search analyzers
         final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
         final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
         final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+        final List<String> reloadedAnalyzers = new ArrayList<>();
         for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
             if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
                 ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
-                Settings analyzerSettings = settings.get(namedAnalyzer.name());
-                analyzer.reload(namedAnalyzer.name(), analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                String analyzerName = namedAnalyzer.name();
+                Settings analyzerSettings = settings.get(analyzerName);
+                analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                reloadedAnalyzers.add(analyzerName);
             }
         }
+        return reloadedAnalyzers;
     }
 }

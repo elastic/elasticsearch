@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -144,24 +146,31 @@ public class WatcherService {
     }
 
     /**
-     * Stops the watcher service and marks its services as paused
+     * Stops the watcher service and marks its services as paused. Callers should set the Watcher state to {@link WatcherState#STOPPING}
+     * prior to calling this method.
+     *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may not be {@code null}
      */
-    public void stop(String reason) {
+    public void stop(String reason, Consumer<Void> stoppedListener) {
+        assert stoppedListener != null;
         logger.info("stopping watch service, reason [{}]", reason);
-        executionService.pause();
+        executionService.pause(stoppedListener);
         triggerService.pauseExecution();
     }
 
     /**
      * shuts down the trigger service as well to make sure there are no lingering threads
      * also no need to check anything, as this is final, we just can go to status STOPPED
+     *
+     * @param stopListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be {@code null} assuming the
+     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      */
-    void shutDown() {
+    void shutDown(@Nullable Consumer<Void> stopListener) {
         logger.info("stopping watch service, reason [shutdown initiated]");
-        executionService.pause();
+        executionService.pause(stopListener);
         triggerService.stop();
         stopExecutor();
-        logger.debug("watch service has stopped");
+        logger.debug("watch service has been shut down");
     }
 
     void stopExecutor() {
@@ -185,7 +194,7 @@ public class WatcherService {
         processedClusterStateVersion.set(state.getVersion());
 
         triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.clearExecutionsAndQueue();
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue(null);
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
         executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),
@@ -256,7 +265,7 @@ public class WatcherService {
      */
     public void pauseExecution(String reason) {
         triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.pause();
+        int cancelledTaskCount = executionService.pause(null);
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }
 

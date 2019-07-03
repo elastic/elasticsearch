@@ -39,6 +39,7 @@ import org.mockito.stubbing.Answer;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -54,6 +55,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isNotNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -133,8 +135,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         when(watcherService.validate(clusterState)).thenReturn(true);
 
         lifeCycleService.shutDown();
-        verify(watcherService, never()).stop(anyString());
-        verify(watcherService, times(1)).shutDown();
+        verify(watcherService, never()).stop(anyString(), any());
+        verify(watcherService, times(1)).shutDown(any());
 
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
@@ -175,7 +177,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stoppedClusterState, clusterState));
-        verify(watcherService, times(1)).stop(eq("watcher manually marked to shutdown by cluster state update"));
+        verify(watcherService, times(1)).stop(eq("watcher manually marked to shutdown by cluster state update"), (Consumer<Void>) isNotNull());
 
         // Starting via cluster state update, as the watcher metadata block is removed/set to true
         reset(watcherService);

@@ -24,6 +24,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
@@ -79,6 +81,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
@@ -135,23 +138,29 @@ public class ExecutionService {
      * Pausing means, that no new watch executions will be done unless this pausing is explicitly unset.
      * This is important when watcher is stopped, so that scheduled watches do not accidentally get executed.
      * This should not be used when we need to reload watcher based on some cluster state changes, then just calling
-     * {@link #clearExecutionsAndQueue()} is the way to go
+     * {@link #clearExecutionsAndQueue(Consumer)} is the way to go
+     *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be {@code null} assuming the
+     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      *
      * @return the number of tasks that have been removed
      */
-    public int pause() {
+    public int pause(@Nullable Consumer<Void> stoppedListener) {
         paused.set(true);
-        return clearExecutionsAndQueue();
+        return clearExecutionsAndQueue(stoppedListener);
     }
 
     /**
      * Empty the currently queued tasks and wait for current executions to finish.
      *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be {@code null} assuming the
+     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
+     *
      * @return the number of tasks that have been removed
      */
-    public int clearExecutionsAndQueue() {
+    public int clearExecutionsAndQueue(@Nullable Consumer<Void> stoppedListener) {
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
-        this.clearExecutions();
+        this.clearExecutions(stoppedListener);
         return cancelledTaskCount;
     }
 
@@ -577,11 +586,14 @@ public class ExecutionService {
     /**
      * This clears out the current executions and sets new empty current executions
      * This is needed, because when this method is called, watcher keeps running, so sealing executions would be a bad idea
+     *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be {@code null} assuming the
+     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      */
-    private void clearExecutions() {
+    private void clearExecutions(@Nullable Consumer<Void> stoppedListener) {
         final CurrentExecutions currentExecutionsBeforeSetting = currentExecutions.getAndSet(new CurrentExecutions());
         // clear old executions in background, no need to wait
-        genericExecutor.execute(() -> currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout));
+        genericExecutor.execute(() -> currentExecutionsBeforeSetting.sealAndAwaitEmpty(maxStopTimeout, stoppedListener));
     }
 
     // the watch execution task takes another runnable as parameter

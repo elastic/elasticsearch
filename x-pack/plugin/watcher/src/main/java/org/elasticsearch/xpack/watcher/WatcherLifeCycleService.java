@@ -28,6 +28,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -57,7 +58,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         this.state.set(WatcherState.STOPPING);
         shutDown = true;
         clearAllocationIds();
-        watcherService.shutDown();
+        watcherService.shutDown(null);
         this.state.set(WatcherState.STOPPED);
     }
 
@@ -90,7 +91,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
         // if this is not a data node, we need to start it ourselves possibly
         if (event.state().nodes().getLocalNode().isDataNode() == false &&
-            isWatcherStoppedManually == false && this.state.get() == WatcherState.STOPPED) {
+            isWatcherStoppedManually == false && (this.state.get() == WatcherState.STOPPED || this.state.get() == WatcherState.STOPPING)) {
             this.state.set(WatcherState.STARTING);
             watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
             return;
@@ -98,9 +99,16 @@ public class WatcherLifeCycleService implements ClusterStateListener {
 
         if (isWatcherStoppedManually) {
             if (this.state.get() == WatcherState.STARTED) {
+                this.state.set(WatcherState.STOPPING);
                 clearAllocationIds();
-                watcherService.stop("watcher manually marked to shutdown by cluster state update");
-                this.state.set(WatcherState.STOPPED);
+                //waiting to set state to stopped until after all currently running watches are finished
+                watcherService.stop("watcher manually marked to shutdown by cluster state update", a -> {
+                    //ensure that Watcher wasn't restarted between stopping and now.
+                    if (state.get() == WatcherState.STOPPING) {
+                        state.set(WatcherState.STOPPED);
+                    }
+
+                });
             }
             return;
         }
@@ -142,7 +150,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids");
-                } else if (state.get() == WatcherState.STOPPED) {
+                } else if (state.get() == WatcherState.STOPPED || state.get() == WatcherState.STOPPING) {
                     this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
                 }

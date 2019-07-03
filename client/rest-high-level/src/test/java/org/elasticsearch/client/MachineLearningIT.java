@@ -1406,6 +1406,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43924")
     public void testStopDataFrameAnalyticsConfig() throws Exception {
         String sourceIndex = "stop-test-source-index";
         String destIndex = "stop-test-dest-index";

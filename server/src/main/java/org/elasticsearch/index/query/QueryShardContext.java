@@ -58,10 +58,10 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -191,7 +191,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * Returns all the fields that match a given pattern. If prefixed with a
      * type then the fields will be returned with a type prefix.
      */
-    public Collection<String> simpleMatchToIndexNames(String pattern) {
+    public Set<String> simpleMatchToIndexNames(String pattern) {
         return mapperService.simpleMatchToFullName(pattern);
     }
 

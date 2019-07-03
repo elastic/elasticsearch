@@ -29,11 +29,13 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
@@ -42,6 +44,8 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -52,6 +56,10 @@ import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarEventsResponse;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
@@ -77,6 +85,8 @@ import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -86,8 +96,11 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -103,6 +116,18 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
+import org.elasticsearch.client.ml.dataframe.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -113,9 +138,12 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
@@ -136,6 +164,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -528,18 +557,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "start_data_1";
 
         // Set up the index and docs
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         long now = (System.currentTimeMillis()/1000)*1000;
@@ -611,18 +629,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "stop_data_1";
 
         // Set up the index
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
 
         // create the job and the datafeed
         Job job1 = buildJob(jobId1);
@@ -684,18 +691,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "datafeed_stats_data_1";
 
         // Set up the index
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
 
         // create the job and the datafeed
         Job job1 = buildJob(jobId1);
@@ -762,18 +758,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "preview_data_1";
 
         // Set up the index and docs
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         long now = (System.currentTimeMillis()/1000)*1000;
@@ -826,21 +811,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     private  String createExpiredData(String jobId) throws Exception {
-        String indexId = jobId + "-data";
+        String indexName = jobId + "-data";
         // Set up the index and docs
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                    .field("format", "epoch_millis")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName, defaultMappingForTest());
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -853,7 +826,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
-                IndexRequest indexRequest = new IndexRequest(indexId);
+                IndexRequest indexRequest = new IndexRequest(indexName);
                 indexRequest.source(XContentType.JSON, "timestamp", timestamp, "total", randomInt(1000));
                 bulk.add(indexRequest);
             }
@@ -872,7 +845,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         Job job = buildJobForExpiredDataTests(jobId);
         putJob(job);
         openJob(job);
-        String datafeedId = createAndPutDatafeed(jobId, indexId);
+        String datafeedId = createAndPutDatafeed(jobId, indexName);
 
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis - TimeValue.timeValueHours(24).getMillis()));
 
@@ -1228,6 +1201,419 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertThat(remainingIds.size(), equalTo(2));
         assertThat(remainingIds, not(hasItem(deletedEvent)));
+    }
+
+    public void testPutDataFrameAnalyticsConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "put-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        createIndex("put-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+        assertThat(createdConfig.getId(), equalTo(config.getId()));
+        assertThat(createdConfig.getSource().getIndex(), equalTo(config.getSource().getIndex()));
+        assertThat(createdConfig.getSource().getQueryConfig(), equalTo(new QueryConfig(new MatchAllQueryBuilder())));  // default value
+        assertThat(createdConfig.getDest().getIndex(), equalTo(config.getDest().getIndex()));
+        assertThat(createdConfig.getDest().getResultsField(), equalTo("ml"));  // default value
+        assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
+        assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
+        assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+    }
+
+    public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "get-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("get-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("get-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        createIndex("get-test-source-index", defaultMappingForTest());
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
+    }
+
+    public void testGetDataFrameAnalyticsConfig_MultipleConfigs() throws Exception {
+        createIndex("get-test-source-index", defaultMappingForTest());
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configIdPrefix = "get-test-config-";
+        int numberOfConfigs = 10;
+        List<DataFrameAnalyticsConfig> createdConfigs = new ArrayList<>();
+        for (int i = 0; i < numberOfConfigs; ++i) {
+            String configId = configIdPrefix + i;
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+                .setSource(DataFrameAnalyticsSource.builder()
+                    .setIndex("get-test-source-index")
+                    .build())
+                .setDest(DataFrameAnalyticsDest.builder()
+                    .setIndex("get-test-dest-index")
+                    .build())
+                .setAnalysis(OutlierDetection.createDefault())
+                .build();
+
+            PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+                new PutDataFrameAnalyticsRequest(config),
+                machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+            DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+            createdConfigs.add(createdConfig);
+        }
+
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                GetDataFrameAnalyticsRequest.getAllDataFrameAnalyticsRequest(),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(numberOfConfigs));
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), containsInAnyOrder(createdConfigs.toArray()));
+        }
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                new GetDataFrameAnalyticsRequest(configIdPrefix + "*"),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(numberOfConfigs));
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), containsInAnyOrder(createdConfigs.toArray()));
+        }
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                new GetDataFrameAnalyticsRequest(configIdPrefix + "9", configIdPrefix + "1", configIdPrefix + "4"),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(3));
+            assertThat(
+                getDataFrameAnalyticsResponse.getAnalytics(),
+                containsInAnyOrder(createdConfigs.get(1), createdConfigs.get(4), createdConfigs.get(9)));
+        }
+        {
+            GetDataFrameAnalyticsRequest getDataFrameAnalyticsRequest = new GetDataFrameAnalyticsRequest(configIdPrefix + "*");
+            getDataFrameAnalyticsRequest.setPageParams(new PageParams(3, 4));
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                getDataFrameAnalyticsRequest,
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(4));
+            assertThat(
+                getDataFrameAnalyticsResponse.getAnalytics(),
+                containsInAnyOrder(createdConfigs.get(3), createdConfigs.get(4), createdConfigs.get(5), createdConfigs.get(6)));
+        }
+    }
+
+    public void testGetDataFrameAnalyticsConfig_ConfigNotFound() {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("config_that_does_not_exist");
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(request, machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testGetDataFrameAnalyticsStats() throws Exception {
+        String sourceIndex = "get-stats-test-source-index";
+        String destIndex = "get-stats-test-dest-index";
+        createIndex(sourceIndex, defaultMappingForTest());
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "get-stats-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+
+        GetDataFrameAnalyticsStatsResponse statsResponse = execute(
+            new GetDataFrameAnalyticsStatsRequest(configId),
+            machineLearningClient::getDataFrameAnalyticsStats, machineLearningClient::getDataFrameAnalyticsStatsAsync);
+
+        assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
+        DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
+        assertThat(stats.getId(), equalTo(configId));
+        assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertNull(stats.getFailureReason());
+        assertNull(stats.getProgressPercent());
+        assertNull(stats.getNode());
+        assertNull(stats.getAssignmentExplanation());
+        assertThat(statsResponse.getNodeFailures(), hasSize(0));
+        assertThat(statsResponse.getTaskFailures(), hasSize(0));
+    }
+
+    public void testStartDataFrameAnalyticsConfig() throws Exception {
+        String sourceIndex = "start-test-source-index";
+        String destIndex = "start-test-dest-index";
+        createIndex(sourceIndex, defaultMappingForTest());
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
+
+        // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.
+        assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "start-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
+
+        AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
+            new StartDataFrameAnalyticsRequest(configId),
+            machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
+        assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
+
+        // Wait for the analytics to stop.
+        assertBusy(() -> assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED)), 30, TimeUnit.SECONDS);
+
+        // Verify that the destination index got created.
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+    }
+
+    public void testStopDataFrameAnalyticsConfig() throws Exception {
+        String sourceIndex = "stop-test-source-index";
+        String destIndex = "stop-test-dest-index";
+        createIndex(sourceIndex, mappingForClassification());
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
+
+        // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.
+        assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "stop-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
+
+        AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
+            new StartDataFrameAnalyticsRequest(configId),
+            machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
+        assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STARTED));
+
+        StopDataFrameAnalyticsResponse stopDataFrameAnalyticsResponse = execute(
+            new StopDataFrameAnalyticsRequest(configId),
+            machineLearningClient::stopDataFrameAnalytics, machineLearningClient::stopDataFrameAnalyticsAsync);
+        assertTrue(stopDataFrameAnalyticsResponse.isStopped());
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
+    }
+
+    private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        GetDataFrameAnalyticsStatsResponse statsResponse =
+            machineLearningClient.getDataFrameAnalyticsStats(new GetDataFrameAnalyticsStatsRequest(configId), RequestOptions.DEFAULT);
+        assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
+        DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
+        return stats.getState();
+    }
+
+    public void testDeleteDataFrameAnalyticsConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "delete-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("delete-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("delete-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        createIndex("delete-test-source-index", defaultMappingForTest());
+
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+
+        getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
+
+        AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(
+            new DeleteDataFrameAnalyticsRequest(configId),
+            machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync);
+        assertTrue(deleteDataFrameAnalyticsResponse.isAcknowledged());
+
+        getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
+    }
+
+    public void testDeleteDataFrameAnalyticsConfig_ConfigNotFound() {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("config_that_does_not_exist");
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(
+                request, machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testEvaluateDataFrame() throws IOException {
+        String indexName = "evaluate-test-index";
+        createIndex(indexName, mappingForClassification());
+        BulkRequest bulk = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(docForClassification(indexName, false, 0.1))  // #0
+            .add(docForClassification(indexName, false, 0.2))  // #1
+            .add(docForClassification(indexName, false, 0.3))  // #2
+            .add(docForClassification(indexName, false, 0.4))  // #3
+            .add(docForClassification(indexName, false, 0.7))  // #4
+            .add(docForClassification(indexName, true, 0.2))  // #5
+            .add(docForClassification(indexName, true, 0.3))  // #6
+            .add(docForClassification(indexName, true, 0.4))  // #7
+            .add(docForClassification(indexName, true, 0.8))  // #8
+            .add(docForClassification(indexName, true, 0.9));  // #9
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        EvaluateDataFrameRequest evaluateDataFrameRequest =
+            new EvaluateDataFrameRequest(
+                indexName,
+                new BinarySoftClassification(
+                    actualField,
+                    probabilityField,
+                    PrecisionMetric.at(0.4, 0.5, 0.6), RecallMetric.at(0.5, 0.7), ConfusionMatrixMetric.at(0.5), AucRocMetric.withCurve()));
+
+        EvaluateDataFrameResponse evaluateDataFrameResponse =
+            execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(BinarySoftClassification.NAME));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
+
+        PrecisionMetric.Result precisionResult = evaluateDataFrameResponse.getMetricByName(PrecisionMetric.NAME);
+        assertThat(precisionResult.getMetricName(), equalTo(PrecisionMetric.NAME));
+        // Precision is 3/5=0.6 as there were 3 true examples (#7, #8, #9) among the 5 positive examples (#3, #4, #7, #8, #9)
+        assertThat(precisionResult.getScoreByThreshold("0.4"), closeTo(0.6, 1e-9));
+        // Precision is 2/3=0.(6) as there were 2 true examples (#8, #9) among the 3 positive examples (#4, #8, #9)
+        assertThat(precisionResult.getScoreByThreshold("0.5"), closeTo(0.666666666, 1e-9));
+        // Precision is 2/3=0.(6) as there were 2 true examples (#8, #9) among the 3 positive examples (#4, #8, #9)
+        assertThat(precisionResult.getScoreByThreshold("0.6"), closeTo(0.666666666, 1e-9));
+        assertNull(precisionResult.getScoreByThreshold("0.1"));
+
+        RecallMetric.Result recallResult = evaluateDataFrameResponse.getMetricByName(RecallMetric.NAME);
+        assertThat(recallResult.getMetricName(), equalTo(RecallMetric.NAME));
+        // Recall is 2/5=0.4 as there were 2 true positive examples (#8, #9) among the 5 true examples (#5, #6, #7, #8, #9)
+        assertThat(recallResult.getScoreByThreshold("0.5"), closeTo(0.4, 1e-9));
+        // Recall is 2/5=0.4 as there were 2 true positive examples (#8, #9) among the 5 true examples (#5, #6, #7, #8, #9)
+        assertThat(recallResult.getScoreByThreshold("0.7"), closeTo(0.4, 1e-9));
+        assertNull(recallResult.getScoreByThreshold("0.1"));
+
+        ConfusionMatrixMetric.Result confusionMatrixResult = evaluateDataFrameResponse.getMetricByName(ConfusionMatrixMetric.NAME);
+        assertThat(confusionMatrixResult.getMetricName(), equalTo(ConfusionMatrixMetric.NAME));
+        ConfusionMatrixMetric.ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5");
+        assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
+        assertThat(confusionMatrix.getFalsePositives(), equalTo(1L));  // doc #4
+        assertThat(confusionMatrix.getTrueNegatives(), equalTo(4L));  // docs #0, #1, #2 and #3
+        assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
+        assertNull(confusionMatrixResult.getScoreByThreshold("0.1"));
+
+        AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
+        assertThat(aucRocResult.getMetricName(), equalTo(AucRocMetric.NAME));
+        assertThat(aucRocResult.getScore(), closeTo(0.70025, 1e-9));
+        assertNotNull(aucRocResult.getCurve());
+        List<AucRocMetric.AucRocPoint> curve = aucRocResult.getCurve();
+        AucRocMetric.AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
+        assertThat(curvePointAtThreshold0.getTruePositiveRate(), equalTo(1.0));
+        assertThat(curvePointAtThreshold0.getFalsePositiveRate(), equalTo(1.0));
+        assertThat(curvePointAtThreshold0.getThreshold(), equalTo(0.0));
+        AucRocMetric.AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
+        assertThat(curvePointAtThreshold1.getTruePositiveRate(), equalTo(0.0));
+        assertThat(curvePointAtThreshold1.getFalsePositiveRate(), equalTo(0.0));
+        assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
+    }
+
+    private static XContentBuilder defaultMappingForTest() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+               .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject();
+    }
+
+    private static final String actualField = "label";
+    private static final String probabilityField = "p";
+
+    private static XContentBuilder mappingForClassification() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject(actualField)
+                    .field("type", "keyword")
+                .endObject()
+                .startObject(probabilityField)
+                    .field("type", "double")
+                .endObject()
+            .endObject()
+        .endObject();
+    }
+
+    private static IndexRequest docForClassification(String indexName, boolean isTrue, double p) {
+        return new IndexRequest()
+            .index(indexName)
+            .source(XContentType.JSON, actualField, Boolean.toString(isTrue), probabilityField, p);
+    }
+
+    private void createIndex(String indexName, XContentBuilder mapping) throws IOException {
+        highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
     }
 
     public void testPutFilter() throws Exception {

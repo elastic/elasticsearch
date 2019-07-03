@@ -53,8 +53,13 @@ public class PreviewDataFrameTransformResponseTests extends ESTestCase {
             }
             docs.add(doc);
         }
+        int numMappingEntries = randomIntBetween(5, 10);
+        Map<String, Object> mappings = new HashMap<>(numMappingEntries);
+        for (int i = 0; i < numMappingEntries; i++) {
+            mappings.put(randomAlphaOfLength(10), Map.of("type", randomAlphaOfLength(10)));
+        }
 
-        return new PreviewDataFrameTransformResponse(docs);
+        return new PreviewDataFrameTransformResponse(docs, mappings);
     }
 
     private void toXContent(PreviewDataFrameTransformResponse response, XContentBuilder builder) throws IOException {
@@ -64,6 +69,7 @@ public class PreviewDataFrameTransformResponseTests extends ESTestCase {
             builder.map(doc);
         }
         builder.endArray();
+        builder.field("mappings", response.getMappings());
         builder.endObject();
     }
 }

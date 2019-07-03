@@ -102,50 +102,55 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                // make a local copy of isStateNotRecovered as this is a volatile variable and it
-                // is used multiple times in the method. The copy to a local variable allows us to
-                // guarantee we use the same value wherever we would check the value for the state
-                // being recovered
-                final boolean stateNotRecovered = isStateNotRecovered;
-                final boolean sendWithAuth = licenseState.isAuthAllowed() || stateNotRecovered;
-                if (sendWithAuth) {
-                    // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
-                    // ourselves otherwise we wind up using a version newer than what we can actually send
-                    final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
+                final boolean requireAuth = shouldRequireExistingAuthentication();
+                // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
+                // ourselves otherwise we wind up using a version newer than what we can actually send
+                final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
 
-                    // Sometimes a system action gets executed like a internal create index request or update mappings request
-                    // which means that the user is copied over to system actions so we need to change the user
-                    if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                        securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
-                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                        , handler), sender, stateNotRecovered), minVersion);
-                    } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
-                        AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
-                                (original) -> sendWithUser(connection, action, request, options,
-                                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                                , handler), sender, stateNotRecovered));
-                    } else if (securityContext.getAuthentication() != null &&
-                            securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
-                        // re-write the authentication since we want the authentication version to match the version of the connection
-                        securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
-                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
-                            stateNotRecovered), minVersion);
-                    } else {
-                        sendWithUser(connection, action, request, options, handler, sender, stateNotRecovered);
-                    }
+                // Sometimes a system action gets executed like a internal create index request or update mappings request
+                // which means that the user is copied over to system actions so we need to change the user
+                if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
+                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                    , handler), sender, requireAuth), minVersion);
+                } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
+                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
+                            (original) -> sendWithUser(connection, action, request, options,
+                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
+                                            , handler), sender, requireAuth));
+                } else if (securityContext.getAuthentication() != null &&
+                        securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
+                    // re-write the authentication since we want the authentication version to match the version of the connection
+                    securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
+                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
+                        requireAuth), minVersion);
                 } else {
-                    sender.sendRequest(connection, action, request, options, handler);
+                    sendWithUser(connection, action, request, options, handler, sender, requireAuth);
                 }
             }
         };
     }
 
+    /**
+     * Based on the current cluster state &amp; license, should we require that all outgoing actions have an authentication header
+     * of some sort?
+     */
+    private boolean shouldRequireExistingAuthentication() {
+        // If the license state is MISSING, then auth is not allowed.
+        // However this makes it difficult to installing a valid license, because that might implicitly turn on security.
+        // When security is enabled on the master node it will then reject any actions that do not have authentication headers
+        // but there may be in-flight internal actions (that will not have authentication headers) such as "cluster/shard/started"
+        // which we don't want to reject.
+        // So, we always send authentication headers for actions that have an implied user (system-user or explicit-origin)
+        // and then for other (user originated) actions we enforce that there is an authentication header that we can send, iff the
+        // current license allows authentication.
+        return licenseState.isAuthAllowed() && isStateNotRecovered == false;
+    }
+
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
-                                                            AsyncSender sender, final boolean stateNotRecovered) {
-        // There cannot be a request outgoing from this node that is not associated with a user
-        // unless we do not know the actual license of the cluster
-        if (securityContext.getAuthentication() == null && stateNotRecovered == false) {
+                                                            AsyncSender sender, final boolean requireAuthentication) {
+        if (securityContext.getAuthentication() == null && requireAuthentication) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
             assertNoAuthentication(action);

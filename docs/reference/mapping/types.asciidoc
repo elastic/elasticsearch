@@ -42,8 +42,6 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 <<parent-join>>::   Defines parent/child relation for documents within the same index
 
-<<alias>>::         Defines an alias to an existing field.
-
 <<rank-feature>>::  Record numeric feature to boost hits at query time.
 
 <<rank-features>>:: Record numeric features to boost hits at query time.
@@ -53,6 +51,11 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 <<sparse-vector>>::   Record sparse vectors of float values.
 
 <<search-as-you-type>>:: A text-like field optimized for queries to implement as-you-type completion
+
+<<alias>>::         Defines an alias to an existing field.
+
+<<flattened>>:: Allows an entire JSON object to be indexed as a single field.
+
 
 [float]
 === Multi-fields
@@ -81,6 +84,8 @@ include::types/boolean.asciidoc[]
 include::types/date.asciidoc[]
 
 include::types/date_nanos.asciidoc[]
+
+include::types/flattened.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 

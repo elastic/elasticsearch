@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.action.CoordinatorProxyAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportGetEnrichPolicyAction;
@@ -61,6 +62,22 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING =
         Setting.intSetting("index.xpack.enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
+
+    public static final Setting<Integer> COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS =
+        Setting.intSetting("enrich.coordinator_proxy.max_concurrent_requests", 8, 1, 10000, Setting.Property.NodeScope);
+
+    public static final Setting<Integer> COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST =
+        Setting.intSetting("enrich.coordinator_proxy.max_lookups_per_request", 128, 1, 10000, Setting.Property.NodeScope);
+
+    private static final String QUEUE_CAPACITY_SETTING_NAME = "enrich.coordinator_proxy.queue_capacity";
+    public static final Setting<Integer> COORDINATOR_PROXY_QUEUE_CAPACITY = new Setting<>(QUEUE_CAPACITY_SETTING_NAME,
+            settings -> {
+                int maxConcurrentRequests = COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings);
+                int maxLookupsPerRequest = COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings);
+                return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
+            },
+            val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME),
+            Setting.Property.NodeScope);
 
     private final Settings settings;
     private final Boolean enabled;
@@ -89,7 +106,8 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(ListEnrichPolicyAction.INSTANCE, TransportListEnrichPolicyAction.class),
             new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
-            new ActionHandler<>(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class)
+            new ActionHandler<>(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class),
+            new ActionHandler<>(CoordinatorProxyAction.INSTANCE, CoordinatorProxyAction.TransportAction.class)
         );
     }
 
@@ -117,7 +135,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), System::currentTimeMillis);
-        return List.of(enrichPolicyExecutor);
+        return List.of(enrichPolicyExecutor, new CoordinatorProxyAction.Coordinator(client, settings));
     }
 
     @Override
@@ -137,6 +155,11 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(ENRICH_FETCH_SIZE_SETTING);
+        return List.of(
+            ENRICH_FETCH_SIZE_SETTING,
+            COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS,
+            COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
+            COORDINATOR_PROXY_QUEUE_CAPACITY
+        );
     }
 }

@@ -510,7 +510,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             // the retention lease is tied to the node, not the shard copy, so it's possible a copy was removed and now
                             // we are in the process of recovering it again. The recovery process will fix the lease before initiating
                             // tracking on this copy:
-                            assert checkpointState.tracked == false :
+                            assert checkpointState.tracked == false
+                                && checkpointState.globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO :
                                 "cannot renew " + retentionLease + " according to " + checkpointState + " for " + shardRouting;
                         }
                     }

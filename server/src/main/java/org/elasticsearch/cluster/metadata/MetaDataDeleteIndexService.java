@@ -44,6 +44,8 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import java.util.Arrays;
 import java.util.Set;
 
+import static java.util.stream.Collectors.toSet;
+
 /**
  * Deletes indices.
  */
@@ -89,9 +91,10 @@ public class MetaDataDeleteIndexService {
      */
     public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
         final MetaData meta = currentState.metaData();
+        final Set<Index> indicesToDelete = indices.stream().map(i -> meta.getIndexSafe(i).getIndex()).collect(toSet());
 
         // Check if index deletion conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indices::contains);
+        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToDelete::contains);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException("Cannot delete indices that are being snapshotted: " + snapshottingIndices +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");

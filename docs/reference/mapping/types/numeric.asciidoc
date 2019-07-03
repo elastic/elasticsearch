@@ -78,6 +78,11 @@ to help make a decision.
 |`half_float`|+2^-24^+ |+65504+ |+11+ / +3.31+
 |=======================================================================
 
+[[number-array]]
+==== Array handling for numeric fields
+You can use a numeric field to store an array of numbers. However, all values in
+the array must be of the same datatype.  See <<array>>.
+
 [[number-params]]
 ==== Parameters for numeric fields
 

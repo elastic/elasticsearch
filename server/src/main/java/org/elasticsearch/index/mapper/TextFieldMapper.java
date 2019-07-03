@@ -198,10 +198,8 @@ public class TextFieldMapper extends FieldMapper {
                  * even if it is different from the expected one (in case the field is nested under an object
                  * or a multi-field). This way search will continue to work on old indices and new indices
                  * will use the expected full name.
-                 *
-                 * TODO change version expectation after backport v8 -> v7.2.1
                  **/
-                String fullName = context.indexCreatedVersion().before(Version.V_8_0_0) ? name() : buildFullName(context);
+                String fullName = context.indexCreatedVersion().before(Version.V_7_2_1) ? name() : buildFullName(context);
                 PrefixFieldType prefixFieldType =
                     new PrefixFieldType(fullName, fullName + "._index_prefix", minPrefixChars, maxPrefixChars);
                 fieldType().setPrefixFieldType(prefixFieldType);

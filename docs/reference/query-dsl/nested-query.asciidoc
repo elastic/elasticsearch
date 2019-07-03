@@ -1,5 +1,8 @@
 [[query-dsl-nested-query]]
-=== Nested Query
+=== Nested query
+++++
+<titleabbrev>Nested</titleabbrev>
+++++
 
 Nested query allows to query nested objects / docs (see
 <<nested,nested mapping>>). The

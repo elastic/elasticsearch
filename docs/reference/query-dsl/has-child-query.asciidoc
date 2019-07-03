@@ -1,5 +1,8 @@
 [[query-dsl-has-child-query]]
-=== Has Child Query
+=== Has child query
+++++
+<titleabbrev>Has child</titleabbrev>
+++++
 
 The `has_child` filter accepts a query and the child type to run against, and
 results in parent documents that have child docs matching the query. Here is

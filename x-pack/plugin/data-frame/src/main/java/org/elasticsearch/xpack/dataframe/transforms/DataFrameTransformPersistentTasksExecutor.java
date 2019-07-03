@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -84,7 +85,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             logger.debug(reason);
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
-        return super.getAssignment(params, clusterState);
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, (node) ->
+            node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
+        );
+        return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {

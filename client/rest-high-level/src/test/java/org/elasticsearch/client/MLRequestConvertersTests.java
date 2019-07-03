@@ -758,11 +758,15 @@ public class MLRequestConvertersTests extends ESTestCase {
     public void testStopDataFrameAnalytics_WithParams() {
         StopDataFrameAnalyticsRequest stopRequest = new StopDataFrameAnalyticsRequest(randomAlphaOfLength(10))
             .setTimeout(TimeValue.timeValueMinutes(1))
-            .setAllowNoMatch(false);
+            .setAllowNoMatch(false)
+            .setForce(true);
         Request request = MLRequestConverters.stopDataFrameAnalytics(stopRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + stopRequest.getId() + "/_stop", request.getEndpoint());
-        assertThat(request.getParameters(), allOf(hasEntry("timeout", "1m"), hasEntry("allow_no_match", "false")));
+        assertThat(request.getParameters(), allOf(
+            hasEntry("timeout", "1m"),
+            hasEntry("allow_no_match", "false"),
+            hasEntry("force", "true")));
         assertNull(request.getEntity());
     }
 

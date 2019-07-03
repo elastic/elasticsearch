@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTran
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
@@ -41,18 +40,17 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
@@ -117,13 +115,6 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, VotingOnlyNodeFeatureSet.class));
-        return modules;
-    }
-
-    @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
         return Collections.singletonMap(VOTING_ONLY_ELECTION_STRATEGY, new VotingOnlyNodeElectionStrategy());
     }
@@ -159,15 +150,34 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                 if (joinVotes.nodes().stream().filter(DiscoveryNode::isMasterNode).allMatch(VotingOnlyNodePlugin::isVotingOnlyNode)) {
                     return false;
                 }
-                // if there's a vote from a full master node with same last accepted term and version, that node should become master
-                // instead, so we should stand down
-                if (joinVotes.getJoins().stream().anyMatch(join -> isFullMasterNode(join.getSourceNode()) &&
-                    join.getLastAcceptedTerm() == localAcceptedTerm &&
-                    join.getLastAcceptedVersion() == localAcceptedVersion)) {
+                // if there's a vote from a full master node with same state (i.e. last accepted term and version match), then that node
+                // should become master instead, so we should stand down. There are two exceptional cases, however:
+                // 1) if we are in term 0. In that case, we allow electing the voting-only node to avoid poisonous situations where only
+                //    voting-only nodes are bootstrapped.
+                // 2) if there is another full master node with an older state. In that case, we ensure that
+                //    satisfiesAdditionalQuorumConstraints cannot go from true to false when adding new joinVotes in the same election.
+                //    As voting-only nodes only broadcast the state to the full master nodes, eventually all of them will have caught up
+                //    and there should not be any remaining full master nodes with older state, effectively disabling election of
+                //    voting-only nodes.
+                if (joinVotes.getJoins().stream().anyMatch(fullMasterWithSameState(localAcceptedTerm, localAcceptedVersion)) &&
+                    localAcceptedTerm > 0 &&
+                    joinVotes.getJoins().stream().noneMatch(fullMasterWithOlderState(localAcceptedTerm, localAcceptedVersion))) {
                     return false;
                 }
             }
             return true;
+        }
+
+        private static Predicate<Join> fullMasterWithSameState(long localAcceptedTerm, long localAcceptedVersion) {
+            return join -> isFullMasterNode(join.getSourceNode()) &&
+                join.getLastAcceptedTerm() == localAcceptedTerm &&
+                join.getLastAcceptedVersion() == localAcceptedVersion;
+        }
+
+        private static Predicate<Join> fullMasterWithOlderState(long localAcceptedTerm, long localAcceptedVersion) {
+            return join -> isFullMasterNode(join.getSourceNode()) &&
+                (join.getLastAcceptedTerm() < localAcceptedTerm ||
+                    (join.getLastAcceptedTerm() == localAcceptedTerm && join.getLastAcceptedVersion() < localAcceptedVersion));
         }
     }
 

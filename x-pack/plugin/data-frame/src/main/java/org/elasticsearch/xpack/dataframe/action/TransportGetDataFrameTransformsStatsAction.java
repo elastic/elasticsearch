@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
@@ -105,18 +107,28 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
-        dataFrameTransformsConfigManager.expandTransformIds(request.getId(), request.getPageParams(), ActionListener.wrap(
-            hitsAndIds -> {
+        dataFrameTransformsConfigManager.expandTransformIds(request.getId(),
+            request.getPageParams(),
+            request.isAllowNoMatch(),
+            ActionListener.wrap(hitsAndIds -> {
                 request.setExpandedIds(hitsAndIds.v2());
-                request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), clusterService.state()));
+                final ClusterState state = clusterService.state();
+                request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), state));
                 super.doExecute(task, request, ActionListener.wrap(
-                    response -> collectStatsForTransformsWithoutTasks(request, response, ActionListener.wrap(
-                        finalResponse -> finalListener.onResponse(new Response(finalResponse.getTransformsStateAndStats(),
-                            hitsAndIds.v1(),
-                            finalResponse.getTaskFailures(),
-                            finalResponse.getNodeFailures())),
-                        finalListener::onFailure
-                    )),
+                    response -> {
+                        PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                        if (tasksInProgress != null) {
+                            // Mutates underlying state object with the assigned node attributes
+                            response.getTransformsStateAndStats().forEach(dtsas -> setNodeAttributes(dtsas, tasksInProgress, state));
+                        }
+                        collectStatsForTransformsWithoutTasks(request, response, ActionListener.wrap(
+                            finalResponse -> finalListener.onResponse(new Response(finalResponse.getTransformsStateAndStats(),
+                                hitsAndIds.v1(),
+                                finalResponse.getTaskFailures(),
+                                finalResponse.getNodeFailures())),
+                            finalListener::onFailure
+                        ));
+                    },
                     finalListener::onFailure
                 ));
             },
@@ -129,6 +141,16 @@ public class TransportGetDataFrameTransformsStatsAction extends
                 }
             }
         ));
+    }
+
+    private static void setNodeAttributes(DataFrameTransformStateAndStats dataFrameTransformStateAndStats,
+                                                                     PersistentTasksCustomMetaData persistentTasksCustomMetaData,
+                                                                     ClusterState state) {
+        var pTask = persistentTasksCustomMetaData.getTask(dataFrameTransformStateAndStats.getTransformId());
+        if (pTask != null) {
+            dataFrameTransformStateAndStats.getTransformState()
+                .setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
+        }
     }
 
     private void collectStatsForTransformsWithoutTasks(Request request,

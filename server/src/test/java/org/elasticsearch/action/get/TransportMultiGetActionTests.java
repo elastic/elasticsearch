@@ -170,7 +170,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         request.add(new MultiGetRequest.Item("index1", "_doc", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
+        transportAction = new TransportMultiGetAction(transportService, clusterService, client,
             new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiGetResponse> listener,
@@ -195,7 +195,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         request.add(new MultiGetRequest.Item("index2", "_doc", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
+        transportAction = new TransportMultiGetAction(transportService, clusterService, client,
             new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiGetResponse> listener,

@@ -19,22 +19,17 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class DeleteIndexTemplateAction extends Action<AcknowledgedResponse> {
+public class DeleteIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteIndexTemplateAction INSTANCE = new DeleteIndexTemplateAction();
     public static final String NAME = "indices:admin/template/delete";
 
     private DeleteIndexTemplateAction() {
         super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

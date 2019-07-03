@@ -1208,7 +1208,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                             equalTo(cluster.clusterNodes.stream().map(ClusterNode::getLocalNode).collect(Collectors.toSet())));
                     }
                 });
-                cluster.runFor(warningDelayMillis, "waiting for warning to be emitted");
+                cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
                 mockLogAppender.assertAllExpectationsMatched();
             } finally {
                 mockLogAppender.stop();

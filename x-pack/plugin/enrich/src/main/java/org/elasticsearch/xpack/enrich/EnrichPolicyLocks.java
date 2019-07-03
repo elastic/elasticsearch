@@ -43,8 +43,8 @@ class EnrichPolicyLocks {
         if (coordinationLock.writeLock().tryLock()) {
             try {
                 long revision = policyRunCounter.get();
-                int currentPolicyExecutions = policyLocks.size();
-                return new LockState(currentPolicyExecutions > 0, revision);
+                long currentPolicyExecutions = policyLocks.mappingCount();
+                return new LockState(currentPolicyExecutions > 0L, revision);
             } finally {
                 coordinationLock.writeLock().unlock();
             }

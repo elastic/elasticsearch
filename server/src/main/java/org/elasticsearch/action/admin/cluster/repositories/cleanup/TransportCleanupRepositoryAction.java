@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +56,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     @Override
     protected CleanupRepositoryResponse newResponse() {
-        return new CleanupRepositoryResponse(RepositoryCleanupResult.start().finish());
+        return new CleanupRepositoryResponse();
     }
 
     @Override

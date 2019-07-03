@@ -98,8 +98,8 @@ public class WatcherLifeCycleService implements ClusterStateListener {
 
         if (isWatcherStoppedManually) {
             if (this.state.get() == WatcherState.STARTED) {
-                this.state.set(WatcherState.STOPPING);
                 clearAllocationIds();
+                this.state.set(WatcherState.STOPPING);
                 //waiting to set state to stopped until after all currently running watches are finished
                 watcherService.stop("watcher manually marked to shutdown by cluster state update", a -> {
                     //ensure that Watcher wasn't restarted between stopping and now.

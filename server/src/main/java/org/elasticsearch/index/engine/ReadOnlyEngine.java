@@ -75,12 +75,13 @@ public class ReadOnlyEngine extends Engine {
         BlockTreeTermsReader.FSTLoadMode.AUTO.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
-    private final TranslogStats translogStats;
     private final SearcherManager searcherManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
     private final DocsStats docsStats;
     private final RamAccountingSearcherFactory searcherFactory;
+
+    protected volatile TranslogStats translogStats;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened

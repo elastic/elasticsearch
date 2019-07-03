@@ -904,7 +904,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Classpath
     private List<File> getDistributionClasspath() {
-        ArrayList<File> files = new ArrayList<>(project.fileTree(getExtractedDistributionDir()).matching(filter -> filter.include("**/*.jar")).getFiles());
+        ArrayList<File> files = new ArrayList<>(project.fileTree(getExtractedDistributionDir())
+            .matching(filter -> filter.include("**/*.jar"))
+            .getFiles());
         files.sort(Comparator.comparing(File::getName));
 
         return files;

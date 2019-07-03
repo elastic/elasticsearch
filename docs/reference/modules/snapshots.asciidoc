@@ -344,10 +344,10 @@ The response to a cleanup request looks as follows:
 [source,js]
 --------------------------------------------------
 {
-    "result": {
-        "bytes": 20,
-        "blobs": 5
-    }
+  "result": {
+    "bytes": 20,
+    "blobs": 5
+  }
 }
 --------------------------------------------------
 // CONSOLE

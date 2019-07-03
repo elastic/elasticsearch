@@ -38,6 +38,10 @@ setup:
 
   - match: { acknowledged: true }
 
+  - skip:
+      version: " - 7.99.99"
+      reason:  cleanup introduced in 8.0
+
   - do:
       snapshot.cleanup_repository:
         repository: test_repo_create_1

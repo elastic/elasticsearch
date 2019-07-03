@@ -12,7 +12,7 @@ import java.util.List;
 public final class XPackRestTestConstants {
 
     // Watcher constants:
-    public static final String INDEX_TEMPLATE_VERSION = "9";
+    public static final String INDEX_TEMPLATE_VERSION = "10";
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = ".watches";

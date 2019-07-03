@@ -84,7 +84,7 @@ tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 
 . Start elasticsearch from the `bin` directory:
-
++
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
 cd elasticsearch-{version}/bin

@@ -387,8 +387,12 @@ public class QueryPhase implements SearchPhase {
         ((sortField.getReverse() == false) && (missingValue == Long.MAX_VALUE));
         if (missingValuesAccordingToSort == false) return null;
 
+        int docCount = PointValues.getDocCount(reader, fieldName);
+         // is not worth to run optimization on small index
+        if (docCount <= 512) return null;
+
         // check for multiple values
-        if (PointValues.size(reader, fieldName) != PointValues.getDocCount(reader, fieldName)) return null; //TODO: handle multiple values
+        if (PointValues.size(reader, fieldName) != docCount) return null; //TODO: handle multiple values
 
         // check if the optimization makes sense with the track_total_hits setting
         if (searchContext.trackTotalHitsUpTo() == Integer.MAX_VALUE) {
@@ -408,6 +412,7 @@ public class QueryPhase implements SearchPhase {
         if (minValue == maxValue) {
             rewrittenQuery = new DocValuesFieldExistsQuery(fieldName);
         } else {
+            if (indexFieldHasDuplicateData(reader, fieldName)) return null;
             long origin = (sortField.getReverse()) ? maxValue : minValue;
             long pivotDistance = (maxValue - minValue) >>> 1; // division by 2 on the unsigned representation to avoid overflow
             if (pivotDistance == 0) { // 0 if maxValue = (minValue + 1)
@@ -467,6 +472,78 @@ public class QueryPhase implements SearchPhase {
             }
         }
         return true;
+    }
+
+    /**
+    * Returns true if more than 50% of data in the index have the same value
+    * The evaluation is approximation based on finding the median value and estimating its count
+    * Returns true if the total count of median values is greater or equal to half of the total count of documents
+    */
+    static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
+        long globalDocCount = 0;
+        long globalMedianCount = 0;
+        for (LeafReaderContext lrc : reader.leaves()) {
+            PointValues pointValues = lrc.reader().getPointValues(field);
+            if (pointValues == null) continue;
+            int docCount = pointValues.getDocCount();
+            if (docCount <= 512) { // skipping small segments as estimateMedianCount doesn't work well on them
+                continue;
+            }
+            assert(pointValues.size() == docCount); // TODO: modify the code to handle multiple values
+            globalDocCount += docCount;
+            long medianValue = estimateMedianValue(pointValues);
+            long medianCount = estimatePointCount(pointValues, medianValue, medianValue);
+            globalMedianCount += medianCount;
+        }
+        return (globalMedianCount >= globalDocCount/2);
+    }
+
+    static long estimateMedianValue(PointValues pointValues) throws IOException {
+        long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
+        long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
+        while (minValue < maxValue) {
+            long avgValue = Math.floorDiv(minValue + maxValue, 2);
+            long countLeft = estimatePointCount(pointValues, minValue, avgValue);
+            long countRight = estimatePointCount(pointValues, avgValue + 1, maxValue);
+            if (countLeft >= countRight) {
+                maxValue = avgValue;
+            } else {
+                minValue = avgValue + 1;
+            }
+        }
+        return maxValue;
+    }
+
+    static long estimatePointCount(PointValues pointValues, long minValue, long maxValue) {
+        final byte[] minValueAsBytes = new byte[Long.BYTES];
+        LongPoint.encodeDimension(minValue, minValueAsBytes, 0);
+        final byte[] maxValueAsBytes = new byte[Long.BYTES];
+        LongPoint.encodeDimension(maxValue, maxValueAsBytes, 0);
+
+        PointValues.IntersectVisitor visitor = new PointValues.IntersectVisitor() {
+            @Override
+            public void grow(int count) {}
+
+            @Override
+            public void visit(int docID) {}
+
+            @Override
+            public void visit(int docID, byte[] packedValue) {}
+
+            @Override
+            public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                if (Arrays.compareUnsigned(minPackedValue, 0, Long.BYTES, maxValueAsBytes, 0, Long.BYTES) > 0 ||
+                    Arrays.compareUnsigned(maxPackedValue, 0, Long.BYTES, minValueAsBytes, 0, Long.BYTES) < 0) {
+                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
+                }
+                if (Arrays.compareUnsigned(minPackedValue, 0, Long.BYTES, minValueAsBytes, 0, Long.BYTES) < 0 ||
+                    Arrays.compareUnsigned(maxPackedValue, 0, Long.BYTES, maxValueAsBytes, 0, Long.BYTES) > 0) {
+                    return PointValues.Relation.CELL_CROSSES_QUERY;
+                }
+                return PointValues.Relation.CELL_INSIDE_QUERY;
+            }
+        };
+        return pointValues.estimatePointCount(visitor);
     }
 
     private static class TimeExceededException extends RuntimeException {}

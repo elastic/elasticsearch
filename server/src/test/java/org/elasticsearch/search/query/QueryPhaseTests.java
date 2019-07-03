@@ -31,6 +31,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
@@ -65,8 +66,13 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.bkd.BKDReader;
+import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -88,10 +94,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.search.query.QueryPhase.estimateMedianValue;
+import static org.elasticsearch.search.query.QueryPhase.estimatePointCount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
@@ -652,9 +662,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        final int numDocs = scaledRandomIntBetween(50, 100);
+        final int numDocs = 4000;
         Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
             long longValue = randomLongBetween(-10000000L, 10000000L);
@@ -708,6 +718,68 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
+    public void testIndexHasDuplicateData() throws IOException {
+        int valuesCount = 5000;
+        int maxPointsInLeafNode = 40;
+        long expectedMedianCount = (long)(valuesCount * 0.6);
+        long expectedMedianValue = randomLongBetween(-10000000L, 10000000L);
+
+        try (Directory dir = newDirectory()) {
+            BKDWriter w = new BKDWriter(valuesCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, valuesCount);
+            byte[] longBytes = new byte[8];
+            for (int docId = 0; docId < valuesCount; docId++) {
+                long value = docId < expectedMedianCount ? expectedMedianValue : randomLongBetween(-10000000L, 10000000L);
+                LongPoint.encodeDimension(value, longBytes, 0);
+                w.add(longBytes, docId);
+            }
+            long indexFP;
+            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
+                indexFP = w.finish(out);
+            }
+            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
+                in.seek(indexFP);
+                BKDReader r = new BKDReader(in);
+                long medianValue = estimateMedianValue(r);
+                long medianCount = estimatePointCount(r, medianValue, medianValue);
+
+                assertEquals(expectedMedianValue, medianValue);
+                assertThat(medianCount, greaterThanOrEqualTo((long) (valuesCount/2))); //assert that Index has duplicate data
+                assertThat(medianCount, greaterThanOrEqualTo((long) (0.75 * expectedMedianCount)));
+                assertThat(medianCount, lessThanOrEqualTo((long) (1.25 * expectedMedianCount)));
+            }
+        }
+    }
+
+    public void testIndexHasNotDuplicateData() throws IOException {
+        int valuesCount = 5000;
+        int maxPointsInLeafNode = 40;
+        long expectedMedianCount = (long)(valuesCount * 0.35);
+        long expectedMedianValue = randomLongBetween(-10000000L, 10000000L);
+
+        try (Directory dir = newDirectory()) {
+            BKDWriter w = new BKDWriter(valuesCount, dir, "tmp", 1, 1, 8, maxPointsInLeafNode, 1, valuesCount);
+            byte[] longBytes = new byte[8];
+            for (int docId = 0; docId < valuesCount; docId++) {
+                long value = docId < expectedMedianCount ? expectedMedianValue : randomLongBetween(-10000000L, 10000000L);
+                LongPoint.encodeDimension(value, longBytes, 0);
+                w.add(longBytes, docId);
+            }
+            long indexFP;
+            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
+                indexFP = w.finish(out);
+            }
+            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
+                in.seek(indexFP);
+                BKDReader r = new BKDReader(in);
+                long medianValue = estimateMedianValue(r);
+                long medianCount = estimatePointCount(r, medianValue, medianValue);
+
+                // can't make any assertion about the values of medianValue and medianCount
+                // as BKDReader::estimatePointCount can be really off for non-duplicate data
+                assertThat(medianCount, lessThan((long) (valuesCount/2))); //assert that Index does NOT have duplicate data
+            }
+        }
+    }
 
     public void testMaxScoreQueryVisitor() {
         BitSetProducer producer = context -> new FixedBitSet(1);
@@ -758,42 +830,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertFalse(TopDocsCollectorContext.hasInfMaxScore(query));
             }
         }
-    }
-
-    public void testNumericLongSortOptimizationDocsHaveTheSameValue() throws Exception {
-        final String fieldNameLong = "long-field";
-        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
-        TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
-        when(searchContext.mapperService()).thenReturn(mapperService);
-
-        final int numDocs = scaledRandomIntBetween(5, 10);
-        long longValue = randomLongBetween(-10000000L, 10000000L); // all docs have the same value
-        Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
-        for (int i = 0; i < numDocs; ++i) {
-            Document doc = new Document();
-            doc.add(new LongPoint(fieldNameLong, longValue));
-            doc.add(new NumericDocValuesField(fieldNameLong, longValue));
-            writer.addDocument(doc);
-        }
-        writer.close();
-        final IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = getAssertingSortOptimizedSearcher(reader, 1);
-
-        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
-        sortFieldLong.setMissingValue(Long.MAX_VALUE);
-        final Sort longSort = new Sort(sortFieldLong);
-        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-        searchContext.sort(sortAndFormats);
-        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
-        searchContext.setSize(10);
-        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
-        reader.close();
-        dir.close();
     }
 
     // used to check that numeric long or date sort optimization was run

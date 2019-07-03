@@ -956,7 +956,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             }
         }
 
-        public File getFileDetails(String dest) {
+        public synchronized File getFileDetails(String dest) {
             return fileDetails.get(dest);
         }
     }

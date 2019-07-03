@@ -130,6 +130,7 @@ public class JavaDateMathParser implements DateMathParser {
             }
             char unit = mathString.charAt(i++);
             switch (unit) {
+                case 'Y':
                 case 'y':
                     if (round) {
                         dateTime = dateTime.withDayOfYear(1).with(LocalTime.MIN);

@@ -57,9 +57,16 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             .put("xpack.security.authc.realms.file.file.order", "0")
             .put("xpack.security.authc.realms.pki.pki1.order", "1")
             .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
+            .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
+            .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
+            // pki1 never authenticates because of the principal pattern
+            .put("xpack.security.authc.realms.pki.pki1.username_pattern", "CN=(MISMATCH.*?)(?:,|$)")
+            .put("xpack.security.authc.realms.pki.pki2.order", "2")
+            .putList("xpack.security.authc.realms.pki.pki2.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString())
-            .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
+            .put("xpack.security.authc.realms.pki.pki2.files.role_mapping", getDataPath("role_mapping.yml"));
         return builder.build();
     }
 
@@ -101,7 +108,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
                 assertThat(response.getStatusLine().getStatusCode(), is(401));
                 String body = EntityUtils.toString(response.getEntity());
-                assertThat(body, containsString("unable to authenticate user [Elasticsearch Test Client]"));
+                assertThat(body, containsString("unable to authenticate user [X500SubjectDN(CN=Elasticsearch Test Client, OU=elasticsearch, O=org)]"));
             }
         }
     }

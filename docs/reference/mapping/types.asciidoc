@@ -77,13 +77,13 @@ include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]
 
-include::types/range.asciidoc[]
-
 include::types/boolean.asciidoc[]
 
 include::types/date.asciidoc[]
 
 include::types/date_nanos.asciidoc[]
+
+include::types/dense-vector.asciidoc[]
 
 include::types/flattened.asciidoc[]
 
@@ -93,6 +93,8 @@ include::types/geo-shape.asciidoc[]
 
 include::types/ip.asciidoc[]
 
+include::types/parent-join.asciidoc[]
+
 include::types/keyword.asciidoc[]
 
 include::types/nested.asciidoc[]
@@ -101,20 +103,18 @@ include::types/numeric.asciidoc[]
 
 include::types/object.asciidoc[]
 
-include::types/text.asciidoc[]
-
-include::types/token-count.asciidoc[]
-
 include::types/percolator.asciidoc[]
 
-include::types/parent-join.asciidoc[]
+include::types/range.asciidoc[]
 
 include::types/rank-feature.asciidoc[]
 
 include::types/rank-features.asciidoc[]
 
-include::types/dense-vector.asciidoc[]
+include::types/search-as-you-type.asciidoc[]
 
 include::types/sparse-vector.asciidoc[]
 
-include::types/search-as-you-type.asciidoc[]
+include::types/text.asciidoc[]
+
+include::types/token-count.asciidoc[]

@@ -45,10 +45,19 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final long minDocCount;
     private final double minBound, maxBound;
 
+    @Override
+    protected ValuesSource resolveMissingAny(Object missing) {
+        if (missing instanceof Number) {
+            return ValuesSource.Numeric.EMPTY;
+        }
+        throw new IllegalArgumentException("Only numeric missing values are supported for histogram aggregation, found ["
+            + missing + "]");
+    }
+
     public HistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double interval, double offset,
-            BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-            SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+                                      BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+                                      SearchContext context, AggregatorFactory<?> parent,
+                                      AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.interval = interval;
         this.offset = offset;

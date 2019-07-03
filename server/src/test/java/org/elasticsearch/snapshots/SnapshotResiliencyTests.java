@@ -953,6 +953,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 new BatchedRerouteService(clusterService, allocationService::reroute),
                 threadPool
             );
+            Map<ActionType, TransportAction> actions = new HashMap<>();
+            actions.put(GlobalCheckpointSyncAction.TYPE,
+                new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
+                    threadPool, shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseBackgroundSyncAction.TYPE,
+                new RetentionLeaseBackgroundSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseSyncAction.TYPE,
+                new RetentionLeaseSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
             final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
             indicesClusterStateService = new IndicesClusterStateService(
                 settings,
@@ -978,34 +988,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters,
                         indexNameExpressionResolver)),
-                new GlobalCheckpointSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                new RetentionLeaseSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                    new RetentionLeaseBackgroundSyncAction(
-                            settings,
-                            transportService,
-                            clusterService,
-                            indicesService,
-                            threadPool,
-                            shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver));
-            Map<ActionType, TransportAction> actions = new HashMap<>();
+                client);
             final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                 indicesService,
                 allocationService, new AliasValidator(), environment, indexScopedSettings,

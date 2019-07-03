@@ -321,8 +321,7 @@ public class InternalEngine extends Engine {
             this.internalReaderManager = internalReaderManager;
             ElasticsearchDirectoryReader acquire = internalReaderManager.acquire();
             try {
-                acquire.incRef(); // steal the reader -  notifyListener will decrement if it fails
-                notifyListener(acquire, null);
+                incrementAndNotify(acquire, null);
                 current = acquire;
             } finally {
                 internalReaderManager.release(acquire);
@@ -341,8 +340,7 @@ public class InternalEngine extends Engine {
                     // nothing has changed - both ref managers share the same instance so we can use reference equality
                     return null;
                 } else {
-                    acquire.incRef(); // steal the reader - notifyListener will decrement if it fails
-                    notifyListener(acquire, referenceToRefresh);
+                    incrementAndNotify(acquire, referenceToRefresh);
                     return acquire;
                 }
             } finally {
@@ -350,15 +348,12 @@ public class InternalEngine extends Engine {
             }
         }
 
-        private void notifyListener(ElasticsearchDirectoryReader reader, ElasticsearchDirectoryReader previousReader) throws IOException {
-            boolean success = false;
-            try {
+        private void incrementAndNotify(ElasticsearchDirectoryReader reader,
+                                            ElasticsearchDirectoryReader previousReader) throws IOException {
+            reader.incRef(); // steal the reference
+            try (Closeable c = reader::decRef) {
                 refreshListener.accept(reader, previousReader);
-                success = true;
-            } finally {
-                if (success == false) {
-                    reader.decRef();
-                }
+                reader.incRef(); // double inc-ref if we were successful
             }
         }
 
@@ -1676,7 +1671,7 @@ public class InternalEngine extends Engine {
         }
         if (renewed) {
             // refresh outside of the write lock
-            // we have to refresh internal readr here to ensure we release unreferenced segments.
+            // we have to refresh internal reader here to ensure we release unreferenced segments.
             refresh("renew sync commit", SearcherScope.INTERNAL, true);
         }
         return renewed;

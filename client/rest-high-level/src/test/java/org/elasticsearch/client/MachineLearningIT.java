@@ -1359,6 +1359,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
         assertThat(stats.getId(), equalTo(configId));
         assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertNull(stats.getFailureReason());
         assertNull(stats.getProgressPercent());
         assertNull(stats.getNode());
         assertNull(stats.getAssignmentExplanation());

@@ -1711,7 +1711,8 @@ public class DateFormatters {
             if (accessor.isSupported(WeekFields.of(RLocale.INS).weekOfWeekBasedYear())) {
                 return Year.of(accessor.get(WeekFields.of(RLocale.INS).weekBasedYear()))
                            .atDay(1)
-                           .with(WeekFields.of(RLocale.INS).weekOfWeekBasedYear(), accessor.getLong(WeekFields.of(RLocale.INS).weekOfWeekBasedYear()))
+                           .with(WeekFields.of(RLocale.INS).weekOfWeekBasedYear(),
+                               accessor.getLong(WeekFields.of(RLocale.INS).weekOfWeekBasedYear()))
                            .atStartOfDay(zoneId);
             } else {
                 return Year.of(accessor.get(WeekFields.of(RLocale.INS).weekBasedYear()))

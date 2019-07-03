@@ -1,5 +1,8 @@
 [[array]]
 === Array datatype
+++++
+<titleabbrev>Array</titleabbrev>
+++++
 
 In Elasticsearch, there is no dedicated `array` type.  Any field can contain
 zero or more values by default, however, all values in the array must be of

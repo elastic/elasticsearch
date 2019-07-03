@@ -98,7 +98,8 @@ public class Regex {
             }
             final int nextIndex = pattern.indexOf('*', firstIndex + 1);
             if (nextIndex == -1) {
-                return str.endsWith(pattern.substring(1));
+                // str.endsWith(pattern.substring(1)), but avoiding the construction of pattern.substring(1):
+                return str.regionMatches(str.length() - pattern.length() + 1, pattern, 1, pattern.length() - 1);
             } else if (nextIndex == 1) {
                 // Double wildcard "**" - skipping the first "*"
                 return simpleMatch(pattern.substring(1), str);
@@ -113,12 +114,9 @@ public class Regex {
             }
             return false;
         }
-        if (firstIndex == pattern.length() - 1) {
-            return str.startsWith(pattern.substring(0, firstIndex));
-        }
-        return (str.length() >= firstIndex &&
-                pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex)) &&
-                simpleMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
+        return str.regionMatches(0, pattern, 0, firstIndex)
+            && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
+                || simpleMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
     }
 
     /**

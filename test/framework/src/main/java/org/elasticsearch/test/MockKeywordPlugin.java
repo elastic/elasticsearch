@@ -40,15 +40,7 @@ public class MockKeywordPlugin extends Plugin implements AnalysisPlugin {
 
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
-        return singletonMap("keyword", (indexSettings, environment, name, settings) -> {
-            class Factory implements TokenizerFactory {
-
-                @Override
-                public Tokenizer create() {
-                    return new MockTokenizer(MockTokenizer.KEYWORD, false);
-                }
-            }
-            return new Factory();
-        });
+        return singletonMap("keyword", (indexSettings, environment, name, settings) ->
+            TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
     }
 }

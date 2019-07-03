@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
@@ -131,7 +132,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             @Override
             public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
                 return singletonMap("keyword", (indexSettings, environment, name, settings) ->
-                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
+                    TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
             }
 
             @Override

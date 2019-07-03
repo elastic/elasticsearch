@@ -114,7 +114,7 @@ public class Regex {
             return false;
         }
         if (firstIndex == pattern.length() - 1) {
-            return str.startsWith(pattern, firstIndex);
+            return str.startsWith(pattern.substring(0, firstIndex));
         }
         return (str.length() >= firstIndex &&
                 pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex)) &&

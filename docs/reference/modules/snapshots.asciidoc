@@ -339,8 +339,23 @@ POST /_snapshot/my_repository/cleanup
 // CONSOLE
 // TEST[continued]
 
-NOTE: Most of the cleanup actions performed by the repository cleanup functionality are automatically executed when deleting a snapshot.
-If you regularly delete snapshots from a repository you likely will get little to no space savings from executing this functionality.
+The response to a cleanup request looks as follows:
+
+[source,js]
+--------------------------------------------------
+{
+    "result": {
+        "bytes": 20,
+        "blobs": 5
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
+be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and
+subsequently cleaned up.
 
 [float]
 === Snapshot

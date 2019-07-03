@@ -45,7 +45,6 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -161,16 +160,6 @@ public class Requests {
      */
     public static IndicesShardStoresRequest indicesShardStoresRequest(String... indices) {
         return new IndicesShardStoresRequest(indices);
-    }
-    /**
-     * Creates an indices exists request.
-     *
-     * @param indices The indices to check if they exists or not.
-     * @return The indices exists request
-     * @see org.elasticsearch.client.IndicesAdminClient#exists(org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest)
-     */
-    public static IndicesExistsRequest indicesExistsRequest(String... indices) {
-        return new IndicesExistsRequest(indices);
     }
 
     /**
@@ -494,13 +483,13 @@ public class Requests {
     }
 
     /**
-     * Gets snapshots from repository
+     * Gets snapshots from repositories
      *
-     * @param repository repository name
+     * @param repositories repository names
      * @return get snapshot  request
      */
-    public static GetSnapshotsRequest getSnapshotsRequest(String repository) {
-        return new GetSnapshotsRequest(repository);
+    public static GetSnapshotsRequest getSnapshotsRequest(String... repositories) {
+        return new GetSnapshotsRequest(repositories);
     }
 
     /**
@@ -534,5 +523,4 @@ public class Requests {
     public static SnapshotsStatusRequest snapshotsStatusRequest(String repository) {
         return new SnapshotsStatusRequest(repository);
     }
-
 }

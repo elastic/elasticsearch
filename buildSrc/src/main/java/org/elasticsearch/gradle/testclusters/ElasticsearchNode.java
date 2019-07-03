@@ -18,13 +18,29 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
+import org.elasticsearch.gradle.LazyPropertyList;
+import org.elasticsearch.gradle.LazyPropertyMap;
+import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.http.WaitForHttpResource;
+import org.gradle.api.Action;
+import org.gradle.api.Named;
+import org.gradle.api.Project;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -36,9 +52,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,8 +81,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final int NODE_UP_TIMEOUT = 60;
-    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final int NODE_UP_TIMEOUT = 2;
+    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
+    private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
+    private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers"
@@ -73,24 +92,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final String path;
     private final String name;
-    private final GradleServicesAdapter services;
+    private final Project project;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path artifactsExtractDir;
     private final Path workingDir;
 
-
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final List<URI> plugins = new ArrayList<>();
     private final List<File> modules = new ArrayList<>();
-    private final Map<String, Supplier<CharSequence>> settings = new LinkedHashMap<>();
-    private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
-    private final Map<String, FileSupplier> keystoreFiles = new LinkedHashMap<>();
-    private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
-    private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
-    private final List<Supplier<List<CharSequence>>> jvmArgs = new ArrayList<>();
-    private final Map<String, File> extraConfigFiles = new HashMap<>();
-    final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
+    private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
+    private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
+    private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
+    private final LazyPropertyMap<String, CharSequence> systemProperties = new LazyPropertyMap<>("System properties", this);
+    private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
+    private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
+    private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
     private final List<Map<String, String>> credentials = new ArrayList<>();
+    final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -109,10 +127,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
 
-    ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
+    ElasticsearchNode(String path, String name, Project project, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
         this.name = name;
-        this.services = services;
+        this.project = project;
         this.artifactsExtractDir = artifactsExtractDir.toPath();
         this.workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
@@ -131,6 +149,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return nameCustomization.apply(name);
     }
 
+    @Input
     public String getVersion() {
         return version;
     }
@@ -142,6 +161,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.version = version;
     }
 
+    @Input
     public Distribution getDistribution() {
         return distribution;
     }
@@ -172,88 +192,81 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void keystore(String key, String value) {
-        addSupplier("Keystore", keystoreSettings, key, value);
+        keystoreSettings.put(key, value);
     }
 
     @Override
     public void keystore(String key, Supplier<CharSequence> valueSupplier) {
-        addSupplier("Keystore", keystoreSettings, key, valueSupplier);
+        keystoreSettings.put(key, valueSupplier);
     }
 
     @Override
     public void keystore(String key, File value) {
-        requireNonNull(value, "keystore value was null when configuring test cluster`" + this + "`");
-        keystore(key, () -> value);
+        keystoreFiles.put(key, value);
+    }
+
+    @Override
+    public void keystore(String key, File value, PropertyNormalization normalization) {
+        keystoreFiles.put(key, value, normalization);
     }
 
     @Override
     public void keystore(String key, FileSupplier valueSupplier) {
-        requireNonNull(key, "Keystore" + " key was null when configuring test cluster `" + this + "`");
-        requireNonNull(valueSupplier, "Keystore" + " value supplier was null when configuring test cluster `" + this + "`");
         keystoreFiles.put(key, valueSupplier);
     }
 
     @Override
     public void setting(String key, String value) {
-        addSupplier("Settings", settings, key, value);
+        settings.put(key, value);
+    }
+
+    @Override
+    public void setting(String key, String value, PropertyNormalization normalization) {
+        settings.put(key, value, normalization);
     }
 
     @Override
     public void setting(String key, Supplier<CharSequence> valueSupplier) {
-        addSupplier("Setting", settings, key, valueSupplier);
+        settings.put(key, valueSupplier);
+    }
+
+    @Override
+    public void setting(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+        settings.put(key, valueSupplier, normalization);
     }
 
     @Override
     public void systemProperty(String key, String value) {
-        addSupplier("Java System property", systemProperties, key, value);
+        systemProperties.put(key, value);
     }
 
     @Override
     public void systemProperty(String key, Supplier<CharSequence> valueSupplier) {
-        addSupplier("Java System property", systemProperties, key, valueSupplier);
+        systemProperties.put(key, valueSupplier);
+    }
+
+    @Override
+    public void systemProperty(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+        systemProperties.put(key, valueSupplier, normalization);
     }
 
     @Override
     public void environment(String key, String value) {
-        addSupplier("Environment variable", environment, key, value);
+        environment.put(key, value);
     }
 
     @Override
     public void environment(String key, Supplier<CharSequence> valueSupplier) {
-        addSupplier("Environment variable", environment, key, valueSupplier);
+        environment.put(key, valueSupplier);
     }
 
+    @Override
+    public void environment(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+        environment.put(key, valueSupplier, normalization);
+    }
 
     public void jvmArgs(String... values) {
-        for (String value : values) {
-            requireNonNull(value, "jvm argument was null when configuring test cluster `" + this + "`");
-        }
-        jvmArgs.add(() -> Arrays.asList(values));
-    }
-
-    public void jvmArgs(Supplier<String[]> valueSupplier) {
-        requireNonNull(valueSupplier, "jvm argument supplier was null when configuring test cluster `" + this + "`");
-        jvmArgs.add(() -> Arrays.asList(valueSupplier.get()));
-    }
-
-    private void addSupplier(String name, Map<String, Supplier<CharSequence>> collector, String key, Supplier<CharSequence> valueSupplier) {
-        requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
-        requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
-        collector.put(key, valueSupplier);
-    }
-
-    private void addSupplier(String name, Map<String, Supplier<CharSequence>> collector, String key, String actualValue) {
-        requireNonNull(actualValue, name + " value was null when configuring test cluster `" + this + "`");
-        addSupplier(name, collector, key, () -> actualValue);
-    }
-
-    private void checkSuppliers(String name, Collection<Supplier<CharSequence>> collector) {
-        collector.forEach(suplier ->
-            requireNonNull(
-                suplier.get().toString(),
-                name + " supplied value was null when configuring test cluster `" + this + "`"
-            )
-        );
+        jvmArgs.addAll(Arrays.asList(values));
     }
 
     public Path getConfigDir() {
@@ -296,43 +309,43 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
 
-        Path distroArtifact = artifactsExtractDir
-            .resolve(distribution.getGroup())
-            .resolve("elasticsearch-" + getVersion());
-
-        if (Files.exists(distroArtifact) == false) {
-            throw new TestClustersException("Can not start " + this + ", missing: " + distroArtifact);
+        if (Files.exists(getExtractedDistributionDir()) == false) {
+            throw new TestClustersException("Can not start " + this + ", missing: " + getExtractedDistributionDir());
         }
-        if (Files.isDirectory(distroArtifact) == false) {
-            throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
+        if (Files.isDirectory(getExtractedDistributionDir()) == false) {
+            throw new TestClustersException("Can not start " + this + ", is not a directory: " + getExtractedDistributionDir());
         }
 
         try {
             if (isWorkingDirConfigured == false) {
+                logToProcessStdout("Configuring working directory: " + workingDir);
                 // Only configure working dir once so we don't loose data on restarts
                 isWorkingDirConfigured = true;
-                createWorkingDir(distroArtifact);
+                createWorkingDir(getExtractedDistributionDir());
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
         createConfiguration();
 
-        plugins.forEach(plugin -> runElaticsearchBinScript(
-            "elasticsearch-plugin",
-            "install", "--batch", plugin.toString())
-        );
+        if (plugins.isEmpty() == false) {
+            logToProcessStdout("Installing " + plugins.size() + " plugins");
+            plugins.forEach(plugin -> runElaticsearchBinScript(
+                "elasticsearch-plugin",
+                "install", "--batch", plugin.toString())
+            );
+        }
 
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
+            logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
             runElaticsearchBinScript("elasticsearch-keystore", "create");
 
-            checkSuppliers("Keystore", keystoreSettings.values());
             keystoreSettings.forEach((key, value) ->
-                runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key)
+                runElaticsearchBinScriptWithInput(value.toString(), "elasticsearch-keystore", "add", "-x", key)
             );
 
-            for (Map.Entry<String, FileSupplier> entry : keystoreFiles.entrySet()) {
-                File file = entry.getValue().get();
+            for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
+                File file = entry.getValue();
                 requireNonNull(file, "supplied keystoreFile was null when configuring " + this);
                 if (file.exists() == false) {
                     throw new TestClustersException("supplied keystore file " + file + " does not exist, require for " + this);
@@ -346,18 +359,35 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         copyExtraConfigFiles();
 
         if (isSettingMissingOrTrue("xpack.security.enabled")) {
+            logToProcessStdout("Setting up " + credentials.size() + " users");
             if (credentials.isEmpty()) {
                 user(Collections.emptyMap());
             }
             credentials.forEach(paramMap -> runElaticsearchBinScript(
                 "elasticsearch-users",
-                    paramMap.entrySet().stream()
-                        .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()))
-                        .toArray(String[]::new)
+                paramMap.entrySet().stream()
+                    .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()))
+                    .toArray(String[]::new)
             ));
         }
 
+        logToProcessStdout("Starting Elasticsearch process");
         startElasticsearchProcess();
+    }
+
+    private void logToProcessStdout(String message) {
+        try {
+            if (Files.exists(esStdoutFile.getParent()) == false) {
+                Files.createDirectories(esStdoutFile.getParent());
+            }
+            Files.write(
+                esStdoutFile,
+                ("[" + Instant.now().toString() + "] [BUILD] " + message + "\n").getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -375,36 +405,40 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private boolean isSettingMissingOrTrue(String name) {
-        return Boolean.valueOf(settings.getOrDefault(name, () -> "false").get().toString());
+        return Boolean.valueOf(settings.getOrDefault(name, "false").toString());
     }
 
     private void copyExtraConfigFiles() {
+        if (extraConfigFiles.isEmpty() == false) {
+            logToProcessStdout("Setting up " + extraConfigFiles.size() + " additional config files");
+        }
         extraConfigFiles.forEach((destination, from) -> {
-                if (Files.exists(from.toPath()) == false) {
-                    throw new TestClustersException("Can't create extra config file from " + from + " for " + this +
-                        " as it does not exist");
-                }
-                Path dst = configFile.getParent().resolve(destination);
-                try {
-                    Files.createDirectories(dst.getParent());
-                    Files.copy(from.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
-                    LOGGER.info("Added extra config file {} for {}", destination, this);
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Can't create extra config file for", e);
-                }
-            });
+            if (Files.exists(from.toPath()) == false) {
+                throw new TestClustersException("Can't create extra config file from " + from + " for " + this +
+                    " as it does not exist");
+            }
+            Path dst = configFile.getParent().resolve(destination);
+            try {
+                Files.createDirectories(dst.getParent());
+                Files.copy(from.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.info("Added extra config file {} for {}", destination, this);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't create extra config file for", e);
+            }
+        });
     }
 
     private void installModules() {
         if (distribution == Distribution.INTEG_TEST) {
+            logToProcessStdout("Installing " + modules.size() + "modules");
             for (File module : modules) {
                 Path destination = workingDir.resolve("modules").resolve(module.getName().replace(".zip", "").replace("-" + version, ""));
 
                 // only install modules that are not already bundled with the integ-test distribution
                 if (Files.exists(destination) == false) {
-                    services.copy(spec -> {
+                    project.copy(spec -> {
                         if (module.getName().toLowerCase().endsWith(".zip")) {
-                            spec.from(services.zipTree(module));
+                            spec.from(project.zipTree(module));
                         } else if (module.isDirectory()) {
                             spec.from(module);
                         } else {
@@ -430,6 +464,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void extraConfigFile(String destination, File from, PropertyNormalization normalization) {
+        if (destination.contains("..")) {
+            throw new IllegalArgumentException("extra config file destination can't be relative, was " + destination +
+                " for " + this);
+        }
+        extraConfigFiles.put(destination, from, normalization);
+    }
+
+    @Override
     public void user(Map<String, String> userSpec) {
         Set<String> keys = new HashSet<>(userSpec.keySet());
         keys.remove("username");
@@ -438,9 +481,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (keys.isEmpty() == false) {
             throw new TestClustersException("Unknown keys in user definition " + keys + " for " + this);
         }
-        Map<String,String> cred = new LinkedHashMap<>();
-        cred.put("useradd", userSpec.getOrDefault("username","test_user"));
-        cred.put("-p", userSpec.getOrDefault("password","x-pack-test-password"));
+        Map<String, String> cred = new LinkedHashMap<>();
+        cred.put("useradd", userSpec.getOrDefault("username", "test_user"));
+        cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
         cred.put("-r", userSpec.getOrDefault("role", "superuser"));
         credentials.add(cred);
     }
@@ -454,7 +497,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 "Is this the distribution you expect it to be ?");
         }
         try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
-            services.loggedExec(spec -> {
+            LoggedExec.exec(project, spec -> {
                 spec.setEnvironment(getESEnvironment());
                 spec.workingDir(workingDir);
                 spec.executable(
@@ -495,19 +538,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
-            checkSuppliers("Java System property", systemProperties.values());
             systemPropertiesString = " " + systemProperties.entrySet().stream()
-                .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue().get())
+                .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
                 .collect(Collectors.joining(" "));
         }
         String jvmArgsString = "";
         if (jvmArgs.isEmpty() == false) {
             jvmArgsString = " " + jvmArgs.stream()
-                .map(Supplier::get)
-                .peek(charSequences -> requireNonNull(charSequences, "Jvm argument supplier returned null while configuring " + this))
-                .flatMap(Collection::stream)
                 .peek(argument -> {
-                    requireNonNull(argument, "Jvm argument supplier returned null while configuring " + this);
                     if (argument.toString().startsWith("-D")) {
                         throw new TestClustersException("Invalid jvm argument `" + argument +
                             "` configure as systemProperty instead for " + this
@@ -531,8 +569,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
 
-        checkSuppliers("Environment variable", environment.values());
-        environment.forEach((key, value) -> defaultEnv.put(key, value.get().toString()));
+        environment.forEach((key, value) -> defaultEnv.put(key, value.toString()));
         return defaultEnv;
     }
 
@@ -581,7 +618,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public File getServerLog() {
-        return confPathLogs.resolve(safeName(getName()).replaceAll("-[0-9]+$", "") + "_server.json").toFile();
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
+    }
+
+    public File getAuditLog() {
+        return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
 
     @Override
@@ -652,7 +693,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void logFileContents(String description, Path from) {
         LOGGER.error("{} `{}`", description, this);
-        try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
+        try (Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
             lines
                 .map(line -> "  " + line)
                 .forEach(LOGGER::error);
@@ -688,12 +729,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * We remove write permissions to make sure files are note mistakenly edited ( e.x. the config file ) and changes
      * reflected across all copies. Permissions are retained to be able to replace the links.
      *
-     * @param sourceRoot where to copy from
+     * @param sourceRoot      where to copy from
      * @param destinationRoot destination to link to
      */
     private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
         if (Files.exists(destinationRoot)) {
-            services.delete(destinationRoot);
+            project.delete(destinationRoot);
         }
 
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
@@ -726,8 +767,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void createConfiguration()  {
-        defaultConfig.put("node.name", nameCustomization.apply(safeName(name)));
+    private void createConfiguration() {
+        String nodeName = nameCustomization.apply(safeName(name));
+        if (nodeName != null) {
+            defaultConfig.put("node.name", nodeName);
+        }
         defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
         defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
@@ -752,24 +796,21 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
         if (Version.fromString(version).getMajor() >= 7) {
-            defaultConfig.put("indices.breaker.total.use_real_memory",  "false");
+            defaultConfig.put("indices.breaker.total.use_real_memory", "false");
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
-        defaultConfig.put("discovery.initial_state_timeout",  "0s");
+        defaultConfig.put("discovery.initial_state_timeout", "0s");
 
-        checkSuppliers("Settings", settings.values());
-        Map<String, String> userConfig = settings.entrySet().stream()
-            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get().toString()));
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
-        overriden.retainAll(userConfig.keySet());
+        overriden.retainAll(settings.keySet());
         overriden.removeAll(OVERRIDABLE_SETTINGS);
-        if (overriden.isEmpty() ==false) {
+        if (overriden.isEmpty() == false) {
             throw new IllegalArgumentException(
                 "Testclusters does not allow the following settings to be changed:" + overriden + " for " + this
             );
         }
         // Make sure no duplicate config keys
-        userConfig.keySet().stream()
+        settings.keySet().stream()
             .filter(OVERRIDABLE_SETTINGS::contains)
             .forEach(defaultConfig::remove);
 
@@ -780,7 +821,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             Files.write(
                 configFile,
                 Stream.concat(
-                    userConfig.entrySet().stream(),
+                    settings.entrySet().stream(),
                     defaultConfig.entrySet().stream()
                 )
                     .map(entry -> entry.getKey() + ": " + entry.getValue())
@@ -795,7 +836,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void checkFrozen() {
         if (configurationFrozen.get()) {
-            throw new IllegalStateException("Configuration for " + this +  " can not be altered, already locked");
+            throw new IllegalStateException("Configuration for " + this + " can not be altered, already locked");
         }
     }
 
@@ -820,9 +861,89 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private List<String> readPortsFile(Path file) throws IOException {
-        try(Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
             return lines.map(String::trim).collect(Collectors.toList());
         }
+    }
+
+    private Path getExtractedDistributionDir() {
+        return artifactsExtractDir.resolve(distribution.getGroup()).resolve("elasticsearch-" + getVersion());
+    }
+
+    private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
+        return Stream.concat(
+            plugins.stream().filter(uri -> uri.getScheme().equalsIgnoreCase("file")).map(File::new),
+            modules.stream()
+        )
+            .filter(File::exists)
+            // TODO: We may be able to simplify this with Gradle 5.6
+            // https://docs.gradle.org/nightly/release-notes.html#improved-handling-of-zip-archives-on-classpaths
+            .map(zipFile -> project.zipTree(zipFile).matching(filter))
+            .flatMap(tree -> tree.getFiles().stream())
+            .collect(Collectors.toList());
+    }
+
+    @Input
+    private Set<URI> getRemotePlugins() {
+        Set<URI> file = plugins.stream().filter(uri -> uri.getScheme().equalsIgnoreCase("file") == false).collect(Collectors.toSet());
+        return file;
+    }
+
+    @Classpath
+    private List<File> getInstalledClasspath() {
+        return getInstalledFileSet(filter -> filter.include("**/*.jar"));
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    private List<File> getInstalledFiles() {
+        return getInstalledFileSet(filter -> filter.exclude("**/*.jar"));
+    }
+
+    @Classpath
+    private Set<File> getDistributionClasspath() {
+        return project.fileTree(getExtractedDistributionDir()).matching(filter -> filter.include("**/*.jar")).getFiles();
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    private FileCollection getDistributionFiles() {
+        return project.fileTree(getExtractedDistributionDir()).minus(project.files(getDistributionClasspath()));
+    }
+
+    @Nested
+    private Map<String, CharSequence> getKeystoreSettings() {
+        return keystoreSettings;
+    }
+
+    @Nested
+    private Map<String, File> getKeystoreFiles() {
+        return keystoreFiles;
+    }
+
+    @Nested
+    private Map<String, CharSequence> getSettings() {
+        return settings;
+    }
+
+    @Nested
+    private Map<String, CharSequence> getSystemProperties() {
+        return systemProperties;
+    }
+
+    @Nested
+    private Map<String, CharSequence> getEnvironment() {
+        return environment;
+    }
+
+    @Nested
+    private List<CharSequence> getJvmArgs() {
+        return jvmArgs;
+    }
+
+    @Nested
+    private Map<String, File> getExtraConfigFiles() {
+        return extraConfigFiles;
     }
 
     @Override
@@ -835,7 +956,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     void waitForAllConditions() {
-        waitForConditions(waitConditions, System.currentTimeMillis(), NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT, this);
+        waitForConditions(
+            waitConditions,
+            System.currentTimeMillis(),
+            NODE_UP_TIMEOUT_UNIT.toMillis(NODE_UP_TIMEOUT) +
+                // Installing plugins at config time and loading them when nods start requires additional time we need to
+                // account for
+                ADDITIONAL_CONFIG_TIMEOUT_UNIT.toMillis(ADDITIONAL_CONFIG_TIMEOUT *
+                    (
+                        plugins.size() +
+                            keystoreFiles.size() +
+                            keystoreSettings.size() +
+                            credentials.size()
+                    )
+                ),
+            TimeUnit.MILLISECONDS,
+            this
+        );
     }
 
     @Override
@@ -857,6 +994,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return "node{" + path + ":" + name + "}";
     }
 
+    @Input
     List<Map<String, String>> getCredentials() {
         return credentials;
     }
@@ -872,5 +1010,62 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             throw new TestClustersException("Interrupted while waiting for ports files", e);
         }
         return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
+    }
+
+    public boolean isHttpSslEnabled() {
+        return Boolean.valueOf(
+            settings.getOrDefault("xpack.security.http.ssl.enabled", "false").toString()
+        );
+    }
+
+    void configureHttpWait(WaitForHttpResource wait) {
+        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities")) {
+            wait.setCertificateAuthorities(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.certificate_authorities").toString())
+                    .toFile()
+            );
+        }
+        if (settings.containsKey("xpack.security.http.ssl.certificate")) {
+            wait.setCertificateAuthorities(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.certificate").toString())
+                    .toFile()
+            );
+        }
+        if (settings.containsKey("xpack.security.http.ssl.keystore.path")) {
+            wait.setTrustStoreFile(
+                getConfigDir()
+                    .resolve(settings.get("xpack.security.http.ssl.keystore.path").toString())
+                    .toFile()
+            );
+        }
+        if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
+            wait.setTrustStorePassword(
+                keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString()
+            );
+        }
+    }
+
+    private static class FileEntry implements Named {
+        private String name;
+        private File file;
+
+        FileEntry(String name, File file) {
+            this.name = name;
+            this.file = file;
+        }
+
+        @Input
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @InputFile
+        @PathSensitive(PathSensitivity.NONE)
+        public File getFile() {
+            return file;
+        }
     }
 }

@@ -281,10 +281,20 @@ class MockStorage implements Storage {
         return null;
     }
 
+    @Override
+    public WriteChannel writer(URL signedURL) {
+        return null;
+    }
+
     // Everything below this line is not implemented.
 
     @Override
     public CopyWriter copy(CopyRequest copyRequest) {
+        return null;
+    }
+
+    @Override
+    public Blob create(BlobInfo blobInfo, byte[] content, int offset, int length, BlobTargetOption... options) {
         return null;
     }
 

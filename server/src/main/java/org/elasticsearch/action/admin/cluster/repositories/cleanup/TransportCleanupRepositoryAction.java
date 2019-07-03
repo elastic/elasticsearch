@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -37,6 +38,8 @@ import java.io.IOException;
 
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest,
                                                                                       CleanupRepositoryResponse> {
+
+    private static final Version MIN_VERSION = Version.V_8_0_0;
 
     private final SnapshotsService snapshotsService;
 
@@ -67,7 +70,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     @Override
     protected void masterOperation(Task task, CleanupRepositoryRequest request, ClusterState state,
                                    ActionListener<CleanupRepositoryResponse> listener) {
-        snapshotsService.cleanupRepo(request.repository(), ActionListener.map(listener, CleanupRepositoryResponse::new));
+        if (state.nodes().getMinNodeVersion().onOrAfter(MIN_VERSION)) {
+            snapshotsService.cleanupRepo(request.repository(), ActionListener.map(listener, CleanupRepositoryResponse::new));
+        } else {
+            throw new IllegalArgumentException("Repository cleanup is only supported from version [" + MIN_VERSION
+                + "] but the oldest node version in the cluster is [" + state.nodes().getMinNodeVersion() + ']');
+        }
     }
 
     @Override

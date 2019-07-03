@@ -499,7 +499,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     if (retentionLease != null) {
                         final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
                         renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting),
-                            Math.max(0L, checkpointState.globalCheckpoint + 1L),
+                            Math.max(retentionLease.retainingSequenceNumber(), checkpointState.globalCheckpoint + 1L),
                             PEER_RECOVERY_RETENTION_LEASE_SOURCE);
                     }
                 }

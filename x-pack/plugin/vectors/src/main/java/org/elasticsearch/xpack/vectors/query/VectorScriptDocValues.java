@@ -46,7 +46,11 @@ public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException("vector fields may only be used via vector functions in scripts");
+        if (value == null) {
+            return 0;
+        } else {
+            return 1;
+        }
     }
 
     // not final, as it needs to be extended by Mockito for tests

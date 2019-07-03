@@ -37,7 +37,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -147,16 +149,18 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         return new RollupJob(config, filteredHeaders);
     }
 
+    @SuppressWarnings("unchecked")
     static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                             PersistentTasksService persistentTasksService, Client client, Logger logger) {
 
-        String jobMetadata = "\"" + job.getConfig().getId() + "\":" + job.getConfig().toJSONString();
+        Map<String, Object> jobMetaData = toMap(job.getConfig().toJSONString());
+        Map<String, Object> mapping = toMap(Rollup.DYNAMIC_MAPPING_TEMPLATE);
 
-        String mapping = Rollup.DYNAMIC_MAPPING_TEMPLATE
-                .replace(Rollup.MAPPING_METADATA_PLACEHOLDER, jobMetadata);
+        ((Map<String, Object>)((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) mapping.get("mappings"))
+            .get("_doc")).get("_meta")).get("_rollup")).put(job.getConfig().getId(), jobMetaData);
 
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getRollupIndex());
-        request.mapping(RollupField.TYPE_NAME, mapping, XContentType.JSON);
+        request.source(mapping, LoggingDeprecationHandler.INSTANCE);
 
         client.execute(CreateIndexAction.INSTANCE, request,
                 ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
@@ -169,6 +173,10 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                         listener.onFailure(new RuntimeException(msg, e));
                     }
                 }));
+    }
+
+    private static Map<String, Object> toMap(String s) {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, s, false);
     }
 
     @SuppressWarnings("unchecked")

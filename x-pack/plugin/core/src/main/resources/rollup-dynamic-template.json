@@ -1,26 +1,28 @@
 {
-  "_meta":{
-    "_rollup": {
-      "ROLLUP_METADATA_PLACEHOLDER":"ROLLUP_METADATA_PLACEHOLDER"
-    },
-    "rollup-version": "${rollup.dynamic_template.version}"
-  },
-  "dynamic_templates": [
-    {
-      "strings": {
-        "match_mapping_type": "string",
-        "mapping": {
-          "type": "keyword"
+  "mappings": {
+    "_doc": {
+      "_meta": {
+        "_rollup": {},
+        "rollup-version": "${rollup.dynamic_template.version}"
+      },
+      "dynamic_templates": [
+        {
+          "strings": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword"
+            }
+          }
+        },
+        {
+          "date_histograms": {
+            "path_match": "*.date_histogram.timestamp",
+            "mapping": {
+              "type": "date"
+            }
+          }
         }
-      }
-    },
-    {
-      "date_histograms": {
-        "path_match": "*.date_histogram.timestamp",
-        "mapping": {
-          "type": "date"
-        }
-      }
+      ]
     }
-  ]
+  }
 }

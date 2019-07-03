@@ -89,14 +89,14 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
     public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 
-    public static final String MAPPING_METADATA_PLACEHOLDER = "\"ROLLUP_METADATA_PLACEHOLDER\":\"ROLLUP_METADATA_PLACEHOLDER\"";
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
-    public static final String ROLLUP_TEMPLATE_VERSION_PATTERN =
+    private static final String ROLLUP_TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${rollup.dynamic_template.version}");
 
     private static final String ROLLUP_TEMPLATE_NAME = "/rollup-dynamic-template.json";
     public static final String DYNAMIC_MAPPING_TEMPLATE = TemplateUtils.loadTemplate(ROLLUP_TEMPLATE_NAME,
             Version.CURRENT.toString(), Rollup.ROLLUP_TEMPLATE_VERSION_PATTERN);
+
 
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS =

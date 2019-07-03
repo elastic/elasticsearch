@@ -113,12 +113,11 @@ public class Regex {
             }
             return false;
         }
-        final String patternBeforeFirstIndex = pattern.substring(0, firstIndex);
         if (firstIndex == pattern.length() - 1) {
-            return str.startsWith(patternBeforeFirstIndex);
+            return str.startsWith(pattern, firstIndex);
         }
         return (str.length() >= firstIndex &&
-                patternBeforeFirstIndex.equals(str.substring(0, firstIndex)) &&
+                pattern.substring(0, firstIndex).equals(str.substring(0, firstIndex)) &&
                 simpleMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
     }
 

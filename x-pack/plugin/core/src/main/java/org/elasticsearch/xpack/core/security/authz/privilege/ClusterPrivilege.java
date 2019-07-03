@@ -177,4 +177,8 @@ public final class ClusterPrivilege extends Privilege {
         }
         return new ClusterPrivilege(name, Automatons.unionAndMinimize(automata));
     }
+
+    public static Set<String> names() {
+        return Collections.unmodifiableSet(VALUES.keySet());
+    }
 }

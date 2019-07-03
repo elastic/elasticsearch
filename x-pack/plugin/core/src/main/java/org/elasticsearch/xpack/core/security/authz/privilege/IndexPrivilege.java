@@ -161,4 +161,9 @@ public final class IndexPrivilege extends Privilege {
     static Map<String, IndexPrivilege> values() {
         return VALUES;
     }
+
+    public static Set<String> names() {
+        return Collections.unmodifiableSet(VALUES.keySet());
+    }
+
 }

@@ -68,7 +68,7 @@ public class RegexTests extends ESTestCase {
         for (int i = 0; i < 100000; i++) {
             final String matchingString = randomAlphaOfLength(between(0, 50));
 
-            // construct a pattern that matches this string by repeatedly random substrings with '*' characters
+            // construct a pattern that matches this string by repeatedly replacing random substrings with '*' characters
             String pattern = matchingString;
             for (int shrink = between(0, 5); shrink > 0; shrink--) {
                 final int shrinkStart = between(0, pattern.length());

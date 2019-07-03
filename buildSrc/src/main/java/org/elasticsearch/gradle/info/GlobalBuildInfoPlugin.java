@@ -152,15 +152,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (_defaultParallel == null) {
             File cpuInfoFile = new File("/proc/cpuinfo");
             if ("s390x".equals(System.getProperty("os.arch"))) {             
-		// Ask s390x to count physical CPUs for us 
-		ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-		project.exec(spec -> { 
-			spec.setExecutable("nproc"); 
-			spec.args("--all"); 
-			spec.setStandardOutput(stdout); 
-		}); 
-
-		_defaultParallel = Integer.parseInt(stdout.toString().trim()); 		
+		         // Ask s390x to count physical CPUs for us 
+		         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+		         project.exec(spec -> { 
+			             spec.setExecutable("nproc"); 
+			             spec.args("--all"); 
+			             spec.setStandardOutput(stdout); 
+		    }); 
+ 
+     		_defaultParallel = Integer.parseInt(stdout.toString().trim()); 		
             } else if (cpuInfoFile.exists()) {
                 // Count physical cores on any Linux distro ( don't count hyper-threading )
                 Map<String, Integer> socketToCore = new HashMap<>();

@@ -1,8 +1,8 @@
-:version:               7.3.0
+:version:               7.4.0
 ////
 bare_version never includes -alpha or -beta
 ////
-:bare_version:          7.3.0
+:bare_version:          7.4.0
 :major-version:         7.x
 :prev-major-version:    6.x
 :lucene_version:        8.1.0

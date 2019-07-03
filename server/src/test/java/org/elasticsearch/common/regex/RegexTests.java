@@ -65,7 +65,7 @@ public class RegexTests extends ESTestCase {
     }
 
     public void testSimpleMatch() {
-        for (int i = 0; i < 100000; i++) {
+        for (int i = 0; i < 1000; i++) {
             final String matchingString = randomAlphaOfLength(between(0, 50));
 
             // construct a pattern that matches this string by repeatedly replacing random substrings with '*' characters

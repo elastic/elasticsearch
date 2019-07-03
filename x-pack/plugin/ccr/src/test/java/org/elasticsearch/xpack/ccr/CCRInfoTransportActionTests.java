@@ -108,7 +108,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         var usageAction = new CCRUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, clusterState, future);
+        usageAction.masterOperation(null, null, clusterState, future);
         CCRInfoTransportAction.Usage ccrUsage = (CCRInfoTransportAction.Usage) future.get().getUsage();
         assertThat(ccrUsage.enabled(), equalTo(true));
         assertThat(ccrUsage.available(), equalTo(false));

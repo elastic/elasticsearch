@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsAction.Response> {
+public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyticsAction.Response> {
 
     public static final StopDataFrameAnalyticsAction INSTANCE = new StopDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/stop";
@@ -43,25 +43,23 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
     }
 
     @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public Writeable.Reader<Response> getResponseReader() {
         return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+        public static final ParseField FORCE = new ParseField("force");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString((request, id) -> request.id = id, DataFrameAnalyticsConfig.ID);
             PARSER.declareString((request, val) -> request.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
+            PARSER.declareBoolean(Request::setForce, FORCE);
         }
 
         public static Request parseRequest(String id, XContentParser parser) {
@@ -76,8 +74,9 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
         }
 
         private String id;
-        private Set<String> expandedIds = Collections.emptySet();
         private boolean allowNoMatch = true;
+        private boolean force;
+        private Set<String> expandedIds = Collections.emptySet();
 
         public Request(String id) {
             setId(id);
@@ -86,8 +85,9 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
             allowNoMatch = in.readBoolean();
+            force = in.readBoolean();
+            expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
         }
 
         public Request() {}
@@ -100,6 +100,22 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
             return id;
         }
 
+        public boolean allowNoMatch() {
+            return allowNoMatch;
+        }
+
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
+        }
+
+        public boolean isForce() {
+            return force;
+        }
+
+        public void setForce(boolean force) {
+            this.force = force;
+        }
+
         @Nullable
         public Set<String> getExpandedIds() {
             return expandedIds;
@@ -107,14 +123,6 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
 
         public void setExpandedIds(Set<String> expandedIds) {
             this.expandedIds = Objects.requireNonNull(expandedIds);
-        }
-
-        public boolean allowNoMatch() {
-            return allowNoMatch;
-        }
-
-        public void setAllowNoMatch(boolean allowNoMatch) {
-            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -126,8 +134,9 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            out.writeStringArray(expandedIds.toArray(new String[0]));
             out.writeBoolean(allowNoMatch);
+            out.writeBoolean(force);
+            out.writeStringArray(expandedIds.toArray(new String[0]));
         }
 
         @Override
@@ -136,12 +145,13 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
                 .startObject()
                 .field(DataFrameAnalyticsConfig.ID.getPreferredName(), id)
                 .field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch)
+                .field(FORCE.getPreferredName(), force)
                 .endObject();
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, getTimeout(), expandedIds, allowNoMatch);
+            return Objects.hash(id, getTimeout(), allowNoMatch, force, expandedIds);
         }
 
         @Override
@@ -155,8 +165,9 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
             StopDataFrameAnalyticsAction.Request other = (StopDataFrameAnalyticsAction.Request) obj;
             return Objects.equals(id, other.id)
                 && Objects.equals(getTimeout(), other.getTimeout())
-                && Objects.equals(expandedIds, other.expandedIds)
-                && allowNoMatch == other.allowNoMatch;
+                && allowNoMatch == other.allowNoMatch
+                && force == other.force
+                && Objects.equals(expandedIds, other.expandedIds);
         }
 
         @Override

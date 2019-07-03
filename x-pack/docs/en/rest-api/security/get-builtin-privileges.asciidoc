@@ -60,6 +60,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "all",
     "create_snapshot",
     "manage",
+    "manage_api_key",
     "manage_ccr",
     "manage_data_frame_transforms",
     "manage_ilm",

@@ -118,11 +118,14 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                 .filter(QueryBuilders.termQuery("level", "awesome"))
                 .maxDocs(1000)
                 .script(new Script(ScriptType.INLINE,
-                    "ctx._source.awesome = 'absolutely'",
                     "painless",
+                    "ctx._source.awesome = 'absolutely'",
                     Collections.emptyMap()));
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-filter
+
+            // validate order of string params to Script constructor
+            assertEquals(updateByQuery.request().getScript().getLang(), "painless");
         }
         {
             // tag::update-by-query-size
@@ -152,16 +155,19 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             updateByQuery.source("source_index")
                 .script(new Script(
                     ScriptType.INLINE,
+                    "painless",
                     "if (ctx._source.awesome == 'absolutely') {"
                         + "  ctx.op='noop'"
                         + "} else if (ctx._source.awesome == 'lame') {"
                         + "  ctx.op='delete'"
                         + "} else {"
                         + "ctx._source.awesome = 'absolutely'}",
-                    "painless",
                     Collections.emptyMap()));
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-script
+
+            // validate order of string params to Script constructor
+            assertEquals(updateByQuery.request().getScript().getLang(), "painless");
         }
         {
             // tag::update-by-query-multi-index

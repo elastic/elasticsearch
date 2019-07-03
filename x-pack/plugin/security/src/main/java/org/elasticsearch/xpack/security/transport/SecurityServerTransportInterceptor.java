@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -56,7 +57,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             return v;
         }
         throw new IllegalArgumentException("type must be one of [client, node]");
-    }, Setting.Property.NodeScope);
+    }, Setting.Property.NodeScope, Property.Deprecated);
     private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
@@ -187,7 +188,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         for (Map.Entry<String, SSLConfiguration> entry : profileConfigurations.entrySet()) {
             final SSLConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
-            final String type = TRANSPORT_TYPE_PROFILE_SETTING.getConcreteSettingForNamespace(entry.getKey()).get(settings);
+            final Setting<String> transportType = TRANSPORT_TYPE_PROFILE_SETTING.getConcreteSettingForNamespace(entry.getKey());
+            final String type = transportType.get(settings);
             switch (type) {
                 case "client":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,

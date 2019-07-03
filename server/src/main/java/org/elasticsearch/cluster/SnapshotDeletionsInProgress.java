@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -156,7 +157,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public String toString() {
         StringBuilder builder = new StringBuilder("SnapshotDeletionsInProgress[");
         for (int i = 0; i < entries.size(); i++) {
-            builder.append(entries.get(i).getSnapshot().getSnapshotId().getName());
+            final SnapshotId snapshotId = entries.get(i).getSnapshot().getSnapshotId();
+            if (snapshotId == null) {
+                continue;
+            }
+            builder.append(snapshotId.getName());
             if (i + 1 < entries.size()) {
                 builder.append(",");
             }
@@ -214,7 +219,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
                 return false;
             }
             Entry that = (Entry) o;
-            return Objects.equals(snapshot, that.snapshot)
+            return snapshot.equals(that.snapshot)
                        && startTime == that.startTime
                        && repositoryStateId == that.repositoryStateId;
         }

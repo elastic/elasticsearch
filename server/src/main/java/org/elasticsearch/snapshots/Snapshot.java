@@ -69,6 +69,7 @@ public final class Snapshot implements Writeable {
     /**
      * Gets the snapshot id for the snapshot.
      */
+    @Nullable
     public SnapshotId getSnapshotId() {
         return snapshotId;
     }

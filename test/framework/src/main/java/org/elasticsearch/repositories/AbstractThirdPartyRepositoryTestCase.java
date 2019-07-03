@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -68,7 +69,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createRepository("test-repo");
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        repo.threadPool().generic().execute(new ActionRunnable<>(future) {
+        repo.threadPool().generic().execute(new ActionRunnable<Void>(future) {
             @Override
             protected void doRun() throws Exception {
                 deleteContents(repo.blobStore().blobContainer(repo.basePath()));
@@ -138,7 +139,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final Executor genericExec = repo.threadPool().generic();
         final int testBlobLen = randomIntBetween(1, 100);
-        genericExec.execute(new ActionRunnable<>(future) {
+        genericExec.execute(new ActionRunnable<Void>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
@@ -154,7 +155,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         future.actionGet();
         assertChildren(repo.basePath(), Collections.singleton("foo"));
         assertBlobsByPrefix(repo.basePath(), "fo", Collections.emptyMap());
-        assertChildren(repo.basePath().add("foo"), List.of("nested", "nested2"));
+        assertChildren(repo.basePath().add("foo"), Arrays.asList("nested", "nested2"));
         assertBlobsByPrefix(repo.basePath().add("foo"), "nest",
             Collections.singletonMap("nested-blob", new PlainBlobMetaData("nested-blob", testBlobLen)));
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
@@ -163,7 +164,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
         final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
         final BlobStoreRepository repository = getRepository();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+        repository.threadPool().generic().execute(new ActionRunnable<Map<String, BlobMetaData>>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repository.blobStore();
@@ -184,7 +185,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     protected void assertChildren(BlobPath path, Collection<String> children) throws Exception {
         final PlainActionFuture<Set<String>> future = PlainActionFuture.newFuture();
         final BlobStoreRepository repository = getRepository();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+        repository.threadPool().generic().execute(new ActionRunnable<Set<String>>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repository.blobStore();

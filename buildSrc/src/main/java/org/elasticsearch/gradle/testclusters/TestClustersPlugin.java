@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.testclusters;
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.test.RestTestRunnerTask;
 import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -155,6 +156,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                             ((Task) thisObject).dependsOn(
                                 project.getRootProject().getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME)
                             );
+                            if (thisObject instanceof RestTestRunnerTask) {
+                                ((RestTestRunnerTask) thisObject).testCluster(cluster);
+                            }
                         }
                     })
         );

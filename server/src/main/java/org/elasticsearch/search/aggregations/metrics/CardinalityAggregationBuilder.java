@@ -124,7 +124,7 @@ public final class CardinalityAggregationBuilder
 
     @Override
     protected CardinalityAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new CardinalityAggregatorFactory(name, config, precisionThreshold, context, parent, subFactoriesBuilder, metaData);
     }
 

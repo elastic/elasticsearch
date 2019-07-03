@@ -309,10 +309,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected final ValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
+        ValuesSourceAggregatorFactory<VS> factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -322,8 +322,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
                 valueType, field, script, missing, timeZone, format);
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

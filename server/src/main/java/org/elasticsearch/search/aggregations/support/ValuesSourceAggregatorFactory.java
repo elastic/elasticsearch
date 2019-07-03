@@ -29,13 +29,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
-        extends AggregatorFactory<AF> {
+public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
 
     protected ValuesSourceConfig<VS> config;
 
     public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig<VS> config, SearchContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
         this.config = config;
     }

@@ -105,8 +105,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
 
+    protected AggregatorFactory createAggregatorFactory(AggregationBuilder aggregationBuilder,
+                                                           IndexSearcher indexSearcher,
+                                                           MappedFieldType... fieldTypes) throws IOException {
+        return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),
+            new MultiBucketConsumer(DEFAULT_MAX_BUCKETS), fieldTypes);
+    }
+
+
+    protected AggregatorFactory createAggregatorFactory(AggregationBuilder aggregationBuilder,
+                                                           IndexSearcher indexSearcher,
+                                                           IndexSettings indexSettings,
+                                                           MultiBucketConsumer bucketConsumer,
+                                                           MappedFieldType... fieldTypes) throws IOException {
+        return createAggregatorFactory(null, aggregationBuilder, indexSearcher, indexSettings, bucketConsumer, fieldTypes);
+    }
+
     /** Create a factory for the given aggregation builder. */
-    protected AggregatorFactory<?> createAggregatorFactory(Query query,
+    protected AggregatorFactory createAggregatorFactory(Query query,
                                                            AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            IndexSettings indexSettings,
@@ -148,8 +164,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
-        registerFieldTypes(searchContext, mapperService,
-            fieldNameToType);
+        registerFieldTypes(queryShardContext, searchContext, mapperService,
+            circuitBreakerService, fieldNameToType);
 
         return aggregationBuilder.build(searchContext, null);
     }
@@ -162,8 +178,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return Collections.emptyMap();
     }
 
-    private static void registerFieldTypes(SearchContext searchContext, MapperService mapperService,
-                                           Map<String, MappedFieldType> fieldNameToType) {
+    private void registerFieldTypes(QueryShardContext queryShardContext,
+                                    SearchContext searchContext,
+                                    MapperService mapperService,
+                                    CircuitBreakerService circuitBreakerService,
+                                    Map<String, MappedFieldType> fieldNameToType) {
         for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
             String fieldName = entry.getKey();
             MappedFieldType fieldType = entry.getValue();

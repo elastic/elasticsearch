@@ -549,6 +549,14 @@ subprojects {
       'license.text': [
         'deb': licenseText,
       ],
+
+      'keystore.passwd.check': [
+        /* Avoid unfortunate 5-second delay for elasticsearch-cli
+           scripts on certain OSX/JVM combos by reading the
+           "encrypted" flag byte in the keystore directly */
+        'tar': '[ "$(echo -n "\000")" = "$(dd if="$ES_PATH_CONF"/elasticsearch.keystore ibs=1 skip=31 count=1 2>/dev/null)" ]',
+        'def': '"`dirname "$0"`"/elasticsearch-keystore list <&-'
+      ],
     ]
     Map<String, String> result = [:]
     expansions = expansions.each { key, value ->

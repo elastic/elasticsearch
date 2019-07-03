@@ -30,18 +30,22 @@ KEYSTORE_PASSWORD=
 if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ] \
     && ! echo $* | grep -E '(^-h |-h$| -h |--help$|--help )' >/dev/null 2>&1 \
     && ! echo $* | grep -E '(^-V |-V$| -V |--version$|--version )' >/dev/null 2>&1 \
-    && hexdump -b -s 31 -n1 "$ES_PATH_CONF"/elasticsearch.keystore | head -1 | cut -d' ' -f2 | grep '001' >/dev/null 2>&1
+    && ! ${keystore.passwd.check} >/dev/null 2>&1
 then
   if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
     # read from a file or a FIFO
     if [ -p "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
-      echo "Reading keystore passphrase from FIFO (blocking operation)"
+      echo "Reading keystore passphrase from FIFO $ES_KEYSTORE_PASSPHRASE_FILE (blocking operation)" 1>&2
+    else
+      echo "Reading keystore passphrase from file $ES_KEYSTORE_PASSPHRASE_FILE" 1>&2
     fi
-  read -s KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE"
+  read -s KEYSTORE_PASSWORD -u "$ES_KEYSTORE_PASSPHRASE_FILE"
   else
     # read from standard input
-    echo -n "Elasticsearch keystore password: "
-    read -s KEYSTORE_PASSWORD
+    if ! read -s -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
+      echo "Failed to read keystore password on standard input" 1>&2
+      exit 1
+    fi
     echo
   fi
 fi

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgressTests.randomDataFrameTransformProgress;
+import static org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributeTests.randomNodeAttributes;
 
 public class DataFrameTransformStateTests extends AbstractSerializingTestCase<DataFrameTransformState> {
 
@@ -26,7 +27,8 @@ public class DataFrameTransformStateTests extends AbstractSerializingTestCase<Da
             randomPosition(),
             randomLongBetween(0,10),
             randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomDataFrameTransformProgress());
+            randomBoolean() ? null : randomDataFrameTransformProgress(),
+            randomBoolean() ? null : randomNodeAttributes());
     }
 
     @Override

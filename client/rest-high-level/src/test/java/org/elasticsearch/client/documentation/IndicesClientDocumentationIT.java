@@ -58,6 +58,7 @@ import org.elasticsearch.client.GetAliasesResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.SyncedFlushResponse;
+import org.elasticsearch.client.core.BroadcastResponse.Shards;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
@@ -77,6 +78,9 @@ import org.elasticsearch.client.indices.IndexTemplateMetaData;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
+import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
+import org.elasticsearch.client.indices.ReloadAnalyzersResponse.ReloadDetails;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -2747,5 +2751,78 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::delete-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testReloadSearchAnalyzers() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::reload-analyzers-request
+            ReloadAnalyzersRequest request = new ReloadAnalyzersRequest("index"); // <1>
+            // end::reload-analyzers-request
+
+            // tag::reload-analyzers-request-indicesOptions
+            request.setIndicesOptions(IndicesOptions.strictExpandOpen()); // <1>
+            // end::reload-analyzers-request-indicesOptions
+
+            // tag::reload-analyzers-execute
+            ReloadAnalyzersResponse reloadResponse = client.indices().reloadAnalyzers(request, RequestOptions.DEFAULT);
+            // end::reload-analyzers-execute
+
+            // tag::reload-analyzers-response
+            Shards shards = reloadResponse.shards(); // <1>
+            Map<String, ReloadDetails> reloadDetails = reloadResponse.getReloadedDetails(); // <2>
+            ReloadDetails details = reloadDetails.get("index"); // <3>
+            String indexName = details.getIndexName(); // <4>
+            Set<String> indicesNodes = details.getReloadedIndicesNodes(); // <5>
+            Set<String> analyzers = details.getReloadedAnalyzers();  // <6>
+            // end::reload-analyzers-response
+            assertNotNull(shards);
+            assertEquals("index", indexName);
+            assertEquals(1, indicesNodes.size());
+            assertEquals(0, analyzers.size());
+
+            // tag::reload-analyzers-execute-listener
+            ActionListener<ReloadAnalyzersResponse> listener =
+                new ActionListener<ReloadAnalyzersResponse>() {
+                    @Override
+                    public void onResponse(ReloadAnalyzersResponse reloadResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::reload-analyzers-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::reload-analyzers-execute-async
+            client.indices().reloadAnalyzersAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::reload-analyzers-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::reload-analyzers-notfound
+            try {
+                ReloadAnalyzersRequest request = new ReloadAnalyzersRequest("does_not_exist");
+                client.indices().reloadAnalyzers(request, RequestOptions.DEFAULT);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.BAD_REQUEST) {
+                    // <1>
+                }
+            }
+            // end::reload-analyzers-notfound
+        }
     }
 }

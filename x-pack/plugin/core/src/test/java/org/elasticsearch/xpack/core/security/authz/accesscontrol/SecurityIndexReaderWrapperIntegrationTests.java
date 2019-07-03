@@ -21,7 +21,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -87,21 +85,11 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, null, mapperService,
                 null, null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
-                bitsetFilterCache, threadContext, licenseState, scriptService) {
+                bitsetCache, threadContext, licenseState, scriptService) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -169,7 +157,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
 
-        bitsetFilterCache.close();
+        bitsetCache.close();
         directoryReader.close();
         directory.close();
     }
@@ -211,21 +199,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, null, mapperService,
                 null, null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
-        IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-            }
-        });
+        DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
-                bitsetFilterCache, threadContext, licenseState, scriptService) {
+                bitsetCache, threadContext, licenseState, scriptService) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -281,7 +260,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             }
         }
 
-        bitsetFilterCache.close();
+        bitsetCache.close();
         directoryReader.close();
         directory.close();
     }

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction.Response.Stats;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 
@@ -178,6 +179,11 @@ public class TransportGetDataFrameAnalyticsStatsAction
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         PersistentTasksCustomMetaData.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);
         DataFrameAnalyticsState analyticsState = MlTasks.getDataFrameAnalyticsState(concreteAnalyticsId, tasks);
+        String failureReason = null;
+        if (analyticsState == DataFrameAnalyticsState.FAILED) {
+            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) analyticsTask.getState();
+            failureReason = taskState.getReason();
+        }
         DiscoveryNode node = null;
         String assignmentExplanation = null;
         if (analyticsTask != null) {
@@ -185,6 +191,6 @@ public class TransportGetDataFrameAnalyticsStatsAction
             assignmentExplanation = analyticsTask.getAssignment().getExplanation();
         }
         return new GetDataFrameAnalyticsStatsAction.Response.Stats(
-            concreteAnalyticsId, analyticsState, progressPercent, node, assignmentExplanation);
+            concreteAnalyticsId, analyticsState, failureReason, progressPercent, node, assignmentExplanation);
     }
 }

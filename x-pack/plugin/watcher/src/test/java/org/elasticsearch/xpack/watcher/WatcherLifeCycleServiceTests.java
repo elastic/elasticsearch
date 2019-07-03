@@ -177,7 +177,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stoppedClusterState, clusterState));
-        verify(watcherService, times(1)).stop(eq("watcher manually marked to shutdown by cluster state update"), (Consumer<Void>) isNotNull());
+        verify(watcherService, times(1))
+            .stop(eq("watcher manually marked to shutdown by cluster state update"), (Consumer<Void>) isNotNull());
 
         // Starting via cluster state update, as the watcher metadata block is removed/set to true
         reset(watcherService);

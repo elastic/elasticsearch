@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class SqlQueryAction extends Action<SqlQueryResponse> {
+public class SqlQueryAction extends StreamableResponseActionType<SqlQueryResponse> {
 
     public static final SqlQueryAction INSTANCE = new SqlQueryAction();
     public static final String NAME = "indices:data/read/sql";

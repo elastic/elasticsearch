@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class DataFrameAnalyticsSource implements ToXContentObject {
@@ -46,19 +48,19 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_source", true, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setIndex, INDEX);
+        PARSER.declareStringArray(Builder::setIndex, INDEX);
         PARSER.declareObject(Builder::setQueryConfig, (p, c) -> QueryConfig.fromXContent(p), QUERY);
     }
 
-    private final String index;
+    private final String[] index;
     private final QueryConfig queryConfig;
 
-    private DataFrameAnalyticsSource(String index, @Nullable QueryConfig queryConfig) {
+    private DataFrameAnalyticsSource(String[] index, @Nullable QueryConfig queryConfig) {
         this.index = Objects.requireNonNull(index);
         this.queryConfig = queryConfig;
     }
 
-    public String getIndex() {
+    public String[] getIndex() {
         return index;
     }
 
@@ -83,13 +85,13 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         DataFrameAnalyticsSource other = (DataFrameAnalyticsSource) o;
-        return Objects.equals(index, other.index)
+        return Arrays.equals(index, other.index)
             && Objects.equals(queryConfig, other.queryConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, queryConfig);
+        return Objects.hash(Arrays.asList(index), queryConfig);
     }
 
     @Override
@@ -99,13 +101,18 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
 
     public static class Builder {
 
-        private String index;
+        private String[] index;
         private QueryConfig queryConfig;
 
         private Builder() {}
 
-        public Builder setIndex(String index) {
+        public Builder setIndex(String... index) {
             this.index = index;
+            return this;
+        }
+
+        public Builder setIndex(List<String> index) {
+            this.index = index.toArray(new String[0]);
             return this;
         }
 

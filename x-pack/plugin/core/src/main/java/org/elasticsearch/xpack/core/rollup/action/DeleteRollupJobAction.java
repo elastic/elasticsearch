@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
@@ -29,18 +29,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response> {
+public class DeleteRollupJobAction extends ActionType<DeleteRollupJobAction.Response> {
 
     public static final DeleteRollupJobAction INSTANCE = new DeleteRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/delete";
 
     private DeleteRollupJobAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

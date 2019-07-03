@@ -69,8 +69,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, NodesReloadSecureSettingsRequest request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(NodesReloadSecureSettingsRequest request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -117,8 +117,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, NodesReloadSecureSettingsRequest request) {
-            super(nodeId);
+        NodeRequest(NodesReloadSecureSettingsRequest request) {
             this.request = request;
         }
 

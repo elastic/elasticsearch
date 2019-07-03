@@ -138,7 +138,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String TESTS_FILE = "tests-";
 
-    private static final String METADATA_NAME_FORMAT = "meta-%s.dat";
+    private static final String METADATA_PREFIX = "meta-";
+
+    private static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
 
     private static final String METADATA_CODEC = "metadata";
 
@@ -430,11 +432,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (FsBlobContainer.isTempBlobName(blob)) {
                     return true;
                 }
-                if ((blob.startsWith(SNAPSHOT_PREFIX) || blob.startsWith("meta-")) && blob.endsWith(".dat")) {
-                    final String foundUUID = blob.substring(SNAPSHOT_INDEX_PREFIX.length() - 1, blob.length() - ".dat".length());
-                    if (allSnapshotIds.contains(foundUUID) == false) {
-                        return true;
+                if (blob.endsWith(".dat")) {
+                    final String foundUUID;
+                    if (blob.startsWith(SNAPSHOT_PREFIX)) {
+                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                        assert snapshotFormat.blobName(foundUUID).equals(blob);
+                    } else if (blob.startsWith(METADATA_PREFIX)) {
+                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+                        assert globalMetaDataFormat.blobName(foundUUID).equals(blob);
+                    } else {
+                        return false;
                     }
+                    return allSnapshotIds.contains(foundUUID) == false;
                 }
                 return false;
             }

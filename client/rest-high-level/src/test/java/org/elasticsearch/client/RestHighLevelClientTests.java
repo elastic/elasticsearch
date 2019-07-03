@@ -141,7 +141,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         // core
         "ping", "info",
         // security
-        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges",
+        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges", "security.get_builtin_privileges",
         // license
         "license.get_trial_status", "license.get_basic_status"
 

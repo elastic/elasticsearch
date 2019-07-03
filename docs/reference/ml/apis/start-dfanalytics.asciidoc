@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[start-dfanalytics]]
-=== Start {dfanalytics} API
+=== Start {dfanalytics-jobs} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Start {dfanalytics}</titleabbrev>
+<titleabbrev>Start {dfanalytics-jobs}</titleabbrev>
 ++++
 
 beta[]
 
-Starts one or more {dfanalytics}.
+Starts one or more {dfanalytics-jobs}.
 
 [[ml-start-dfanalytics-request]]
 ==== {api-request-title}
@@ -46,7 +46,7 @@ POST _ml/data_frame/analytics/loganalytics/_start
 // CONSOLE
 // TEST[skip:set up kibana samples]
 
-When the {dataframe-analytics} starts, you receive the following results:
+When the {dfanalytics-job} starts, you receive the following results:
 
 [source,js]
 ----

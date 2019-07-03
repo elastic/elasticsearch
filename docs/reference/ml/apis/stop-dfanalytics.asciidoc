@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[stop-dfanalytics]]
-=== Stop {dfanalytics} API
+=== Stop {dfanalytics-jobs} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Stop {dfanalytics}</titleabbrev>
+<titleabbrev>Stop {dfanalytics-jobs}</titleabbrev>
 ++++
 
 beta[]
 
-Stops one or more {dfanalytics}.
+Stops one or more {dfanalytics-jobs}.
 
 [[ml-stop-dfanalytics-request]]
 ==== {api-request-title}

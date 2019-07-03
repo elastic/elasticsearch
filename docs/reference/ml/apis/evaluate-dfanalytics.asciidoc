@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="platinum"]
 [[evaluate-dataframe]]
-=== Evaluate {dataframe} API
+=== Evaluate {dfanalytics} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Evaluate {dataframe}</titleabbrev>
+<titleabbrev>Evaluate {dfanalytics}</titleabbrev>
 ++++
 
 beta[]

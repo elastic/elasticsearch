@@ -58,7 +58,7 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
 
-The following example creates the `loganalytics` {dfanalytics} job, the analysis 
+The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
 type is `outlier_detection`:
 
 [source,js]

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class MlInfoAction extends Action<MlInfoAction.Response> {
+public class MlInfoAction extends StreamableResponseActionType<MlInfoAction.Response> {
 
     public static final MlInfoAction INSTANCE = new MlInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ml/info/get";

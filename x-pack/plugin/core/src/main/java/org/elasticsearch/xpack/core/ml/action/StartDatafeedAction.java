@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -17,6 +17,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -38,7 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
-public class StartDatafeedAction extends Action<AcknowledgedResponse> {
+public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
@@ -52,8 +53,8 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return AcknowledgedResponse::new;
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {

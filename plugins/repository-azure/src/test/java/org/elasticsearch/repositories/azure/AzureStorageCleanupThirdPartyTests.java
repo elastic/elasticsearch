@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -42,13 +43,22 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @Override
     protected SecureSettings credentials() {
         assertThat(System.getProperty("test.azure.account"), not(blankOrNullString()));
-        assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
+        final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
+        if (hasSasToken == false) {
+            assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
+        } else {
+            assertThat(System.getProperty("test.azure.key"), blankOrNullString());
+        }
         assertThat(System.getProperty("test.azure.container"), not(blankOrNullString()));
         assertThat(System.getProperty("test.azure.base"), not(blankOrNullString()));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
-        secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
+        if (hasSasToken) {
+            secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
+        } else {
+            secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
+        }
         return secureSettings;
     }
 

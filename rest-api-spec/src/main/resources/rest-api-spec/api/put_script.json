@@ -1,6 +1,7 @@
 {
   "put_script": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "stability": "stable",
     "methods": ["PUT", "POST"],
     "url": {
       "paths": [ "/_scripts/{id}", "/_scripts/{id}/{context}" ],

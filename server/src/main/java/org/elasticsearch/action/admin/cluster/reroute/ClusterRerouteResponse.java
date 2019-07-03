@@ -37,11 +37,19 @@ import java.io.IOException;
  */
 public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    private ClusterState state;
-    private RoutingExplanations explanations;
+    private final ClusterState state;
+    private final RoutingExplanations explanations;
 
-    ClusterRerouteResponse() {
-
+    ClusterRerouteResponse(StreamInput in) throws IOException {
+        super(in, in.getVersion().onOrAfter(Version.V_6_4_0));
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            state = ClusterState.readFrom(in, null);
+            explanations = RoutingExplanations.readFrom(in);
+        } else {
+            state = ClusterState.readFrom(in, null);
+            acknowledged = in.readBoolean();
+            explanations = RoutingExplanations.readFrom(in);
+        }
     }
 
     ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
@@ -59,19 +67,6 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
 
     public RoutingExplanations getExplanations() {
         return this.explanations;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            super.readFrom(in);
-            state = ClusterState.readFrom(in, null);
-            explanations = RoutingExplanations.readFrom(in);
-        } else {
-            state = ClusterState.readFrom(in, null);
-            acknowledged = in.readBoolean();
-            explanations = RoutingExplanations.readFrom(in);
-        }
     }
 
     @Override

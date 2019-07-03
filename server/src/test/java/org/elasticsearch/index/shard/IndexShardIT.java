@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -81,7 +83,6 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.junit.Assert;
@@ -424,7 +425,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.index.engine:TRACE")
     public void testStressMaybeFlushOrRollTranslogGeneration() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -530,7 +530,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
 
-        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
         List<Exception> failures = new ArrayList<>();
@@ -648,10 +648,10 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static final IndexShard newIndexShard(
-            final IndexService indexService,
-            final IndexShard shard,IndexSearcherWrapper wrapper,
-            final CircuitBreakerService cbs,
-            final IndexingOperationListener... listeners) throws IOException {
+        final IndexService indexService,
+        final IndexShard shard, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
+        final CircuitBreakerService cbs,
+        final IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
         return new IndexShard(
                 initializingShardRouting,

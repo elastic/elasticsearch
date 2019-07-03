@@ -71,6 +71,10 @@ Example response:
           "available" : true,
           "enabled" : true
       },
+      "flattened" : {
+         "available" : true,
+         "enabled" : true
+      },
       "graph" : {
          "available" : true,
          "enabled" : true
@@ -104,6 +108,14 @@ Example response:
          "enabled" : false
       },
       "sql" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "vectors" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "voting_only" : {
          "available" : true,
          "enabled" : true
       },

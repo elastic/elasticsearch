@@ -117,7 +117,7 @@ public class AzureStorageService {
     }
 
     private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
-        final String connectionString = azureStorageSettings.buildConnectionString();
+        final String connectionString = azureStorageSettings.getConnectString();
         return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 
@@ -139,12 +139,6 @@ public class AzureStorageService {
         this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         // clients are built lazily by {@link client(String)}
         return prevSettings;
-    }
-
-    public boolean doesContainerExist(String account, String container) throws URISyntaxException, StorageException {
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
-        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
     }
 
     /**

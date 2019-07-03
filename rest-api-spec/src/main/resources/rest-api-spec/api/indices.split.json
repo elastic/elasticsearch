@@ -1,6 +1,7 @@
 {
   "indices.split": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-split-index.html",
+    "stability": "stable",
     "methods": ["PUT", "POST"],
     "url": {
       "paths": ["/{index}/_split/{target}"],

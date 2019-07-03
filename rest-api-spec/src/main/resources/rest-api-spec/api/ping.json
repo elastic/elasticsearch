@@ -1,6 +1,7 @@
 {
   "ping": {
     "documentation": "http://www.elastic.co/guide/",
+    "stability": "stable",
     "methods": ["HEAD"],
     "url": {
       "paths": ["/"],

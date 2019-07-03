@@ -47,7 +47,6 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -93,7 +92,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestLogging("org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.cluster.service:TRACE")
 public class NodeJoinControllerTests extends ESTestCase {
 
     private static ThreadPool threadPool;
@@ -141,7 +139,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
         masterService = ClusterServiceUtils.createMasterService(threadPool, initialState);
         nodeJoinController = new NodeJoinController(Settings.EMPTY, masterService, createAllocationService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY), s -> {});
+            new ElectMasterService(Settings.EMPTY), (s, r) -> {});
     }
 
     public void testSimpleJoinAccumulation() throws InterruptedException, ExecutionException {

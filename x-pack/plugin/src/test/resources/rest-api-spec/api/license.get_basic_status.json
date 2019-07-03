@@ -1,6 +1,7 @@
 {
   "license.get_basic_status": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-basic-status.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_license/basic_status"],

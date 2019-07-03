@@ -204,7 +204,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         Client client = mockClient(bulkRequestCaptor);
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23);
+        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23, 7.89);
         persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
 
         verify(client, times(1)).bulk(bulkRequestCaptor.capture());
@@ -219,6 +219,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         expectedSourceAsMap.put("minimum_bucket_processing_time_ms", 1.0);
         expectedSourceAsMap.put("maximum_bucket_processing_time_ms", 2.0);
         expectedSourceAsMap.put("average_bucket_processing_time_ms", 1.23);
+        expectedSourceAsMap.put("exponential_average_bucket_processing_time_ms", 7.89);
         assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
 
         verify(client, times(1)).threadPool();

@@ -766,47 +766,29 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would result in more than 10 states"));
     }
 
-    /**
-     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
-     */
-    public void testEnabledPositionIncrements() throws Exception {
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject(); {
-            builder.startObject("query_string"); {
-                builder.field("query", "text");
-                builder.field("default_field", STRING_FIELD_NAME);
-                builder.field("enable_position_increments", false);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) parseInnerQueryBuilder(createParser(builder));
-        assertFalse(queryBuilder.enablePositionIncrements());
-    }
-
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
         for (int i = 0; i < 3; i++) {
+            final int len;
             final int expectedEdits;
-            String queryString;
             switch (i) {
                 case 0:
-                    queryString = randomAlphaOfLengthBetween(1, 2);
+                    len = randomIntBetween(1, 2);
                     expectedEdits = 0;
                     break;
 
                 case 1:
-                    queryString = randomAlphaOfLengthBetween(3, 5);
+                    len = randomIntBetween(3, 5);
                     expectedEdits = 1;
                     break;
 
                 default:
-                    queryString = randomAlphaOfLengthBetween(6, 20);
+                    len = randomIntBetween(6, 20);
                     expectedEdits = 2;
                     break;
             }
-
+            char[] bytes = new char[len];
+            Arrays.fill(bytes, 'a');
+            String queryString = new String(bytes);
             for (int j = 0; j < 2; j++) {
                 Query query = queryStringQuery(queryString + (j == 0 ? "~" : "~auto"))
                     .defaultField(STRING_FIELD_NAME)
@@ -818,7 +800,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             }
         }
     }
-
     public void testFuzzyNumeric() throws Exception {
         QueryStringQueryBuilder query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();
@@ -1437,6 +1418,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .analyzer("stop")
             )
             .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
+    public void testEnablePositionIncrement() throws Exception {
+        Query query = new QueryStringQueryBuilder("\"quick the fox\"")
+            .field(STRING_FIELD_NAME)
+            .analyzer("stop")
+            .enablePositionIncrements(false)
+            .toQuery(createShardContext());
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
         assertEquals(expected, query);
     }
 

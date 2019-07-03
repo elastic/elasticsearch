@@ -838,6 +838,7 @@ public class JobResultsProviderTests extends ESTestCase {
         timingStatsMap.put(TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1.0);
         timingStatsMap.put(TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1000.0);
         timingStatsMap.put(TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0);
+        timingStatsMap.put(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 777.0);
         
         List<Map<String, Object>> source = Arrays.asList(timingStatsMap);
         SearchResponse response = createSearchResponse(source);
@@ -849,7 +850,7 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.timingStats(
             "foo",
-            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0))),
+            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0, 777.0))),
             e -> { throw new AssertionError(); });
 
         verify(client).prepareSearch(indexName);

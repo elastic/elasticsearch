@@ -1,6 +1,7 @@
 {
   "cat.nodeattrs": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-nodeattrs.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cat/nodeattrs"],

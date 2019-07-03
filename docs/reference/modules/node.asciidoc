@@ -85,8 +85,9 @@ creating or deleting an index, tracking which nodes are part of the cluster,
 and deciding which shards to allocate to which nodes. It is important for
 cluster health to have a stable master node.
 
-Any master-eligible node (all nodes by default) may be elected to become the
-master node by the <<modules-discovery,master election process>>.
+Any master-eligible node that is not a <<voting-only-node,voting-only node>> may
+be elected to become the master node by the <<modules-discovery,master election
+process>>.
 
 IMPORTANT: Master nodes must have access to the `data/` directory (just like
 `data` nodes) as this is where the cluster state is persisted between node restarts.
@@ -108,18 +109,20 @@ To create a dedicated master-eligible node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: true <1>
-node.data: false <2>
-node.ingest: false <3>
-node.ml: false <4>
-xpack.ml.enabled: true <5>
-cluster.remote.connect: false <6>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: false <5>
+xpack.ml.enabled: true <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> The `node.master` role is enabled by default.
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default).
-<5> The `xpack.ml.enabled` setting is enabled by default.
-<6> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> The `xpack.ml.enabled` setting is enabled by default.
+<7> Disable {ccs} (enabled by default).
 
 To create a dedicated master-eligible node in the {oss-dist}, set:
 
@@ -134,6 +137,71 @@ cluster.remote.connect: false <4>
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable {ccs} (enabled by default).
+
+[float]
+[[voting-only-node]]
+==== Voting-only master-eligible node
+
+A voting-only master-eligible node is a node that participates in
+<<modules-discovery,master elections>> but which will not act as the cluster's
+elected master node. In particular, a voting-only node can serve as a tiebreaker
+in elections.
+
+It may seem confusing to use the term "master-eligible" to describe a
+voting-only node since such a node is not actually eligible to become the master
+at all. This terminology is an unfortunate consequence of history:
+master-eligible nodes are those nodes that participate in elections and perform
+certain tasks during cluster state publications, and voting-only nodes have the
+same responsibilities even if they can never become the elected master.
+
+To configure a master-eligible node as a voting-only node, set the following
+setting:
+
+[source,yaml]
+-------------------
+node.voting_only: true <1>
+-------------------
+<1> The default for `node.voting_only` is `false`.
+
+IMPORTANT: The `voting_only` role requires the {default-dist} of Elasticsearch
+and is not supported in the {oss-dist}. If you use the {oss-dist} and set
+`node.voting_only` then the node will fail to start.  Also note that only
+master-eligible nodes can be marked as voting-only.
+
+High availability (HA) clusters require at least three master-eligible nodes, at
+least two of which are not voting-only nodes. Such a cluster will be able to
+elect a master node even if one of the nodes fails.
+
+Since voting-only nodes never act as the cluster's elected master, they may
+require require less heap and a less powerful CPU than the true master nodes.
+However all master-eligible nodes, including voting-only nodes, require
+reasonably fast persistent storage and a reliable and low-latency network
+connection to the rest of the cluster, since they are on the critical path for
+<<cluster-state-publishing,publishing cluster state updates>>.
+
+Voting-only master-eligible nodes may also fill other roles in your cluster.
+For instance, a node may be both a data node and a voting-only master-eligible
+node. A _dedicated_ voting-only master-eligible nodes is a voting-only
+master-eligible node that fills no other roles in the cluster. To create a
+dedicated voting-only master-eligible node in the {default-dist}, set:
+
+[source,yaml]
+-------------------
+node.master: true <1>
+node.voting_only: true <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: false <5>
+xpack.ml.enabled: true <6>
+cluster.remote.connect: false <7>
+-------------------
+<1> The `node.master` role is enabled by default.
+<2> Enable the `node.voting_only` role (disabled by default).
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> The `xpack.ml.enabled` setting is enabled by default.
+<7> Disable {ccs} (enabled by default).
 
 [float]
 [[data-node]]
@@ -151,16 +219,18 @@ To create a dedicated data node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: true <2>
-node.ingest: false <3>
-node.ml: false <4>
-cluster.remote.connect: false <5>
+node.voting_only: false <2>
+node.data: true <3>
+node.ingest: false <4>
+node.ml: false <5>
+cluster.remote.connect: false <6>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> The `node.data` role is enabled by default.
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default).
-<5> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> The `node.data` role is enabled by default.
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> Disable {ccs} (enabled by default).
 
 To create a dedicated data node in the {oss-dist}, set:
 [source,yaml]
@@ -189,16 +259,18 @@ To create a dedicated ingest node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: false <2>
-node.ingest: true <3>
-node.ml: false <4>
-cluster.remote.connect: false <5>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: true <4>
+node.ml: false <5>
+cluster.remote.connect: false <6>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> The `node.ingest` role is enabled by default.
-<4> Disable the `node.ml` role (enabled by default).
-<5> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> The `node.ingest` role is enabled by default.
+<5> Disable the `node.ml` role (enabled by default).
+<6> Disable {ccs} (enabled by default).
 
 To create a dedicated ingest node in the {oss-dist}, set:
 
@@ -240,16 +312,18 @@ To create a dedicated coordinating node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: false <2>
-node.ingest: false <3>
-node.ml: false <4>
-cluster.remote.connect: false <5>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: false <5>
+cluster.remote.connect: false <6>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> Disable the `node.ml` role (enabled by default).
-<5> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> Disable the `node.ml` role (enabled by default).
+<6> Disable {ccs} (enabled by default).
 
 To create a dedicated coordinating node in the {oss-dist}, set:
 
@@ -284,18 +358,20 @@ To create a dedicated {ml} node in the {default-dist}, set:
 [source,yaml]
 -------------------
 node.master: false <1>
-node.data: false <2>
-node.ingest: false <3>
-node.ml: true <4>
-xpack.ml.enabled: true <5>
-cluster.remote.connect: false <6>
+node.voting_only: false <2>
+node.data: false <3>
+node.ingest: false <4>
+node.ml: true <5>
+xpack.ml.enabled: true <6>
+cluster.remote.connect: false <7>
 -------------------
 <1> Disable the `node.master` role (enabled by default).
-<2> Disable the `node.data` role (enabled by default).
-<3> Disable the `node.ingest` role (enabled by default).
-<4> The `node.ml` role is enabled by default.
-<5> The `xpack.ml.enabled` setting is enabled by default.
-<6> Disable {ccs} (enabled by default).
+<2> The `node.voting_only` role is disabled by default.
+<3> Disable the `node.data` role (enabled by default).
+<4> Disable the `node.ingest` role (enabled by default).
+<5> The `node.ml` role is enabled by default.
+<6> The `xpack.ml.enabled` setting is enabled by default.
+<7> Disable {ccs} (enabled by default).
 
 [float]
 [[change-node-role]]

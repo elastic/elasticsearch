@@ -29,21 +29,30 @@ import java.util.Objects;
 public class PreviewDataFrameTransformResponse {
 
     private static final String PREVIEW = "preview";
+    private static final String MAPPINGS = "mappings";
 
     @SuppressWarnings("unchecked")
     public static PreviewDataFrameTransformResponse fromXContent(final XContentParser parser) throws IOException {
-        Object previewDocs = parser.map().get(PREVIEW);
-        return new PreviewDataFrameTransformResponse((List<Map<String, Object>>) previewDocs);
+        Map<String, Object> previewMap = parser.mapOrdered();
+        Object previewDocs = previewMap.get(PREVIEW);
+        Object mappings = previewMap.get(MAPPINGS);
+        return new PreviewDataFrameTransformResponse((List<Map<String, Object>>) previewDocs, (Map<String, Object>) mappings);
     }
 
     private List<Map<String, Object>> docs;
+    private Map<String, Object> mappings;
 
-    public PreviewDataFrameTransformResponse(List<Map<String, Object>> docs) {
+    public PreviewDataFrameTransformResponse(List<Map<String, Object>> docs, Map<String, Object> mappings) {
         this.docs = docs;
+        this.mappings = mappings;
     }
 
     public List<Map<String, Object>> getDocs() {
         return docs;
+    }
+
+    public Map<String, Object> getMappings() {
+        return mappings;
     }
 
     @Override
@@ -57,12 +66,12 @@ public class PreviewDataFrameTransformResponse {
         }
 
         PreviewDataFrameTransformResponse other = (PreviewDataFrameTransformResponse) obj;
-        return Objects.equals(other.docs, docs);
+        return Objects.equals(other.docs, docs) && Objects.equals(other.mappings, mappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(docs);
+        return Objects.hash(docs, mappings);
     }
 
 }

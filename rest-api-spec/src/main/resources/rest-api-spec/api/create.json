@@ -1,6 +1,7 @@
 {
   "create": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
+    "stability": "stable",
     "methods": ["PUT","POST"],
     "url": {
       "paths": ["/{index}/_create/{id}"],

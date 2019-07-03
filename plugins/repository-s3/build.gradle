@@ -28,12 +28,11 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.505'
+  'aws': '1.11.562'
 ]
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"

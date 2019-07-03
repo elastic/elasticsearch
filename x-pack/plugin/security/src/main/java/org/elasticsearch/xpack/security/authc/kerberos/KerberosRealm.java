@@ -216,10 +216,12 @@ public final class KerberosRealm extends Realm implements CachingRealm {
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));
             } else {
-                final String realmName = (userAndRealmName.length > 1) ? userAndRealmName[1] : null;
                 final Map<String, Object> metadata = new HashMap<>();
-                metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
                 metadata.put(KRB_METADATA_UPN_KEY, userPrincipalName);
+                if (userAndRealmName.length > 1) {
+                    final String realmName = userAndRealmName[1];
+                    metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
+                }
                 buildUser(username, metadata, listener);
             }
         }

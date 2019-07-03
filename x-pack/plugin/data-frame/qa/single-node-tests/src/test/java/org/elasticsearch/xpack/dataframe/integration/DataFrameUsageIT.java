@@ -10,6 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.Before;
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
@@ -42,10 +44,11 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         // create transforms
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);
         createPivotReviewsTransform("test_usage_no_stats", "pivot_reviews_no_stats", null);
+        createContinuousPivotReviewsTransform("test_usage_continuous", "pivot_reviews_continuous", null);
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
         usageAsMap = entityAsMap(usageResponse);
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
+        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
+        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
 
         startAndWaitForTransform("test_usage", "pivot_reviews");
         stopDataFrameTransform("test_usage", false);
@@ -60,6 +63,8 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
             assertEquals(1, XContentMapValues.extractValue("hits.total.value", hasStatsMap));
         });
 
+        startAndWaitForContinuousTransform("test_usage_continuous", "pivot_reviews_continuous", null);
+
         Request getRequest = new Request("GET", DATAFRAME_ENDPOINT + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         Map<String, Integer> expectedStats = new HashMap<>();
@@ -71,16 +76,36 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
             expectedStats.put(statName, statistic);
         }
 
-        usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
+        // Simply because we wait for continuous to reach checkpoint 1, does not mean that the statistics are written yet.
+        // Since we search against the indices for the statistics, we need to ensure they are written, so we will wait for that
+        // to be the case.
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "_xpack/usage"));
+            Map<String, Object> statsMap = entityAsMap(response);
+            // we should see some stats
+            assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", statsMap));
+            assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", statsMap));
+            assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", statsMap));
+            for(String statName : PROVIDED_STATS) {
+                if (statName.equals(DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName())
+                    ||statName.equals(DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName())) {
+                    continue;
+                }
+                assertEquals("Incorrect stat " +  statName,
+                    expectedStats.get(statName) * 2,
+                    XContentMapValues.extractValue("data_frame.stats." + statName, statsMap));
+            }
+            // Refresh the index so that statistics are searchable
+            refreshIndex(DataFrameInternalIndex.INDEX_TEMPLATE_NAME);
+        }, 60, TimeUnit.SECONDS);
 
+
+        stopDataFrameTransform("test_usage_continuous", false);
+
+        usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
         usageAsMap = entityAsMap(usageResponse);
-        // we should see some stats
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
-        // TODO: Adjust when continuous is supported
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
-        for(String statName : PROVIDED_STATS) {
-            assertEquals("Incorrect stat " +  statName,
-                    expectedStats.get(statName), XContentMapValues.extractValue("data_frame.stats." + statName, usageAsMap));
-        }
+
+        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
+        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
     }
 }

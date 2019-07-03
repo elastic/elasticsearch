@@ -22,7 +22,7 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
@@ -87,6 +87,7 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.CoordinatorTests;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.metadata.AliasValidator;
@@ -99,7 +100,7 @@ import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -862,13 +863,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         public void clearNetworkDisruptions() {
-            disruptedLinks.disconnected.forEach(nodeName -> {
+            final Set<String> disconnectedNodes = new HashSet<>(disruptedLinks.disconnected);
+            disruptedLinks.clear();
+            disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
                     testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
                 }
             });
-            disruptedLinks.clear();
         }
 
         private NetworkDisruption.DisruptedLinks getDisruption() {
@@ -1063,7 +1065,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
-                new RoutingService(clusterService, allocationService),
+                new BatchedRerouteService(clusterService, allocationService::reroute),
                 threadPool
             );
             final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
@@ -1118,7 +1120,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             shardStateAction,
                             actionFilters,
                             indexNameExpressionResolver));
-            Map<Action, TransportAction> actions = new HashMap<>();
+            Map<ActionType, TransportAction> actions = new HashMap<>();
             final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                 indicesService,
                 allocationService, new AliasValidator(), environment, indexScopedSettings,
@@ -1246,7 +1248,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 hostsResolver -> testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
                     .map(n -> n.node.getAddress()).collect(Collectors.toList()),
                 clusterService.getClusterApplierService(), Collections.emptyList(), random(),
-                new RoutingService(clusterService, allocationService)::reroute);
+                new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE);
             masterService.setClusterStatePublisher(coordinator);
             coordinator.start();
             masterService.start();

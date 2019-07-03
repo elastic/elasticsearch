@@ -1,6 +1,7 @@
 {
   "data_frame.delete_data_frame_transform": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-data-frame-transform.html",
+    "stability": "beta",
     "methods": [ "DELETE" ],
     "url": {
       "paths": [

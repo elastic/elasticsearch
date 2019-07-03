@@ -144,7 +144,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -972,6 +971,7 @@ public final class InternalTestCluster extends TestCluster {
         Settings closeForRestart(RestartCallback callback, int minMasterNodes) throws Exception {
             assert callback != null;
             close();
+            removeNode(this);
             Settings callbackSettings = callback.onNodeStopped(name);
             assert callbackSettings != null;
             Settings.Builder newSettings = Settings.builder();
@@ -1330,7 +1330,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     private void assertOpenTranslogReferences() throws Exception {
@@ -1441,7 +1441,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -1805,20 +1805,9 @@ public final class InternalTestCluster extends TestCluster {
 
         removeExclusions(excludedNodeIds);
 
-        boolean success = false;
-        try {
-            nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(emptyList()));
-            nodeAndClient.startNode();
-            success = true;
-        } finally {
-            if (success == false) {
-                removeNode(nodeAndClient);
-            }
-        }
-
-        if (activeDisruptionScheme != null) {
-            activeDisruptionScheme.applyToNode(nodeAndClient.name, this);
-        }
+        nodeAndClient.recreateNode(newSettings, () -> rebuildUnicastHostFiles(Collections.singletonList(nodeAndClient)));
+        nodeAndClient.startNode();
+        publishNode(nodeAndClient);
 
         if (callback.validateClusterForming() || excludedNodeIds.isEmpty() == false) {
             // we have to validate cluster size to ensure that the restarted node has rejoined the cluster if it was master-eligible;
@@ -1894,6 +1883,7 @@ public final class InternalTestCluster extends TestCluster {
         Map<Set<DiscoveryNodeRole>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
         Set[] rolesOrderedByOriginalStartupOrder = new Set[nextNodeId.get()];
         final int minMasterNodes = autoManageMasterNodes ? getMinMasterNodes(getMasterNodesCount()) : -1;
+        final int nodeCount = nodes.size();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
             logger.info("Stopping and resetting node [{}] ", nodeAndClient.name);
@@ -1907,7 +1897,9 @@ public final class InternalTestCluster extends TestCluster {
             nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
         }
 
-        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodes.size();
+        callback.onAllNodesStopped();
+
+        assert nodesByRoles.values().stream().mapToInt(List::size).sum() == nodeCount;
 
         // randomize start up order, but making sure that:
         // 1) A data folder that was assigned to a data node will stay so
@@ -2382,6 +2374,9 @@ public final class InternalTestCluster extends TestCluster {
          */
         public Settings onNodeStopped(String nodeName) throws Exception {
             return Settings.EMPTY;
+        }
+
+        public void onAllNodesStopped() throws Exception {
         }
 
         /**

@@ -1,6 +1,7 @@
 {
   "indices.get_mapping": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-mapping.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_mapping", "/{index}/_mapping"],

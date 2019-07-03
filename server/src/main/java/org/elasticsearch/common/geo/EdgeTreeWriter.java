@@ -23,7 +23,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Shape edge-tree writer for use in doc-values
@@ -36,36 +38,47 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
     static final int EDGE_SIZE_IN_BYTES = 28;
 
     private final Extent extent;
+    private final boolean closed;
+    private final int numShapes;
     final Edge tree;
 
-    public EdgeTreeWriter(int[] x, int[] y) {
+
+    EdgeTreeWriter(int[] x, int[] y, boolean closed) {
+        this(Collections.singletonList(x), Collections.singletonList(y), closed);
+    }
+
+    EdgeTreeWriter(List<int[]> x, List<int[]> y, boolean closed) {
+        this.numShapes = x.size();
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE;
         int maxY = Integer.MIN_VALUE;
-        Edge edges[] = new Edge[y.length - 1];
-        for (int i = 1; i < y.length; i++) {
-            int y1 = y[i-1];
-            int x1 = x[i-1];
-            int y2 = y[i];
-            int x2 = x[i];
-            int edgeMinY, edgeMaxY;
-            if (y1 < y2) {
-                edgeMinY = y1;
-                edgeMaxY = y2;
-            } else {
-                edgeMinY = y2;
-                edgeMaxY = y1;
+        List<Edge> edges = new ArrayList<>();
+        for (int i = 0; i < y.size(); i++) {
+            for (int j = 1; j < y.get(i).length; j++) {
+                int y1 = y.get(i)[j - 1];
+                int x1 = x.get(i)[j - 1];
+                int y2 = y.get(i)[j];
+                int x2 = x.get(i)[j];
+                int edgeMinY, edgeMaxY;
+                if (y1 < y2) {
+                    edgeMinY = y1;
+                    edgeMaxY = y2;
+                } else {
+                    edgeMinY = y2;
+                    edgeMaxY = y1;
+                }
+                edges.add(new Edge(x1, y1, x2, y2, edgeMinY, edgeMaxY));
+                minX = Math.min(minX, Math.min(x1, x2));
+                minY = Math.min(minY, Math.min(y1, y2));
+                maxX = Math.max(maxX, Math.max(x1, x2));
+                maxY = Math.max(maxY, Math.max(y1, y2));
             }
-            edges[i - 1] = new Edge(x1, y1, x2, y2, edgeMinY, edgeMaxY);
-            minX = Math.min(minX, Math.min(x1, x2));
-            minY = Math.min(minY, Math.min(y1, y2));
-            maxX = Math.max(maxX, Math.max(x1, x2));
-            maxY = Math.max(maxY, Math.max(y1, y2));
         }
-        Arrays.sort(edges);
+        edges.sort(Edge::compareTo);
         this.extent = new Extent(minX, minY, maxX, maxY);
-        this.tree = createTree(edges, 0, edges.length - 1);
+        this.tree = createTree(edges, 0, edges.size() - 1);
+        this.closed = closed;
     }
 
     @Override
@@ -75,23 +88,22 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
 
     @Override
     public ShapeType getShapeType() {
-        return ShapeType.POLYGON;
+        return closed ? ShapeType.POLYGON : (numShapes > 1 ? ShapeType.MULTILINESTRING: ShapeType.LINESTRING);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        //out.writeVInt(4 * 4 + EDGE_SIZE_IN_BYTES * tree.size);
         extent.writeTo(out);
         tree.writeTo(out);
     }
 
-    private static Edge createTree(Edge edges[], int low, int high) {
+    private static Edge createTree(List<Edge> edges, int low, int high) {
         if (low > high) {
             return null;
         }
         // add midpoint
         int mid = (low + high) >>> 1;
-        Edge newNode = edges[mid];
+        Edge newNode = edges.get(mid);
         newNode.size = 1;
         // add children
         newNode.left = createTree(edges, low, mid - 1);

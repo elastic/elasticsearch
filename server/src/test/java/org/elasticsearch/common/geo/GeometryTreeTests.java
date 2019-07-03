@@ -19,6 +19,7 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.geo.geometry.Line;
 import org.elasticsearch.geo.geometry.LinearRing;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.Point;
@@ -89,16 +90,10 @@ public class GeometryTreeTests extends ESTestCase {
         }
     }
 
-    public void testPacMan() throws Exception {
+    public void testPacManClosedPolygon() throws Exception {
         // pacman
         double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
         double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
-
-        // candidate intersects cell
-        int xMin = 2;//-5;
-        int xMax = 11;//0.000001;
-        int yMin = -1;//0;
-        int yMax = 1;//5;
 
         // test cell crossing poly
         GeometryTreeWriter writer = new GeometryTreeWriter(new Polygon(new LinearRing(py, px), Collections.emptyList()));
@@ -106,7 +101,27 @@ public class GeometryTreeTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
-        assertTrue(reader.intersects(new Extent(xMin, yMin, xMax, yMax)));
+        assertTrue(reader.intersects(new Extent(2, -1, 11, 1)));
+        assertTrue(reader.intersects(new Extent(-12, -12, 12, 12)));
+        assertTrue(reader.intersects(new Extent(-2, -1, 2, 0)));
+        assertTrue(reader.intersects(new Extent(-5, -6, 2, -2)));
+    }
+
+    public void testPacManLineString() throws Exception {
+        // pacman
+        double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10};
+        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5};
+
+        // test cell crossing poly
+        GeometryTreeWriter writer = new GeometryTreeWriter(new Line(px, py));
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        assertTrue(reader.intersects(new Extent(2, -1, 11, 1)));
+        assertTrue(reader.intersects(new Extent(-12, -12, 12, 12)));
+        assertTrue(reader.intersects(new Extent(-2, -1, 2, 0)));
+        assertFalse(reader.intersects(new Extent(-5, -6, 2, -2)));
     }
 
     public void testPacManPoints() throws Exception {

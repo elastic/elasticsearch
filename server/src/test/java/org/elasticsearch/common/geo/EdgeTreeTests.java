@@ -43,11 +43,11 @@ public class EdgeTreeTests extends ESTestCase {
             int maxY = randomIntBetween(minY + 10, 180);
             int[] x = new int[]{minX, maxX, maxX, minX, minX};
             int[] y = new int[]{minY, minY, maxY, maxY, minY};
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, true);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
-            EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+            EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
 
             // box-query touches bottom-left corner
             assertTrue(reader.intersects(new Extent(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY)));
@@ -100,11 +100,11 @@ public class EdgeTreeTests extends ESTestCase {
             int[] x = asIntArray(geo.getPolygon().getLons(), GeoEncodingUtils::encodeLongitude);
             int[] y = asIntArray(geo.getPolygon().getLats(), GeoEncodingUtils::encodeLatitude);
 
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
+            EdgeTreeWriter writer = new EdgeTreeWriter(x, y, true);
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
-            EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+            EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
             assertThat(reader.getExtent(), equalTo(new Extent(minXBox, minYBox, maxXBox, maxYBox)));
             // polygon fully contained within box
             assertTrue(reader.intersects(new Extent(minXBox, minYBox, maxXBox, maxYBox)));
@@ -132,11 +132,11 @@ public class EdgeTreeTests extends ESTestCase {
         int yMax = 1;//5;
 
         // test cell crossing poly
-        EdgeTreeWriter writer = new EdgeTreeWriter(px, py);
+        EdgeTreeWriter writer = new EdgeTreeWriter(px, py, true);
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+        EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
         assertTrue(reader.containsBottomLeft(new Extent(xMin, yMin, xMax, yMax)));
     }
 

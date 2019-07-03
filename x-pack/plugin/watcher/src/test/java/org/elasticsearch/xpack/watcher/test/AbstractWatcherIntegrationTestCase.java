@@ -546,7 +546,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             throw new AssertionError("unexpected state, retrying with next run");
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public static class NoopEmailService extends EmailService {

@@ -22,6 +22,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -116,7 +117,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
 
         adminClient().performRequest(new Request("DELETE", "/my_test_index"));
     }

@@ -59,6 +59,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -101,6 +102,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -394,11 +396,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData;
-            final RepositoryData repositoryData;
             final Map<String, BlobContainer> foundIndices;
             final Set<String> rootBlobs;
             try {
-                repositoryData = getRepositoryData();
+                final RepositoryData repositoryData = getRepositoryData();
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
@@ -410,9 +411,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
+            final List<String> snapMetaFilesToDelete =
+                Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
             try {
-                blobContainer().deleteBlobsIgnoringIfNotExists(
-                    Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
+                blobContainer().deleteBlobsIgnoringIfNotExists(snapMetaFilesToDelete);
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
             }
@@ -425,9 +427,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotId,
                 ActionListener.map(listener, v -> {
                     cleanupStaleIndices(foundIndices, survivingIndices);
-                    // Cleaning up according to repository data before the delete so we don't accidentally identify the two just deleted
-                    // blobs for the current snapshot as stale.
-                    cleanupStaleRootFiles(rootBlobs, repositoryData);
+                    cleanupStaleRootFiles(Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)), updatedRepositoryData);
                     return null;
                 })
             );

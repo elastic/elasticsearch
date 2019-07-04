@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -296,7 +297,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(index).setSize(0).get(), 1L);
 
         logger.info("--> closing the index [{}]", index);
-        assertAcked(client().admin().indices().prepareClose(index));
+        assertAcked(client().admin().indices().prepareClose(index).setWaitForActiveShards(ActiveShardCount.DEFAULT));
         logger.info("--> index closed, re-opening...");
         assertAcked(client().admin().indices().prepareOpen(index));
         logger.info("--> index re-opened");
@@ -306,7 +307,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         // Now, try closing and changing the settings
         logger.info("--> closing the index [{}] before updating data_path", index);
-        assertAcked(client().admin().indices().prepareClose(index));
+        assertAcked(client().admin().indices().prepareClose(index).setWaitForActiveShards(ActiveShardCount.DEFAULT));
 
         final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
         IOUtils.rm(newIndexDataPath);

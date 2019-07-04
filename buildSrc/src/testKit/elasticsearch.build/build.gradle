@@ -27,8 +27,16 @@ forbiddenApisMain.enabled = false
 forbiddenApisTest.enabled = false
 // requires dependency on testing fw
 jarHell.enabled = false
-// we don't have tests for now
-test.enabled = false
+
+testingConventions.naming {
+    // Reset default to no baseClass checks
+    Tests {
+        baseClasses = []
+    }
+    IT {
+        baseClasses = []
+    }
+}
 
 task hello {
     doFirst {

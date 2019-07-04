@@ -8,17 +8,13 @@ package org.elasticsearch.xpack.core.security.action.token;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -214,32 +210,23 @@ public final class CreateTokenRequest extends ActionRequest {
             throw new IllegalArgumentException("a request with the client_credentials grant_type cannot be sent to version [" +
                 out.getVersion() + "]");
         }
+        if (out.getVersion().before(Version.V_7_3_0) && GrantType.KERBEROS.getValue().equals(grantType)) {
+            throw new IllegalArgumentException("a request with the _kerberos grant_type cannot be sent to version [" +
+                out.getVersion() + "]");
+        }
 
         out.writeString(grantType);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeOptionalString(username);
-            if (password == null) {
-                out.writeOptionalBytesReference(null);
-            } else {
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                try {
-                    out.writeOptionalBytesReference(new BytesArray(passwordBytes));
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
-            }
+            out.writeOptionalSecureString(password);
             out.writeOptionalString(refreshToken);
+            out.writeOptionalSecureString(kerberosTicket);
         } else {
             if ("refresh_token".equals(grantType)) {
                 throw new IllegalArgumentException("a refresh request cannot be sent to an older version");
             } else {
                 out.writeString(username);
-                final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                try {
-                    out.writeByteArray(passwordBytes);
-                } finally {
-                    Arrays.fill(passwordBytes, (byte) 0);
-                }
+                out.writeSecureString(password);
             }
         }
         out.writeOptionalString(scope);
@@ -251,26 +238,12 @@ public final class CreateTokenRequest extends ActionRequest {
         grantType = in.readString();
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             username = in.readOptionalString();
-            BytesReference bytesRef = in.readOptionalBytesReference();
-            if (bytesRef != null) {
-                byte[] bytes = BytesReference.toBytes(bytesRef);
-                try {
-                    password = new SecureString(CharArrays.utf8BytesToChars(bytes));
-                } finally {
-                    Arrays.fill(bytes, (byte) 0);
-                }
-            } else {
-                password = null;
-            }
+            password = in.readOptionalSecureString();
             refreshToken = in.readOptionalString();
+            kerberosTicket = in.readOptionalSecureString();
         } else {
             username = in.readString();
-            final byte[] passwordBytes = in.readByteArray();
-            try {
-                password = new SecureString(CharArrays.utf8BytesToChars(passwordBytes));
-            } finally {
-                Arrays.fill(passwordBytes, (byte) 0);
-            }
+            password = in.readSecureString();
         }
         scope = in.readOptionalString();
     }

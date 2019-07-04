@@ -12,14 +12,11 @@ import java.util.List;
 public final class XPackRestTestConstants {
 
     // Watcher constants:
-    public static final String INDEX_TEMPLATE_VERSION = "9";
-    public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
+    public static final String INDEX_TEMPLATE_VERSION = "10";
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = ".watches";
-    public static final String[] TEMPLATE_NAMES = new String[] {
-        HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
-    };
+
     public static final String[] TEMPLATE_NAMES_NO_ILM = new String[] {
         HISTORY_TEMPLATE_NAME_NO_ILM, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
     };
@@ -37,6 +34,13 @@ public final class XPackRestTestConstants {
 
     public static final List<String> ML_POST_V660_TEMPLATES = Collections.unmodifiableList(Arrays.asList(
         AUDITOR_NOTIFICATIONS_INDEX, ML_META_INDEX_NAME, STATE_INDEX_PREFIX, RESULTS_INDEX_PREFIX, CONFIG_INDEX));
+
+    // Data Frame constants:
+    public static final String DATA_FRAME_INTERNAL_INDEX = ".data-frame-internal-1";
+    public static final String DATA_FRAME_NOTIFICATIONS_INDEX = ".data-frame-notifications-1";
+
+    public static final List<String> DATA_FRAME_TEMPLATES =
+        Collections.unmodifiableList(Arrays.asList(DATA_FRAME_INTERNAL_INDEX, DATA_FRAME_NOTIFICATIONS_INDEX));
 
     private XPackRestTestConstants() {
     }

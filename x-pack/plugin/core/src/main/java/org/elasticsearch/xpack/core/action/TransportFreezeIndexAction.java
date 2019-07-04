@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -232,7 +232,7 @@ public final class TransportFreezeIndexAction extends
         }
     }
 
-    public static class FreezeIndexAction extends Action<FreezeResponse> {
+    public static class FreezeIndexAction extends ActionType<FreezeResponse> {
 
         public static final FreezeIndexAction INSTANCE = new FreezeIndexAction();
         public static final String NAME = "indices:admin/freeze";

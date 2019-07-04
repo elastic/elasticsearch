@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCalendarsAction extends StreamableResponseAction<GetCalendarsAction.Response> {
+public class GetCalendarsAction extends StreamableResponseActionType<GetCalendarsAction.Response> {
 
     public static final GetCalendarsAction INSTANCE = new GetCalendarsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/get";

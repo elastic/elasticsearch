@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.support.master.info;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
@@ -30,7 +30,7 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
         extends MasterNodeReadOperationRequestBuilder<Request, Response, Builder> {
 
 
-    protected ClusterInfoRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
+    protected ClusterInfoRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
     }
 

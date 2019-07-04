@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class DeleteAction extends StreamableResponseAction<DeleteResponse> {
+public class DeleteAction extends StreamableResponseActionType<DeleteResponse> {
 
     public static final DeleteAction INSTANCE = new DeleteAction();
     public static final String NAME = "indices:data/write/delete";

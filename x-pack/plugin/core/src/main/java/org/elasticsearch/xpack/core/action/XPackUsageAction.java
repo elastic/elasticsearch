@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class XPackUsageAction extends StreamableResponseAction<XPackUsageResponse> {
+public class XPackUsageAction extends StreamableResponseActionType<XPackUsageResponse> {
 
     public static final String NAME = "cluster:monitor/xpack/usage";
     public static final XPackUsageAction INSTANCE = new XPackUsageAction();

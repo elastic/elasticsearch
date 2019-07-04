@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCategoriesAction extends StreamableResponseAction<GetCategoriesAction.Response> {
+public class GetCategoriesAction extends StreamableResponseActionType<GetCategoriesAction.Response> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";

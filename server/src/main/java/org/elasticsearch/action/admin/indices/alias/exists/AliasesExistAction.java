@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class AliasesExistAction extends StreamableResponseAction<AliasesExistResponse> {
+public class AliasesExistAction extends StreamableResponseActionType<AliasesExistResponse> {
 
     public static final AliasesExistAction INSTANCE = new AliasesExistAction();
     public static final String NAME = "indices:admin/aliases/exists";

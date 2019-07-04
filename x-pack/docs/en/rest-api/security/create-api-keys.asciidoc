@@ -48,6 +48,10 @@ same as the request for create role API. For more details, see
 `expiration`::
 (string) Optional expiration time for the API key. By default, API keys never expire.
 
+==== Authorization
+
+To use this API, you must have at least the `manage_api_key` cluster privilege.
+
 ==== Examples
 
 The following example creates an API key:

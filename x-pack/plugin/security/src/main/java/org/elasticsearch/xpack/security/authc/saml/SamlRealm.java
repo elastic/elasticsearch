@@ -450,7 +450,9 @@ public final class SamlRealm extends Realm implements Releasable {
         }
         if (attributes.name() != null) {
             userMeta.put(USER_METADATA_NAMEID_VALUE, attributes.name().value);
-            userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            if (attributes.name().format != null) {
+                userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            }
         }
 
 

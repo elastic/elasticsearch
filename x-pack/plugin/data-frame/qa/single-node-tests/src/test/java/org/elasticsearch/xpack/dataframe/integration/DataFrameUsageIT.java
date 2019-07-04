@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
@@ -75,22 +76,29 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
             expectedStats.put(statName, statistic);
         }
 
-        usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
-
-        usageAsMap = entityAsMap(usageResponse);
-        // we should see some stats
-        assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
-        assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
-        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", usageAsMap));
-        for(String statName : PROVIDED_STATS) {
-            if (statName.equals(DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName())
-                ||statName.equals(DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName())) {
-                continue;
-            }
-            assertEquals("Incorrect stat " +  statName,
+        // Simply because we wait for continuous to reach checkpoint 1, does not mean that the statistics are written yet.
+        // Since we search against the indices for the statistics, we need to ensure they are written, so we will wait for that
+        // to be the case.
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "_xpack/usage"));
+            Map<String, Object> statsMap = entityAsMap(response);
+            // we should see some stats
+            assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", statsMap));
+            assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", statsMap));
+            assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", statsMap));
+            for(String statName : PROVIDED_STATS) {
+                if (statName.equals(DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName())
+                    ||statName.equals(DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName())) {
+                    continue;
+                }
+                assertEquals("Incorrect stat " +  statName,
                     expectedStats.get(statName) * 2,
-                XContentMapValues.extractValue("data_frame.stats." + statName, usageAsMap));
-        }
+                    XContentMapValues.extractValue("data_frame.stats." + statName, statsMap));
+            }
+            // Refresh the index so that statistics are searchable
+            refreshIndex(DataFrameInternalIndex.INDEX_TEMPLATE_NAME);
+        }, 60, TimeUnit.SECONDS);
+
 
         stopDataFrameTransform("test_usage_continuous", false);
 

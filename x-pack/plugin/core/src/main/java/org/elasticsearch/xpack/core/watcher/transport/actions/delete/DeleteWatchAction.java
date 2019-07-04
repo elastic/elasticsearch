@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.delete;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 
 /**
  * This action deletes an watch from in memory, the scheduler and the index
  */
-public class DeleteWatchAction extends StreamableResponseAction<DeleteWatchResponse> {
+public class DeleteWatchAction extends StreamableResponseActionType<DeleteWatchResponse> {
 
     public static final DeleteWatchAction INSTANCE = new DeleteWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/delete";

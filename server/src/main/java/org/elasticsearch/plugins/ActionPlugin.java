@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestValidators;
@@ -68,15 +68,15 @@ public interface ActionPlugin {
     }
 
     /**
-     * Client actions added by this plugin. This defaults to all of the {@linkplain Action} in
+     * Client actions added by this plugin. This defaults to all of the {@linkplain ActionType} in
      * {@linkplain ActionPlugin#getActions()}.
      */
-    default List<Action<? extends ActionResponse>> getClientActions() {
+    default List<ActionType<? extends ActionResponse>> getClientActions() {
         return getActions().stream().map(a -> a.action).collect(Collectors.toList());
     }
 
     /**
-     * Action filters added by this plugin.
+     * ActionType filters added by this plugin.
      */
     default List<ActionFilter> getActionFilters() {
         return Collections.emptyList();
@@ -130,7 +130,7 @@ public interface ActionPlugin {
     }
 
     final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
-        private final Action<Response> action;
+        private final ActionType<Response> action;
         private final Class<? extends TransportAction<Request, Response>> transportAction;
         private final Class<?>[] supportTransportActions;
 
@@ -138,14 +138,14 @@ public interface ActionPlugin {
          * Create a record of an action, the {@linkplain TransportAction} that handles it, and any supporting {@linkplain TransportActions}
          * that are needed by that {@linkplain TransportAction}.
          */
-        public ActionHandler(Action<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
+        public ActionHandler(ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction,
                              Class<?>... supportTransportActions) {
             this.action = action;
             this.transportAction = transportAction;
             this.supportTransportActions = supportTransportActions;
         }
 
-        public Action<Response> getAction() {
+        public ActionType<Response> getAction() {
             return action;
         }
 

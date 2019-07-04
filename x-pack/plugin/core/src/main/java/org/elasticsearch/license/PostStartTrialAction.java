@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class PostStartTrialAction extends StreamableResponseAction<PostStartTrialResponse> {
+public class PostStartTrialAction extends StreamableResponseActionType<PostStartTrialResponse> {
 
     public static final PostStartTrialAction INSTANCE = new PostStartTrialAction();
     public static final String NAME = "cluster:admin/xpack/license/start_trial";

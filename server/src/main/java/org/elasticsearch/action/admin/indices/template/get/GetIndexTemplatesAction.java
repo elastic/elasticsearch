@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class GetIndexTemplatesAction extends StreamableResponseAction<GetIndexTemplatesResponse> {
+public class GetIndexTemplatesAction extends StreamableResponseActionType<GetIndexTemplatesResponse> {
 
     public static final GetIndexTemplatesAction INSTANCE = new GetIndexTemplatesAction();
     public static final String NAME = "indices:admin/template/get";

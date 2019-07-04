@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
+public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response> {
 
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/update/process";

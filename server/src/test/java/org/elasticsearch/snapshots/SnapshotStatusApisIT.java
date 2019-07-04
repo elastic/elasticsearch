@@ -60,7 +60,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-        List<SnapshotInfo> snapshotInfos = client.admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots();
+        List<SnapshotInfo> snapshotInfos =
+            client.admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots("test-repo");
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));

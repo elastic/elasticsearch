@@ -299,7 +299,8 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         stats = new SnapshotStats(startTime, time, 0, 0, 0, 0, 0, 0);
         shardsStats = new SnapshotShardsStats(shards);
         for (SnapshotIndexShardStatus shard : shards) {
-            stats.add(shard.getStats());
+            // BWC: only update timestamps when we did not get a start time from an old node
+            stats.add(shard.getStats(), startTime == 0L);
         }
     }
 

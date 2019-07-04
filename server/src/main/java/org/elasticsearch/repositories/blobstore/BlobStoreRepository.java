@@ -510,7 +510,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final Map<String, Object> userMetadata) {
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
             indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
+            startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
             includeGlobalState, userMetadata);
         try {
             final RepositoryData updatedRepositoryData = getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), indices);
@@ -802,7 +802,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         final ShardId shardId = store.shardId();
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.absoluteTimeInMillis();
         try {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
 
@@ -902,7 +902,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 lastSnapshotStatus.getStartTime(),
                 // snapshotStatus.startTime() is assigned on the same machine,
                 // so it's safe to use the relative time in millis
-                threadPool.relativeTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
                 lastSnapshotStatus.getIncrementalFileCount(),
                 lastSnapshotStatus.getIncrementalSize()
             );
@@ -925,9 +925,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
             finalizeShard(newSnapshotsList, fileListGeneration, blobs, "snapshot creation [" + snapshotId + "]", shardContainer,
                 shardId, snapshotId);
-            snapshotStatus.moveToDone(threadPool.relativeTimeInMillis());
+            snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
         } catch (Exception e) {
-            snapshotStatus.moveToFailed(threadPool.relativeTimeInMillis(), ExceptionsHelper.detailedMessage(e));
+            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {

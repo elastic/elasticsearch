@@ -902,7 +902,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
-                (long) searcher.reader().numDocs(), equalTo(numDocs + moreDocs));
+                (long) searcher.getIndexReader().numDocs(), equalTo(numDocs + moreDocs));
         }
         assertThat("numDocs=" + numDocs + " moreDocs=" + moreDocs,
             client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs + moreDocs));

@@ -399,10 +399,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
-            final Engine.Warmer engineWarmer = (searcher) -> {
+            final Engine.Warmer engineWarmer = (reader) -> {
                 IndexShard shard =  getShardOrNull(shardId.getId());
                 if (shard != null) {
-                    warmer.warm(searcher, shard, IndexService.this.indexSettings);
+                    warmer.warm(reader, shard, IndexService.this.indexSettings);
                 }
             };
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);

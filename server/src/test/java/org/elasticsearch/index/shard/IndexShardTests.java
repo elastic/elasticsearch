@@ -2380,9 +2380,9 @@ public class IndexShardTests extends IndexShardTestCase {
             assertNotNull(getResult.searcher());
         }
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
+            TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits.value, 1);
-            search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
+            search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value, 1);
         }
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader("foo", reader);
@@ -2401,9 +2401,9 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(newShard);
 
         try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
-            TopDocs search = searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10);
+            TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits.value, 0);
-            search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
+            search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits.value, 1);
         }
         try (Engine.GetResult getResult = newShard
@@ -2411,7 +2411,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
-            assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
+            assertTrue(getResult.searcher().getIndexReader() instanceof FieldMaskingReader);
         }
 
         closeShards(newShard);
@@ -2907,7 +2907,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
-                    assertTrue(searcher.reader().numDocs() <= docsStats.getCount());
+                    assertTrue(searcher.getIndexReader().numDocs() <= docsStats.getCount());
                 }
                 assertThat(docsStats.getDeleted(), equalTo(0L));
                 assertThat(docsStats.getAverageSizeInBytes(), greaterThan(0L));
@@ -2945,7 +2945,7 @@ public class IndexShardTests extends IndexShardTestCase {
             {
                 final DocsStats docStats = indexShard.docStats();
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
-                    assertTrue(searcher.reader().numDocs() <= docStats.getCount());
+                    assertTrue(searcher.getIndexReader().numDocs() <= docStats.getCount());
                 }
                 assertThat(docStats.getCount(), equalTo(numDocs));
             }
@@ -3392,7 +3392,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.awaitShardSearchActive(refreshed -> {
                 assertTrue(refreshed);
                 try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-                    assertEquals(2, searcher.reader().numDocs());
+                    assertEquals(2, searcher.getIndexReader().numDocs());
                 } finally {
                     latch.countDown();
                 }
@@ -3402,7 +3402,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.getLastSearcherAccess());
         assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-            assertEquals(1, searcher.reader().numDocs());
+            assertEquals(1, searcher.getIndexReader().numDocs());
         }
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
@@ -3411,7 +3411,7 @@ public class IndexShardTests extends IndexShardTestCase {
         primary.awaitShardSearchActive(refreshed -> {
             assertFalse(refreshed);
             try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-                assertEquals(2, searcher.reader().numDocs());
+                assertEquals(2, searcher.getIndexReader().numDocs());
             } finally {
                 latch1.countDown();
             }
@@ -3425,7 +3425,7 @@ public class IndexShardTests extends IndexShardTestCase {
         primary.checkIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
-            assertEquals(3, searcher.reader().numDocs());
+            assertEquals(3, searcher.getIndexReader().numDocs());
         }
         closeShards(primary);
     }
@@ -3580,7 +3580,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         }
 
                         if (randomBoolean() && searchers.size() > 1) {
-                            // Close one of the searchers at random
+                            // Close one of the readers at random
                             synchronized (searchers) {
                                 // re-check because it could have decremented after the check
                                 if (searchers.size() > 1) {

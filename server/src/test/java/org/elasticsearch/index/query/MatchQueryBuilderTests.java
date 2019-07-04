@@ -421,6 +421,7 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
     }
 
     public void testMultiWordSynonymsPhrase() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         final MatchQuery matchQuery = new MatchQuery(createShardContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
         final Query actual = matchQuery.parse(Type.PHRASE, STRING_FIELD_NAME, "guinea pig dogs");

@@ -98,7 +98,7 @@ PUT _ml/data_frame/analytics/loganalytics
 }
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[setup:setup_logdata]
 
 The API returns the following result:
 
@@ -107,7 +107,7 @@ The API returns the following result:
 {
     "id": "loganalytics",
     "source": {
-        "index": "logdata",
+        "index": ["logdata"],
         "query": {
             "match_all": {}
         }
@@ -119,7 +119,10 @@ The API returns the following result:
     "analysis": {
         "outlier_detection": {}
     },
-    "model_memory_limit": "1gb"
+    "model_memory_limit": "1gb",
+    "create_time" : 1562265491319,
+    "version" : "8.0.0"
 }
 ----
-// TESTRESPONSE
+// TESTRESPONSE[s/1562265491319/$body.$_path/]
+// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]

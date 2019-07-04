@@ -47,19 +47,18 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [source,js]
 --------------------------------------------------
 POST _ml/data_frame/_evaluate
-
 {
-  "index": "my_analytics_dest_index"
+  "index": "my_analytics_dest_index",
   "evaluation": {
     "binary_soft_classification": {
-      "actual_field": "is_outlier"
+      "actual_field": "is_outlier",
       "predicted_probability_field": "ml.outlier_score"
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[skip:TBD]
 
 The API returns the following results:
 
@@ -103,3 +102,4 @@ The API returns the following results:
   }
 }
 ----
+// TESTRESPONSE

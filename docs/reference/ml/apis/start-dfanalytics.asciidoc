@@ -48,7 +48,7 @@ The following example starts the `loganalytics` {dfanalytics-job}:
 POST _ml/data_frame/analytics/loganalytics/_start
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:set up kibana samples]
+// TEST[skip:setup:logdata_job]
 
 When the {dfanalytics-job} starts, you receive the following results:
 

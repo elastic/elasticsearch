@@ -68,7 +68,7 @@ The following example stops the `loganalytics` {dfanalytics-job}:
 POST _ml/data_frame/analytics/loganalytics/_stop
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:set up kibana samples]
+// TEST[skip:TBD]
 
 When the {dfanalytics-job} stops, you receive the following results:
 

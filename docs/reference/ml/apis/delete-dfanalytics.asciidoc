@@ -39,7 +39,7 @@ The following example deletes the `loganalytics` {dfanalytics-job}:
 DELETE _ml/data_frame/analytics/loganalytics
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[skip:TBD]
 
 The API returns the following result:
 

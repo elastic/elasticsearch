@@ -72,7 +72,7 @@ The following example gets configuration information for the `loganalytics`
 GET _ml/data_frame/analytics/loganalytics
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:set up kibana samples]
+// TEST[skip:TBD]
 
 The API returns the following results:
 
@@ -96,7 +96,9 @@ The API returns the following results:
             "analysis": {
                 "outlier_detection": {}
             },
-            "model_memory_limit": "1gb"
+            "model_memory_limit": "1gb,
+            "create_time" : 1562265491319,
+            "version" : "8.0.0"
         }
     ]
 }

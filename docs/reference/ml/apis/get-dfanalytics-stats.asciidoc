@@ -72,7 +72,7 @@ The API returns the following information:
 GET _ml/data_frame/analytics/loganalytics/_stats
 --------------------------------------------------
 // CONSOLE
-// TEST
+// TEST[skip:TBD]
 
 The API returns the following results:
 

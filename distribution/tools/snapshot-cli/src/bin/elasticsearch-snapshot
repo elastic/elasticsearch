@@ -1,6 +1,6 @@
 #!/bin/bash
 
-JARS_PATH="./libs"
+JARS_PATH="$(dirname $(dirname $(realpath $0)))/libs"
 
 unset CLASSPATH
 for J in $(cd "${JARS_PATH}"; ls *.jar); do

@@ -1,5 +1,6 @@
 import java.nio.file.Files
 import java.nio.file.Paths
+import org.elasticsearch.gradle.ElasticsearchDistribution
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -93,7 +94,19 @@ thirdPartyTest {
   nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
 }
 
+task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
+  from tarTree("${project.buildDir}/snapshot-cli-${project.version}.tgz")
+  into "${project.buildDir}"
+}
+
+task smokeTest(type: Exec) {
+  dependsOn unpackArchive
+  onlyIf { ElasticsearchDistribution.CURRENT_PLATFORM != ElasticsearchDistribution.Platform.WINDOWS }
+  commandLine "${project.buildDir}/snapshot-cli-${project.version}/bin/elasticsearch-snapshot", "-h"
+}
+
 check.dependsOn(thirdPartyTest)
+check.dependsOn(smokeTest)
 
 def vendorPath = Paths.get("${project.buildDir}/libs/vendor")
 

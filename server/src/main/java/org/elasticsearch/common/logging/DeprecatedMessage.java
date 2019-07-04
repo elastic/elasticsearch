@@ -34,7 +34,7 @@ public class DeprecatedMessage extends ESLogMessage {
         super(fieldMap(xOpaqueId), messagePattern, args);
     }
 
-    public static Map<String, Object> fieldMap(String xOpaqueId) {
+    private static Map<String, Object> fieldMap(String xOpaqueId) {
         if (Strings.isNullOrEmpty(xOpaqueId)) {
             return Collections.emptyMap();
         }

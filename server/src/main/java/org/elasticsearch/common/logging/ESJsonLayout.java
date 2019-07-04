@@ -168,7 +168,6 @@ public class ESJsonLayout extends AbstractStringLayout {
         private String esMessageFields;
 
         public Builder() {
-            super();
             setCharset(StandardCharsets.UTF_8);
         }
 

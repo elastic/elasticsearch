@@ -130,11 +130,16 @@ public final class ThreadContext implements Closeable, Writeable {
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        if(context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+        /**
+         * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+         * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * Otherwise when context is stash, it should be empty.
+         */
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
             ThreadContextStruct threadContextStruct =
                 DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
             threadLocal.set(threadContextStruct);
-        } else{
+        } else {
             threadLocal.set(null);
         }
         return () -> {

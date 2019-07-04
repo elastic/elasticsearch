@@ -3,16 +3,27 @@
 [[ml-evaluate-dfanalytics-resources]]
 === Evaluate {dfanalytics} resources
 
-The evaluation object defines the type of evaluation you want to perform. An 
-evaluation configuration object has the following properties:
+ An evaluation configuration object has the following properties:
 
-`binary_soft_classification`::
-  (object) Configures a binary soft classification type evaluation.
+`evaluation`::
+  (object) Defines the type of evaluation you want to perform. The value of this 
+  object can be different depending on the type of evaluation you want to 
+  perform. For more information, see <<ml-evaluation-types>>.
   
   
 [float]
+[[ml-evaluation-types]]
+==== Evaluation types
+
+
+[float]
 [[binary-sc-resources]]
-==== Binary soft classification resources
+===== Binary soft classification configuration object
+
+Binary soft classification evaluates the results of an analysis which outputs 
+the probability that each {dataframe} row belongs to a certain class. For 
+example, in the context of outlier detection, the analysis outputs the 
+probability whether each row is an outlier.
 
 A binary soft classification object has the following properties:
 
@@ -23,15 +34,16 @@ A binary soft classification object has the following properties:
 
 `predicted_probability_field` (Required)::
   (string) The field of the `index` that defines the probability of whether the 
-  item is an outlier or not. It is the field that contains the results of the 
-  analysis.
+  item belongs to the class in question or not. It's the field that contains the 
+  results of the analysis.
 
 `metrics` (Optional)::
   (object) Specifies the metrics that are used for the evaluation. Available 
   mertics:
   
   `auc_roc` (Optional)::
-    (object) The AUC ROC score and optionally the curve.
+    (object) The AUC ROC (area under the curve of the receiver operating 
+    characteristic) score and optionally the curve.
     Default value is {"includes_curve": false}.
     
   `precision` (Optional)::
@@ -46,5 +58,6 @@ A binary soft classification object has the following properties:
   
   `confusion_matrix` (Optional)::
     (object) Set the different thresholds of the {olscore} at where the metrics 
-    (TP, FP, TN, FN) are calculated.
+    (TP - true positive, FP - false positive, TN - true negative, FN - false 
+    negative) are calculated.
     Default value is {"at": [0.25, 0.50, 0.75]}.

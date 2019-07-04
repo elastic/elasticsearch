@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedBinaryTokenStream;
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
@@ -34,8 +35,12 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -413,6 +418,29 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertThat(query.toString(),
             containsString("field:[string_no_pos] was indexed without position data; cannot run PhraseQuery"));
+    }
+
+    public void testMultiWordSynonymsPhrase() throws Exception {
+        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        final Query actual = matchQuery.parse(Type.PHRASE, STRING_FIELD_NAME, "guinea pig dogs");
+        Query expected = SpanNearQuery.newOrderedNearQuery(STRING_FIELD_NAME)
+            .addClause(
+                new SpanOrQuery(new SpanQuery[]{
+                    SpanNearQuery.newOrderedNearQuery(STRING_FIELD_NAME)
+                        .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                        .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig")))
+                        .setSlop(0)
+                        .build(),
+                    new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))
+                })
+            )
+            .addClause(new SpanOrQuery(new SpanQuery[]{
+                new SpanTermQuery(new Term(STRING_FIELD_NAME, "dogs")),
+                new SpanTermQuery(new Term(STRING_FIELD_NAME, "dog"))
+            }))
+            .build();
+        assertEquals(expected, actual);
     }
 
     public void testMaxBooleanClause() {

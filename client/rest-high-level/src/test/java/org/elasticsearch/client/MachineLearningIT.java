@@ -164,6 +164,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1437,7 +1438,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new StartDataFrameAnalyticsRequest(configId),
             machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
         assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
-        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STARTED));
+        assertThat(getAnalyticsState(configId), anyOf(equalTo(DataFrameAnalyticsState.STARTED),
+            equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING)));
 
         StopDataFrameAnalyticsResponse stopDataFrameAnalyticsResponse = execute(
             new StopDataFrameAnalyticsRequest(configId),

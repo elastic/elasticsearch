@@ -5,7 +5,8 @@
 
 {dataframe-transform-cap} resources relate to the <<data-frame-apis>>.
 
-For more information, see {stack-ov}/ml-dataframes.html[{dataframes-cap}].
+For more information, see
+{stack-ov}/ecommerce-dataframes.html[Transforming your data with {dataframes}].
 
 [discrete]
 [[data-frame-transform-properties]]
@@ -30,10 +31,10 @@ For more information, see {stack-ov}/ml-dataframes.html[{dataframes-cap}].
   <<data-frame-transform-source>>.
 
 [discrete]
-[[data-frame-transform-dest-example]]
-===== {api-examples-title}
+[[data-frame-transform-example]]
+==== {api-examples-title}
 
-See
+See the
 <<put-data-frame-transform-example,create {dataframe-transforms} API examples>>.
 
 [[data-frame-transform-dest]]

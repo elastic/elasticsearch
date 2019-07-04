@@ -19,8 +19,8 @@ These resource definitions are used in APIs related to {ml-features} and
 
 include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/filterresource.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/transformresource.asciidoc[]
+include::{es-repo-dir}/ml/apis/filterresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobcounts.asciidoc[]
 include::{es-repo-dir}/ml/apis/snapshotresource.asciidoc[]

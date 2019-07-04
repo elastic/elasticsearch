@@ -148,8 +148,8 @@ settings belong in the `elasticsearch.yml` file.
 `path_style_access`::
 
    Whether to force the use of the path style access pattern. If `true`, the
-   path style access pattern will be used. If `false`, path style access will be
-   automatically determined by the AWS Java SDK (See
+   path style access pattern will be used. If `false`, the access pattern will
+   be automatically determined by the AWS Java SDK (See
    https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-[AWS
    documentation] for details). Defaults to `false`.
 

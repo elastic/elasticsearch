@@ -19,7 +19,7 @@
             tokenizer:
               type: keyword
     - length: { detail.tokenizer.tokens: 1 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__keyword }
     - match:  { detail.tokenizer.tokens.0.token: Foo Bar! }
 
 ---
@@ -48,7 +48,7 @@
               type: simple_pattern
               pattern: "[abcdef0123456789]{4}"
     - length: { detail.tokenizer.tokens: 2 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__simple_pattern }
     - match:  { detail.tokenizer.tokens.0.token: a6bf }
     - match:  { detail.tokenizer.tokens.1.token: ff61 }
 
@@ -63,7 +63,7 @@
               type: simple_pattern_split
               pattern: ==
     - length: { detail.tokenizer.tokens: 2 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__simple_pattern_split }
     - match:  { detail.tokenizer.tokens.0.token: foo }
     - match:  { detail.tokenizer.tokens.1.token: bar }
 
@@ -77,7 +77,7 @@
             tokenizer:
               type: thai
     - length: { detail.tokenizer.tokens: 2 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__thai }
     - match:  { detail.tokenizer.tokens.0.token: ภาษา }
     - match:  { detail.tokenizer.tokens.1.token: ไทย }
 
@@ -104,7 +104,7 @@
               min_gram: 3
               max_gram: 3
     - length: { detail.tokenizer.tokens: 4 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__ngram }
     - match:  { detail.tokenizer.tokens.0.token: foo }
     - match:  { detail.tokenizer.tokens.1.token: oob }
     - match:  { detail.tokenizer.tokens.2.token: oba }
@@ -120,7 +120,7 @@
               min_gram: 3
               max_gram: 3
     - length: { detail.tokenizer.tokens: 4 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__ngram }
     - match:  { detail.tokenizer.tokens.0.token: foo }
     - match:  { detail.tokenizer.tokens.1.token: oob }
     - match:  { detail.tokenizer.tokens.2.token: oba }
@@ -166,7 +166,7 @@
               min_gram: 1
               max_gram: 3
     - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__edge_ngram }
     - match:  { detail.tokenizer.tokens.0.token: f }
     - match:  { detail.tokenizer.tokens.1.token: fo }
     - match:  { detail.tokenizer.tokens.2.token: foo }
@@ -181,7 +181,7 @@
               min_gram: 1
               max_gram: 3
     - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__edge_ngram }
     - match:  { detail.tokenizer.tokens.0.token: f }
     - match:  { detail.tokenizer.tokens.1.token: fo }
     - match:  { detail.tokenizer.tokens.2.token: foo }
@@ -218,7 +218,7 @@
             tokenizer:
               type: classic
     - length: { detail.tokenizer.tokens: 4 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__classic }
     - match:  { detail.tokenizer.tokens.0.token: Brown }
     - match:  { detail.tokenizer.tokens.1.token: Foxes }
     - match:  { detail.tokenizer.tokens.2.token: don't }
@@ -247,7 +247,7 @@
             tokenizer:
               type: letter
     - length: { detail.tokenizer.tokens: 5 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__letter }
     - match:  { detail.tokenizer.tokens.0.token: Brown }
     - match:  { detail.tokenizer.tokens.1.token: Foxes }
     - match:  { detail.tokenizer.tokens.2.token: don }
@@ -278,7 +278,7 @@
             tokenizer:
               type: lowercase
     - length: { detail.tokenizer.tokens: 5 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__lowercase }
     - match:  { detail.tokenizer.tokens.0.token: brown }
     - match:  { detail.tokenizer.tokens.1.token: foxes }
     - match:  { detail.tokenizer.tokens.2.token: don }
@@ -309,7 +309,7 @@
             tokenizer:
               type: path_hierarchy
     - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__path_hierarchy }
     - match:  { detail.tokenizer.tokens.0.token: a }
     - match:  { detail.tokenizer.tokens.1.token: a/b }
     - match:  { detail.tokenizer.tokens.2.token: a/b/c }
@@ -322,7 +322,7 @@
             tokenizer:
               type: PathHierarchy
     - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__PathHierarchy }
     - match:  { detail.tokenizer.tokens.0.token: a }
     - match:  { detail.tokenizer.tokens.1.token: a/b }
     - match:  { detail.tokenizer.tokens.2.token: a/b/c }
@@ -361,7 +361,7 @@
             tokenizer:
               type: pattern
     - length: { detail.tokenizer.tokens: 5 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__pattern }
     - match:  { detail.tokenizer.tokens.0.token: split }
     - match:  { detail.tokenizer.tokens.1.token: by }
     - match:  { detail.tokenizer.tokens.2.token: whitespace }
@@ -392,7 +392,7 @@
             tokenizer:
               type: uax_url_email
     - length: { detail.tokenizer.tokens: 4 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__uax_url_email }
     - match:  { detail.tokenizer.tokens.0.token: Email }
     - match:  { detail.tokenizer.tokens.1.token: me }
     - match:  { detail.tokenizer.tokens.2.token: at }
@@ -421,7 +421,7 @@
             tokenizer:
               type: whitespace
     - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.name: __anonymous__whitespace }
     - match:  { detail.tokenizer.tokens.0.token: split }
     - match:  { detail.tokenizer.tokens.1.token: by }
     - match:  { detail.tokenizer.tokens.2.token: whitespace }

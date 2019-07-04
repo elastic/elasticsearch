@@ -19,6 +19,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -251,11 +252,7 @@ public final class AnalysisRegistry implements Closeable {
             tokenFilterFactories.add(tff);
         }
 
-        String tokenizerName = tokenizer.name == null ? "_anonymous_tokenizer" : tokenizer.name;
-        if (normalizer) {
-            tokenizerName = "keyword_for_normalizer";
-        }
-        Analyzer analyzer = new CustomAnalyzer(tokenizerName, tokenizerFactory,
+        Analyzer analyzer = new CustomAnalyzer(tokenizerFactory,
             charFilterFactories.toArray(new CharFilterFactory[]{}),
             tokenFilterFactories.toArray(new TokenFilterFactory[]{}));
         return produceAnalyzer("__custom__", new AnalyzerProvider<Analyzer>() {
@@ -537,10 +534,12 @@ public final class AnalysisRegistry implements Closeable {
                     });
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
-            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
-                tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
+            processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers,
+                TokenizerFactory.newFactory("keyword", KeywordTokenizer::new),
+                tokenFilterFactoryFactories, charFilterFactoryFactories);
             processNormalizerFactory(entry.getKey(), entry.getValue(), whitespaceNormalizers,
-                    "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
+                TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
+                tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
         if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
@@ -613,7 +612,6 @@ public final class AnalysisRegistry implements Closeable {
             String name,
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,
-            String tokenizerName,
             TokenizerFactory tokenizerFactory,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
@@ -622,7 +620,7 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
+            ((CustomNormalizerProvider) normalizerFactory).build(tokenizerFactory, charFilters, tokenFilters);
         }
         if (normalizers.containsKey(name)) {
             throw new IllegalStateException("already registered analyzer with name: " + name);

@@ -776,6 +776,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         id: "*"
   - match: { count: 3 }
+  - length: { data_frame_analytics : 3 }
   - match: { data_frame_analytics.0.id: "bar" }
   - match: { data_frame_analytics.0.state: "stopped" }
   - match: { data_frame_analytics.1.id: "foo-1" }
@@ -787,6 +788,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         id: "foo-*"
   - match: { count: 2 }
+  - length: { data_frame_analytics : 2 }
   - match: { data_frame_analytics.0.id: "foo-1" }
   - match: { data_frame_analytics.0.state: "stopped" }
   - match: { data_frame_analytics.1.id: "foo-2" }
@@ -796,6 +798,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         id: "bar"
   - match: { count: 1 }
+  - length: { data_frame_analytics : 1 }
   - match: { data_frame_analytics.0.id: "bar" }
   - match: { data_frame_analytics.0.state: "stopped" }
 
@@ -803,6 +806,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         from: 2
   - match: { count: 3 }
+  - length: { data_frame_analytics : 1 }
   - match: { data_frame_analytics.0.id: "foo-2" }
   - match: { data_frame_analytics.0.state: "stopped" }
 
@@ -810,6 +814,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         size: 2
   - match: { count: 3 }
+  - length: { data_frame_analytics : 2 }
   - match: { data_frame_analytics.0.id: "bar" }
   - match: { data_frame_analytics.0.state: "stopped" }
   - match: { data_frame_analytics.1.id: "foo-1" }
@@ -820,6 +825,7 @@ setup:
         from: 1
         size: 1
   - match: { count: 3 }
+  - length: { data_frame_analytics : 1 }
   - match: { data_frame_analytics.0.id: "foo-1" }
   - match: { data_frame_analytics.0.state: "stopped" }
 

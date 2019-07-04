@@ -34,10 +34,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory<Numeric, WeightedAvgAggregatorFactory> {
+class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory<Numeric> {
 
     WeightedAvgAggregatorFactory(String name,  Map<String, ValuesSourceConfig<Numeric>> configs,
-                                 DocValueFormat format, SearchContext context, AggregatorFactory<?> parent,
+                                 DocValueFormat format, SearchContext context, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder,
                                  Map<String, Object> metaData) throws IOException {
         super(name, configs, format, context, parent, subFactoriesBuilder, metaData);

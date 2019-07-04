@@ -296,7 +296,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
     }
 
     private void updateShardStats(long startTime, long time) {
-        stats = new SnapshotStats(startTime, time);
+        stats = new SnapshotStats(startTime, time, 0, 0, 0, 0, 0, 0);
         shardsStats = new SnapshotShardsStats(shards);
         for (SnapshotIndexShardStatus shard : shards) {
             stats.add(shard.getStats());

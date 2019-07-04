@@ -46,11 +46,6 @@ public class SnapshotStats implements Streamable, ToXContentObject {
     SnapshotStats() {
     }
 
-    SnapshotStats(long startTime, long time) {
-        this.startTime = startTime;
-        this.time = time;
-    }
-
     SnapshotStats(long startTime, long time,
                   int incrementalFileCount, int totalFileCount, int processedFileCount,
                   long incrementalSize, long totalSize, long processedSize) {

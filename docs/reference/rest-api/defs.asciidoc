@@ -8,11 +8,11 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
+* <<data-frame-transform,{dataframe-transforms-cap}>>
 * <<ml-filter-resource,Filters>>
 * <<ml-job-resource,Jobs>>
 * <<ml-jobstats,Job statistics>>
 * <<ml-snapshot-resource,Model snapshots>>
-* <<data-frame-transform-pivot,Pivots>>
 * <<ml-results-resource,Results>>
 * <<role-mapping-resources,Role mappings>>
 * <<ml-event-resource,Scheduled Events>>
@@ -20,10 +20,10 @@ These resource definitions are used in APIs related to {ml-features} and
 include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/filterresource.asciidoc[]
+include::{es-repo-dir}/data-frames/apis/transformresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobcounts.asciidoc[]
 include::{es-repo-dir}/ml/apis/snapshotresource.asciidoc[]
-include::{es-repo-dir}/data-frames/apis/pivotresource.asciidoc[]
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
 include::{es-repo-dir}/ml/apis/resultsresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/eventresource.asciidoc[]

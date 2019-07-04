@@ -71,8 +71,14 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
         public Coordinator(Client client, Settings settings) {
             this(
-                (request, consumer) -> client.multiSearch(request,
-                    ActionListener.wrap(response -> consumer.accept(response, null), e -> consumer.accept(null, e))),
+                (mrequest, consumer) -> {
+                    ShardMultiSearchAction.Request request = new ShardMultiSearchAction.Request(mrequest);
+                    ActionListener<MultiSearchResponse> listener = ActionListener.wrap(
+                        response -> consumer.accept(response, null),
+                        e -> consumer.accept(null, e)
+                    );
+                    client.execute(ShardMultiSearchAction.INSTANCE, request, listener);
+                },
                 EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings)
@@ -107,6 +113,9 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
                 final List<Slot> slots = new ArrayList<>();
                 queue.drainTo(slots, maxLookupsPerRequest);
+                // TODO: create multiple msearch requests, one per enrich index
+                // (search request from different enrich processors can be pulled from the queue)
+                // (not sure whether that should be done here, or in the new transport action)
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 slots.forEach(slot -> multiSearchRequest.add(slot.searchRequest));
 

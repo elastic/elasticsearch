@@ -27,7 +27,9 @@ import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.plugins.JavaPluginConvention
 import org.gradle.api.plugins.quality.Checkstyle
 
 /**
@@ -45,13 +47,25 @@ class PrecommitTasks {
             forbiddenApisCliJar('de.thetaphi:forbiddenapis:2.6')
         }
 
+        Configuration jarHellConfig = project.configurations.create("jarHell")
+        if (project.findProject(":libs:elasticsearch-core") != null &&
+                project.path.equals(":libs:elasticsearch-core") == false
+        ) {
+            // External plugins will depend on this already via transitive dependencies.
+            // Internal projects are not all plugins, so make sure the check is available
+            // we are not doing this for this project itself to avoid jar hell with itself
+            project.dependencies {
+                jarHell project.project(":libs:elasticsearch-core")
+            }
+        }
+
         List<Task> precommitTasks = [
                 configureCheckstyle(project),
                 configureForbiddenApisCli(project),
                 project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
                 project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
                 project.tasks.create('filepermissions', FilePermissionsTask.class),
-                configureJarHell(project),
+                configureJarHell(project, jarHellConfig),
                 configureThirdPartyAudit(project),
                 configureTestingConventions(project)
         ]
@@ -108,12 +122,13 @@ class PrecommitTasks {
         return task
     }
 
-    private static Task configureJarHell(Project project) {
+    private static Task configureJarHell(Project project, Configuration jarHelConfig) {
         return project.tasks.create('jarHell', JarHellTask) { task ->
-            task.classpath = project.sourceSets.test.runtimeClasspath
+            task.classpath = project.sourceSets.test.runtimeClasspath + jarHelConfig;
             if (project.plugins.hasPlugin(ShadowPlugin)) {
                 task.classpath += project.configurations.bundle
             }
+            task.dependsOn(jarHelConfig);
         }
     }
 

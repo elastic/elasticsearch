@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -553,14 +554,19 @@ public class RemoteClusterServiceTests extends ESTestCase {
         final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();
         final List<DiscoveryNode> knownNodes_c2 = new CopyOnWriteArrayList<>();
 
+        final Settings settingsCluster1 = Settings.builder().put(settings).put(ClusterName.CLUSTER_NAME_SETTING.getKey(),
+            randomAlphaOfLength(10)).build();
+        final Settings settingsCluster2 = Settings.builder().put(settings).put(ClusterName.CLUSTER_NAME_SETTING.getKey(),
+            randomAlphaOfLength(10)).build();
+
         try (MockTransportService c1N1 =
-                 startTransport("cluster_1_node_1", knownNodes_c1, Version.CURRENT, settings);
+                 startTransport("cluster_1_node_1", knownNodes_c1, Version.CURRENT, settingsCluster1);
              MockTransportService c1N2 =
-                 startTransport("cluster_1_node_2", knownNodes_c1, Version.CURRENT, settings);
+                 startTransport("cluster_1_node_2", knownNodes_c1, Version.CURRENT, settingsCluster1);
              MockTransportService c2N1 =
-                 startTransport("cluster_2_node_1", knownNodes_c2, Version.CURRENT, settings);
+                 startTransport("cluster_2_node_1", knownNodes_c2, Version.CURRENT, settingsCluster2);
              MockTransportService c2N2 =
-                 startTransport("cluster_2_node_2", knownNodes_c2, Version.CURRENT, settings)) {
+                 startTransport("cluster_2_node_2", knownNodes_c2, Version.CURRENT, settingsCluster2)) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
             final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
             final DiscoveryNode c2N1Node = c2N1.getLocalDiscoNode();

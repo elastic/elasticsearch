@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
@@ -130,8 +131,6 @@ public class TransportStartDataFrameAnalyticsAction
             return;
         }
 
-        StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(request.getId());
-
         // Wait for analytics to be started
         ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>> waitForAnalyticsToStart =
             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
@@ -150,17 +149,26 @@ public class TransportStartDataFrameAnalyticsAction
                 }
             };
 
+        AtomicReference<DataFrameAnalyticsConfig> configHolder = new AtomicReference<>();
+
         // Start persistent task
         ActionListener<Void> memoryRequirementRefreshListener = ActionListener.wrap(
-            validated -> persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
-                MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart),
+            aVoid -> {
+                StartDataFrameAnalyticsAction.TaskParams taskParams = new StartDataFrameAnalyticsAction.TaskParams(
+                    request.getId(), configHolder.get().getVersion());
+                persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
+                    MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart);
+            },
             listener::onFailure
         );
 
         // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
-                request.getId(), config.getModelMemoryLimit().getBytes(), memoryRequirementRefreshListener),
+            config -> {
+                configHolder.set(config);
+                memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
+                    request.getId(), config.getModelMemoryLimit().getBytes(), memoryRequirementRefreshListener);
+            },
             listener::onFailure
         );
 
@@ -250,7 +258,21 @@ public class TransportStartDataFrameAnalyticsAction
             }
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) persistentTask.getState();
             DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
-            return analyticsState == DataFrameAnalyticsState.STARTED;
+            switch (analyticsState) {
+                case STARTED:
+                case REINDEXING:
+                case ANALYZING:
+                    return true;
+                case STOPPING:
+                    exception = ExceptionsHelper.conflictStatusException("the task has been stopped while waiting to be started");
+                    return true;
+                case STOPPED:
+                    return false;
+                case FAILED:
+                default:
+                    exception = ExceptionsHelper.serverError("Unexpected task state [" + analyticsState + "] while waiting to be started");
+                    return true;
+            }
         }
     }
 
@@ -424,13 +446,15 @@ public class TransportStartDataFrameAnalyticsAction
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
 
             // If we are "stopping" there is nothing to do
-            if (analyticsTaskState != null && analyticsTaskState.getState() == DataFrameAnalyticsState.STOPPING) {
+            // If we are "failed" then we should leave the task as is; for recovery it must be force stopped.
+            if (analyticsTaskState != null && analyticsTaskState.getState().isAnyOf(
+                    DataFrameAnalyticsState.STOPPING, DataFrameAnalyticsState.FAILED)) {
                 return;
             }
 
             if (analyticsTaskState == null) {
                 DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
-                    task.getAllocationId());
+                    task.getAllocationId(), null);
                 task.updatePersistentTaskState(startedState, ActionListener.wrap(
                     response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED),
                     task::markAsFailed));

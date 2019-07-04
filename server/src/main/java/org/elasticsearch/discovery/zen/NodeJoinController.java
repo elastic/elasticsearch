@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -30,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 
 /**
  * This class processes incoming join request (passed zia {@link ZenDiscovery}). Incoming nodes
@@ -63,9 +62,9 @@ public class NodeJoinController {
 
 
     public NodeJoinController(Settings settings, MasterService masterService, AllocationService allocationService,
-                              ElectMasterService electMaster, BiConsumer<String, ActionListener<Void>> reroute) {
+                              ElectMasterService electMaster, RerouteService rerouteService) {
         this.masterService = masterService;
-        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, reroute) {
+        joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
             @Override
             public void clusterStatePublished(ClusterChangedEvent event) {
                 electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());

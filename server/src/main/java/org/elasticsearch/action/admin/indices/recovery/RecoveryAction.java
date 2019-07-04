@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * Recovery information action
  */
-public class RecoveryAction extends StreamableResponseAction<RecoveryResponse> {
+public class RecoveryAction extends StreamableResponseActionType<RecoveryResponse> {
 
     public static final RecoveryAction INSTANCE = new RecoveryAction();
     public static final String NAME = "indices:monitor/recovery";

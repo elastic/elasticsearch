@@ -32,10 +32,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -58,6 +61,7 @@ import java.nio.file.NotDirectoryException;
 import java.time.ZoneId;
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -324,6 +328,19 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeOptionalSecureString(@Nullable SecureString secureStr) throws IOException {
+        if (secureStr == null) {
+            writeOptionalBytesReference(null);
+        } else {
+            final byte[] secureStrBytes = CharArrays.toUtf8Bytes(secureStr.getChars());
+            try {
+                writeOptionalBytesReference(new BytesArray(secureStrBytes));
+            } finally {
+                Arrays.fill(secureStrBytes, (byte) 0);
+            }
+        }
+    }
+
     /**
      * Writes an optional {@link Integer}.
      */
@@ -412,6 +429,15 @@ public abstract class StreamOutput extends OutputStream {
             }
         }
         writeBytes(buffer, offset);
+    }
+
+    public void writeSecureString(SecureString secureStr) throws IOException {
+        final byte[] secureStrBytes = CharArrays.toUtf8Bytes(secureStr.getChars());
+        try {
+            writeBytesReference(new BytesArray(secureStrBytes));
+        } finally {
+            Arrays.fill(secureStrBytes, (byte) 0);
+        }
     }
 
     public void writeFloat(float v) throws IOException {

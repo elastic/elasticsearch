@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
 
-public class ExplainLifecycleAction extends StreamableResponseAction<ExplainLifecycleResponse> {
+public class ExplainLifecycleAction extends StreamableResponseActionType<ExplainLifecycleResponse> {
     public static final ExplainLifecycleAction INSTANCE = new ExplainLifecycleAction();
     public static final String NAME = "indices:admin/ilm/explain";
 

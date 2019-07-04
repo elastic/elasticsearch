@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
-public class DateTests extends ScriptTestCase {
+public class DateTimeTests extends ScriptTestCase {
 
     public void testLongToZonedDateTime() {
         assertEquals(ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of("Z")), exec(
@@ -176,5 +176,19 @@ public class DateTests extends ScriptTestCase {
                 "ZonedDateTime zdt2 = ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneId.of('Z'));" +
                 "return zdt1.isAfter(zdt2);"
         ));
+    }
+
+    public void testTimeZone() {
+        assertEquals(ZonedDateTime.of(1983, 10, 13, 15, 15, 30, 0, ZoneId.of("America/Los_Angeles")), exec(
+                "ZonedDateTime utc = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));" +
+                "return utc.withZoneSameInstant(ZoneId.of('America/Los_Angeles'));"));
+
+        assertEquals("Thu, 13 Oct 1983 15:15:30 -0700", exec(
+                "String gmtString = 'Thu, 13 Oct 1983 22:15:30 GMT';" +
+                "ZonedDateTime gmtZdt = ZonedDateTime.parse(gmtString," +
+                "DateTimeFormatter.RFC_1123_DATE_TIME);" +
+                "ZonedDateTime pstZdt =" +
+                "gmtZdt.withZoneSameInstant(ZoneId.of('America/Los_Angeles'));" +
+                "return pstZdt.format(DateTimeFormatter.RFC_1123_DATE_TIME);"));
     }
 }

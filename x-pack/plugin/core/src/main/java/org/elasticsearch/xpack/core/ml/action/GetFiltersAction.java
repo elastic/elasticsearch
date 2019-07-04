@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 
-public class GetFiltersAction extends StreamableResponseAction<GetFiltersAction.Response> {
+public class GetFiltersAction extends StreamableResponseActionType<GetFiltersAction.Response> {
 
     public static final GetFiltersAction INSTANCE = new GetFiltersAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/get";

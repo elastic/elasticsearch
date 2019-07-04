@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,10 +18,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import java.io.IOException;
 import java.util.Collections;
 
-public class GetDataFrameAnalyticsAction extends StreamableResponseAction<GetDataFrameAnalyticsAction.Response> {
+public class GetDataFrameAnalyticsAction extends StreamableResponseActionType<GetDataFrameAnalyticsAction.Response> {
 
     public static final GetDataFrameAnalyticsAction INSTANCE = new GetDataFrameAnalyticsAction();
-    public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/get";
+    public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/get";
 
     private GetDataFrameAnalyticsAction() {
         super(NAME);

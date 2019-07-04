@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class NodesHotThreadsAction extends StreamableResponseAction<NodesHotThreadsResponse> {
+public class NodesHotThreadsAction extends StreamableResponseActionType<NodesHotThreadsResponse> {
 
     public static final NodesHotThreadsAction INSTANCE = new NodesHotThreadsAction();
     public static final String NAME = "cluster:monitor/nodes/hot_threads";

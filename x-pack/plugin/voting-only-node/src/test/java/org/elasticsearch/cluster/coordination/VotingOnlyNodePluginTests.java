@@ -7,7 +7,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -84,7 +83,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
     public void testBootstrapOnlySingleVotingOnlyNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode(Settings.builder().put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true)
-            .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build());
+            .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build());
         internalCluster().startNode();
         assertBusy(() -> assertThat(client().admin().cluster().prepareState().get().getState().getNodes().getSize(), equalTo(2)));
         assertThat(

@@ -1,6 +1,7 @@
 {
   "update_by_query": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update-by-query.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
       "paths": ["/{index}/_update_by_query"],
@@ -88,10 +89,6 @@
         "search_timeout": {
           "type" : "time",
           "description" : "Explicit timeout for each search request. Defaults to no timeout."
-        },
-        "size": {
-          "type" : "number",
-          "description" : "Deprecated, please use `max_docs` instead"
         },
         "max_docs": {
           "type" : "number",

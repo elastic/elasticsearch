@@ -1,6 +1,7 @@
 {
   "graph.explore": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/{index}/_graph/explore"],

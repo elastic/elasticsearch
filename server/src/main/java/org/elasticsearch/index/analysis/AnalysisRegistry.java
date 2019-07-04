@@ -111,6 +111,7 @@ public final class AnalysisRegistry implements Closeable {
     private <T> T getComponentFactory(IndexSettings settings, NameOrDefinition nod,
                                       String componentType,
                                       Function<String, AnalysisProvider<T>> globalComponentProvider,
+                                      Function<String, AnalysisProvider<T>> prebuiltComponentProvider,
                                       BiFunction<String, IndexSettings, AnalysisProvider<T>> indexComponentProvider) throws IOException {
         if (nod.definition != null) {
             // custom component, so we build it from scratch
@@ -128,10 +129,14 @@ public final class AnalysisRegistry implements Closeable {
             return factory.get(settings, environment, "__anonymous__" + type, nod.definition);
         }
         if (settings == null) {
-            // no index provided, so we use global analysis components only
-            AnalysisProvider<T> factory = globalComponentProvider.apply(nod.name);
+            // no index provided, so we use prebuilt analysis components
+            AnalysisProvider<T> factory = prebuiltComponentProvider.apply(nod.name);
             if (factory == null) {
-                throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
+                // if there's no prebuilt component, try loading a global one to build with no settings
+                factory = globalComponentProvider.apply(nod.name);
+                if (factory == null) {
+                    throw new IllegalArgumentException("failed to find global " + componentType + " under [" + nod.name + "]");
+                }
             }
             return factory.get(environment, nod.name);
         } else {
@@ -180,11 +185,7 @@ public final class AnalysisRegistry implements Closeable {
                             throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
                         }}
             );
-        } else if ("standard_html_strip".equals(analyzer)) {
-            throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
-                "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         }
-
         return analyzerProvider.get(environment, analyzer).get();
     }
 
@@ -217,25 +218,26 @@ public final class AnalysisRegistry implements Closeable {
     public NamedAnalyzer buildCustomAnalyzer(IndexSettings indexSettings, boolean normalizer, NameOrDefinition tokenizer,
                                              List<NameOrDefinition> charFilters, List<NameOrDefinition> tokenFilters) throws IOException {
         TokenizerFactory tokenizerFactory
-            = getComponentFactory(indexSettings, tokenizer, "tokenizer", this::getTokenizerProvider, this::getTokenizerProvider);
+            = getComponentFactory(indexSettings, tokenizer, "tokenizer",
+            this::getTokenizerProvider, prebuiltAnalysis::getTokenizerFactory, this::getTokenizerProvider);
 
         List<CharFilterFactory> charFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : charFilters) {
             charFilterFactories.add(getComponentFactory(indexSettings, nod, "char_filter",
-                this::getCharFilterProvider, this::getCharFilterProvider));
+                this::getCharFilterProvider, prebuiltAnalysis::getCharFilterFactory, this::getCharFilterProvider));
         }
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : tokenFilters) {
             TokenFilterFactory tff = getComponentFactory(indexSettings, nod, "filter",
-                this::getTokenFilterProvider, this::getTokenFilterProvider);
+                this::getTokenFilterProvider, prebuiltAnalysis::getTokenFilterFactory, this::getTokenFilterProvider);
             if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
             }
             tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
                 try {
                     return getComponentFactory(indexSettings, new NameOrDefinition(name), "filter",
-                        this::getTokenFilterProvider, this::getTokenFilterProvider);
+                        this::getTokenFilterProvider, prebuiltAnalysis::getTokenFilterFactory, this::getTokenFilterProvider);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -519,7 +521,6 @@ public final class AnalysisRegistry implements Closeable {
                                 Map<String, TokenizerFactory> tokenizerFactoryFactories,
                                 Map<String, CharFilterFactory> charFilterFactoryFactories,
                                 Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
-
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
@@ -558,12 +559,14 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(indexSettings, analyzers, normalizers, whitespaceNormalizers);
+        return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
-    private static NamedAnalyzer produceAnalyzer(String name, AnalyzerProvider<?> analyzerFactory,
-            Map<String, TokenFilterFactory> tokenFilters, Map<String, CharFilterFactory> charFilters,
-            Map<String, TokenizerFactory> tokenizers) {
+    private static NamedAnalyzer produceAnalyzer(String name,
+                                        AnalyzerProvider<?> analyzerFactory,
+                                        Map<String, TokenFilterFactory> tokenFilters,
+                                        Map<String, CharFilterFactory> charFilters,
+                                        Map<String, TokenizerFactory> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0

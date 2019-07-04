@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -45,7 +45,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class AnalyzeAction extends Action<AnalyzeAction.Response> {
+public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
     public static final String NAME = "indices:admin/analyze";
@@ -57,11 +57,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
     @Override
     public Writeable.Reader<Response> getResponseReader() {
         return Response::new;
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     /**
@@ -81,6 +76,19 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         private String normalizer;
 
         public Request() {
+        }
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+            text = in.readStringArray();
+            analyzer = in.readOptionalString();
+            tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
+            tokenFilters.addAll(in.readList(NameOrDefinition::new));
+            charFilters.addAll(in.readList(NameOrDefinition::new));
+            field = in.readOptionalString();
+            explain = in.readBoolean();
+            attributes = in.readStringArray();
+            normalizer = in.readOptionalString();
         }
 
         /**
@@ -238,20 +246,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
                     = addValidationError("cannot define extra components on a field-specific analyzer", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            text = in.readStringArray();
-            analyzer = in.readOptionalString();
-            tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-            tokenFilters.addAll(in.readList(NameOrDefinition::new));
-            charFilters.addAll(in.readList(NameOrDefinition::new));
-            field = in.readOptionalString();
-            explain = in.readBoolean();
-            attributes = in.readStringArray();
-            normalizer = in.readOptionalString();
         }
 
         @Override

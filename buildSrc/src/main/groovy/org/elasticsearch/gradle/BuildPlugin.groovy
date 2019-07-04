@@ -33,6 +33,7 @@ import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -99,13 +100,17 @@ class BuildPlugin implements Plugin<Project> {
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
 
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
-              throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
-                + 'are mutually exclusive')
+            throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                    + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
+                    + 'are mutually exclusive')
         }
         String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
-        try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
+        try {
+            minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString())
+        } finally {
+            is.close()
+        }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
             throw new GradleException(
                     "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
@@ -139,23 +144,25 @@ class BuildPlugin implements Plugin<Project> {
         configurePrecommit(project)
         configureDependenciesInfo(project)
 
-        // Common config when running with a FIPS-140 runtime JVM
-        // Need to do it here to support external plugins
-        if (project == project.rootProject) {
-            GlobalInfoExtension globalInfo = project.extensions.getByType(GlobalInfoExtension)
 
-            // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
-            globalInfo.ready {
-                project.subprojects { Project subproject ->
-                    ExtraPropertiesExtension ext = subproject.extensions.getByType(ExtraPropertiesExtension)
-                    // Common config when running with a FIPS-140 runtime JVM
-                    if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
-                        subproject.tasks.withType(Test) { Test task ->
-                            task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                            task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                        }
-                        project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = subproject.extensions.getByName('testClusters') as NamedDomainObjectContainer<ElasticsearchCluster>
+        configureFips140(project)
+    }
+
+    public static void configureFips140(Project project) {
+        // Need to do it here to support external plugins
+        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
+        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
+        globalInfo.ready {
+                ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+                // Common config when running with a FIPS-140 runtime JVM
+                if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
+                    project.tasks.withType(Test) { Test task ->
+                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                    }
+                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                        if (testClusters != null) {
                             testClusters.all { ElasticsearchCluster cluster ->
                                 cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
                                 cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
@@ -163,7 +170,6 @@ class BuildPlugin implements Plugin<Project> {
                         }
                     }
                 }
-            }
         }
     }
 
@@ -260,7 +266,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     protected static void checkDockerVersionRecent(String dockerVersion) {
-        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-[a-zA-Z0-9]+)?, build [0-9a-f]{7,40}/
         assert matcher.matches(): dockerVersion
         final dockerMajorMinorVersion = matcher.group(1)
         final String[] majorMinor = dockerMajorMinorVersion.split("\\.")

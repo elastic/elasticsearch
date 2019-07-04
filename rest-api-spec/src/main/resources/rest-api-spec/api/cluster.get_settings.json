@@ -1,6 +1,7 @@
 {
   "cluster.get_settings": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-update-settings.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/_cluster/settings"],

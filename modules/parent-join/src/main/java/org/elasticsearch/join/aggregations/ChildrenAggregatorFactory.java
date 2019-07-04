@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory<WithOrdinals, ChildrenAggregatorFactory> {
+public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory<WithOrdinals> {
 
     private final Query parentFilter;
     private final Query childFilter;
@@ -45,7 +45,7 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory<Wit
                                         Query childFilter,
                                         Query parentFilter,
                                         SearchContext context,
-                                        AggregatorFactory<?> parent,
+                                        AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
                                         Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);

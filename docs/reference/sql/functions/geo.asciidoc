@@ -147,7 +147,7 @@ ST_Y(
 
 .Description:
 
-Returns the the latitude of the first point in the geometry.
+Returns the latitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

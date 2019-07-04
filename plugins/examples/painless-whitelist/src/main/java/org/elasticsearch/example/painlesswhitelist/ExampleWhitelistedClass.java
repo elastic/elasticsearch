@@ -54,4 +54,9 @@ public class ExampleWhitelistedClass {
     public static int toInt(String x) {
         return Integer.parseInt(x);
     }
+
+    // example method to attach annotations in whitelist
+    public void annotate() {
+        // some logic here
+    }
 }

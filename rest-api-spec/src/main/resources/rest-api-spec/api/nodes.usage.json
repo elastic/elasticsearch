@@ -1,6 +1,7 @@
 {
   "nodes.usage": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-usage.html",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": [

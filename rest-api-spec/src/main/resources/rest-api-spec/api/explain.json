@@ -1,6 +1,7 @@
 {
   "explain": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/{index}/_explain/{id}"],

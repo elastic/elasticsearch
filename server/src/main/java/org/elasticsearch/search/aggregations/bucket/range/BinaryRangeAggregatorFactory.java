@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 public class BinaryRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Bytes, BinaryRangeAggregatorFactory> {
+        extends ValuesSourceAggregatorFactory<ValuesSource.Bytes> {
 
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;
@@ -41,7 +41,7 @@ public class BinaryRangeAggregatorFactory
             ValuesSourceConfig<ValuesSource.Bytes> config,
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
             SearchContext context,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder,
+            AggregatorFactory parent, Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.ranges = ranges;

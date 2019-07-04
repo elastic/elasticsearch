@@ -1,6 +1,7 @@
 {
   "info": {
     "documentation": "http://www.elastic.co/guide/",
+    "stability": "stable",
     "methods": ["GET"],
     "url": {
       "paths": ["/"],

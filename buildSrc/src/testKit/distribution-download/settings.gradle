@@ -1,0 +1,8 @@
+include 'subproj'
+
+String distroProject = System.getProperty('tests.local_distro.project')
+System.out.println("local distro project: " + distroProject);
+if (distroProject != null) {
+  include distroProject
+  project(distroProject).projectDir = new File(rootDir, 'distribution')
+}

@@ -1,6 +1,7 @@
 {
   "search_shards": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-shards.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
       "paths": ["/_search_shards", "/{index}/_search_shards"],

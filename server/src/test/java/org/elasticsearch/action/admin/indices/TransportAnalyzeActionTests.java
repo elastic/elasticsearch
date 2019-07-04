@@ -58,7 +58,6 @@ import static java.util.Collections.singletonMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
 /**
  * Tests for {@link TransportAnalyzeAction}. See the rest tests in the {@code analysis-common} module for places where this code gets a ton
  * more exercise.
@@ -66,6 +65,7 @@ import static org.mockito.Mockito.when;
 public class TransportAnalyzeActionTests extends ESTestCase {
 
     private IndexAnalyzers indexAnalyzers;
+    private IndexSettings indexSettings;
     private AnalysisRegistry registry;
     private int maxTokenCount;
     private int idxMaxTokenCount;
@@ -85,7 +85,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .put("index.analysis.char_filter.my_append.suffix", "baz")
                 .put("index.analyze.max_token_count", 100)
                 .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase").build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        this.indexSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         Environment environment = TestEnvironment.newEnvironment(settings);
         AnalysisPlugin plugin = new AnalysisPlugin() {
             class MockFactory extends AbstractTokenFilterFactory {
@@ -141,18 +141,19 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
             @Override
             public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
-                return singletonList(PreConfiguredCharFilter.singleton("append_foo", false, reader -> new AppendCharFilter(reader, "foo")));
+                return singletonList(PreConfiguredCharFilter.singleton("append", false, reader -> new AppendCharFilter(reader, "foo")));
             }
         };
         registry = new AnalysisModule(environment, singletonList(plugin)).getAnalysisRegistry();
-        indexAnalyzers = registry.build(idxSettings);
+        indexAnalyzers = registry.build(this.indexSettings);
         maxTokenCount = IndexSettings.MAX_TOKEN_COUNT_SETTING.getDefault(settings);
-        idxMaxTokenCount = idxSettings.getMaxTokenCount();
+        idxMaxTokenCount = this.indexSettings.getMaxTokenCount();
     }
 
     private IndexService mockIndexService() {
         IndexService is = mock(IndexService.class);
         when(is.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        when(is.getIndexSettings()).thenReturn(indexSettings);
         return is;
     }
 
@@ -169,24 +170,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
-        // Refer to a token filter by its type so we get its default configuration
-        request = new AnalyzeAction.Request();
-        request.text("the qu1ck brown fox");
-        request.tokenizer("standard");
-        request.addTokenFilter("mock");
-        analyze
-            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
-        tokens = analyze.getTokens();
-        assertEquals(3, tokens.size());
-        assertEquals("qu1ck", tokens.get(0).getTerm());
-        assertEquals("brown", tokens.get(1).getTerm());
-        assertEquals("fox", tokens.get(2).getTerm());
-
         // We can refer to a pre-configured token filter by its name to get it
         request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
-        request.addCharFilter("append_foo");
+        request.addCharFilter("append");        // <-- no config, so use preconfigured filter
         analyze
             = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
@@ -196,28 +184,25 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("brown", tokens.get(2).getTerm());
         assertEquals("foxfoo", tokens.get(3).getTerm());
 
-        // We can refer to a token filter by its type to get its default configuration
+        // If the preconfigured filter doesn't exist, we use a global filter with no settings
         request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
-        request.addCharFilter("append");
-        request.text("the qu1ck brown fox");
+        request.addTokenFilter("mock");     // <-- not preconfigured, but a global one available
         analyze
             = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
-        assertEquals(4, tokens.size());
-        assertEquals("the", tokens.get(0).getTerm());
-        assertEquals("qu1ck", tokens.get(1).getTerm());
-        assertEquals("brown", tokens.get(2).getTerm());
-        assertEquals("foxbar", tokens.get(3).getTerm());
+        assertEquals(3, tokens.size());
+        assertEquals("qu1ck", tokens.get(0).getTerm());
+        assertEquals("brown", tokens.get(1).getTerm());
+        assertEquals("fox", tokens.get(2).getTerm());
 
-        // We can pass a new configuration
+        // We can build a new char filter to get default values
         request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addTokenFilter(Map.of("type", "mock", "stopword", "brown"));
-        request.addCharFilter("append");
-        request.text("the qu1ck brown fox");
+        request.addCharFilter(Map.of("type", "append"));    // <-- basic config, uses defaults
         analyze
             = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
         tokens = analyze.getTokens();
@@ -225,6 +210,20 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("the", tokens.get(0).getTerm());
         assertEquals("qu1ck", tokens.get(1).getTerm());
         assertEquals("foxbar", tokens.get(2).getTerm());
+
+        // We can pass a new configuration
+        request = new AnalyzeAction.Request();
+        request.text("the qu1ck brown fox");
+        request.tokenizer("standard");
+        request.addTokenFilter(Map.of("type", "mock", "stopword", "brown"));
+        request.addCharFilter(Map.of("type", "append", "suffix", "baz"));
+        analyze
+            = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+        tokens = analyze.getTokens();
+        assertEquals(3, tokens.size());
+        assertEquals("the", tokens.get(0).getTerm());
+        assertEquals("qu1ck", tokens.get(1).getTerm());
+        assertEquals("foxbaz", tokens.get(2).getTerm());
     }
 
     public void testFillsAttributes() throws IOException {

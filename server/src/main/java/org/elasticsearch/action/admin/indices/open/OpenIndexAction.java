@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.open;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class OpenIndexAction extends Action<OpenIndexResponse> {
+public class OpenIndexAction extends ActionType<OpenIndexResponse> {
 
     public static final OpenIndexAction INSTANCE = new OpenIndexAction();
     public static final String NAME = "indices:admin/open";
@@ -31,7 +32,7 @@ public class OpenIndexAction extends Action<OpenIndexResponse> {
     }
 
     @Override
-    public OpenIndexResponse newResponse() {
-        return new OpenIndexResponse();
+    public Writeable.Reader<OpenIndexResponse> getResponseReader() {
+        return OpenIndexResponse::new;
     }
 }

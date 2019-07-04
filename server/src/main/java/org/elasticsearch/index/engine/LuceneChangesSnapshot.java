@@ -211,11 +211,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     private TopDocs searchOperations(ScoreDoc after) throws IOException {
         final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
-        final Sort sortedBySeqNoThenByTerm = new Sort(
-            new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
-            new SortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
-        );
-        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNoThenByTerm);
+        final Sort sortedBySeqNo = new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG));
+        return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNo);
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

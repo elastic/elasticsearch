@@ -32,13 +32,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class ReverseNestedAggregatorFactory extends AggregatorFactory<ReverseNestedAggregatorFactory> {
+public class ReverseNestedAggregatorFactory extends AggregatorFactory {
 
     private final boolean unmapped;
     private final ObjectMapper parentObjectMapper;
 
     public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
-                                          SearchContext context, AggregatorFactory<?> parent,
+                                          SearchContext context, AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactories,
                                           Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);

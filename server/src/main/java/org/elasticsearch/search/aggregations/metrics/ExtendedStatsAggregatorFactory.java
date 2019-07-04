@@ -33,12 +33,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, ExtendedStatsAggregatorFactory> {
+class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double sigma;
 
     ExtendedStatsAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double sigma,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.sigma = sigma;

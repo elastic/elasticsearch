@@ -36,7 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
+class ScriptedMetricAggregatorFactory extends AggregatorFactory {
 
     private final ScriptedMetricAggContexts.MapScript.Factory mapScript;
     private final Map<String, Object> mapScriptParams;
@@ -53,7 +53,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAg
                                     ScriptedMetricAggContexts.InitScript.Factory initScript, Map<String, Object> initScriptParams,
                                     ScriptedMetricAggContexts.CombineScript.Factory combineScript,
                                     Map<String, Object> combineScriptParams, Script reduceScript, Map<String, Object> aggParams,
-                                    SearchLookup lookup, SearchContext context, AggregatorFactory<?> parent,
+                                    SearchLookup lookup, SearchContext context, AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.mapScript = mapScript;

@@ -98,6 +98,7 @@ import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -393,10 +394,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData;
+            final RepositoryData repositoryData;
             final Map<String, BlobContainer> foundIndices;
             final Set<String> rootBlobs;
             try {
-                final RepositoryData repositoryData = getRepositoryData();
+                repositoryData = getRepositoryData();
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
@@ -408,6 +410,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
+            try {
+                blobContainer().deleteBlobsIgnoringIfNotExists(
+                    Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
+            } catch (IOException e) {
+                logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
+            }
             final var survivingIndices = updatedRepositoryData.getIndices();
             deleteIndices(
                 Optional.ofNullable(finalSnapshotInfo)
@@ -417,7 +425,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotId,
                 ActionListener.map(listener, v -> {
                     cleanupStaleIndices(foundIndices, survivingIndices);
-                    cleanupStaleRootFiles(rootBlobs, updatedRepositoryData);
+                    // Cleaning up according to repository data before the delete so we don't accidentally identify the two just deleted
+                    // blobs for the current snapshot as stale.
+                    cleanupStaleRootFiles(rootBlobs, repositoryData);
                     return null;
                 })
             );
@@ -448,8 +458,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return false;
             }
         ).collect(Collectors.toList());
+        if (blobsToDelete.isEmpty()) {
+            return;
+        }
         try {
-            logger.debug("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToDelete);
+            logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToDelete);
             blobContainer().deleteBlobsIgnoringIfNotExists(blobsToDelete);
         } catch (IOException e) {
             logger.warn(() -> new ParameterizedMessage(

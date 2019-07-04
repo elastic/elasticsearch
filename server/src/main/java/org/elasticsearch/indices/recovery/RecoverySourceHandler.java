@@ -54,6 +54,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -198,7 +199,30 @@ public class RecoverySourceHandler {
                             logger.warn("releasing snapshot caused exception", ex);
                         }
                     });
-                    phase1(safeCommitRef.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps, sendFileStep);
+
+                    final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
+                    if (shard.indexSettings().isSoftDeleteEnabled()
+                        && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE) {
+                        runUnderPrimaryPermit(() -> {
+                                try {
+                                    // If the target previously had a copy of this shard then a file-based recovery might move its global
+                                    // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
+                                    // new one later on in the recovery.
+                                    shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), deleteRetentionLeaseStep);
+                                } catch (RetentionLeaseNotFoundException e) {
+                                    logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
+                                    deleteRetentionLeaseStep.onResponse(null);
+                                }
+                            }, shardId + " removing retention leaes for [" + request.targetAllocationId() + "]",
+                            shard, cancellableThreads, logger);
+                    } else {
+                        deleteRetentionLeaseStep.onResponse(null);
+                    }
+
+                    deleteRetentionLeaseStep.whenComplete(ignored -> {
+                        phase1(safeCommitRef.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps, sendFileStep);
+                    }, onFailure);
+
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
                 }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetEnrichPolicyAction extends Action<GetEnrichPolicyAction.Response> {
+public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Response> {
 
     public static final GetEnrichPolicyAction INSTANCE = new GetEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/get";

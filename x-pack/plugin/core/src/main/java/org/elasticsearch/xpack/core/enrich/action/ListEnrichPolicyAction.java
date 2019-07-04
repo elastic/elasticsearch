@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -22,7 +22,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Response> {
+public class ListEnrichPolicyAction extends ActionType<ListEnrichPolicyAction.Response> {
 
     public static final ListEnrichPolicyAction INSTANCE = new ListEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/list";

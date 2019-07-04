@@ -126,16 +126,8 @@ public class JoinHelper {
             StartJoinRequest::new,
             (request, channel, task) -> {
                 final DiscoveryNode destination = request.getSourceNode();
-                transportService.connectToNode(destination, ActionListener.wrap(ignored -> {
-                    sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
-                    channel.sendResponse(Empty.INSTANCE);
-                }, e -> {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException ex) {
-                        logger.warn("failed to send back failure on start join request", ex);
-                    }
-                }));
+                sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
+                channel.sendResponse(Empty.INSTANCE);
             });
 
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,

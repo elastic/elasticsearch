@@ -96,8 +96,8 @@ The API returns the following results:
             "analysis": {
                 "outlier_detection": {}
             },
-            "model_memory_limit": "1gb,
-            "create_time" : 1562265491319,
+            "model_memory_limit": "1gb",
+            "create_time": 1562265491319,
             "version" : "8.0.0"
         }
     ]

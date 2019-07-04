@@ -105,7 +105,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
 
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
+    protected AggregatorFactory createAggregatorFactory(AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            MappedFieldType... fieldTypes) throws IOException {
         return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),
@@ -113,7 +113,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
 
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
+    protected AggregatorFactory createAggregatorFactory(AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            IndexSettings indexSettings,
                                                            MultiBucketConsumer bucketConsumer,
@@ -122,7 +122,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /** Create a factory for the given aggregation builder. */
-    protected AggregatorFactory<?> createAggregatorFactory(Query query,
+    protected AggregatorFactory createAggregatorFactory(Query query,
                                                            AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            IndexSettings indexSettings,
@@ -411,7 +411,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
                         reduceBucketConsumer, false);
                 A reduced = (A) aggs.get(0).doReduce(toReduce, context);
-                InternalAggregationTestCase.assertMultiBucketConsumer(reduced, reduceBucketConsumer);
+                doAssertReducedMultiBucketConsumer(reduced, reduceBucketConsumer);
                 aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
                 aggs.add(reduced);
             }
@@ -427,10 +427,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
                 }
             }
-            InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+            doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;
         }
 
+    }
+
+    protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
+        InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
     private static class ShardSearcher extends IndexSearcher {

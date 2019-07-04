@@ -340,7 +340,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
             Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context);
 

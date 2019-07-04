@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -137,11 +138,14 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private List<Map<String, Object>> docs;
+        private Map<String, Object> mappings;
         public static ParseField PREVIEW = new ParseField("preview");
+        public static ParseField MAPPINGS = new ParseField("mappings");
 
         static ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
         static {
             PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), PREVIEW);
+            PARSER.declareObject(Response::setMappings, (p, c) -> p.mapOrdered(), MAPPINGS);
         }
         public Response() {}
 
@@ -150,6 +154,10 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
             this.docs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 this.docs.add(in.readMap());
+            }
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                Map<String, Object> objectMap = in.readMap();
+                this.mappings = objectMap == null ? null : Map.copyOf(objectMap);
             }
         }
 
@@ -161,11 +169,46 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
             this.docs = new ArrayList<>(docs);
         }
 
+        public void setMappings(Map<String, Object> mappings) {
+            this.mappings = Map.copyOf(mappings);
+        }
+
+        /**
+         * This takes the a {@code Map<String, String>} of the type "fieldname: fieldtype" and transforms it into the
+         * typical mapping format.
+         *
+         * Example:
+         *
+         * input:
+         * {"field1.subField1": "long", "field2": "keyword"}
+         *
+         * output:
+         * {
+         *     "properties": {
+         *         "field1.subField1": {
+         *             "type": "long"
+         *         },
+         *         "field2": {
+         *             "type": "keyword"
+         *         }
+         *     }
+         * }
+         * @param mappings A Map of the form {"fieldName": "fieldType"}
+         */
+        public void setMappingsFromStringMap(Map<String, String> mappings) {
+            Map<String, Object> fieldMappings = new HashMap<>();
+            mappings.forEach((k, v) -> fieldMappings.put(k, Map.of("type", v)));
+            this.mappings = Map.of("properties", fieldMappings);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(docs.size());
             for (Map<String, Object> doc : docs) {
                 out.writeMapWithConsistentOrder(doc);
+            }
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeMap(mappings);
             }
         }
 
@@ -173,6 +216,9 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(PREVIEW.getPreferredName(), docs);
+            if (mappings != null) {
+                builder.field(MAPPINGS.getPreferredName(), mappings);
+            }
             builder.endObject();
             return builder;
         }
@@ -188,12 +234,12 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
             }
 
             Response other = (Response) obj;
-            return Objects.equals(other.docs, docs);
+            return Objects.equals(other.docs, docs) && Objects.equals(other.mappings, mappings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(docs);
+            return Objects.hash(docs, mappings);
         }
 
         public static Response fromXContent(final XContentParser parser) throws IOException {

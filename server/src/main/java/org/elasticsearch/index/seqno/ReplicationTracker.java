@@ -437,6 +437,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         addRetentionLease(getPeerRecoveryRetentionLeaseId(nodeId), globalCheckpoint + 1, PEER_RECOVERY_RETENTION_LEASE_SOURCE, listener);
     }
 
+    public void removePeerRecoveryRetentionLease(String nodeId, ActionListener<ReplicationResponse> listener) {
+        removeRetentionLease(getPeerRecoveryRetentionLeaseId(nodeId), listener);
+    }
+
     /**
      * Source for peer recovery retention leases; see {@link ReplicationTracker#addPeerRecoveryRetentionLease}.
      */
@@ -498,9 +502,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     final RetentionLease retentionLease = retentionLeases.get(getPeerRecoveryRetentionLeaseId(shardRouting));
                     if (retentionLease != null) {
                         final CheckpointState checkpointState = checkpoints.get(shardRouting.allocationId().getId());
-                        renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting),
-                            Math.max(0L, checkpointState.globalCheckpoint + 1L),
-                            PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                        final long newRetainedSequenceNumber = Math.max(0L, checkpointState.globalCheckpoint + 1L);
+                        if (retentionLease.retainingSequenceNumber() <= newRetainedSequenceNumber) {
+                            renewRetentionLease(getPeerRecoveryRetentionLeaseId(shardRouting), newRetainedSequenceNumber,
+                                PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                        } else {
+                            // the retention lease is tied to the node, not the shard copy, so it's possible a copy was removed and now
+                            // we are in the process of recovering it again. The recovery process will fix the lease before initiating
+                            // tracking on this copy:
+                            assert checkpointState.tracked == false
+                                && checkpointState.globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO :
+                                "cannot renew " + retentionLease + " according to " + checkpointState + " for " + shardRouting;
+                        }
                     }
                 }
             }

@@ -116,6 +116,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String aggTypedName = "avg#" + aggName;
         Collection<AggregationBuilder> aggregationBuilders = Collections.singletonList(AggregationBuilders.avg(aggName));
 
+        String aggCountName = "count-" + aggName;
+        Map<String, String> specialAggregations = Collections.singletonMap(aggCountName, "count");
+
         Map<String, Object> input = asMap(
                 "buckets",
                     asList(
@@ -142,22 +145,25 @@ public class AggregationResultUtilsTests extends ESTestCase {
         List<Map<String, Object>> expected = asList(
                 asMap(
                         targetField, "ID1",
-                        aggName, 42.33
+                        aggName, 42.33,
+                        aggCountName, 8L
                         ),
                 asMap(
                         targetField, "ID2",
-                        aggName, 28.99
+                        aggName, 28.99,
+                        aggCountName, 3L
                         ),
                 asMap(
                         targetField, "ID3",
-                        aggName, null
+                        aggName, null,
+                        aggCountName, 0L
                         )
                 );
         Map<String, String> fieldTypeMap = asStringMap(
             targetField, "keyword",
             aggName, "double"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), Collections.emptyMap(), input, fieldTypeMap, expected, 11);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), specialAggregations, input, fieldTypeMap, expected, 11);
     }
 
     public void testExtractCompositeAggregationResultsMultipleGroups() throws IOException {
@@ -178,6 +184,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
         Collection<AggregationBuilder> aggregationBuilders = Collections.singletonList(AggregationBuilders.avg(aggName));
+
+        String aggCountName = "count-" + aggName;
+        Map<String, String> specialAggregations = Collections.singletonMap(aggCountName, "count");
 
         Map<String, Object> input = asMap(
                 "buckets",
@@ -220,22 +229,26 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 asMap(
                         targetField, "ID1",
                         targetField2, "ID1_2",
-                        aggName, 42.33
+                        aggName, 42.33,
+                        aggCountName, 1L
                         ),
                 asMap(
                         targetField, "ID1",
                         targetField2, "ID2_2",
-                        aggName, 8.4
+                        aggName, 8.4,
+                        aggCountName, 2L
                         ),
                 asMap(
                         targetField, "ID2",
                         targetField2, "ID1_2",
-                        aggName, 28.99
+                        aggName, 28.99,
+                        aggCountName, 3L
                         ),
                 asMap(
                         targetField, "ID3",
                         targetField2, "ID2_2",
-                        aggName, null
+                        aggName, null,
+                        aggCountName, 0L
                         )
                 );
         Map<String, String> fieldTypeMap = asStringMap(
@@ -243,7 +256,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             targetField, "keyword",
             targetField2, "keyword"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), Collections.emptyMap(), input, fieldTypeMap, expected, 6);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), specialAggregations, input, fieldTypeMap, expected, 6);
     }
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {

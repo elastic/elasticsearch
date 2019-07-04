@@ -163,11 +163,16 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertAnalyzesTo(analyzer, "dies", new String[]{"die"});
 
             
-            // *CHES - would be good to find a simple rule that solves lunches, churches but doesn't break aches
-            // documenting current behaviour here as a known issue:
-            assertAnalyzesTo(analyzer, "lunches", new String[]{"lunche"});
+            assertAnalyzesTo(analyzer, "lunches", new String[]{"lunch"});
             assertAnalyzesTo(analyzer, "avalanches", new String[]{"avalanche"});
             assertAnalyzesTo(analyzer, "headaches", new String[]{"headache"});
+            assertAnalyzesTo(analyzer, "caches", new String[]{"cache"});
+            assertAnalyzesTo(analyzer, "beaches", new String[]{"beach"});
+            assertAnalyzesTo(analyzer, "britches", new String[]{"britch"});
+            assertAnalyzesTo(analyzer, "cockroaches", new String[]{"cockroach"});
+            assertAnalyzesTo(analyzer, "cliches", new String[]{"cliche"});
+            assertAnalyzesTo(analyzer, "quiches", new String[]{"quiche"});
+            
         }
     }    
 

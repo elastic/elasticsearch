@@ -77,6 +77,19 @@ public final class EnglishPluralStemFilter extends TokenFilter {
                 "canoes".toCharArray(), 
                 "oboes".toCharArray() 
                 }; 
+        // Words ending in ches that retain the e when stemmed 
+        public static final char [][] chesExceptions = { 
+                "cliches".toCharArray(), 
+                "avalanches".toCharArray(), 
+                "mustaches".toCharArray(), 
+                "moustaches".toCharArray(), 
+                "quiches".toCharArray(), 
+                "headaches".toCharArray(), 
+                "heartaches".toCharArray(), 
+                "porsches".toCharArray(), 
+                "tranches".toCharArray(), 
+                "caches".toCharArray() 
+                }; 
         
         @SuppressWarnings("fallthrough")
         public int stem(char s[], int len) {
@@ -105,7 +118,7 @@ public final class EnglishPluralStemFilter extends TokenFilter {
                     }
                     // oes
                     if (len > 3 && s[len -3] == 'o') {
-                        if (isOesException(s, len)) {
+                        if (isException(s, len, oesExceptions)) {
                             // Only remove the S
                             return len -1;
                         }
@@ -118,10 +131,16 @@ public final class EnglishPluralStemFilter extends TokenFilter {
                             return len - 2;
                         }
                         
-                        // tches (TODO consider just ches? Gains: lunches == lunch, losses: moustaches!= moustache
-                        if (len > 5) {
-                            if (s[len -5] == 't' && s[len -4] == 'c' && s[len -3] == 'h' ){
+                        // ches
+                        if (len > 4) {
+                            if (s[len -4] == 'c' && s[len -3] == 'h' ){
+                                if (isException(s, len, chesExceptions)) {
+                                    // Only remove the S
+                                    return len -1;
+                                }
+                                // Remove the es 
                                 return len - 2;
+
                             }                            
                         }                        
                     }
@@ -132,8 +151,8 @@ public final class EnglishPluralStemFilter extends TokenFilter {
             }
         }
 
-        private boolean isOesException(char[] s, int len) {
-            for (char[] oesRule : oesExceptions) {
+        private boolean isException(char[] s, int len, char [][] exceptionsList) {
+            for (char[] oesRule : exceptionsList) {
                 int rulePos = oesRule.length - 1;
                 int sPos = len - 1;
                 boolean matched = true;

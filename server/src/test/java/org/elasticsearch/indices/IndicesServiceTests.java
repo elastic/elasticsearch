@@ -330,8 +330,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
                 fail(e.getMessage());
             }
         });
-        assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
-        assertFalse(shardPath.exists());
+        assertBusy(() -> {
+            assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
+            assertFalse(shardPath.exists());
+        });
     }
 
     public void testVerifyIfIndexContentDeleted() throws Exception {

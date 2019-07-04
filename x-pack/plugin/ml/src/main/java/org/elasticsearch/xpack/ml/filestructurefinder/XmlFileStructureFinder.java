@@ -120,8 +120,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         SortedMap<String, Object> outerMappings = new TreeMap<>();
         outerMappings.put(topLevelTag, secondLevelProperties);
         if (timeField != null) {
-            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
         }
 
         FileStructure structure = structureBuilder

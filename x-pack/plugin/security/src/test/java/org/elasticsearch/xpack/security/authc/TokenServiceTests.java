@@ -23,6 +23,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -53,14 +54,18 @@ import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationRes
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.junit.After;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.crypto.SecretKey;
+
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Instant;
@@ -69,8 +74,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.crypto.SecretKey;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
@@ -530,9 +533,8 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            // move to expiry
-            clock.fastForwardSeconds(Math.toIntExact(defaultExpiration.getSeconds()) - fastForwardAmount);
-            clock.rewind(TimeValue.timeValueNanos(clock.instant().getNano())); // trim off nanoseconds since don't store them in the index
+            // move to expiry, stripping nanoseconds, as we don't store them in the security-tokens index
+            clock.setTime(userToken.getExpirationTime().truncatedTo(ChronoUnit.MILLIS).atZone(clock.getZone()));
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertAuthentication(authentication, future.get().getAuthentication());
@@ -722,6 +724,11 @@ public class TokenServiceTests extends ESTestCase {
         assertThat(authToken, Matchers.nullValue());
     }
 
+    public void testHashedTokenIsUrlSafe() {
+        final String hashedId = TokenService.hashTokenString(UUIDs.randomBase64UUID());
+        assertEquals(hashedId, URLEncoder.encode(hashedId, StandardCharsets.UTF_8));
+    }
+
     private TokenService createTokenService(Settings settings, Clock clock) throws GeneralSecurityException {
         return new TokenService(settings, clock, client, licenseState, securityMainIndex, securityTokensIndex, clusterService);
     }
@@ -807,7 +814,7 @@ public class TokenServiceTests extends ESTestCase {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
         final DiscoveryNode anotherDataNode = new DiscoveryNode("another_data_node#" + version, buildNewFakeTransportAddress(),
-                Collections.emptyMap(), Collections.singleton(DiscoveryNode.Role.DATA), version);
+                Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.DATA_ROLE), version);
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);

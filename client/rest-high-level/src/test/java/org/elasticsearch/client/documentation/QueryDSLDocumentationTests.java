@@ -42,7 +42,6 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -104,13 +103,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                     termQuery("name","dadoonet"))                    // <2>
                 .negativeBoost(0.2f);                                // <3>
         // end::boosting
-    }
-
-    public void testCommonTerms() {
-        // tag::common_terms
-        commonTermsQuery("name",                                     // <1>
-                         "kimchy");                                  // <2>
-        // end::common_terms
     }
 
     public void testConstantScore() {

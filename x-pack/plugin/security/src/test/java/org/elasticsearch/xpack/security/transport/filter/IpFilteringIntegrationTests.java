@@ -24,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.is;
 
-// no client nodes, no transport clients, as they all get rejected on network connections
+// no client nodes as they all get rejected on network connections
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     private static int randomClientPort;
@@ -70,7 +70,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     @SuppressForbidden(reason = "Allow opening socket for test")
     private void trySocketConnection(Socket socket, InetSocketAddress address) throws IOException {
         logger.info("connecting to {}", address);
-        SocketAccess.doPrivileged(() -> socket.connect(address, 500));
+        SocketAccess.doPrivileged(() -> socket.connect(address, 5000));
 
         assertThat(socket.isConnected(), is(true));
         try (OutputStream os = socket.getOutputStream()) {

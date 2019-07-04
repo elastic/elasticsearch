@@ -20,6 +20,8 @@
 package org.elasticsearch.action.termvectors;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -43,6 +45,12 @@ public class TransportShardMultiTermsVectorAction extends
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
+    public static final ActionType<MultiTermVectorsShardResponse> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public MultiTermVectorsShardResponse newResponse() {
+            return new MultiTermVectorsShardResponse();
+        }
+    };
 
     @Inject
     public TransportShardMultiTermsVectorAction(ClusterService clusterService, TransportService transportService,
@@ -88,10 +96,10 @@ public class TransportShardMultiTermsVectorAction extends
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]",
-                        shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]", shardId,
+                            termVectorsRequest.id()), e);
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.id(), e));
                 }
             }
         }

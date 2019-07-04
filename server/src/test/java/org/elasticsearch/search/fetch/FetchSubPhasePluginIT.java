@@ -129,7 +129,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitContext.hit().getFields().put(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
-                    hitContext.hit().getType(), hitContext.hit().getId());
+                    hitContext.hit().getId());
             TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
             try {
                 Map<String, Integer> tv = new HashMap<>();

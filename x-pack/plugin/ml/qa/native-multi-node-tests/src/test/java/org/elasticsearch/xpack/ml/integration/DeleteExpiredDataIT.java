@@ -91,7 +91,6 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/468")
     public void testDeleteExpiredData() throws Exception {
         // Index some unused state documents (more than 10K to test scrolling works)
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -14,15 +13,16 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     private static final String TEST_USER_NAME = "df_user";
@@ -63,9 +63,13 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
+        createContinuousPivotReviewsTransform("pivot_continuous", "pivot_reviews_continuous", null);
 
         startAndWaitForTransform("pivot_1", "pivot_reviews_1");
         startAndWaitForTransform("pivot_2", "pivot_reviews_2");
+        startAndWaitForContinuousTransform("pivot_continuous", "pivot_reviews_continuous", null);
+        stopDataFrameTransform("pivot_1", false);
+        stopDataFrameTransform("pivot_2", false);
 
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
@@ -73,19 +77,19 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // check all the different ways to retrieve all stats
         Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_all/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "*/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1,pivot_2/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_*/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        assertEquals(3, XContentMapValues.extractValue("count", stats));
 
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         // Verify that both transforms have valid stats
@@ -108,26 +112,39 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
         Map<String, Object> state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
-        assertEquals(1, transformsStats.size());
-        assertEquals("started", XContentMapValues.extractValue("task_state", state));
+        assertEquals("stopped", XContentMapValues.extractValue("task_state", state));
         assertEquals(null, XContentMapValues.extractValue("current_position", state));
         assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
+
+        // only continuous
+        getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_continuous/_stats", authHeader);
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+
+        transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        assertEquals(1, transformsStats.size());
+        state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
+        assertEquals("started", XContentMapValues.extractValue("task_state", state));
+        assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
+
 
         // check all the different ways to retrieve all transforms
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT, authHeader);
         Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", transforms));
+        assertEquals(3, XContentMapValues.extractValue("count", transforms));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_all", authHeader);
         transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", transforms));
+        assertEquals(3, XContentMapValues.extractValue("count", transforms));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "*", authHeader);
         transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", transforms));
+        assertEquals(3, XContentMapValues.extractValue("count", transforms));
 
         // only pivot_1
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1", authHeader);
         transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
+
+        stopDataFrameTransform("pivot_continuous", false);
     }
 
     @SuppressWarnings("unchecked")
@@ -162,7 +179,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetProgressStatsWithPivotQuery() throws Exception {
-        String transformId = "simpleStatsPivotWithQuery";
+        String transformId = "simple_stats_pivot_with_query";
         String dataFrameIndex = "pivot_stats_reviews_user_id_above_20";
         String query = "\"match\": {\"user_id\": \"user_26\"}";
         createPivotReviewsTransform(transformId, dataFrameIndex, query);
@@ -171,7 +188,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
 
-        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "simpleStatsPivotWithQuery/_stats", authHeader);
+        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + transformId + "/_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
@@ -186,5 +203,87 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
             assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetProgressResetWithContinuous() throws Exception {
+        String transformId = "pivot_progress_continuous";
+        String transformDest = transformId + "_idx";
+        String transformSrc = "reviews_cont_pivot_test";
+        createReviewsIndex(transformSrc);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, null);
+        String config = "{ \"dest\": {\"index\":\"" + transformDest + "\"},"
+            + " \"source\": {\"index\":\"" + transformSrc + "\"},"
+            + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"1s\"}},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        startAndWaitForContinuousTransform(transformId, transformDest, null);
+
+        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + transformId + "/_stats", null);
+        Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        assertEquals(1, transformsStats.size());
+        // Verify that the transform's progress
+        for (Map<String, Object> transformStats : transformsStats) {
+            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
+            assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(1000));
+            assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
+            assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+        }
+
+        // add more docs to verify total_docs gets updated with continuous
+        int numDocs = 10;
+        final StringBuilder bulk = new StringBuilder();
+        long now = Instant.now().toEpochMilli() - 1_000;
+        for (int i = 0; i < numDocs; i++) {
+            bulk.append("{\"index\":{\"_index\":\"" + transformSrc + "\"}}\n")
+                .append("{\"user_id\":\"")
+                .append("user_")
+                // Doing only new users so that there is a deterministic number of docs for progress
+                .append(randomFrom(42, 47, 113))
+                .append("\",\"business_id\":\"")
+                .append("business_")
+                .append(10)
+                .append("\",\"stars\":")
+                .append(5)
+                .append(",\"timestamp\":")
+                .append(now)
+                .append("}\n");
+        }
+        bulk.append("\r\n");
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        client().performRequest(bulkRequest);
+
+        waitForDataFrameCheckpoint(transformId, 2L);
+
+        assertBusy(() -> {
+            Map<String, Object> statsResponse = entityAsMap(client().performRequest(getRequest));
+            List<Map<String, Object>> contStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", statsResponse);
+            assertEquals(1, contStats.size());
+            // add more docs to verify total_docs is the number of new docs added to the index
+            for (Map<String, Object> transformStats : contStats) {
+                Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
+                assertThat("total_docs is not 10", progress.get("total_docs"), equalTo(numDocs));
+                assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
+                assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+            }
+        }, 60, TimeUnit.SECONDS);
     }
 }

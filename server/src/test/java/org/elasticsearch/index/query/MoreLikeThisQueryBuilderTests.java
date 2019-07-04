@@ -96,18 +96,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     private Item generateRandomItem() {
         String index = randomBoolean() ? getIndex().getName() : null;
         // indexed item or artificial document
-        Item item;
-
-        if (randomBoolean()) {
-            item = randomBoolean()
-                ? new Item(index, randomAlphaOfLength(10))
-                : new Item(index, randomArtificialDoc());
-        } else {
-            String type = "doc";
-            item = randomBoolean()
-                ? new Item(index, type, randomAlphaOfLength(10))
-                : new Item(index, type, randomArtificialDoc());
-        }
+        Item item = randomBoolean() ? new Item(index, randomAlphaOfLength(10)) : new Item(index, randomArtificialDoc());
 
         // if no field is specified MLT uses all mapped fields for this item
         if (randomBoolean()) {
@@ -235,7 +224,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             MultiTermVectorsItemResponse[] responses = new MultiTermVectorsItemResponse[mtvRequest.size()];
             int i = 0;
             for (TermVectorsRequest request : mtvRequest) {
-                TermVectorsResponse response = new TermVectorsResponse(request.index(), request.type(), request.id());
+                TermVectorsResponse response = new TermVectorsResponse(request.index(), request.id());
                 response.setExists(true);
                 Fields generatedFields;
                 if (request.doc() != null) {
@@ -374,9 +363,34 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertEquals(expectedItem, newItem);
     }
 
+    /**
+     * Check that this query is generally not cacheable, except when we fetch 0 items
+     */
     @Override
-    protected boolean isCacheable(MoreLikeThisQueryBuilder queryBuilder) {
-        return queryBuilder.likeItems().length == 0; // items are always fetched
+    public void testCacheability() throws IOException {
+        MoreLikeThisQueryBuilder queryBuilder = createTestQueryBuilder();
+        boolean isCacheable = queryBuilder.likeItems().length == 0; // items are always fetched
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
+                context.isCacheable());
+
+        // specifically trigger case where query is cacheable
+        queryBuilder = new MoreLikeThisQueryBuilder(randomStringFields(), new String[] {"some text"}, null);
+        context = createShardContext();
+        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        // specifically trigger case where query is not cacheable
+        queryBuilder = new MoreLikeThisQueryBuilder(randomStringFields(), null, new Item[] { new Item("foo", "1") });
+        context = createShardContext();
+        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     public void testFromJson() throws IOException {
@@ -386,11 +400,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 "    \"fields\" : [ \"title\", \"description\" ],\n" +
                 "    \"like\" : [ \"and potentially some more text here as well\", {\n" +
                 "      \"_index\" : \"imdb\",\n" +
-                "      \"_type\" : \"movies\",\n" +
                 "      \"_id\" : \"1\"\n" +
                 "    }, {\n" +
                 "      \"_index\" : \"imdb\",\n" +
-                "      \"_type\" : \"movies\",\n" +
                 "      \"_id\" : \"2\"\n" +
                 "    } ],\n" +
                 "    \"max_query_terms\" : 12,\n" +
@@ -418,11 +430,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(MoreLikeThisQueryBuilder.class));
-
-        MoreLikeThisQueryBuilder mltQuery = (MoreLikeThisQueryBuilder) query;
-        if (mltQuery.isTypeless() == false) {
-            assertWarnings(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-        }
         return query;
     }
 

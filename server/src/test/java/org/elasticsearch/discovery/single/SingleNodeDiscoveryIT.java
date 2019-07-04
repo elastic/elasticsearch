@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.not;
         numDataNodes = 1,
         numClientNodes = 0,
         supportsDedicatedMasters = false,
-        autoMinMasterNodes = false)
+        autoManageMasterNodes = false)
 public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
     @Override
@@ -189,7 +189,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     public void testStatePersistence() throws Exception {
         createIndex("test");
         internalCluster().fullRestart();
-        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
+        assertTrue(indexExists("test"));
     }
-
 }

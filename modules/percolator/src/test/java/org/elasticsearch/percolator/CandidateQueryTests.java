@@ -46,7 +46,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -84,8 +83,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -529,12 +528,6 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
     public void testDuelSpecificQueries() throws Exception {
         List<ParseContext.Document> documents = new ArrayList<>();
-
-        CommonTermsQuery commonTermsQuery = new CommonTermsQuery(Occur.SHOULD, Occur.SHOULD, 128);
-        commonTermsQuery.add(new Term("field", "quick"));
-        commonTermsQuery.add(new Term("field", "brown"));
-        commonTermsQuery.add(new Term("field", "fox"));
-        addQuery(commonTermsQuery, documents);
 
         BlendedTermQuery blendedTermQuery = BlendedTermQuery.dismaxBlendedQuery(new Term[]{new Term("field", "quick"),
                 new Term("field", "brown"), new Term("field", "fox")}, 1.0f);

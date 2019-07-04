@@ -123,7 +123,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(geoIntersectionQuery("location", shape))
                 .get();
 
@@ -132,7 +132,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
-        searchResponse = client().prepareSearch("test").setTypes("type1")
+        searchResponse = client().prepareSearch("test")
                 .setQuery(geoShapeQuery("location", shape))
                 .get();
 
@@ -168,7 +168,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(geoIntersectionQuery("location", query))
                 .get();
 
@@ -626,7 +626,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         }
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
+        SearchResponse response = client().prepareSearch("geo_points_only")
                 .setQuery(geoIntersectionQuery("location", shape))
                 .get();
 
@@ -660,7 +660,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(IMMEDIATE).get();
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
+        SearchResponse response = client().prepareSearch("geo_points_only")
             .setQuery(matchAllQuery())
             .get();
 

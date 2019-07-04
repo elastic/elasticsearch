@@ -20,6 +20,8 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -44,7 +46,11 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJson)) {
             parser.nextToken();
-            assertEquals(new Point(0, 100), GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+            GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
+            assertEquals(new Point(0, 100), format.fromXContent(parser));
+            XContentBuilder newGeoJson = XContentFactory.jsonBuilder();
+            format.toXContent(new Point(10, 100), newGeoJson, ToXContent.EMPTY_PARAMS);
+            assertEquals("{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}", Strings.toString(newGeoJson));
         }
 
         XContentBuilder pointGeoJsonWithZ = XContentFactory.jsonBuilder()
@@ -55,13 +61,13 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJsonWithZ)) {
             parser.nextToken();
-            assertEquals(new Point(0, 100, 10.0), GeometryParser.parse(parser, true, randomBoolean(), true));
+            assertEquals(new Point(0, 100, 10.0), new GeometryParser(true, randomBoolean(), true).parse(parser));
         }
 
 
         try (XContentParser parser = createParser(pointGeoJsonWithZ)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> GeometryParser.parse(parser, true, randomBoolean(), false));
+            expectThrows(IllegalArgumentException.class, () -> new GeometryParser(true, randomBoolean(), false).parse(parser));
         }
 
         XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()
@@ -77,17 +83,17 @@ public class GeometryParserTests extends ESTestCase {
                     .endArray()
                 .endObject();
 
-        Polygon p = new Polygon(new LinearRing(new double[] {1d, 1d, 0d, 0d, 1d}, new double[] {100d, 101d, 101d, 100d, 100d}));
+        Polygon p = new Polygon(new LinearRing(new double[]{1d, 1d, 0d, 0d, 1d}, new double[]{100d, 101d, 101d, 100d, 100d}));
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             // Coerce should automatically close the polygon
-            assertEquals(p, GeometryParser.parse(parser, true, true, randomBoolean()));
+            assertEquals(p, new GeometryParser(true, true, randomBoolean()).parse(parser));
         }
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             // No coerce - the polygon parsing should fail
-            expectThrows(XContentParseException.class, () -> GeometryParser.parse(parser, true, false, randomBoolean()));
+            expectThrows(XContentParseException.class, () -> new GeometryParser(true, false, randomBoolean()).parse(parser));
         }
     }
 
@@ -101,7 +107,12 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            assertEquals(new Point(0, 100), GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+            GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
+            assertEquals(new Point(0, 100), format.fromXContent(parser));
+            XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
+            format.toXContent(new Point(10, 100), newGeoJson, ToXContent.EMPTY_PARAMS);
+            newGeoJson.endObject();
+            assertEquals("{\"val\":\"point (100.0 10.0)\"}", Strings.toString(newGeoJson));
         }
     }
 
@@ -115,7 +126,20 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            assertNull(GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+            GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
+            assertNull(format.fromXContent(parser));
+
+            XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
+            // if we serialize non-null value - it should be serialized as geojson
+            format.toXContent(new Point(10, 100), newGeoJson, ToXContent.EMPTY_PARAMS);
+            newGeoJson.endObject();
+            assertEquals("{\"val\":{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}}", Strings.toString(newGeoJson));
+
+            newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
+            format.toXContent(null, newGeoJson, ToXContent.EMPTY_PARAMS);
+            newGeoJson.endObject();
+            assertEquals("{\"val\":null}", Strings.toString(newGeoJson));
+
         }
     }
 
@@ -130,7 +154,7 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
             ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
-                () -> GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+                () -> new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
             assertEquals("shape must be an object consisting of type and coordinates", ex.getMessage());
         }
     }

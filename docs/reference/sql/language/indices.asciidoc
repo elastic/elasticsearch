@@ -1,20 +1,20 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-index-patterns]]
-== Index patterns
+=== Index patterns
 
 {es-sql} supports two types of patterns for matching multiple indices or tables:
 
 [[sql-index-patterns-multi]]
 [float]
-=== {es} multi-index
+==== {es} multi-index
 
 The {es} notation for enumerating, including or excluding <<multi-index,multi index syntax>>
 is supported _as long_ as it is quoted or escaped as a table identifier.
 
 For example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesEsMultiIndex]
 ----
@@ -28,7 +28,7 @@ The same kind of patterns can also be used to query multiple indices or tables.
 
 For example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 ----
@@ -37,14 +37,14 @@ NOTE: There is the restriction that all resolved concrete tables have the exact 
 
 [[sql-index-patterns-like]]
 [float]
-=== SQL `LIKE` notation
+==== SQL `LIKE` notation
 
 The common `LIKE` statement (including escaping if needed) to match a wildcard pattern, based on one `_`
 or multiple `%` characters.
 
 Using `SHOW TABLES` command again:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeWildcard]
 ----
@@ -53,7 +53,7 @@ The pattern matches all tables that start with `emp`.
 
 This command supports _escaping_ as well, for example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeEscape]
 ----
@@ -86,7 +86,7 @@ NOTE: As the query type of quoting between the two patterns is fairly similar (`
 requires the keyword `LIKE` for SQL `LIKE` pattern.
 
 [[sql-index-frozen]]
-== Frozen Indices
+=== Frozen Indices
 
 {es} <<frozen-indices, frozen indices>> are a useful and powerful tool for hot/warm architecture introduced in {es} 6.6, 
 essentially by trading speed for memory.
@@ -101,13 +101,13 @@ Set to `true` properties `index_include_frozen` in the <<sql-rest>> or `index.in
 dedicated keyword::
 Explicitly perform the inclusion through the dedicated `FROZEN` keyword in the `FROM` clause or `INCLUDE FROZEN` in the `SHOW` commands:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesIncludeFrozen]
 ----
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableIncludeFrozen]
 ----

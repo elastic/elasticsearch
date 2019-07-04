@@ -23,13 +23,14 @@ dependencyLicenses {
 }
 
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compileOnly project(":server")
     compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
     compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
     compile "commons-logging:commons-logging:${versions.commonslogging}"
+    compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
     compile "commons-codec:commons-codec:${versions.commonscodec}"
 
     // security deps
@@ -48,7 +49,7 @@ dependencies {
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
     testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
-    testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
+    testCompile project(":client:rest-high-level")
 
     if (isEclipse == false || project.path == ":x-pack:plugin:core-tests") {
       testCompile(project(':x-pack:license-tools')) {
@@ -102,7 +103,7 @@ forbiddenApisMain {
 if (isEclipse) {
     // in eclipse the project is under a fake root, we need to change around the source sets
     sourceSets {
-        if (project.path == ":libs:core") {
+        if (project.path == ":libs:elasticsearch-core") {
             main.java.srcDirs = ['java']
             main.resources.srcDirs = ['resources']
         } else {
@@ -145,7 +146,7 @@ task testJar(type: Jar) {
 }
 
 artifacts {
-    // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
+    // normal es plugins do not publish the jar but we need to since users need it for extensions
     archives jar
     testArtifacts testJar
 }

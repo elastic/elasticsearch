@@ -15,6 +15,7 @@ coming[8.0.0]
 * <<breaking_80_discovery_changes>>
 * <<breaking_80_mappings_changes>>
 * <<breaking_80_packaging_changes>>
+* <<breaking_80_rollup_changes>>
 * <<breaking_80_snapshots_changes>>
 * <<breaking_80_security_changes>>
 * <<breaking_80_ilm_changes>>
@@ -24,6 +25,7 @@ coming[8.0.0]
 * <<breaking_80_transport_changes>>
 * <<breaking_80_http_changes>>
 * <<breaking_80_reindex_changes>>
+* <<breaking_80_search_changes>>
 * <<breaking_80_settings_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
@@ -51,6 +53,7 @@ include::migrate_8_0/analysis.asciidoc[]
 include::migrate_8_0/discovery.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
 include::migrate_8_0/packaging.asciidoc[]
+include::migrate_8_0/rollup.asciidoc[]
 include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/security.asciidoc[]
 include::migrate_8_0/ilm.asciidoc[]
@@ -60,4 +63,5 @@ include::migrate_8_0/node.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
 include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/reindex.asciidoc[]
+include::migrate_8_0/search.asciidoc[]
 include::migrate_8_0/settings.asciidoc[]

@@ -18,15 +18,15 @@ dependencies {
     compile (xpackProject('plugin:sql:sql-proto')) {
         transitive = false
     }
-    compile (project(':libs:x-content')) {
+    compile (project(':libs:elasticsearch-x-content')) {
         transitive = false
     }
     compile (project(':libs:elasticsearch-geo')) {
         transitive = false
     }
-    compile project(':libs:core')
+    compile project(':libs:elasticsearch-core')
     runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(":test:framework")
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     if (isEclipse) {
       testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')

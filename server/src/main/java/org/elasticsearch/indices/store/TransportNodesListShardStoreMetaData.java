@@ -50,6 +50,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -91,8 +92,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -107,7 +108,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request, Task task) {
         try {
             return new NodeStoreFilesMetaData(clusterService.localNode(), listStoreMetaData(request.shardId));
         } catch (IOException e) {
@@ -290,8 +291,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
-            super(nodeId);
+        NodeRequest(TransportNodesListShardStoreMetaData.Request request) {
             this.shardId = request.shardId;
         }
 

@@ -10,13 +10,15 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoServiceTests;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
@@ -80,8 +82,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     public void testEmail() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-        watcherClient.preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 * ? 2020")))
                         .input(simpleInput())
@@ -113,7 +114,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         }
 
         // verifying the password is not returned by the GET watch API
-        GetWatchResponse watchResponse = watcherClient.prepareGetWatch("_id").get();
+        GetWatchResponse watchResponse = new GetWatchRequestBuilder(client(), "_id").get();
         assertThat(watchResponse, notNullValue());
         assertThat(watchResponse.getId(), is("_id"));
         XContentSource contentSource = watchResponse.getSource();
@@ -136,7 +137,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         });
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
-        ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
+        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client(), "_id")
                 .setRecordExecution(false)
                 .setTriggerEvent(triggerEvent)
                 .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)

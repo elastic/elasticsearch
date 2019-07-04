@@ -33,17 +33,17 @@ If the condition’s result is true, the value of the result expression that fol
 the subsequent when clauses will be skipped and not processed.
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[case]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[caseReturnNull]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[caseWithElse]
 ----
@@ -70,12 +70,12 @@ CASE WHEN expression = value1 THEN result1
 END
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[caseWithOperand]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[caseWithOperandAndElse]
 ----
@@ -155,12 +155,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[coalesceReturnNonNull]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[coalesceReturnNull]
 ----
@@ -199,12 +199,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[greatestReturnNonNull]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[greatestReturnNull]
 ----
@@ -237,12 +237,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnSecond]
 ----
@@ -277,12 +277,12 @@ logic of programming languages. If the 3rd expression is not provided and the co
 `null` is returned.
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[iifWithDefaultValue]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[iifWithoutDefaultValue]
 ----
@@ -325,12 +325,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[isNullReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[isNullReturnSecond]
 ----
@@ -370,12 +370,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[leastReturnNonNull]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[leastReturnNull]
 ----
@@ -407,12 +407,12 @@ Returns `null` when the two input expressions are equal and
 if not, it returns the 1st expression.
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[nullIfReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[nullIfReturnNull]
 ----
@@ -446,12 +446,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[nvlReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[nvlReturnSecond]
 ----

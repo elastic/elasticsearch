@@ -64,11 +64,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public String[] types() {
-                    return new String[0];
-                }
-
-                @Override
                 public SearchSourceBuilder source() {
                     return searchSourceBuilder;
                 }

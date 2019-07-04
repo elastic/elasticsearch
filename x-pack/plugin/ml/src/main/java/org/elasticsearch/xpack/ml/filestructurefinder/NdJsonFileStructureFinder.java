@@ -70,8 +70,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
 
         SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
         if (timeField != null) {
-            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
         }
 
         if (mappingsAndFieldStats.v2() != null) {

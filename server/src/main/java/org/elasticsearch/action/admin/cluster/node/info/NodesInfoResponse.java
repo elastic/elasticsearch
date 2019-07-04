@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,8 +74,8 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
 
             builder.startArray("roles");
-            for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
-                builder.value(role.getRoleName());
+            for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {
+                builder.value(role.roleName());
             }
             builder.endArray();
 

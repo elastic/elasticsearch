@@ -19,8 +19,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
@@ -75,10 +73,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 MockIngestPlugin.class, CommonAnalysisPlugin.class);
     }
 
-    protected MonitoringClient monitoringClient() {
-        return randomBoolean() ? new XPackClient(client()).monitoring() : new MonitoringClient(client());
-    }
-
     @Override
     protected Set<String> excludeTemplates() {
         return new HashSet<>(monitoringTemplateNames());
@@ -108,9 +102,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         CountDown retries = new CountDown(3);
         assertBusy(() -> {
             try {
-                boolean exist = client().admin().indices().prepareExists(ALL_MONITORING_INDICES)
-                        .get().isExists();
-                if (exist) {
+                if (indexExists(ALL_MONITORING_INDICES)) {
                     deleteMonitoringIndices();
                 } else {
                     retries.countDown();
@@ -192,7 +184,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     private void assertIndicesExists(String... indices) {
         logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
-        assertThat(client().admin().indices().prepareExists(indices).get().isExists(), is(true));
+        for (String index : indices) {
+            assertThat(indexExists(index), is(true));
+        }
     }
 
     protected void enableMonitoringCollection() {
@@ -204,5 +198,4 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                     Settings.builder().putNull(MonitoringService.ENABLED.getKey())));
     }
-
 }

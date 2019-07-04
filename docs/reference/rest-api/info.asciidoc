@@ -71,6 +71,10 @@ Example response:
           "available" : true,
           "enabled" : true
       },
+      "flattened" : {
+         "available" : true,
+         "enabled" : true
+      },
       "graph" : {
          "available" : true,
          "enabled" : true
@@ -85,11 +89,7 @@ Example response:
       },
       "ml" : {
          "available" : true,
-         "enabled" : true,
-         "native_code_info" : {
-           "version" : "7.0.0-alpha1-SNAPSHOT",
-           "build_hash" : "99a07c016d5a73"
-        }
+         "enabled" : true
       },
       "monitoring" : {
          "available" : true,
@@ -104,6 +104,14 @@ Example response:
          "enabled" : false
       },
       "sql" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "vectors" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "voting_only" : {
          "available" : true,
          "enabled" : true
       },

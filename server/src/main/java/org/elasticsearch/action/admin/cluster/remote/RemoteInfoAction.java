@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.remote;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public final class RemoteInfoAction extends Action<RemoteInfoResponse> {
+public final class RemoteInfoAction extends StreamableResponseActionType<RemoteInfoResponse> {
 
     public static final String NAME = "cluster:monitor/remote/info";
     public static final RemoteInfoAction INSTANCE = new RemoteInfoAction();

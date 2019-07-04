@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 
+import static org.elasticsearch.xpack.core.dataframe.DataFrameField.ALLOW_NO_MATCH;
+
 public class RestGetDataFrameTransformsAction extends BaseRestHandler {
 
     public RestGetDataFrameTransformsAction(Settings settings, RestController controller) {
@@ -30,6 +32,7 @@ public class RestGetDataFrameTransformsAction extends BaseRestHandler {
 
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
         request.setResourceId(id);
+        request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),

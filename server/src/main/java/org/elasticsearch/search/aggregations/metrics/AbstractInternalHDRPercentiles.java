@@ -150,7 +150,11 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         AbstractInternalHDRPercentiles that = (AbstractInternalHDRPercentiles) obj;
         return keyed == that.keyed
                 && Arrays.equals(keys, that.keys)
@@ -158,10 +162,14 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     }
 
     @Override
-    protected int doHashCode() {
+    public int hashCode() {
         // we cannot use state.hashCode at the moment because of:
         // https://github.com/HdrHistogram/HdrHistogram/issues/81
         // TODO: upgrade the HDRHistogram library
-        return Objects.hash(keyed, Arrays.hashCode(keys), state.getIntegerToDoubleValueConversionRatio(), state.getTotalCount());
+        return Objects.hash(super.hashCode(),
+            keyed,
+            Arrays.hashCode(keys),
+            state.getIntegerToDoubleValueConversionRatio(),
+            state.getTotalCount());
     }
 }

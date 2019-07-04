@@ -32,10 +32,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Open index action
@@ -64,7 +67,12 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
 
     @Override
     protected OpenIndexResponse newResponse() {
-        return new OpenIndexResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected OpenIndexResponse read(StreamInput in) throws IOException {
+        return new OpenIndexResponse(in);
     }
 
     @Override
@@ -80,7 +88,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     }
 
     @Override
-    protected void masterOperation(final OpenIndexRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final OpenIndexRequest request, final ClusterState state,
                                    final ActionListener<OpenIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {

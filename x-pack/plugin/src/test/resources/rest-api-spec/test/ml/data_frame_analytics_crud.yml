@@ -802,14 +802,14 @@ setup:
   - do:
       ml.get_data_frame_analytics_stats:
         from: 2
-  - match: { count: 1 }
+  - match: { count: 3 }
   - match: { data_frame_analytics.0.id: "foo-2" }
   - match: { data_frame_analytics.0.state: "stopped" }
 
   - do:
       ml.get_data_frame_analytics_stats:
         size: 2
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { data_frame_analytics.0.id: "bar" }
   - match: { data_frame_analytics.0.state: "stopped" }
   - match: { data_frame_analytics.1.id: "foo-1" }
@@ -819,7 +819,7 @@ setup:
       ml.get_data_frame_analytics_stats:
         from: 1
         size: 1
-  - match: { count: 1 }
+  - match: { count: 3 }
   - match: { data_frame_analytics.0.id: "foo-1" }
   - match: { data_frame_analytics.0.state: "stopped" }
 

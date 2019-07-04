@@ -30,15 +30,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends MultiValuesSourceAggregatorFactory<VS, AF>>
-        extends AggregatorFactory<AF> {
+public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource>
+        extends AggregatorFactory {
 
     protected final Map<String, ValuesSourceConfig<VS>> configs;
     protected final DocValueFormat format;
 
     public MultiValuesSourceAggregatorFactory(String name, Map<String, ValuesSourceConfig<VS>> configs,
                                               DocValueFormat format, SearchContext context,
-                                              AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                              AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
         this.configs = configs;

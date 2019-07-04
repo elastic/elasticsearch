@@ -95,6 +95,10 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(PREFIX, "use_throttle_retries",
         key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope));
 
+    /** Whether the s3 client should use path style access. */
+    static final Setting.AffixSetting<Boolean> USE_PATH_STYLE_ACCESS = Setting.affixKeySetting(PREFIX, "path_style_access",
+        key -> Setting.boolSetting(key, false, Property.NodeScope));
+
     /** Credentials to authenticate with s3. */
     final S3BasicCredentials credentials;
 
@@ -127,9 +131,13 @@ final class S3ClientSettings {
     /** Whether the s3 client should use an exponential backoff retry policy. */
     final boolean throttleRetries;
 
+    /** Whether the s3 client should use path style access. */
+    final boolean pathStyleAccess;
+
     private S3ClientSettings(S3BasicCredentials credentials, String endpoint, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
-                             int readTimeoutMillis, int maxRetries, boolean throttleRetries) {
+                             int readTimeoutMillis, int maxRetries, boolean throttleRetries,
+                             boolean pathStyleAccess) {
         this.credentials = credentials;
         this.endpoint = endpoint;
         this.protocol = protocol;
@@ -140,6 +148,7 @@ final class S3ClientSettings {
         this.readTimeoutMillis = readTimeoutMillis;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
+        this.pathStyleAccess = pathStyleAccess;
     }
 
     /**
@@ -162,6 +171,7 @@ final class S3ClientSettings {
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis());
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
+        final boolean usePathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
         final S3BasicCredentials newCredentials;
         if (checkDeprecatedCredentials(repoSettings)) {
             newCredentials = loadDeprecatedCredentials(repoSettings);
@@ -183,7 +193,8 @@ final class S3ClientSettings {
             proxyPassword,
             newReadTimeoutMillis,
             newMaxRetries,
-            newThrottleRetries
+            newThrottleRetries,
+            usePathStyleAccess
         );
     }
 
@@ -270,7 +281,8 @@ final class S3ClientSettings {
                 proxyPassword.toString(),
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING)
+                getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
+                getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS)
             );
         }
     }

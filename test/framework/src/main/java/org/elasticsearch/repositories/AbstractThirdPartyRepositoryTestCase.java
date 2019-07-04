@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -249,8 +250,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     protected void assertCleanupResponse(CleanupRepositoryResponse response, long bytes, long blobs) {
-        assertThat(response.result().blobs(), equalTo(1L));
-        assertThat(response.result().bytes(), equalTo(3L));
+        assertThat(response.result().blobs(), equalTo(1L + 2L));
+        assertThat(response.result().bytes(), equalTo(3L + 2 * 3L));
     }
 
     private void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {
@@ -261,6 +262,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 final BlobStore blobStore = repo.blobStore();
                 blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
                     .writeBlob("bar", new ByteArrayInputStream(new byte[3]), 3, false);
+                for (String prefix : Arrays.asList("snap-", "meta-")) {
+                    blobStore.blobContainer(repo.basePath())
+                        .writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
+                }
                 future.onResponse(null);
             }
         });
@@ -277,6 +282,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 future.onResponse(
                     blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
                         && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists("bar")
+                        && blobStore.blobContainer(repo.basePath()).blobExists("meta-foo.dat")
+                        && blobStore.blobContainer(repo.basePath()).blobExists("snap-foo.dat")
                 );
             }
         });

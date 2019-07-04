@@ -36,11 +36,6 @@ PUT /<follower_index>/_ccr/follow?wait_for_active_shards=1
 // TEST[s/<remote_cluster>/remote_cluster/]
 // TEST[s/<leader_index>/leader_index/]
 
-The `wait_for_active_shards` parameter specifies the number of shards to wait on being active
-before responding. This defaults to waiting on none of the shards to be active. A shard must
-be restored from the leader index being active. Restoring a follower shard requires transferring
-all the remote Lucene segment files to the follower index.
-
 [[ccr-put-follow-prereqs]]
 ==== {api-prereq-title}
 
@@ -63,6 +58,17 @@ referenced leader index. When this API returns, the follower index exists, and
 
 `<follower_index>` (Required)::
   (string) The name of the follower index.
+
+[[ccr-put-follow-query-params]]
+==== {api-query-parms-title}
+
+`wait_for_active_shards` (Optional)::
+  (integer) Specifies the number of shards to wait on being active before
+  responding. This defaults to waiting on none of the shards to be active. A
+  shard must be restored from the leader index being active. Restoring a
+  follower shard requires transferring all the remote Lucene segment files to
+  the follower index.
+
 
 [[ccr-put-follow-request-body]]
 ==== {api-request-body-title}

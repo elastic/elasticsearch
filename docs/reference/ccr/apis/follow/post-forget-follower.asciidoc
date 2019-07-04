@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-post-forget-follower]]
-=== Forget Follower API
+=== Forget follower API
 ++++
-<titleabbrev>Forget Follower</titleabbrev>
+<titleabbrev>Forget follower</titleabbrev>
 ++++
 
 Removes the follower retention leases from the leader.

@@ -121,7 +121,7 @@ public class ConnectionManager implements Closeable {
                 return;
             }
 
-            final List<ActionListener<Void>> connectionListeners = connectingNodes.computeIfAbsent(node, n -> new ArrayList());
+            final List<ActionListener<Void>> connectionListeners = connectingNodes.computeIfAbsent(node, n -> new ArrayList<>());
             connectionListeners.add(listener);
             if (connectionListeners.size() > 1) {
                 // wait on previous entry to complete connection attempt
@@ -150,7 +150,7 @@ public class ConnectionManager implements Closeable {
                             } finally {
                                 final Transport.Connection finalConnection = conn;
                                 conn.addCloseListener(ActionListener.wrap(() -> {
-                                    logger.info("close listener called for node {}", node);
+                                    logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                     connectedNodes.remove(node, finalConnection);
                                     connectionListener.onNodeDisconnected(node);
                                 }));

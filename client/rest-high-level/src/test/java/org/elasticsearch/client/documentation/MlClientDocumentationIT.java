@@ -3110,6 +3110,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::stop-data-frame-analytics-request
             StopDataFrameAnalyticsRequest request = new StopDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            request.setForce(false); // <2>
             // end::stop-data-frame-analytics-request
 
             // tag::stop-data-frame-analytics-execute

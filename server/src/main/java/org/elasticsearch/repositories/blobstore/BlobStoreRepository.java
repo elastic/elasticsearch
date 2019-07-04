@@ -59,6 +59,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -101,6 +102,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -139,7 +141,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String TESTS_FILE = "tests-";
 
-    private static final String METADATA_NAME_FORMAT = "meta-%s.dat";
+    private static final String METADATA_PREFIX = "meta-";
+
+    private static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
 
     private static final String METADATA_CODEC = "metadata";
 
@@ -393,21 +397,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData;
             final Map<String, BlobContainer> foundIndices;
+            final Set<String> rootBlobs;
             try {
                 final RepositoryData repositoryData = getRepositoryData();
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
                 foundIndices = blobStore().blobContainer(basePath().add("indices")).children();
+                rootBlobs = blobContainer().listBlobs().keySet();
                 writeIndexGen(updatedRepositoryData, repositoryStateId);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
                 return;
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
+            final List<String> snapMetaFilesToDelete =
+                Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
             try {
-                blobContainer().deleteBlobsIgnoringIfNotExists(
-                    Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
+                blobContainer().deleteBlobsIgnoringIfNotExists(snapMetaFilesToDelete);
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
             }
@@ -420,9 +427,53 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotId,
                 ActionListener.map(listener, v -> {
                     cleanupStaleIndices(foundIndices, survivingIndices);
+                    cleanupStaleRootFiles(Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)), updatedRepositoryData);
                     return null;
                 })
             );
+        }
+    }
+
+    private void cleanupStaleRootFiles(Set<String> rootBlobNames, RepositoryData repositoryData) {
+        final Set<String> allSnapshotIds =
+            repositoryData.getAllSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+        final List<String> blobsToDelete = rootBlobNames.stream().filter(
+            blob -> {
+                if (FsBlobContainer.isTempBlobName(blob)) {
+                    return true;
+                }
+                if (blob.endsWith(".dat")) {
+                    final String foundUUID;
+                    if (blob.startsWith(SNAPSHOT_PREFIX)) {
+                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                        assert snapshotFormat.blobName(foundUUID).equals(blob);
+                    } else if (blob.startsWith(METADATA_PREFIX)) {
+                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+                        assert globalMetaDataFormat.blobName(foundUUID).equals(blob);
+                    } else {
+                        return false;
+                    }
+                    return allSnapshotIds.contains(foundUUID) == false;
+                }
+                return false;
+            }
+        ).collect(Collectors.toList());
+        if (blobsToDelete.isEmpty()) {
+            return;
+        }
+        try {
+            logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToDelete);
+            blobContainer().deleteBlobsIgnoringIfNotExists(blobsToDelete);
+        } catch (IOException e) {
+            logger.warn(() -> new ParameterizedMessage(
+                "[{}] The following blobs are no longer part of any snapshot [{}] but failed to remove them",
+                metadata.name(), blobsToDelete), e);
+        } catch (Exception e) {
+            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
+            //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
+            //       bubbling up and breaking the snapshot functionality.
+            assert false : e;
+            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of root level blobs", metadata.name()), e);
         }
     }
 

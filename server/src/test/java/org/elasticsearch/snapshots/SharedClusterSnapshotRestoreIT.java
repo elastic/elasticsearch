@@ -137,6 +137,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1391,7 +1392,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             String repo = repo2Names.getKey();
             List<String> snapshotNames = repo2Names.getValue();
             List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots(repo);
-            assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
+            assertThat(snapshotNames, containsInAnyOrder(snapshots.stream().map(s -> s.snapshotId().getName()).toArray(String[]::new)));
         }
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=false");
@@ -1417,7 +1418,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             String repo = repo2Names.getKey();
             List<String> snapshotNames = repo2Names.getValue();
             List<SnapshotInfo> snapshots = getSnapshotsResponse3.getSnapshots(repo);
-            assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
+            assertThat(snapshotNames, containsInAnyOrder(snapshots.stream().map(s -> s.snapshotId().getName()).toArray(String[]::new)));
         }
     }
 

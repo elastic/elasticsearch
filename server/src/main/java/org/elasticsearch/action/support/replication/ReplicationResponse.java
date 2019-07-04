@@ -50,9 +50,10 @@ public class ReplicationResponse extends ActionResponse {
 
     private ShardInfo shardInfo;
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public ReplicationResponse() {}
+
+    public ReplicationResponse(StreamInput in) throws IOException {
+        super(in);
         shardInfo = ReplicationResponse.ShardInfo.readShardInfo(in);
     }
 

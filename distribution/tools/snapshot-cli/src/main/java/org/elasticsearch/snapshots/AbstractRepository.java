@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,8 +76,16 @@ public abstract class AbstractRepository implements Repository {
         terminal.println(Terminal.Verbosity.VERBOSE, "Shifted by safety gap creation timestamp is " + shiftedIndexNTimestamp);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file");
-        Set<String> referencedIndexIds = getRepositoryData(latestIndexId)
-                .getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
+        final RepositoryData repositoryData = getRepositoryData(latestIndexId);
+        if (repositoryData.getIndices().isEmpty()) {
+            throw new ElasticsearchException(
+                "The repository data contains no references to any indices. Maybe it is from before version 5.x?");
+        }
+        if (repositoryData.getIncompatibleSnapshotIds().isEmpty() == false) {
+            throw new ElasticsearchException("Found incompatible snapshots which prevent a safe cleanup execution");
+        }
+        Set<String> referencedIndexIds = repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
+
         describeCollection("Set of indices referenced by index file", referencedIndexIds);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Listing indices/ directory");

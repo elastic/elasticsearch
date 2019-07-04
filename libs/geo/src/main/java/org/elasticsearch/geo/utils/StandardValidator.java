@@ -33,7 +33,7 @@ import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
 
 /**
- * Validator that only checks that checks that altitude only shows up if ignoreZValue is set to true.
+ * Validator that only checks that altitude only shows up if ignoreZValue is set to true.
  */
 public class StandardValidator implements GeometryValidator {
 

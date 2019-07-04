@@ -441,7 +441,7 @@ public class WatchTests extends ESTestCase {
     private WatchParser createWatchparser() throws Exception {
         LoggingAction loggingAction = new LoggingAction(new TextTemplate("foo"), null, null);
         List<ActionWrapper> actions = Collections.singletonList(new ActionWrapper("_logging_", randomThrottler(), null, null,
-                new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine())));
+                new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine()), null));
 
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
@@ -585,7 +585,7 @@ public class WatchTests extends ESTestCase {
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
             list.add(new ActionWrapper("_email_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
-                    new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
+                    new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap()), null));
         }
         if (randomBoolean()) {
             ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
@@ -596,7 +596,7 @@ public class WatchTests extends ESTestCase {
             list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),
                     new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
-                            TimeValue.timeValueSeconds(30))));
+                            TimeValue.timeValueSeconds(30)), null));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
@@ -606,7 +606,7 @@ public class WatchTests extends ESTestCase {
             WebhookAction action = new WebhookAction(httpRequest);
             list.add(new ActionWrapper("_webhook_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
-                    new ExecutableWebhookAction(action, logger, httpClient, templateEngine)));
+                    new ExecutableWebhookAction(action, logger, httpClient, templateEngine), null));
         }
         return list;
     }

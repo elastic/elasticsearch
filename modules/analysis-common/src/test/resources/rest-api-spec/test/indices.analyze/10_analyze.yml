@@ -55,7 +55,7 @@
 
     - length: { detail.tokenizer.tokens: 1 }
     - length: { detail.tokenfilters.0.tokens: 1 }
-    - match:  { detail.tokenizer.name: keyword_for_normalizer }
+    - match:  { detail.tokenizer.name: keyword }
     - match:  { detail.tokenizer.tokens.0.token: ABc }
     - match:  { detail.tokenfilters.0.name: lowercase }
     - match:  { detail.tokenfilters.0.tokens.0.token: abc }

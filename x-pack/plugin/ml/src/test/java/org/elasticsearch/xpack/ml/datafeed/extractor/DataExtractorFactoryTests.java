@@ -220,6 +220,59 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
     }
 
+    public void testCreateDataExtractorFactoryGivenRollupAndRemoteIndex() {
+        givenAggregatableRollup("myField", "max", 5, "termField");
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeField("time");
+        Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
+        jobBuilder.setDataDescription(dataDescription);
+        DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        datafeedConfig.setIndices(Collections.singletonList("cluster_two:my_index"));
+        datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
+        TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
+            AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
+
+        // Test with remote index, aggregation, and no chunking
+        ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
+            dataExtractorFactory -> {
+                assertThat(dataExtractorFactory, instanceOf(AggregationDataExtractorFactory.class));
+            },
+            e -> fail()
+        );
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+
+        // Test with remote index, aggregation, and chunking
+        datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
+        listener = ActionListener.wrap(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
+            e -> fail()
+        );
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+
+        // Test with remote index, no aggregation, and no chunking
+        datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
+        datafeedConfig.setIndices(Collections.singletonList("cluster_two:my_index"));
+        datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
+
+        listener = ActionListener.wrap(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ScrollDataExtractorFactory.class)),
+            e -> fail()
+        );
+
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+
+        // Test with remote index, no aggregation, and chunking
+        datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
+        listener = ActionListener.wrap(
+            dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
+            e -> fail()
+        );
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+    }
+
     public void testCreateDataExtractorFactoryGivenRollupAndValidAggregationAndAutoChunk() {
         givenAggregatableRollup("myField", "max", 5, "termField");
         DataDescription.Builder dataDescription = new DataDescription.Builder();

@@ -25,6 +25,26 @@ also have `read` and `view_index_metadata` privileges on the source index and
 more information, see {stack-ov}/security-privileges.html[Security privileges] 
 and {stack-ov}/built-in-roles.html[Built-in roles].
 
+[[ml-put-dfanalytics-desc]]
+==== {api-description-title}
+
+This API creates a {dfanalytics-job} that performs an analysis on the source 
+index and stores the outcome in a destination index.
+
+The destination index will be automatically created if it does not exist. The 
+`index.number_of_shards` and `index.number_of_replicas` settings of the source 
+index will be copied over the destination index. When the source index matches 
+multiple indices, these settings will be set to the maximum values found in the 
+source indices.
+
+The mappings of the source indices are also attempted to be copied over
+to the destination index, however, if the mappings of any of the fields don't 
+match among the source indices, the attempt will fail with an error message.
+
+If the destination index already exists, then it will be use as is. This makes 
+it possible to set up the destination index in advance with custom settings 
+and mappings.
+
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
@@ -43,19 +63,7 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
   
 `dest` (Required)::
   (object) The destination configuration, consisting of `index` and optionally 
-  `results_field` (`ml` by default). The destination index will be automatically 
-  created if it does not exist. The `index.number_of_shards` and 
-  `index.number_of_replicas` settings of the source index will be copied over the 
-  destination index. When the source index matches multiple indices, these 
-  settings will be set to the maximum values found in the source indices.
-  
-  The mappings of the source indices are also attempted to be copied over
-  `dest`, however, if the mappings of any of the fields don't match among the 
-  source indices, the attempt will fail with an error message.
-  
-  If the destination index already exists, then it will be use as is. This makes 
-  it possible to set up the destination index in advance with custom settings 
-  and mappings.
+  `results_field` (`ml` by default).
   
 `analysis` (Required)::
   (object) Defines the type of {dfanalytics} you want to perform on your source 

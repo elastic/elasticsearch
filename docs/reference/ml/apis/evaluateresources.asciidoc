@@ -1,0 +1,50 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-evaluate-dfanalytics-resources]]
+=== Evaluate {dfanalytics} resources
+
+The evaluation object defines the type of evaluation you want to perform. An 
+evaluation configuration object has the following properties:
+
+`binary_soft_classification`::
+  (object) Configures a binary soft classification type evaluation.
+  
+  
+[float]
+[[binary-sc-resources]]
+==== Binary soft classification resources
+
+A binary soft classification object has the following properties:
+
+`actual_field` (Required)::
+  (string) The field of the `index` which contains the `ground 
+  truth`. The data type of this field can be boolean or integer. If the data 
+  type is integer, the value has to be either `0` (false) or `1` (true).
+
+`predicted_probability_field` (Required)::
+  (string) The field of the `index` that defines the probability of whether the 
+  item is an outlier or not. It is the field that contains the results of the 
+  analysis.
+
+`metrics` (Optional)::
+  (object) Specifies the metrics that are used for the evaluation. Available 
+  mertics:
+  
+  `auc_roc` (Optional)::
+    (object) The AUC ROC score and optionally the curve.
+    Default value is {"includes_curve": false}.
+    
+  `precision` (Optional)::
+    (object) Set the different thresholds of the {olscore} at where the metric 
+    is calculated.
+    Default value is {"at": [0.25, 0.50, 0.75]}.
+  
+  `recall` (Optional)::
+    (object) Set the different thresholds of the {olscore} at where the metric 
+    is calculated.
+    Default value is {"at": [0.25, 0.50, 0.75]}.
+  
+  `confusion_matrix` (Optional)::
+    (object) Set the different thresholds of the {olscore} at where the metrics 
+    (TP, FP, TN, FN) are calculated.
+    Default value is {"at": [0.25, 0.50, 0.75]}.

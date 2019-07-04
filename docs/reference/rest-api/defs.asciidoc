@@ -8,6 +8,8 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
+* <<ml-dfanalytics-resources,{dfanalytics-cap}>>
+* <<ml-evaluate-dfanalytics-resources,Evaluate {dfanalytics}>>
 * <<ml-filter-resource,Filters>>
 * <<ml-job-resource,Jobs>>
 * <<ml-jobstats,Job statistics>>
@@ -19,6 +21,8 @@ These resource definitions are used in APIs related to {ml-features} and
 
 include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
+include::{es-repo-dir}/ml/apis/dfanalyticsresources.asciidoc[]
+include::{es-repo-dir}/ml/apis/evaluateresources.asciidoc[]
 include::{es-repo-dir}/ml/apis/filterresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobcounts.asciidoc[]

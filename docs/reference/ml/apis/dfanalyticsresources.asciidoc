@@ -1,0 +1,49 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-dfanalytics-resources]]
+=== {dfanalytics-cap} resources
+
+A {dfanalytics} configuration object has the following properties:
+
+`analysis`::
+  (object) The type of analysis that is performed on the `source`. For example: 
+  `outlier_detection`.
+
+`dest`::
+  (object) The destination configuration of the analysis, consisting of `index` 
+  and optionally `results_field` (`ml` by default). 
+
+`id`::
+  (string) The unique identifier for the {dfanalytics-job}. This identifier can 
+  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and 
+  underscores. It must start and end with alphanumeric characters. This property 
+  is informational; you cannot change the identifier for existing jobs.
+
+`source`::
+  (object) The source configuration, consisting of `index` and optionally a 
+  `query`.
+
+
+[float]
+[[oldetection-resources]]
+==== {oldetection-cap} Configuration Objects 
+
+An {oldetection} configuration object has the following properties:
+
+`n_neighbors` (Optional)::
+  (integer) Defines the value for up to how many neighbors 
+  {oldetection} should check in the index for a certain point to calculate its 
+  {olscore}. When the value is not set, the system will dynamically detect an 
+  appropriate value.
+
+`method` (Optional)::
+  (string) Sets the method that {oldetection} uses. If the method is 
+  not set, the system assembles different models that use different methods, 
+  then hierarchically combines the different models to find a solution that 
+  applies to the dataset. Available methods are `lof`, `ldof`, `distance_kth_nn`, 
+  `distance_knn`.
+
+`feature_influence_threshold` (Optional):: 
+  (double) The minimum {olscore} that a document needs to have in order to 
+  calculate its {fiscore}. 
+  Value range: 0-1 (`0.4` by default).

@@ -24,7 +24,6 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.LuceneTestCase;
@@ -138,19 +137,13 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(Engine.Searcher searcher) throws EngineException {
-        IndexReader reader = searcher.reader();
+    public IndexReader newReader(IndexReader reader) throws EngineException {
         IndexReader wrappedReader = reader;
         assert reader != null;
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
             wrappedReader = wrapReader((DirectoryReader) reader);
         }
-        // this executes basic query checks and asserts that weights are normalized only once etc.
-        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
-        assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity());
-        assertingIndexSearcher.setQueryCache(filterCache);
-        assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
-        return assertingIndexSearcher;
+        return wrappedReader;
     }
 
     private DirectoryReader wrapReader(DirectoryReader reader) {
@@ -187,9 +180,9 @@ public final class MockEngineSupport {
 
     }
 
-    public Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher) {
-        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(engineSearcher);
-        assertingIndexSearcher.setSimilarity(engineSearcher.searcher().getSimilarity());
+    public Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
+        final IndexReader reader = newReader(searcher.getIndexReader());
+
         /*
          * pass the original searcher to the super.newSearcher() method to
          * make sure this is the searcher that will be released later on.
@@ -198,8 +191,9 @@ public final class MockEngineSupport {
          * early. - good news, stuff will fail all over the place if we don't
          * get this right here
          */
-        SearcherCloseable closeable = new SearcherCloseable(engineSearcher, logger, inFlightSearchers);
-        return new Engine.Searcher(engineSearcher.source(), assertingIndexSearcher, closeable);
+        SearcherCloseable closeable = new SearcherCloseable(searcher, logger, inFlightSearchers);
+        return new Engine.Searcher(searcher.source(), reader, searcher.getSimilarity(),
+            searcher.getQueryCache(), searcher.getQueryCachingPolicy(), closeable);
     }
 
     private static final class InFlightSearchers implements Closeable {
@@ -230,7 +224,7 @@ public final class MockEngineSupport {
     }
 
     private static final class SearcherCloseable implements Closeable {
-        private final Engine.Searcher wrappedSearcher;
+        private final Engine.Searcher searcher;
         private final InFlightSearchers inFlightSearchers;
         private RuntimeException firstReleaseStack;
         private final Object lock = new Object();
@@ -238,16 +232,14 @@ public final class MockEngineSupport {
         private final Logger logger;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        SearcherCloseable(final Engine.Searcher wrappedSearcher, Logger logger, InFlightSearchers inFlightSearchers) {
-            // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
-            // with a wrapped reader.
-            this.wrappedSearcher = wrappedSearcher;
+        SearcherCloseable(final Engine.Searcher searcher, Logger logger, InFlightSearchers inFlightSearchers) {
+            this.searcher = searcher;
             this.logger = logger;
-            initialRefCount = wrappedSearcher.reader().getRefCount();
+            initialRefCount = searcher.getIndexReader().getRefCount();
             this.inFlightSearchers = inFlightSearchers;
             assert initialRefCount > 0 :
                 "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
-            inFlightSearchers.add(this, wrappedSearcher.source());
+            inFlightSearchers.add(this, searcher.source());
         }
 
         @Override
@@ -256,7 +248,7 @@ public final class MockEngineSupport {
                 if (closed.compareAndSet(false, true)) {
                     inFlightSearchers.remove(this);
                     firstReleaseStack = new RuntimeException();
-                    final int refCount = wrappedSearcher.reader().getRefCount();
+                    final int refCount = searcher.getIndexReader().getRefCount();
                     /*
                      * this assert seems to be paranoid but given LUCENE-5362 we
                      * better add some assertions here to make sure we catch any
@@ -265,13 +257,13 @@ public final class MockEngineSupport {
                     assert refCount > 0 : "IndexReader#getRefCount() was [" + refCount + "] expected a value > [0] - reader is already "
                         + " closed. Initial refCount was: [" + initialRefCount + "]";
                     try {
-                        wrappedSearcher.close();
+                        searcher.close();
                     } catch (RuntimeException ex) {
                         logger.debug("Failed to release searcher", ex);
                         throw ex;
                     }
                 } else {
-                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + wrappedSearcher.source()
+                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + searcher.source()
                         + "]");
                     error.initCause(firstReleaseStack);
                     throw error;

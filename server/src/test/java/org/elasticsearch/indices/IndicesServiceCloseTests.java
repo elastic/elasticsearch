@@ -32,7 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesRequestCache.Key;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -156,8 +156,8 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
@@ -184,12 +184,12 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
-        searcher.searcher().count(query);
+        searcher.count(query);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
 
         searcher.close();
@@ -219,15 +219,15 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
         Query query = LongPoint.newRangeQuery("foo", 0, 5);
         assertEquals(0L, cache.getStats(shard.shardId()).getCacheSize());
-        searcher.searcher().count(query);
+        searcher.count(query);
         assertEquals(1L, cache.getStats(shard.shardId()).getCacheSize());
 
         searcher.close();
@@ -253,8 +253,8 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
-        assertEquals(1, searcher.reader().maxDoc());
+        Engine.Searcher searcher = shard.acquireSearcher("test");
+        assertEquals(1, searcher.getIndexReader().maxDoc());
 
         node.close();
         assertEquals(1, indicesService.indicesRefCount.refCount());

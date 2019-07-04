@@ -32,11 +32,8 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.After;
 import org.junit.Before;
 
@@ -158,7 +155,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.close();
         openDirectoryReader();
 
-        IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
+        IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
             new TermQuery(new Term("field", "value2")), false));
 
         TermsAggCollector collector = new TermsAggCollector("field", false);
@@ -202,7 +199,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.close();
         openDirectoryReader();
 
-        IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache,
+        IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
             new TermQuery(new Term("keep_me", "yes")), false));
 
         UnsupportedOperationException uoe = expectThrows(UnsupportedOperationException.class,
@@ -325,7 +322,8 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
+        DirectoryReader directoryReader =
+            DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery(), strictTermsEnum);
         try {
             DocumentSubsetReader.wrap(directoryReader, bitsetCache, new MatchAllDocsQuery(), strictTermsEnum);
             fail("shouldn't be able to wrap DocumentSubsetDirectoryReader twice");

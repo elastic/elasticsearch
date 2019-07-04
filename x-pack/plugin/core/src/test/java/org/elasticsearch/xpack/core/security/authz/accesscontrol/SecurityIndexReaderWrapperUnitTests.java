@@ -84,7 +84,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testDefaultMetaFields() throws Exception {
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, scriptService) {
+            new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, scriptService, false) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
@@ -114,7 +114,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, scriptService);
+            new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, scriptService, false);
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
@@ -148,7 +148,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testFieldPermissionsWithFieldExceptions() throws Exception {
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, null);
+            new SecurityIndexReaderWrapper(null, null, threadContext, licenseState, null, false);
         String[] grantedFields = new String[]{};
         String[] deniedFields;
         Set<String> expected = new HashSet<>(META_FIELDS);

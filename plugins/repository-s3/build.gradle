@@ -147,7 +147,7 @@ task thirdPartyTest(type: Test) {
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   task writeDockerFile {
-    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
+    File minioDockerfile = new File("${project.testFixturesDir}/minio-docker/Dockerfile")
     outputs.file(minioDockerfile)
     doLast {
       minioDockerfile.parentFile.mkdirs()
@@ -336,8 +336,3 @@ thirdPartyAudit.ignoreMissingClasses (
 
 thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
 
-tasks.matching { it.name == "composeDown" }.all {
-    doFirst {
-        file("$buildDir/minio-docker").mkdirs()
-    }
-}

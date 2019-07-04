@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * The action for clearing the cache used by native roles that are stored in an index.
  */
-public class ClearRolesCacheAction extends Action<ClearRolesCacheResponse> {
+public class ClearRolesCacheAction extends StreamableResponseActionType<ClearRolesCacheResponse> {
 
     public static final ClearRolesCacheAction INSTANCE = new ClearRolesCacheAction();
     public static final String NAME = "cluster:admin/xpack/security/roles/cache/clear";

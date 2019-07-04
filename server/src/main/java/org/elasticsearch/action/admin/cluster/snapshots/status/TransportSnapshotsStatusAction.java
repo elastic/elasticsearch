@@ -187,7 +187,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshot(), entry.state(),
-                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState(), entry.startTime(), 0L));
+                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState(), entry.startTime(),
+                    Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L)));
             }
         }
         // Now add snapshots on disk that are not currently running

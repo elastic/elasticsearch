@@ -53,6 +53,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     private final ElasticsearchException jobException;
 
     public ReindexJobState(BulkByScrollResponse reindexResponse, ElasticsearchException jobException) {
+        assert (reindexResponse == null) || (jobException == null) : "Either response or exception must be null";
         this.reindexResponse = reindexResponse;
         this.jobException = jobException;
     }

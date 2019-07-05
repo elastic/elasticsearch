@@ -155,7 +155,7 @@ must specify an account name and integration key, (see {ref}/secure-settings.htm
 bin/elasticsearch-keystore add xpack.notification.pagerduty.account.my_pagerduty_account.secure_service_api_key
 --------------------------------------------------
 
-deprecated[Storing the service api key in the YAML file or via cluster update settings is still supported, but the keystore setting should be used]
+deprecated[7.0.0, "Storing the service api key in the YAML file or via cluster update settings is still supported, but the keystore setting should be used."]
 
 You can also specify defaults for the <<pagerduty-event-trigger-incident-attributes, 
 PagerDuty event attributes>>:

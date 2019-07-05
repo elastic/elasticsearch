@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -32,6 +33,9 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.LicenseUtils;
@@ -39,6 +43,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -49,6 +54,7 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -57,6 +63,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
+    private static final DeprecationLogger deprecationLogger
+        = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
 
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
@@ -76,12 +84,17 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(PutRollupJobAction.Request request, ClusterState clusterState,
+    protected AcknowledgedResponse newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected void masterOperation(Task task, PutRollupJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.isRollupAllowed()) {
@@ -90,10 +103,12 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         }
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
+        checkForDeprecatedTZ(request);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
             .indices(request.getConfig().getIndexPattern())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
+        fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
         client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
             @Override
@@ -113,6 +128,15 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 listener.onFailure(e);
             }
         });
+    }
+
+    static void checkForDeprecatedTZ(PutRollupJobAction.Request request) {
+        String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
+        String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
+        if (modernTZ != null) {
+            deprecationLogger.deprecated("Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
+                + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
+        }
     }
 
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {

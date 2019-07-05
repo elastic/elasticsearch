@@ -813,8 +813,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = randomBoolean() ? createRemoteClusterState("logs-20190101", false) :
-            createRemoteClusterState("logs-20190101", null);
+        ClusterState remoteState = createRemoteClusterState("logs-20190101", false);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
             null, null, null, null, null, null, null, null, null, null, null);
@@ -953,13 +952,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(entries.get(0).getValue(), nullValue());
     }
 
-    private static ClusterState createRemoteClusterState(String indexName, Boolean enableSoftDeletes) {
+    private static ClusterState createRemoteClusterState(String indexName, boolean enableSoftDeletes) {
         Settings.Builder indexSettings;
-        if (enableSoftDeletes != null) {
-            indexSettings = settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), enableSoftDeletes);
-        } else {
-            indexSettings = settings(Version.V_6_6_0);
-        }
+        indexSettings = settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), enableSoftDeletes);
 
         IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
             .settings(indexSettings)

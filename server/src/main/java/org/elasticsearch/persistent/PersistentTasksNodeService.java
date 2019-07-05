@@ -47,7 +47,7 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * This component is responsible for coordination of execution of persistent tasks on individual nodes. It runs on all
- * non-transport client nodes in the cluster and monitors cluster state changes to detect started commands.
+ * nodes in the cluster and monitors cluster state changes to detect started commands.
  */
 public class PersistentTasksNodeService implements ClusterStateListener {
 

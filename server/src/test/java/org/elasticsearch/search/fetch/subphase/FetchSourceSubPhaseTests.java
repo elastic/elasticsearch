@@ -25,8 +25,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -173,7 +173,7 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
 
         @Override
         public SearchLookup lookup() {
-            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField, null);
+            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField);
             lookup.source().setSource(source);
             return lookup;
         }

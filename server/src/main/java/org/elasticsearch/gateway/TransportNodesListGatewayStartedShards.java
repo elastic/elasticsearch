@@ -45,11 +45,13 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -91,8 +93,8 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -107,7 +109,7 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeGatewayStartedShards nodeOperation(NodeRequest request) {
+    protected NodeGatewayStartedShards nodeOperation(NodeRequest request, Task task) {
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
@@ -185,7 +187,7 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override
@@ -221,15 +223,14 @@ public class TransportNodesListGatewayStartedShards extends
         public NodeRequest() {
         }
 
-        public NodeRequest(String nodeId, Request request) {
-            super(nodeId);
+        public NodeRequest(Request request) {
             this.shardId = request.shardId();
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override
@@ -309,14 +310,8 @@ public class TransportNodesListGatewayStartedShards extends
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            if (primary != that.primary) {
-                return false;
-            }
-            if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) {
-                return false;
-            }
-            return storeException != null ? storeException.equals(that.storeException) : that.storeException == null;
-
+            return primary == that.primary && Objects.equals(allocationId, that.allocationId)
+                && Objects.equals(storeException, that.storeException);
         }
 
         @Override

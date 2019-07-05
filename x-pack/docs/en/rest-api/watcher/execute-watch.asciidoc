@@ -99,7 +99,7 @@ are five possible modes an action can be associated with:
                       send it. In this mode, the action might be throttled if the
                       current state of the watch indicates it should be.
 
-| `force_simulate`  | Similar to the the `simulate` mode, except the action is
+| `force_simulate`  | Similar to the `simulate` mode, except the action is
                       not be throttled even if the current state of the watch
                       indicates it should be.
 

@@ -1,8 +1,6 @@
 [[query-dsl-script-score-query]]
 === Script Score Query
 
-experimental[]
-
 The `script_score` allows you to modify the score of documents that are
 retrieved by a query. This can be useful if, for example, a score
 function is computationally expensive and it is sufficient to compute
@@ -78,11 +76,21 @@ to be the most efficient by using the internal mechanisms.
 --------------------------------------------------
 // NOTCONSOLE
 
+[role="xpack"]
+[testenv="basic"]
 [[vector-functions]]
 ===== Functions for vector fields
+
+experimental[]
+
 These functions are used for
 for <<dense-vector,`dense_vector`>>  and
 <<sparse-vector,`sparse_vector`>> fields.
+
+NOTE: During vector functions' calculation, all matched documents are
+linearly scanned. Thus, expect the query time grow linearly 
+with the number of matched documents. For this reason, we recommend
+to limit the number of matched documents with a `query` parameter.
 
 For dense_vector fields, `cosineSimilarity` calculates the measure of
 cosine similarity between a given query vector and document vectors.
@@ -191,8 +199,7 @@ a vector function is executed, 0 is returned as a result
 for this document.
 
 NOTE: If a document's dense vector field has a number of dimensions
-different from the query's vector, 0 is used for missing dimensions
-in the calculations of vector functions.
+different from the query's vector, an error will be thrown.
 
 
 [[random-score-function]]
@@ -235,7 +242,7 @@ field, whose only drawback is that scores will change if the document is
 updated since update operations also update the value of the `_seq_no` field.
 
 
-[[decay-functions]]
+[[decay-functions-numeric-fields]]
 ===== Decay functions for numeric fields
 You can read more about decay functions 
 {ref}/query-dsl-function-score-query.html#function-decay[here].
@@ -325,10 +332,12 @@ Script Score Query will be a substitute for it.
 Here we describe how Function Score Query's functions can be
 equivalently implemented in Script Score Query:
 
+[[script-score]]
 ===== `script_score`
 What you used in `script_score` of the Function Score query, you
 can copy into the Script Score query. No changes here.
 
+[[weight]]
 ===== `weight`
 `weight` function can be implemented in the Script Score query through
 the following script:
@@ -344,12 +353,13 @@ the following script:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[random-score]]
 ===== `random_score`
 
 Use `randomScore` function
 as described in <<random-score-function, random score function>>.
 
-
+[[field-value-factor]]
 ===== `field_value_factor`
 `field_value_factor` function can be easily implemented through script:
 
@@ -399,7 +409,7 @@ through a script:
 | `reciprocal` | `1.0 / doc['f'].value`
 |=======================================================================
 
-
+[[decay-functions]]
 ===== `decay functions`
 Script Score query has equivalent <<decay-functions, decay functions>>
 that can be used in script.

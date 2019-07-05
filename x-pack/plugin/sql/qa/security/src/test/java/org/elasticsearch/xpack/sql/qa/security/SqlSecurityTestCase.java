@@ -188,6 +188,16 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+            
+            // The log file can roll over without being caught by assertLogs() method: in those tests where exceptions are being handled
+            // and no audit logs being read (and, thus, assertLogs() is not called) - for example testNoMonitorMain() method: there are no
+            // calls to auditLogs(), and the method could run while the audit file is rolled over.
+            // If this happens, next call to auditLogs() will make the tests read from the rolled over file using the main audit file
+            // offset, which will most likely not going to work since the offset will happen somewhere in the middle of a json line.
+            if (auditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
+                // once the audit file rolled over, it will stay like this
+                auditFileRolledOver = true;
+            }
             return null;
         });
     }
@@ -568,6 +578,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             assertFalse("Previous test had an audit-related failure. All subsequent audit related assertions are bogus because we can't "
                     + "guarantee that we fully cleaned up after the last test.", auditFailure);
             try {
+                // use a second variable since the `assertBusy()` block can be executed multiple times and the
+                // static auditFileRolledOver value can change and mess up subsequent calls of this code block
+                boolean localAuditFileRolledOver = auditFileRolledOver;
                 assertBusy(() -> {
                     SecurityManager sm = System.getSecurityManager();
                     if (sm != null) {
@@ -579,7 +592,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         try {
                             // the audit log file rolled over during the test
                             // and we need to consume the rest of the rolled over file plus the new audit log file
-                            if (auditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
+                            if (localAuditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
                                 // once the audit file rolled over, it will stay like this
                                 auditFileRolledOver = true;
                                 // the order in the array matters, as the readers will be used in that order

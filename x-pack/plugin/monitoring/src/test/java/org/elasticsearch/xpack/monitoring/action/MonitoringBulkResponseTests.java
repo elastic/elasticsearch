@@ -79,12 +79,7 @@ public class MonitoringBulkResponseTests extends ESTestCase {
             } else {
                 assertThat(response2.getError(), is(notNullValue()));
             }
-
-            if (version.onOrAfter(Version.V_6_3_0)) {
-                assertThat(response2.isIgnored(), is(response.isIgnored()));
-            } else {
-                assertThat(response2.isIgnored(), is(false));
-            }
+            assertThat(response2.isIgnored(), is(response.isIgnored()));
         }
     }
 }

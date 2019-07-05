@@ -6,6 +6,7 @@ at index time.  The `_source` field itself is not indexed (and thus is not
 searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 
+[[disable-source-field]]
 ==== Disabling the `_source` field
 
 Though very handy to have around, the source field does incur storage overhead

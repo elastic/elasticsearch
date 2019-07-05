@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -41,7 +40,6 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -636,7 +634,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            FieldType ft = prefix.fieldType;
+            MappedFieldType ft = prefix.fieldType;
+            assertEquals(ft.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, ft.indexOptions());
         }
 
@@ -652,7 +651,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            FieldType ft = prefix.fieldType;
+            MappedFieldType ft = prefix.fieldType;
+            assertEquals(ft.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
         }
@@ -669,12 +669,9 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            FieldType ft = prefix.fieldType;
-            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
-            } else {
-                assertEquals(IndexOptions.DOCS, ft.indexOptions());
-            }
+            MappedFieldType ft = prefix.fieldType;
+            assertEquals(ft.name(), "field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
         }
 
@@ -690,12 +687,9 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            FieldType ft = prefix.fieldType;
-            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
-            } else {
-                assertEquals(IndexOptions.DOCS, ft.indexOptions());
-            }
+            MappedFieldType ft = prefix.fieldType;
+            assertEquals(ft.name(), "field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertTrue(ft.storeTermVectorOffsets());
         }
 
@@ -711,13 +705,64 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            FieldType ft = prefix.fieldType;
-            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
-            } else {
-                assertEquals(IndexOptions.DOCS, ft.indexOptions());
-            }
+            MappedFieldType ft = prefix.fieldType;
+            assertEquals(ft.name(), "field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectorOffsets());
+        }
+    }
+
+    public void testNestedIndexPrefixes() throws IOException {
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("properties")
+                            .startObject("object")
+                                .field("type", "object")
+                                .startObject("properties")
+                                    .startObject("field")
+                                        .field("type", "text")
+                                        .startObject("index_prefixes").endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject());
+
+            indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+            MappedFieldType textField = indexService.mapperService().fullName("object.field");
+            assertNotNull(textField);
+            assertThat(textField, instanceOf(TextFieldType.class));
+            MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
+            assertEquals(prefix.name(), "object.field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, prefix.indexOptions());
+            assertFalse(prefix.storeTermVectorOffsets());
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("properties")
+                        .startObject("body")
+                            .field("type", "text")
+                            .startObject("fields")
+                                .startObject("with_prefix")
+                                    .field("type", "text")
+                                    .startObject("index_prefixes").endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject());
+
+            indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+            MappedFieldType textField = indexService.mapperService().fullName("body.with_prefix");
+            assertNotNull(textField);
+            assertThat(textField, instanceOf(TextFieldType.class));
+            MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
+            assertEquals(prefix.name(), "body.with_prefix._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, prefix.indexOptions());
+            assertFalse(prefix.storeTermVectorOffsets());
         }
     }
 

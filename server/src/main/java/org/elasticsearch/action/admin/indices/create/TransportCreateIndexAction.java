@@ -29,8 +29,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Create index action.
@@ -56,7 +60,12 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
 
     @Override
     protected CreateIndexResponse newResponse() {
-        return new CreateIndexResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected CreateIndexResponse read(StreamInput in) throws IOException {
+        return new CreateIndexResponse(in);
     }
 
     @Override
@@ -65,7 +74,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected void masterOperation(final CreateIndexRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final CreateIndexRequest request, final ClusterState state,
                                    final ActionListener<CreateIndexResponse> listener) {
         String cause = request.cause();
         if (cause.length() == 0) {

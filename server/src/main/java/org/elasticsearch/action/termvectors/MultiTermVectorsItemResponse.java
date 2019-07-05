@@ -54,16 +54,6 @@ public class MultiTermVectorsItemResponse implements Streamable {
     }
 
     /**
-     * The type of the document.
-     */
-    public String getType() {
-        if (failure != null) {
-            return failure.getType();
-        }
-        return response.getType();
-    }
-
-    /**
      * The id of the document.
      */
     public String getId() {
@@ -105,8 +95,7 @@ public class MultiTermVectorsItemResponse implements Streamable {
         if (in.readBoolean()) {
             failure = MultiTermVectorsResponse.Failure.readFailure(in);
         } else {
-            response = new TermVectorsResponse();
-            response.readFrom(in);
+            response = new TermVectorsResponse(in);
         }
     }
 

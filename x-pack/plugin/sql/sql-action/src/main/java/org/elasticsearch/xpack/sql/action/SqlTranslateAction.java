@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * Sql action for translating SQL queries into ES requests
  */
-public class SqlTranslateAction extends Action<SqlTranslateResponse> {
+public class SqlTranslateAction extends StreamableResponseActionType<SqlTranslateResponse> {
 
     public static final SqlTranslateAction INSTANCE = new SqlTranslateAction();
     public static final String NAME = "indices:data/read/sql/translate";

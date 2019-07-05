@@ -46,10 +46,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -155,7 +154,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
             numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null, true), 0, "leader", mockPlugins,
             Function.identity());
-        leaderCluster.beforeTest(random(), 0.0D);
+        leaderCluster.beforeTest(random());
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
@@ -168,7 +167,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             mockPlugins, Function.identity());
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 
-        followerCluster.beforeTest(random(), 0.0D);
+        followerCluster.beforeTest(random());
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
@@ -213,7 +212,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     private NodeConfigurationSource createNodeConfigurationSource(final String leaderSeedAddress, final boolean leaderCluster) {
         Settings.Builder builder = Settings.builder();
-        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
@@ -258,16 +256,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                         Stream.of(LocalStateCcr.class, CommonAnalysisPlugin.class),
                         CcrIntegTestCase.this.nodePlugins().stream())
                         .collect(Collectors.toList());
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return super.transportClientSettings();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                return Arrays.asList(LocalStateCcr.class, getTestTransportPlugin());
             }
         };
     }
@@ -490,13 +478,13 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     protected void assertIndexFullyReplicatedToFollower(String leaderIndex, String followerIndex) throws Exception {
         logger.info("--> asserting <<docId,seqNo>> between {} and {}", leaderIndex, followerIndex);
         assertBusy(() -> {
-            Map<Integer, List<DocIdSeqNoAndTerm>> docsOnFollower = getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex);
-            Map<Integer, List<DocIdSeqNoAndTerm>> docsOnLeader = getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex);
-            Map<Integer, Set<DocIdSeqNoAndTerm>> mismatchedDocs = new HashMap<>();
-            for (Map.Entry<Integer, List<DocIdSeqNoAndTerm>> fe : docsOnFollower.entrySet()) {
-                Set<DocIdSeqNoAndTerm> d1 = Sets.difference(
+            Map<Integer, List<DocIdSeqNoAndSource>> docsOnFollower = getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex);
+            Map<Integer, List<DocIdSeqNoAndSource>> docsOnLeader = getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex);
+            Map<Integer, Set<DocIdSeqNoAndSource>> mismatchedDocs = new HashMap<>();
+            for (Map.Entry<Integer, List<DocIdSeqNoAndSource>> fe : docsOnFollower.entrySet()) {
+                Set<DocIdSeqNoAndSource> d1 = Sets.difference(
                     Sets.newHashSet(fe.getValue()), Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())));
-                Set<DocIdSeqNoAndTerm> d2 = Sets.difference(
+                Set<DocIdSeqNoAndSource> d2 = Sets.difference(
                     Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())), Sets.newHashSet(fe.getValue()));
                 if (d1.isEmpty() == false || d2.isEmpty() == false) {
                     mismatchedDocs.put(fe.getKey(), Sets.union(d1, d2));
@@ -525,11 +513,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }, 120, TimeUnit.SECONDS);
     }
 
-    private Map<Integer, List<DocIdSeqNoAndTerm>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
+    private Map<Integer, List<DocIdSeqNoAndSource>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
         final ClusterState state = cluster.client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> shardRoutings = state.routingTable().allShards(index);
         Randomness.shuffle(shardRoutings);
-        final Map<Integer, List<DocIdSeqNoAndTerm>> docs = new HashMap<>();
+        final Map<Integer, List<DocIdSeqNoAndSource>> docs = new HashMap<>();
         for (ShardRouting shardRouting : shardRoutings) {
             if (shardRouting == null || shardRouting.assignedToNode() == false) {
                 continue;
@@ -537,14 +525,14 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
                 .indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
             try {
-                final List<DocIdSeqNoAndTerm> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
+                final List<DocIdSeqNoAndSource> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
                 logger.info("--> shard {} docs {} seq_no_stats {}", shardRouting, docsOnShard, indexShard.seqNoStats());
                 docs.put(shardRouting.shardId().id(), docsOnShard.stream()
                     // normalize primary term as the follower use its own term
-                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))
+                    .map(d -> new DocIdSeqNoAndSource(d.getId(), d.getSource(), d.getSeqNo(), 1L, d.getVersion()))
                     .collect(Collectors.toList()));
             } catch (AlreadyClosedException e) {
-                // Ignore this exception and try getting List<DocIdSeqNoAndTerm> from other IndexShard instance.
+                // Ignore this exception and try getting List<DocIdSeqNoAndSource> from other IndexShard instance.
             }
         }
         return docs;

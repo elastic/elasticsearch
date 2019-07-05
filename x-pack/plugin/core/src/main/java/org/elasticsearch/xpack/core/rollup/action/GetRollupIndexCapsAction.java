@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -19,7 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Response> {
+public class GetRollupIndexCapsAction extends StreamableResponseActionType<GetRollupIndexCapsAction.Response> {
 
     public static final GetRollupIndexCapsAction INSTANCE = new GetRollupIndexCapsAction();
     public static final String NAME = "indices:data/read/xpack/rollup/get/index/caps";
@@ -47,7 +47,7 @@ public class GetRollupIndexCapsAction extends Action<GetRollupIndexCapsAction.Re
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {
         private String[] indices;
         private IndicesOptions options;
 

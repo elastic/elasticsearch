@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
+import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -65,12 +66,13 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         for (int j = 0; j < shardsCount; j++) {
             ShardId shardId = new ShardId(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)), randomIntBetween(0, 10));
             String nodeId = randomAlphaOfLength(10);
-            State shardState = randomFrom(State.values());
+            ShardState shardState = randomFrom(ShardState.values());
             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState,
                 shardState.failed() ? randomAlphaOfLength(10) : null));
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
-        return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards);
+        return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards,
+            SnapshotInfoTests.randomUserMetadata());
     }
 
     @Override

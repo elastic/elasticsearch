@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.transport.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -20,6 +19,7 @@ import org.elasticsearch.http.nio.NioHttpServerTransport;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
@@ -34,11 +34,9 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import javax.net.ssl.SSLEngine;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 
@@ -47,7 +45,6 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
 
     private final SecurityHttpExceptionHandler securityExceptionHandler;
     private final IPFilter ipFilter;
-    private final NioIPFilter nioIpFilter;
     private final SSLService sslService;
     private final SSLConfiguration sslConfiguration;
     private final boolean sslEnabled;
@@ -59,7 +56,6 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         super(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry, dispatcher, nioGroupFactory);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
-        this.nioIpFilter = new NioIPFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME);
         this.sslEnabled = HTTP_SSL_ENABLED.get(settings);
         this.sslService = sslService;
         if (sslEnabled) {
@@ -92,13 +88,16 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         @Override
         public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioHttpChannel httpChannel = new NioHttpChannel(channel);
-            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
-                Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
-            };
             HttpReadWriteHandler httpHandler = new HttpReadWriteHandler(httpChannel,SecurityNioHttpServerTransport.this,
-                handlingSettings, corsConfig);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
+                handlingSettings, corsConfig, selector.getTaskScheduler(), threadPool::relativeTimeInNanos);
+            final NioChannelHandler handler;
+            if (ipFilter != null) {
+                handler = new NioIPFilter(httpHandler, httpChannel.getRemoteAddress(), ipFilter, IPFilter.HTTP_PROFILE_NAME);
+            } else {
+                handler = httpHandler;
+            }
+
+            InboundChannelBuffer networkBuffer = new InboundChannelBuffer(pageAllocator);
             Consumer<Exception> exceptionHandler = (e) -> securityExceptionHandler.accept(httpChannel, e);
 
             SocketChannelContext context;
@@ -112,10 +111,12 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
                 } else {
                     sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
                 }
-                SSLDriver sslDriver = new SSLDriver(sslEngine, false);
-                context = new SSLChannelContext(httpChannel, selector, exceptionHandler, sslDriver, httpHandler, buffer, nioIpFilter);
+                SSLDriver sslDriver = new SSLDriver(sslEngine, pageAllocator, false);
+                InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
+                context = new SSLChannelContext(httpChannel, selector, exceptionHandler, sslDriver, handler, networkBuffer,
+                    applicationBuffer);
             } else {
-                context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpHandler, buffer, nioIpFilter);
+                context = new BytesChannelContext(httpChannel, selector, exceptionHandler, handler, networkBuffer);
             }
             httpChannel.setContext(context);
 

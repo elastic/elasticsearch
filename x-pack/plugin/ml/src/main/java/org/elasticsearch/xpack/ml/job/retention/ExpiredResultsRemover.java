@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -85,7 +86,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     private DeleteByQueryRequest createDBQRequest(Job job, long cutoffEpochMs) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
-        request.setSlices(5);
+        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),

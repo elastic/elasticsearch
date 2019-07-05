@@ -9,27 +9,29 @@ import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
-import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
-import org.elasticsearch.xpack.watcher.client.WatchSourceBuilders;
-import org.elasticsearch.xpack.watcher.trigger.TriggerBuilders;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.MINUTES;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.client:TRACE,tracer:TRACE")
 @AwaitsFix(bugUrl = "flaky tests")
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
+
+    /**
+     * An unsorted list of Watch IDs representing resource files for Monitoring Cluster Alerts.
+     */
+    public static final String[] WATCH_IDS = {
+        "elasticsearch_cluster_status",
+        "elasticsearch_version_mismatch",
+        "kibana_version_mismatch",
+        "logstash_version_mismatch",
+        "xpack_license_expiration",
+        "elasticsearch_nodes",
+    };
 
     @After
     public void cleanExporters() throws Exception {
@@ -53,7 +55,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
                 .endObject().endObject()));
         adminClient().performRequest(request);
 
-        assertTotalWatchCount(ClusterAlertsUtil.WATCH_IDS.length);
+        assertTotalWatchCount(WATCH_IDS.length);
 
         assertMonitoringWatchHasBeenOverWritten(watchId);
     }
@@ -71,7 +73,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
                 .endObject().endObject()));
         adminClient().performRequest(request);
 
-        assertTotalWatchCount(ClusterAlertsUtil.WATCH_IDS.length);
+        assertTotalWatchCount(WATCH_IDS.length);
 
         assertMonitoringWatchHasBeenOverWritten(watchId);
     }
@@ -95,11 +97,10 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         String clusterUUID = getClusterUUID();
         String watchId = clusterUUID + "_kibana_version_mismatch";
         Request request = new Request("PUT", "/_watcher/watch/" + watchId);
-        request.setJsonEntity(WatchSourceBuilders.watchBuilder()
-                .trigger(TriggerBuilders.schedule(new IntervalSchedule(new IntervalSchedule.Interval(1000, MINUTES))))
-                .input(simpleInput())
-                .addAction("logme", ActionBuilders.loggingAction("foo"))
-                .buildAsBytes(XContentType.JSON).utf8ToString());
+        String watch = "{\"trigger\":{\"schedule\":{\"interval\":\"1000m\"}},\"input\":{\"simple\":{}}," +
+            "\"condition\":{\"always\":{}}," +
+            "\"actions\":{\"logme\":{\"logging\":{\"level\":\"info\",\"text\":\"foo\"}}}}";
+        request.setJsonEntity(watch);
         client().performRequest(request);
         return watchId;
     }

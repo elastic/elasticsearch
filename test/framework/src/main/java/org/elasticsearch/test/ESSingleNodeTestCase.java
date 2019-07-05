@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -99,10 +100,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             ).get();
     }
 
-    private static void stopNode() throws IOException {
+    private static void stopNode() throws IOException, InterruptedException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
+        if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
+            throw new AssertionError("Node couldn't close within 10 seconds.");
+        }
     }
 
     @Override
@@ -144,7 +148,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void tearDownClass() throws IOException {
+    public static void tearDownClass() throws Exception {
         stopNode();
     }
 

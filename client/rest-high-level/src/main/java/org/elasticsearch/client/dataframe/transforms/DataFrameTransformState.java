@@ -23,16 +23,14 @@ import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -44,33 +42,28 @@ public class DataFrameTransformState {
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
     private static final ParseField CHECKPOINT = new ParseField("checkpoint");
     private static final ParseField REASON = new ParseField("reason");
+    private static final ParseField PROGRESS = new ParseField("progress");
+    private static final ParseField NODE = new ParseField("node");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER =
             new ConstructingObjectParser<>("data_frame_transform_state", true,
                     args -> new DataFrameTransformState((DataFrameTransformTaskState) args[0],
                         (IndexerState) args[1],
-                        (HashMap<String, Object>) args[2],
+                        (Map<String, Object>) args[2],
                         (long) args[3],
-                        (String) args[4]));
+                        (String) args[4],
+                        (DataFrameTransformProgress) args[5],
+                        (NodeAttributes) args[6]));
 
     static {
-        PARSER.declareField(constructorArg(),
-            p -> DataFrameTransformTaskState.fromString(p.text()),
-            TASK_STATE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ObjectParser.ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return p.map();
-            }
-            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
+        PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapOrdered(), CURRENT_POSITION, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
+        PARSER.declareField(optionalConstructorArg(), DataFrameTransformProgress::fromXContent, PROGRESS, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE, ValueType.OBJECT);
     }
 
     public static DataFrameTransformState fromXContent(XContentParser parser) throws IOException {
@@ -80,19 +73,25 @@ public class DataFrameTransformState {
     private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
     private final long checkpoint;
-    private final SortedMap<String, Object> currentPosition;
+    private final Map<String, Object> currentPosition;
     private final String reason;
+    private final DataFrameTransformProgress progress;
+    private final NodeAttributes node;
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
                                    @Nullable Map<String, Object> position,
                                    long checkpoint,
-                                   @Nullable String reason) {
+                                   @Nullable String reason,
+                                   @Nullable DataFrameTransformProgress progress,
+                                   @Nullable NodeAttributes node) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
+        this.currentPosition = position == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(position));
         this.checkpoint = checkpoint;
         this.reason = reason;
+        this.progress = progress;
+        this.node = node;
     }
 
     public IndexerState getIndexerState() {
@@ -117,6 +116,16 @@ public class DataFrameTransformState {
         return reason;
     }
 
+    @Nullable
+    public DataFrameTransformProgress getProgress() {
+        return progress;
+    }
+
+    @Nullable
+    public NodeAttributes getNode() {
+        return node;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -132,13 +141,15 @@ public class DataFrameTransformState {
         return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&
             Objects.equals(this.currentPosition, that.currentPosition) &&
+            Objects.equals(this.progress, that.progress) &&
             this.checkpoint == that.checkpoint &&
+            Objects.equals(this.node, that.node) &&
             Objects.equals(this.reason, that.reason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason);
+        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason, progress, node);
     }
 
 }

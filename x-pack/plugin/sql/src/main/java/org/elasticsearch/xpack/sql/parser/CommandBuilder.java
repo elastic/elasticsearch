@@ -125,7 +125,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowTables(ShowTablesContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowTables(source(ctx), index, visitLikePattern(ctx.likePattern()));
+        return new ShowTables(source(ctx), index, visitLikePattern(ctx.likePattern()), ctx.FROZEN() != null);
     }
 
     @Override
@@ -137,7 +137,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowColumns(ShowColumnsContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowColumns(source(ctx), index, visitLikePattern(ctx.likePattern()));
+        return new ShowColumns(source(ctx), index, visitLikePattern(ctx.likePattern()), ctx.FROZEN() != null);
     }
 
     @Override
@@ -146,7 +146,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         boolean legacyTableType = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
-            if (value != null) {
+            if (value != null && value.isEmpty() == false) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
                     // treat % as null
@@ -154,12 +154,21 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
                 }
                 // special case for legacy apps (like msquery) that always asks for 'TABLE'
                 // which we manually map to all concrete tables supported
-                else if (value.toUpperCase(Locale.ROOT).equals("TABLE")) {
-                    legacyTableType = true;
-                    types.add(IndexType.INDEX);
-                } else {
-                    IndexType type = IndexType.from(value);
-                    types.add(type);
+                else {
+                    switch (value.toUpperCase(Locale.ROOT)) {
+                        case IndexType.SQL_TABLE:
+                            legacyTableType = true;
+                            types.add(IndexType.STANDARD_INDEX);
+                            break;
+                        case IndexType.SQL_BASE_TABLE:
+                            types.add(IndexType.STANDARD_INDEX);
+                            break;
+                        case IndexType.SQL_VIEW:
+                            types.add(IndexType.ALIAS);
+                            break;
+                        default:
+                            types.add(IndexType.UNKNOWN);
+                    }
                 }
             }
         }

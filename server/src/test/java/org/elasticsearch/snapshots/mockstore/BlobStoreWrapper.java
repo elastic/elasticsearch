@@ -38,11 +38,6 @@ public class BlobStoreWrapper implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) throws IOException {
-        delegate.delete(path);
-    }
-
-    @Override
     public void close() throws IOException {
         delegate.close();
     }

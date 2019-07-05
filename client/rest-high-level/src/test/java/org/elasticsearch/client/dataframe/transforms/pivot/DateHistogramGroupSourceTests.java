@@ -27,22 +27,19 @@ import java.io.IOException;
 
 public class DateHistogramGroupSourceTests extends AbstractXContentTestCase<DateHistogramGroupSource> {
 
+    public static DateHistogramGroupSource.Interval randomDateHistogramInterval() {
+        if (randomBoolean()) {
+            return new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(randomPositiveTimeValue()));
+        } else {
+            return new DateHistogramGroupSource.CalendarInterval(new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w")));
+        }
+    }
+
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
         String field = randomAlphaOfLengthBetween(1, 20);
-        DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(field);
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setInterval(randomLongBetween(1, 10_000));
-        } else {
-            dateHistogramGroupSource.setDateHistogramInterval(randomFrom(DateHistogramInterval.days(10),
-                    DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
-        }
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setTimeZone(randomZone());
-        }
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setFormat(randomAlphaOfLength(10));
-        }
-        return dateHistogramGroupSource;
+        return new DateHistogramGroupSource(field,
+                randomDateHistogramInterval(),
+                randomBoolean() ? randomZone() : null);
     }
 
     @Override

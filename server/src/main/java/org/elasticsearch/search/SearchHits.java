@@ -47,7 +47,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     }
 
     public static SearchHits empty(boolean withTotalHits) {
-        // We shouldn't use static final instance, since that could directly be returned by native transport clients
+        // TODO: consider using static final instance
         return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
     }
 

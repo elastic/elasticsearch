@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.watcher.transport.action.execute;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -31,9 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testExecuteAllDefaults() throws Exception {
-        WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
                 .setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? 2099")))
@@ -44,7 +43,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
-        ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id").get();
+        ExecuteWatchResponse response = new ExecuteWatchRequestBuilder(client(), "_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getRecordId(), notNullValue());
         Wid wid = new Wid(response.getRecordId());
@@ -73,9 +72,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testExecuteActionMode() throws Exception {
-        final WatcherClient watcherClient = watcherClient();
-
-        PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
                 .setId("_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s"))) // run every second so we can ack it
@@ -117,7 +114,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
                     new String[] { "foo", "_all" },
                     null
             );
-            AckWatchRequestBuilder ackWatchRequestBuilder = watcherClient.prepareAckWatch("_id");
+            AckWatchRequestBuilder ackWatchRequestBuilder = new AckWatchRequestBuilder(client(), "_id");
             if (actionIds != null) {
                 ackWatchRequestBuilder.setActionIds(actionIds);
             }
@@ -130,7 +127,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             assertThat(actionStatus.ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
         }
 
-        ExecuteWatchResponse response = watcherClient.prepareExecuteWatch("_id")
+        ExecuteWatchResponse response = new ExecuteWatchRequestBuilder(client(), "_id")
                 .setActionMode(randomBoolean() ? "log" : "_all", mode)
                 .get();
         assertThat(response, notNullValue());

@@ -27,15 +27,15 @@ import org.gradle.api.tasks.Input
 public class BatsOverVagrantTask extends VagrantCommandTask {
 
     @Input
-    String remoteCommand
+    Object remoteCommand
 
     BatsOverVagrantTask() {
         command = 'ssh'
     }
 
-    void setRemoteCommand(String remoteCommand) {
+    void setRemoteCommand(Object remoteCommand) {
         this.remoteCommand = Objects.requireNonNull(remoteCommand)
-        setArgs(['--command', remoteCommand])
+        setArgs((Iterable<?>) ['--command', remoteCommand])
     }
 
     @Override

@@ -6,8 +6,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
@@ -28,18 +27,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class PutFollowAction extends Action<PutFollowAction.Response> {
+public final class PutFollowAction extends ActionType<PutFollowAction.Response> {
 
     public static final PutFollowAction INSTANCE = new PutFollowAction();
     public static final String NAME = "indices:admin/xpack/ccr/put_follow";
 
     private PutFollowAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -169,9 +163,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             this.leaderIndex = in.readString();
             this.followerIndex = in.readString();
             this.parameters = new FollowParameters(in);
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                waitForActiveShards(ActiveShardCount.readFrom(in));
-            }
+            waitForActiveShards(ActiveShardCount.readFrom(in));
         }
 
         @Override
@@ -181,9 +173,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
             parameters.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                waitForActiveShards.writeTo(out);
-            }
+            waitForActiveShards.writeTo(out);
         }
 
         @Override

@@ -319,7 +319,7 @@ setup:
               "histogram_buckets":{
                 "date_histogram": {
                   "field": "@timestamp",
-                  "interval": "5m",
+                  "fixed_interval": "5m",
                   "time_zone": "UTC",
                   "min_doc_count": 0
                 },

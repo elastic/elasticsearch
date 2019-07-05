@@ -42,12 +42,15 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.index.shard.IndexShardTestCase.getEngine;
 import static org.elasticsearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -284,7 +287,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
             // we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(1, search.totalHits.value);
             }
         });
@@ -297,7 +300,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the force refresh we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(2, search.totalHits.value);
             }
         });
@@ -305,7 +308,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(3, search.totalHits.value);
             }
         });
@@ -370,7 +373,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
-        assertTrue(indexService.getRefreshTask().mustReschedule());
+        assertTrue(indexService.getTrimTranslogTask().mustReschedule());
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareUpdateSettings("test")
@@ -380,6 +383,48 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertThat(IndexShardTestCase.getTranslog(shard).totalOperations(), equalTo(0)));
+    }
+
+    public void testAsyncTranslogTrimTaskOnClosedIndex() throws Exception {
+        final String indexName = "test";
+        IndexService indexService = createIndex(indexName, Settings.builder()
+            .put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+            .build());
+
+        Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+        final Path translogPath = translog.getConfig().getTranslogPath();
+        final String translogUuid = translog.getTranslogUUID();
+
+        final int numDocs = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            if (randomBoolean()) {
+                client().admin().indices().prepareFlush(indexName).get();
+            }
+        }
+        assertThat(translog.totalOperations(), equalTo(numDocs));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(numDocs));
+        assertAcked(client().admin().indices().prepareClose("test"));
+
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        assertTrue(indexService.getTrimTranslogTask().mustReschedule());
+
+        final long lastCommitedTranslogGeneration;
+        try (Engine.IndexCommitRef indexCommitRef = getEngine(indexService.getShard(0)).acquireLastIndexCommit(false)) {
+            Map<String, String> lastCommittedUserData = indexCommitRef.getIndexCommit().getUserData();
+            lastCommitedTranslogGeneration = Long.parseLong(lastCommittedUserData.get(Translog.TRANSLOG_GENERATION_KEY));
+        }
+        assertBusy(() -> {
+            long minTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUuid);
+            assertThat(minTranslogGen, equalTo(lastCommitedTranslogGeneration));
+        });
+
+        assertAcked(client().admin().indices().prepareOpen("test"));
+
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(indexService.index());
+        translog = IndexShardTestCase.getTranslog(indexService.getShard(0));
+        assertThat(translog.totalOperations(), equalTo(0));
+        assertThat(translog.stats().estimatedNumberOfOperations(), equalTo(0));
     }
 
     public void testIllegalFsyncInterval() {

@@ -51,8 +51,8 @@ public class BaseTasksResponse extends ActionResponse {
     private List<ElasticsearchException> nodeFailures;
 
     public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures) {
-        this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
-        this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
+        this.taskFailures = taskFailures == null ? Collections.emptyList() : List.copyOf(taskFailures);
+        this.nodeFailures = nodeFailures == null ? Collections.emptyList() : List.copyOf(nodeFailures);
     }
 
     public BaseTasksResponse(StreamInput in) throws IOException {

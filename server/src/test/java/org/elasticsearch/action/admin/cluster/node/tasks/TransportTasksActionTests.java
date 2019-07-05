@@ -84,8 +84,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             super();
         }
 
-        public NodeRequest(NodesRequest request, String nodeId) {
-            super(nodeId);
+        public NodeRequest(NodesRequest request) {
             requestName = request.requestName;
         }
 
@@ -157,8 +156,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId);
+        protected NodeRequest newNodeRequest(NodesRequest request) {
+            return new NodeRequest(request);
         }
 
         @Override
@@ -205,7 +204,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
         TestTasksResponse(StreamInput in) throws IOException {
@@ -272,7 +271,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     logger.info("Action on node {}", node);
                     actionLatch.countDown();
                     try {
@@ -470,17 +469,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
-        Task task = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
-            @Override
-            public void onResponse(NodesResponse nodeResponses) {
-                responseLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                responseLatch.countDown();
-            }
-        });
+        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.wrap(responseLatch::countDown));
         String actionName = "internal:testAction"; // only pick the main action
 
         // Try to cancel main task using action name
@@ -537,7 +526,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             actions[i] = new TestNodesAction("internal:testAction", threadPool, testNodes[i].clusterService,
                     testNodes[i].transportService) {
                 @Override
-                protected NodeResponse nodeOperation(NodeRequest request) {
+                protected NodeResponse nodeOperation(NodeRequest request, Task task) {
                     logger.info("Action on node {}", node);
                     throw new RuntimeException("Test exception");
                 }

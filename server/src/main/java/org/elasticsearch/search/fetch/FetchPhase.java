@@ -31,7 +31,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
@@ -190,7 +189,7 @@ public class FetchPhase implements SearchPhase {
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
             BitSet bits = context.bitsetFilterCache()
-                .getBitSetProducer(Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated()))
+                .getBitSetProducer(Queries.newNonNestedFilter())
                 .getBitSet(subReaderContext);
             if (!bits.get(subDocId)) {
                 return bits.nextSetBit(subDocId);
@@ -363,7 +362,7 @@ public class FetchPhase implements SearchPhase {
                 }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
-                parentFilter = Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated());
+                parentFilter = Queries.newNonNestedFilter();
             }
 
             Query childFilter = nestedObjectMapper.nestedTypeFilter();
@@ -383,32 +382,19 @@ public class FetchPhase implements SearchPhase {
             BitSet parentBits = context.bitsetFilterCache().getBitSetProducer(parentFilter).getBitSet(subReaderContext);
 
             int offset = 0;
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
-                /**
-                 * Starts from the previous parent and finds the offset of the
-                 * <code>nestedSubDocID</code> within the nested children. Nested documents
-                 * are indexed in the same order than in the source array so the offset
-                 * of the nested child is the number of nested document with the same parent
-                 * that appear before him.
-                 */
-                int previousParent = parentBits.prevSetBit(currentParent);
-                for (int docId = childIter.advance(previousParent + 1); docId < nestedSubDocId && docId != DocIdSetIterator.NO_MORE_DOCS;
-                        docId = childIter.nextDoc()) {
-                    offset++;
-                }
-                currentParent = nestedSubDocId;
-            } else {
-                /**
-                 * Nested documents are in reverse order in this version so we start from the current nested document
-                 * and find the number of documents with the same parent that appear after it.
-                 */
-                int nextParent = parentBits.nextSetBit(currentParent);
-                for (int docId = childIter.advance(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS;
-                        docId = childIter.nextDoc()) {
-                    offset++;
-                }
-                currentParent = nextParent;
+            /**
+             * Starts from the previous parent and finds the offset of the
+             * <code>nestedSubDocID</code> within the nested children. Nested documents
+             * are indexed in the same order than in the source array so the offset
+             * of the nested child is the number of nested document with the same parent
+             * that appear before him.
+             */
+            int previousParent = parentBits.prevSetBit(currentParent);
+            for (int docId = childIter.advance(previousParent + 1); docId < nestedSubDocId && docId != DocIdSetIterator.NO_MORE_DOCS;
+                 docId = childIter.nextDoc()) {
+                offset++;
             }
+            currentParent = nestedSubDocId;
             current = nestedObjectMapper = nestedParentObjectMapper;
             int currentPrefix = current == null ? 0 : current.name().length() + 1;
             nestedIdentity = new SearchHit.NestedIdentity(originalName.substring(currentPrefix), offset, nestedIdentity);

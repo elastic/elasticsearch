@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -64,7 +65,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -128,7 +128,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         clusterService = createClusterService(threadPool);
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
-        Set<DiscoveryNode.Role> roles = new HashSet<>(Arrays.asList(DiscoveryNode.Role.values()));
+        Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
         DiscoveryNode node1 = new DiscoveryNode("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
         state.nodes(DiscoveryNodes.builder()
@@ -316,7 +316,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                 allPermitsAction.new AsyncPrimaryAction(primaryRequest, allPermitFuture, null) {
                     @Override
                     void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
-                        assertEquals("All permits must be acquired", 0, reference.indexShard.getActiveOperationsCount());
+                        assertEquals("All permits must be acquired",
+                            IndexShard.OPERATIONS_BLOCKED, reference.indexShard.getActiveOperationsCount());
                         assertSame(primary, reference.indexShard);
 
                         final ClusterState clusterState = clusterService.state();
@@ -549,13 +550,13 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         @Override
         protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
                 ActionListener<PrimaryResult<Request, Response>> listener) {
-            assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
+            assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
             super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
         protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
-            assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
+            assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
             return super.shardOperationOnReplica(shardRequest, shard);
         }
     }

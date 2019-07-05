@@ -31,21 +31,9 @@ public class VerificationFailure implements Streamable {
 
     private Exception cause;
 
-    VerificationFailure() {
-
-    }
-
-    public VerificationFailure(String nodeId, Exception cause) {
+    VerificationFailure(String nodeId, Exception cause) {
         this.nodeId = nodeId;
         this.cause = cause;
-    }
-
-    public String nodeId() {
-        return nodeId;
-    }
-
-    public Throwable cause() {
-        return cause;
     }
 
     @Override
@@ -58,12 +46,6 @@ public class VerificationFailure implements Streamable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nodeId);
         out.writeException(cause);
-    }
-
-    public static VerificationFailure readNode(StreamInput in) throws IOException {
-        VerificationFailure failure = new VerificationFailure();
-        failure.readFrom(in);
-        return failure;
     }
 
     @Override

@@ -137,7 +137,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -156,6 +155,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         return Arrays.asList(IngestTestPlugin.class,
             StoredScriptsIT.CustomScriptPlugin.class,
             MockRepository.Plugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
+            .build();
     }
 
     private Settings randomRepoSettings() {
@@ -1341,7 +1347,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/43993")
     public void testGetSnapshotsMultipleRepos() {
         final Client client = client();
 
@@ -1393,7 +1398,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             String repo = repo2Names.getKey();
             List<String> snapshotNames = repo2Names.getValue();
             List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots(repo);
-            assertThat(snapshotNames, containsInAnyOrder(snapshots.stream().map(s -> s.snapshotId().getName()).toArray(String[]::new)));
+            assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
         }
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=false");
@@ -1419,7 +1424,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             String repo = repo2Names.getKey();
             List<String> snapshotNames = repo2Names.getValue();
             List<SnapshotInfo> snapshots = getSnapshotsResponse3.getSnapshots(repo);
-            assertThat(snapshotNames, containsInAnyOrder(snapshots.stream().map(s -> s.snapshotId().getName()).toArray(String[]::new)));
+            assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
         }
     }
 

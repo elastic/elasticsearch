@@ -84,7 +84,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
     }
 
     public void testPostOperationGlobalCheckpointSync() throws Exception {
-        // set the sync interval high so it does not execute during this test. This only allows the the global checkpoint to catch up
+        // set the sync interval high so it does not execute during this test. This only allows the global checkpoint to catch up
         // on a post-operation background sync if translog durability is set to sync. Async durability relies on a scheduled global
         // checkpoint sync to allow the information about persisted local checkpoints to be transferred to the primary.
         runGlobalCheckpointSyncTest(TimeValue.timeValueHours(24),

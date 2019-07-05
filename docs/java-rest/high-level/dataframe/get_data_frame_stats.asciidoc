@@ -53,3 +53,4 @@ include-tagged::{doc-tests-file}[{api}-response]
 <4> The overall transform statistics recording the number of documents indexed etc.
 <5> The progress of the current run in the transform. Supplies the number of docs left until the next checkpoint
 and the total number of docs expected.
+<6> The assigned node information if the task is currently assigned to a node and running.

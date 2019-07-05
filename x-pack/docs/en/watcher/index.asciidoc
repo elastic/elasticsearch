@@ -3,7 +3,7 @@
 
 [partintro]
 --
-The {alert-features} that enable you to watch
+The {alert-features} enable you to watch
 for changes or anomalies in your data and perform the necessary actions in
 response. For example, you might want to:
 

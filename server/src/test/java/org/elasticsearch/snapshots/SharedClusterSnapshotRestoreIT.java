@@ -1340,6 +1340,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/43993")
     public void testGetSnapshotsMultipleRepos() {
         final Client client = client();
 

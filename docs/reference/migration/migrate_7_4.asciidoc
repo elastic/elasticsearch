@@ -28,3 +28,13 @@ TokenizerFactory now has a `name()` method that must be implemented.  Most
 plugin-provided TokenizerFactory implementations will extend `AbstractTokenizerFactory`,
 which now takes a `name` parameter in its constructor.
 
+[float]
+[[breaking_74_search_changes]]
+=== Search Changes
+
+[float]
+==== Forbid empty doc values in vector functions
+If a document doesn't have a value for a vector field (dense_vector
+or sparse_vector) on which a vector function is executed, an error will
+be thrown.
+

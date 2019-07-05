@@ -28,7 +28,6 @@ public class ScoreScriptUtils {
      */
     public static double dotProduct(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
         BytesRef value = dvs.getEncodedValue();
-        if (value == null) return 0;
         float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
         if (queryVector.size() != docVector.length) {
             throw new IllegalArgumentException("Can't calculate dotProduct! The number of dimensions of the query vector [" +
@@ -63,7 +62,6 @@ public class ScoreScriptUtils {
 
         public double cosineSimilarity(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
             BytesRef value = dvs.getEncodedValue();
-            if (value == null) return 0;
             float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
             if (queryVector.size() != docVector.length) {
                 throw new IllegalArgumentException("Can't calculate cosineSimilarity! The number of dimensions of the query vector [" +
@@ -129,7 +127,6 @@ public class ScoreScriptUtils {
 
         public double dotProductSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
             BytesRef value = dvs.getEncodedValue();
-            if (value == null) return 0;
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(value);
             return intDotProductSparse(queryValues, queryDims, docValues, docDims);
@@ -174,7 +171,6 @@ public class ScoreScriptUtils {
 
         public double cosineSimilaritySparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
             BytesRef value = dvs.getEncodedValue();
-            if (value == null) return 0;
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
             float[] docValues = VectorEncoderDecoder.decodeSparseVector(value);
 

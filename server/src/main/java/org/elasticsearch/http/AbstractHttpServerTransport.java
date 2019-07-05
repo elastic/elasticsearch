@@ -73,6 +73,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
+    protected final CorsHandler.Config corsConfig;
     private final NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
@@ -94,6 +95,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
+        this.corsConfig = CorsHandler.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);

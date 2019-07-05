@@ -657,6 +657,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             r -> {
                                 // for auto stop shutdown the task
                                 if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
+                                    onStop();
                                     transformTask.shutdown();
                                 }
                                 next.run();
@@ -715,7 +716,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onStop() {
             auditor.info(transformConfig.getId(), "Data frame transform has stopped.");
-            logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
+            logger.info("Data frame transform [{}] has stopped", transformConfig.getId());
         }
 
         @Override

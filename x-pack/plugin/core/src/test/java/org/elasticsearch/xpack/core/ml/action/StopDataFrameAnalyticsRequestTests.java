@@ -24,6 +24,9 @@ public class StopDataFrameAnalyticsRequestTests extends AbstractWireSerializingT
         if (randomBoolean()) {
             request.setAllowNoMatch(randomBoolean());
         }
+        if (randomBoolean()) {
+            request.setForce(randomBoolean());
+        }
         int expandedIdsCount = randomIntBetween(0, 10);
         Set<String> expandedIds = new HashSet<>();
         for (int i = 0; i < expandedIdsCount; i++) {

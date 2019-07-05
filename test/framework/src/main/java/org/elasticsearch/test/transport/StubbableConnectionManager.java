@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -28,7 +28,6 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -80,8 +79,8 @@ public class StubbableConnectionManager extends ConnectionManager {
     }
 
     @Override
-    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return delegate.openConnection(node, connectionProfile);
+    public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
+        delegate.openConnection(node, connectionProfile, listener);
     }
 
     @Override
@@ -110,9 +109,9 @@ public class StubbableConnectionManager extends ConnectionManager {
 
     @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator)
+                              ConnectionValidator connectionValidator, ActionListener<Void> listener)
         throws ConnectTransportException {
-        delegate.connectToNode(node, connectionProfile, connectionValidator);
+        delegate.connectToNode(node, connectionProfile, connectionValidator, listener);
     }
 
     @Override

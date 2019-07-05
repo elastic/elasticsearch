@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
@@ -222,6 +224,16 @@ public class DataFrameTransformsCheckpointService {
         for (ShardStats shard : shards) {
             String indexName = shard.getShardRouting().getIndexName();
             if (userIndices.contains(indexName)) {
+                SeqNoStats seqNoStats = shard.getSeqNoStats();
+                // SeqNoStats could be `null`. This indicates that an `AlreadyClosed` exception was thrown somewhere down the stack
+                // Indicates that the index COULD be closed, or at least that the shard is not fully recovered yet.
+                if (seqNoStats == null) {
+                    logger.warn("failure gathering checkpoint information for index [{}] as seq_no_stats were null. Shard Stats [{}]",
+                        indexName,
+                        Strings.toString(shard));
+                    throw new CheckpointException(
+                        "Unable to gather checkpoint information for index [" + indexName + "]. seq_no_stats are missing.");
+                }
                 if (checkpointsByIndex.containsKey(indexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);

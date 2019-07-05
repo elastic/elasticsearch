@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -222,10 +221,8 @@ public final class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
-            listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated"));
-            return () -> {};
-        });
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
+            listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated")));
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
             connection.close();
@@ -278,10 +275,8 @@ public final class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
-            listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-            return () -> {};
-        });
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
+            listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated")));
 
         transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
             private Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
@@ -331,11 +326,12 @@ public final class MockTransportService extends TransportService {
         transport().addConnectBehavior(transportAddress, new StubbableTransport.OpenConnectionBehavior() {
             private CountDownLatch stopLatch = new CountDownLatch(1);
             @Override
-            public Releasable openConnection(Transport transport, DiscoveryNode discoveryNode,
+            public void openConnection(Transport transport, DiscoveryNode discoveryNode,
                                              ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
                 TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
-                    return original.openConnection(discoveryNode, profile, listener);
+                    original.openConnection(discoveryNode, profile, listener);
+                    return;
                 }
 
                 // TODO: Replace with proper setting
@@ -343,17 +339,13 @@ public final class MockTransportService extends TransportService {
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         stopLatch.await(delay.millis(), TimeUnit.MILLISECONDS);
-                        return original.openConnection(discoveryNode, profile, listener);
+                        original.openConnection(discoveryNode, profile, listener);
                     } else {
                         stopLatch.await(connectingTimeout.millis(), TimeUnit.MILLISECONDS);
                         listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                        return () -> {
-                        };
                     }
                 } catch (InterruptedException e) {
                     listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                    return () -> {
-                    };
                 }
             }
 
@@ -524,7 +516,7 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
         Transport.Connection connection = super.openConnection(node, profile);
 
         synchronized (openConnections) {

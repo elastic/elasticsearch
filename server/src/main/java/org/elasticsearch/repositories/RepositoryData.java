@@ -21,7 +21,6 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -57,7 +56,7 @@ public final class RepositoryData {
      * An instance initialized for an empty repository.
      */
     public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN,
-        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList(), Version.CURRENT);
+        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList());
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -84,25 +83,11 @@ public final class RepositoryData {
      */
     private final List<SnapshotId> incompatibleSnapshotIds;
 
-    /**
-     * Version of Elasticsearch that wrote this repository data.
-     */
-    private final Version lastEsVersion;
-
     public RepositoryData(long genId,
         Map<String, SnapshotId> snapshotIds,
         Map<String, SnapshotState> snapshotStates,
         Map<IndexId, Set<SnapshotId>> indexSnapshots,
         List<SnapshotId> incompatibleSnapshotIds) {
-        this(genId, snapshotIds, snapshotStates, indexSnapshots, incompatibleSnapshotIds, Version.CURRENT);
-    }
-
-    private RepositoryData(long genId,
-                          Map<String, SnapshotId> snapshotIds,
-                          Map<String, SnapshotState> snapshotStates,
-                          Map<IndexId, Set<SnapshotId>> indexSnapshots,
-                          List<SnapshotId> incompatibleSnapshotIds,
-                          Version lastEsVersion) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
         this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
@@ -110,18 +95,10 @@ public final class RepositoryData {
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
         this.incompatibleSnapshotIds = Collections.unmodifiableList(incompatibleSnapshotIds);
-        this.lastEsVersion = lastEsVersion;
     }
 
     protected RepositoryData copy() {
-        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, incompatibleSnapshotIds, lastEsVersion);
-    }
-
-    /**
-     * Returns the highest version of Elasticsearch to ever manipulate this repository.
-     */
-    public Version getLastEsVersion() {
-        return lastEsVersion;
+        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -194,7 +171,7 @@ public final class RepositoryData {
         for (final IndexId indexId : snapshottedIndices) {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
-        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, incompatibleSnapshotIds, Version.CURRENT);
+        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -228,7 +205,7 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, incompatibleSnapshotIds, Version.CURRENT);
+        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -255,13 +232,12 @@ public final class RepositoryData {
                    && snapshotStates.equals(that.snapshotStates)
                    && indices.equals(that.indices)
                    && indexSnapshots.equals(that.indexSnapshots)
-                   && incompatibleSnapshotIds.equals(that.incompatibleSnapshotIds)
-                   && lastEsVersion.equals(that.lastEsVersion);
+                   && incompatibleSnapshotIds.equals(that.incompatibleSnapshotIds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots, incompatibleSnapshotIds, lastEsVersion);
+        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -316,7 +292,6 @@ public final class RepositoryData {
     private static final String NAME = "name";
     private static final String UUID = "uuid";
     private static final String STATE = "state";
-    private static final String ES_VERSION = "es-version";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content, omitting the
@@ -351,7 +326,6 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endObject();
-        builder.field(ES_VERSION, lastEsVersion);
         builder.endObject();
         return builder;
     }
@@ -363,7 +337,7 @@ public final class RepositoryData {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
-        Version esVersion = Version.V_EMPTY;
+
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                 String field = parser.currentName();
@@ -455,11 +429,6 @@ public final class RepositoryData {
                         assert indexId != null;
                         indexSnapshots.put(indexId, snapshotIds);
                     }
-                } else if (ES_VERSION.equals(field)) {
-                    if (parser.nextToken().isValue() == false) {
-                        throw new ElasticsearchParseException("value expected for [" + ES_VERSION + ']');
-                    }
-                    esVersion = Version.fromString(parser.text());
                 } else {
                     // Assume this was added by a newer ES version so we skip it
                     parser.skipChildren();
@@ -468,7 +437,7 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, Collections.emptyList(), esVersion);
+        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, Collections.emptyList());
     }
 
     /**
@@ -511,7 +480,7 @@ public final class RepositoryData {
             throw new ElasticsearchParseException("start object expected");
         }
         return new RepositoryData(
-            this.genId, this.snapshotIds, this.snapshotStates, this.indexSnapshots, incompatibleSnapshotIds, lastEsVersion);
+            this.genId, this.snapshotIds, this.snapshotStates, this.indexSnapshots, incompatibleSnapshotIds);
     }
 
 }

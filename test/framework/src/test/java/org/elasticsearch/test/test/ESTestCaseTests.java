@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import junit.framework.AssertionFailedError;
 
 import org.elasticsearch.common.bytes.BytesReference;
@@ -180,5 +181,12 @@ public class ESTestCaseTests extends ESTestCase {
          */
         Supplier<Object> usuallyNull = () -> usually() ? null : randomInt();
         assertNotNull(randomValueOtherThan(null, usuallyNull));
+    }
+
+    public void testWorkerSystemProperty() {
+        assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
+        // org.gradle.test.worker starts counting at 1
+        assertThat(RandomizedTest.systemPropertyAsInt(TEST_WORKER_SYS_PROPERTY, -1), greaterThan(0));
+        assertEquals(RandomizedTest.systemPropertyAsInt(TEST_WORKER_SYS_PROPERTY, -1) - 1, TEST_WORKER_VM);
     }
 }

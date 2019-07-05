@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -50,7 +51,6 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     private Directory directory;
     private DirectoryReader directoryReader;
     private DocumentSubsetBitsetCache bitsetCache;
-    private boolean strictTermsEnum;
 
     @Before
     public void setUpDirectory() {
@@ -99,14 +99,14 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         openDirectoryReader();
 
         IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value1")), strictTermsEnum));
+            new TermQuery(new Term("field", "value1")), randomBoolean()));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         TopDocs result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(0));
 
         indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value2")), strictTermsEnum));
+            new TermQuery(new Term("field", "value2")), randomBoolean()));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
@@ -114,20 +114,20 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         // this doc has been marked as deleted:
         indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value3")), strictTermsEnum));
+            new TermQuery(new Term("field", "value3")), randomBoolean()));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(0));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(0L));
 
         indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value4")), strictTermsEnum));
+            new TermQuery(new Term("field", "value4")), randomBoolean()));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(3));
     }
 
-    public void testTermsAgg() throws IOException {
+    public void testTermsAggFailWithStrictTermsEnum() throws IOException {
         IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig());
 
         Document document = new Document();
@@ -156,7 +156,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         openDirectoryReader();
 
         IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-            new TermQuery(new Term("field", "value2")), false));
+            new TermQuery(new Term("field", "value2")), true));
 
         TermsAggCollector collector = new TermsAggCollector("field", false);
         indexSearcher.search(new MatchAllDocsQuery(), collector);
@@ -169,10 +169,10 @@ public class DocumentSubsetReaderTests extends ESTestCase {
                 indexSearcher.search(new MatchAllDocsQuery(), collector2);
                 collector2.getCounts();
             });
-        // TODO: assert on the error message
+        assertThat(uoe.getMessage(), containsString("Lookup by ord on random ords is disallowed"));
     }
 
-    public void testTermsAggOnUnindexedField() throws IOException {
+    public void testTermsAggOnUnindexedFieldFailWithStrictTermsEnum() throws IOException {
         IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig());
 
         Document document = new Document();
@@ -200,7 +200,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         openDirectoryReader();
 
         IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-            new TermQuery(new Term("keep_me", "yes")), false));
+            new TermQuery(new Term("keep_me", "yes")), true));
 
         UnsupportedOperationException uoe = expectThrows(UnsupportedOperationException.class,
             () -> {
@@ -208,7 +208,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
                 indexSearcher.search(new MatchAllDocsQuery(), collector);
                 collector.getCounts();
             });
-        // TODO: assert on the error message
+        assertThat(uoe.getMessage(), containsString("This query type is disallowed"));
 
         uoe = expectThrows(UnsupportedOperationException.class,
             () -> {
@@ -216,7 +216,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
                 indexSearcher.search(new MatchAllDocsQuery(), collector);
                 collector.getCounts();
             });
-        // TODO: assert on the error message
+        assertThat(uoe.getMessage(), containsString("This query type is disallowed"));
     }
 
     /**
@@ -300,7 +300,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             Query roleQuery = new TermQuery(new Term("field", "value" + i));
-            DirectoryReader wrappedReader = DocumentSubsetReader.wrap(directoryReader, bitsetCache, roleQuery, strictTermsEnum);
+            DirectoryReader wrappedReader = DocumentSubsetReader.wrap(directoryReader, bitsetCache, roleQuery, true);
 
             LeafReader leafReader = wrappedReader.leaves().get(0).reader();
             assertThat(leafReader.hasDeletions(), is(true));
@@ -323,9 +323,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
         DirectoryReader directoryReader =
-            DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery(), strictTermsEnum);
+            DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery(), true);
         try {
-            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new MatchAllDocsQuery(), strictTermsEnum);
+            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new MatchAllDocsQuery(), true);
             fail("shouldn't be able to wrap DocumentSubsetDirectoryReader twice");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't wrap [class org.elasticsearch.xpack.core.security.authz.accesscontrol" +
@@ -356,7 +356,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
         // open reader
         DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), new ShardId("_index", "_na_", 0));
-        ir = DocumentSubsetReader.wrap(ir, bitsetCache, new MatchAllDocsQuery(), strictTermsEnum);
+        ir = DocumentSubsetReader.wrap(ir, bitsetCache, new MatchAllDocsQuery(), false);
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 
@@ -373,10 +373,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertNull(ir.leaves().get(0).reader().getReaderCacheHelper());
         assertNull(ir2.leaves().get(0).reader().getReaderCacheHelper());
 
-        DirectoryReader finalIr = ir;
-        UnsupportedOperationException uoe = expectThrows(UnsupportedOperationException.class, () -> {
-            TestUtil.checkReader(finalIr);
-        });
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
     }
 

@@ -121,34 +121,34 @@ When the job is created, you receive the following results:
 [source,js]
 ----
 {
-  "job_id": "total-requests",
-  "job_type": "anomaly_detector",
-  "job_version": "8.0.0",
-  "description": "Total sum of requests",
-  "create_time": 1562346643557,
-  "analysis_config": {
-    "bucket_span": "10m",
-    "detectors": [
+  "job_id" : "total-requests",
+  "job_type" : "anomaly_detector",
+  "job_version" : "8.0.0",
+  "description" : "Total sum of requests",
+  "create_time" : 1562352500629,
+  "analysis_config" : {
+    "bucket_span" : "10m",
+    "detectors" : [
       {
-        "detector_description": "Sum of total",
-        "function": "sum",
-        "field_name": "total",
-        "detector_index": 0
+        "detector_description" : "Sum of total",
+        "function" : "sum",
+        "field_name" : "total",
+        "detector_index" : 0
       }
     ],
-    "influencers": []
+    "influencers" : [ ]
   },
-  "analysis_limits": {
-    "model_memory_limit": "1024mb",
-    "categorization_examples_limit": 4
+  "analysis_limits" : {
+    "model_memory_limit" : "1024mb",
+    "categorization_examples_limit" : 4
   },
-  "data_description": {
-    "time_field": "timestamp",
-    "time_format": "epoch_ms"
+  "data_description" : {
+    "time_field" : "timestamp",
+    "time_format" : "epoch_ms"
   },
-  "model_snapshot_retention_days": 1,
-  "results_index_name": "shared"
+  "model_snapshot_retention_days" : 1,
+  "results_index_name" : "shared"
 }
 ----
-// TESTRESPONSE[s/"job_version": "8.0.0"/"job_version": $body.job_version/]
-// TESTRESPONSE[s/1562346643557/$body.$_path/]
+// TESTRESPONSE[s/"job_version" : "8.0.0"/"job_version" : $body.job_version/]
+// TESTRESPONSE[s/1562352500629/$body.$_path/]

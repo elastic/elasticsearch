@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.UnwrapForGlobalOrdsFilterDirectoryReader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -114,7 +115,7 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         return perReaderCache.computeIfAbsent(roleQuery, q -> computeNumDocs(reader, roleQuery, roleQueryBits));
     }
 
-    public static final class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
+    public static final class DocumentSubsetDirectoryReader extends UnwrapForGlobalOrdsFilterDirectoryReader {
 
         private final Query roleQuery;
         private final DocumentSubsetBitsetCache bitsetCache;

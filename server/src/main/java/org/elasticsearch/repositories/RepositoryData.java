@@ -84,10 +84,10 @@ public final class RepositoryData {
     private final List<SnapshotId> incompatibleSnapshotIds;
 
     public RepositoryData(long genId,
-        Map<String, SnapshotId> snapshotIds,
-        Map<String, SnapshotState> snapshotStates,
-        Map<IndexId, Set<SnapshotId>> indexSnapshots,
-        List<SnapshotId> incompatibleSnapshotIds) {
+                          Map<String, SnapshotId> snapshotIds,
+                          Map<String, SnapshotState> snapshotStates,
+                          Map<IndexId, Set<SnapshotId>> indexSnapshots,
+                          List<SnapshotId> incompatibleSnapshotIds) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
         this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
@@ -479,8 +479,7 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(
-            this.genId, this.snapshotIds, this.snapshotStates, this.indexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(this.genId, this.snapshotIds, this.snapshotStates, this.indexSnapshots, incompatibleSnapshotIds);
     }
 
 }

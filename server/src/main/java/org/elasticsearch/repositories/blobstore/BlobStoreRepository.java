@@ -857,8 +857,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Store store = context.store();
         final ShardId shardId = store.shardId();
         final IndexShardSnapshotStatus snapshotStatus = context.status();
-        final long startTime = threadPool.relativeTimeInMillis();
-        final Consumer<Exception> onFailure = e -> context.finish(threadPool.relativeTimeInMillis(), ExceptionsHelper.detailedMessage(e),
+        final long startTime = threadPool.absoluteTimeInMillis();
+        final Consumer<Exception> onFailure = e -> context.finish(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e),
             e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
                 : new IndexShardSnapshotFailedException(store.shardId(), e));
         try {
@@ -881,6 +881,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
             }
 
+            final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
+            ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
             store.incRef();
             final IndexCommit snapshotIndexCommit = context.indexCommit();
             final Collection<String> fileNames;
@@ -902,8 +904,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             int indexTotalNumberOfFiles = 0;
             long indexIncrementalSize = 0;
             long indexTotalFileCount = 0;
-            final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
-            final List<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
             for (String fileName : fileNames) {
                 if (snapshotStatus.isAborted()) {
                     logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
@@ -957,7 +957,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         lastSnapshotStatus.getStartTime(),
                         // snapshotStatus.startTime() is assigned on the same machine,
                         // so it's safe to use the relative time in millis
-                        threadPool.relativeTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                        threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
                         lastSnapshotStatus.getIncrementalFileCount(),
                         lastSnapshotStatus.getIncrementalSize()
                     );
@@ -979,7 +979,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
                     finalizeShard(newSnapshotsList, fileListGeneration, blobs, "snapshot creation [" + snapshotId + "]",
                         shardContainer, shardId, snapshotId);
-                    context.finish(threadPool.relativeTimeInMillis());
+                    context.finish(threadPool.absoluteTimeInMillis());
                 }, onFailure), indexIncrementalFileCount + 1);
             filesListener.onResponse(null);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);

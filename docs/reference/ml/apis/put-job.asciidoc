@@ -114,7 +114,6 @@ PUT _ml/anomaly_detectors/total-requests
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:need-licence]
 
 When the job is created, you receive the following results:
 [source,js]

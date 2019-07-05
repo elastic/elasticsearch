@@ -418,7 +418,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             case OLD:
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);

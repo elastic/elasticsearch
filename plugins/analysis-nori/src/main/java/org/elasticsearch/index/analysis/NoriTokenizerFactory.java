@@ -41,7 +41,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private final KoreanTokenizer.DecompoundMode decompoundMode;
 
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, settings);
+        super(indexSettings, settings, name);
         decompoundMode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
     }

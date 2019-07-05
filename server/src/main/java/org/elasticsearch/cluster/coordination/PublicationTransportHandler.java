@@ -159,13 +159,13 @@ public class PublicationTransportHandler {
         return new PublicationContext() {
             @Override
             public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                           ActionListener<PublishWithJoinResponse> responseActionListener) {
+                                           ActionListener<PublishWithJoinResponse> originalListener) {
                 assert publishRequest.getAcceptedState() == clusterChangedEvent.state() : "state got switched on us";
+                final ActionListener<PublishWithJoinResponse> responseActionListener;
                 if (destination.equals(nodes.getLocalNode())) {
                     // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
                     final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
                     assert previousRequest == null;
-                    final ActionListener<PublishWithJoinResponse> originalListener = responseActionListener;
                     responseActionListener = new ActionListener<PublishWithJoinResponse>() {
                         @Override
                         public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
@@ -181,6 +181,8 @@ public class PublicationTransportHandler {
                             originalListener.onFailure(e);
                         }
                     };
+                } else {
+                    responseActionListener = originalListener;
                 }
                 if (sendFullVersion || !previousState.nodes().nodeExists(destination)) {
                     logger.trace("sending full cluster state version {} to {}", newState.version(), destination);

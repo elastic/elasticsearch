@@ -65,8 +65,7 @@ or old results are deleted, the job counts are not reset.
   (long) The number of bucket results produced by the job.
 
 `earliest_record_timestamp`::
-  (string) The timestamp of the earliest chronologically ordered record.
-  The datetime string is in ISO 8601 format.
+  (date) The timestamp of the earliest chronologically processed record.
 
 `empty_bucket_count`::
   (long) The number of buckets which did not contain any data. If your data contains many

@@ -26,11 +26,16 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
@@ -40,10 +45,12 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -53,6 +60,7 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -380,6 +388,113 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         ensureGreen(index);
+    }
+
+    public void testRetentionLeasesEstablishedWhenPromotingPrimary() throws Exception {
+        final String index = "recover_and_create_leases_in_promotion";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            createIndex(index, settings.build());
+            int numDocs = randomInt(10);
+            indexDocs(index, 0, numDocs);
+            if (randomBoolean()) {
+                client().performRequest(new Request("POST", "/" + index + "/_flush"));
+            }
+        }
+        ensureGreen(index);
+        if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            assertAllCopiesHaveRetentionLeases(index);
+        }
+    }
+
+    public void testRetentionLeasesEstablishedWhenRelocatingPrimary() throws Exception {
+        final String index = "recover_and_create_leases_in_relocation";
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+                createIndex(index, settings.build());
+                int numDocs = randomInt(10);
+                indexDocs(index, 0, numDocs);
+                if (randomBoolean()) {
+                    client().performRequest(new Request("POST", "/" + index + "/_flush"));
+                }
+                ensureGreen(index);
+                break;
+
+            case MIXED:
+                // trigger a primary relocation by excluding the last old node with a shard filter
+                final Map<?, ?> nodesMap
+                    = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes"))).evaluate("nodes");
+                final List<String> oldNodeNames = new ArrayList<>();
+                for (Object nodeDetails : nodesMap.values()) {
+                    final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
+                    final String versionString = (String) nodeDetailsMap.get("version");
+                    if (versionString.equals(Version.CURRENT.toString()) == false) {
+                        oldNodeNames.add((String) nodeDetailsMap.get("name"));
+                    }
+                }
+
+                if (oldNodeNames.size() == 1) {
+                    final String oldNodeName = oldNodeNames.get(0);
+                    logger.info("--> excluding index [{}] from node [{}]", index, oldNodeName);
+                    final Request putSettingsRequest = new Request("PUT", "/" + index + "/_settings");
+                    putSettingsRequest.setJsonEntity("{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}");
+                    assertOK(client().performRequest(putSettingsRequest));
+                    ensureGreen(index);
+                    assertAllCopiesHaveRetentionLeases(index);
+                } else {
+                    ensureGreen(index);
+                }
+                break;
+
+            case UPGRADED:
+                ensureGreen(index);
+                assertAllCopiesHaveRetentionLeases(index);
+                break;
+        }
+    }
+
+    private void assertAllCopiesHaveRetentionLeases(String index) throws Exception {
+        assertBusy(() -> {
+            final Request statsRequest = new Request("GET", "/" + index + "/_stats");
+            statsRequest.addParameter("level", "shards");
+            final Map<?, ?> shardsStats = ObjectPath.createFromResponse(client().performRequest(statsRequest))
+                .evaluate("indices." + index + ".shards");
+            for (Map.Entry<?, ?> shardCopiesEntry : shardsStats.entrySet()) {
+                final List<?> shardCopiesList = (List<?>) shardCopiesEntry.getValue();
+
+                final Set<String> expectedLeaseIds = new HashSet<>();
+                for (Object shardCopyStats : shardCopiesList) {
+                    final String nodeId
+                        = Objects.requireNonNull((String) ((Map<?, ?>) (((Map<?, ?>) shardCopyStats).get("routing"))).get("node"));
+                    expectedLeaseIds.add(ReplicationTracker.getPeerRecoveryRetentionLeaseId(
+                        ShardRouting.newUnassigned(new ShardId("_na_", "test", 0), false, RecoverySource.PeerRecoverySource.INSTANCE,
+                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")).initialize(nodeId, null, 0L)));
+                }
+
+                final Set<String> actualLeaseIds = new HashSet<>();
+                for (Object shardCopyStats : shardCopiesList) {
+                    final List<?> leases
+                        = (List<?>) ((Map<?, ?>) (((Map<?, ?>) shardCopyStats).get("retention_leases"))).get("leases");
+                    for (Object lease : leases) {
+                        actualLeaseIds.add(Objects.requireNonNull((String) (((Map<?, ?>) lease).get("id"))));
+                    }
+                }
+                assertThat("[" + index + "][" + shardCopiesEntry.getKey() + "] has leases " + actualLeaseIds
+                        + " but expected " + expectedLeaseIds,
+                    actualLeaseIds, hasItems(expectedLeaseIds.toArray(new String[0])));
+            }
+        });
     }
 
     /**

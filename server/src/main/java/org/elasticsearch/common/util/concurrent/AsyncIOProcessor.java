@@ -75,35 +75,33 @@ public abstract class AsyncIOProcessor<Item> {
         // while we are draining that mean we might exit below too early in the while loop if the drainAndSync call is fast.
         if (promised || promiseSemaphore.tryAcquire()) {
             final List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
-            try {
-                if (promised) {
-                    // we are responsible for processing we don't need to add the tuple to the queue we can just add it to the candidates
-                    // no need to preserve context for listener since it runs in current thread.
-                    candidates.add(new Tuple<>(item, listener));
-                }
-                // since we made the promise to process we gotta do it here at least once
-                drainAndProcess(candidates);
-            } finally {
-                promiseSemaphore.release(); // now to ensure we are passing it on we release the promise so another thread can take over
+            if (promised) {
+                // we are responsible for processing we don't need to add the tuple to the queue we can just add it to the candidates
+                // no need to preserve context for listener since it runs in current thread.
+                candidates.add(new Tuple<>(item, listener));
             }
+            // since we made the promise to process we gotta do it here at least once
+            drainAndProcessAndRelease(candidates);
             while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
                 // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
-                try {
-                    drainAndProcess(candidates);
-                } finally {
-                    promiseSemaphore.release();
-                }
+                drainAndProcessAndRelease(candidates);
             }
         }
     }
 
-    private void drainAndProcess(List<Tuple<Item, Consumer<Exception>>> candidates) {
-        queue.drainTo(candidates);
-        processList(candidates);
+    private void drainAndProcessAndRelease(List<Tuple<Item, Consumer<Exception>>> candidates) {
+        Exception exception;
+        try {
+            queue.drainTo(candidates);
+            exception = processList(candidates);
+        } finally {
+            promiseSemaphore.release();
+        }
+        notifyList(candidates, exception);
         candidates.clear();
     }
 
-    private void processList(List<Tuple<Item, Consumer<Exception>>> candidates) {
+    private Exception processList(List<Tuple<Item, Consumer<Exception>>> candidates) {
         Exception exception = null;
         if (candidates.isEmpty() == false) {
             try {
@@ -114,6 +112,10 @@ public abstract class AsyncIOProcessor<Item> {
                 exception = ex;
             }
         }
+        return exception;
+    }
+
+    private void notifyList(List<Tuple<Item, Consumer<Exception>>> candidates, Exception exception) {
         for (Tuple<Item, Consumer<Exception>> tuple : candidates) {
             Consumer<Exception> consumer = tuple.v2();
             try {

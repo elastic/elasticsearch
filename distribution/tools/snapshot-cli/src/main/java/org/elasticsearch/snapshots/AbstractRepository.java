@@ -77,12 +77,13 @@ public abstract class AbstractRepository implements Repository {
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file");
         final RepositoryData repositoryData = getRepositoryData(latestIndexId);
+        if (repositoryData.getIncompatibleSnapshotIds().isEmpty() == false) {
+            throw new ElasticsearchException(
+                "Found incompatible snapshots which prevent a safe cleanup execution " + repositoryData.getIncompatibleSnapshotIds());
+        }
         if (repositoryData.getIndices().isEmpty()) {
             throw new ElasticsearchException(
                 "The repository data contains no references to any indices. Maybe it is from before version 5.x?");
-        }
-        if (repositoryData.getIncompatibleSnapshotIds().isEmpty() == false) {
-            throw new ElasticsearchException("Found incompatible snapshots which prevent a safe cleanup execution");
         }
         Set<String> referencedIndexIds = repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
 

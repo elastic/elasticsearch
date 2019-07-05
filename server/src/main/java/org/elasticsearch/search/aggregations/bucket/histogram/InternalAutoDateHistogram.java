@@ -73,7 +73,7 @@ public final class InternalAutoDateHistogram extends
             this.format = format;
             key = in.readLong();
             docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -175,7 +175,7 @@ public final class InternalAutoDateHistogram extends
                 roundingInfos[i] = new RoundingInfo(in);
             }
             roundingIdx = in.readVInt();
-            emptySubAggregations = InternalAggregations.readAggregations(in);
+            emptySubAggregations = new InternalAggregations(in);
         }
 
         void writeTo(StreamOutput out) throws IOException {
@@ -598,7 +598,11 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
         return Objects.equals(buckets, that.buckets)
                 && Objects.equals(format, that.format)
@@ -606,7 +610,7 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets, format, bucketInfo);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, bucketInfo);
     }
 }

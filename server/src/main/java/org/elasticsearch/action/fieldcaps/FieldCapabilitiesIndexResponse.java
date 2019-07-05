@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Response for {@link FieldCapabilitiesIndexRequest} requests.
@@ -89,14 +90,13 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
-
-        return responseMap.equals(that.responseMap);
+        return Objects.equals(indexName, that.indexName) &&
+            Objects.equals(responseMap, that.responseMap);
     }
 
     @Override
     public int hashCode() {
-        return responseMap.hashCode();
+        return Objects.hash(indexName, responseMap);
     }
 }

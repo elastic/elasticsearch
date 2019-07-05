@@ -9,16 +9,18 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
-import java.io.InputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.stream.Collectors;
+
+import static java.util.Map.entry;
 
 public final class DomainSplitFunction {
 
@@ -28,68 +30,60 @@ public final class DomainSplitFunction {
     private static final int MAX_DOMAIN_PART_LENGTH = 63;
 
     private static final Map<String, String> exact;
-    private static final Map<String, String> under;
-    private static final Map<String, String> excluded;
+    private static final Map<String, String> under = Map.ofEntries(
+        entry("bd", "i"),
+        entry("np", "i"),
+        entry("jm", "i"),
+        entry("fj", "i"),
+        entry("fk", "i"),
+        entry("ye", "i"),
+        entry("sch.uk", "i"),
+        entry("bn", "i"),
+        entry("kitakyushu.jp", "i"),
+        entry("kobe.jp", "i"),
+        entry("ke", "i"),
+        entry("sapporo.jp", "i"),
+        entry("kh", "i"),
+        entry("mm", "i"),
+        entry("il", "i"),
+        entry("yokohama.jp", "i"),
+        entry("ck", "i"),
+        entry("nagoya.jp", "i"),
+        entry("sendai.jp", "i"),
+        entry("kw", "i"),
+        entry("er", "i"),
+        entry("mz", "i"),
+        entry("platform.sh", "p"),
+        entry("gu", "i"),
+        entry("nom.br", "i"),
+        entry("zm", "i"),
+        entry("pg", "i"),
+        entry("ni", "i"),
+        entry("kawasaki.jp", "i"),
+        entry("zw", "i"));
+
+    private static final Map<String, String> excluded =
+        Map.of(
+            "city.yokohama.jp", "i",
+            "teledata.mz", "i",
+            "city.kobe.jp", "i",
+            "city.sapporo.jp", "i",
+            "city.kawasaki.jp", "i",
+            "city.nagoya.jp", "i",
+            "www.ck", "i",
+            "city.sendai.jp", "i",
+            "city.kitakyushu.jp", "i");
+
     static {
-        Map<String, String> exactMap = new HashMap<>(2048);
-
-        String exactResourceName = "org/elasticsearch/xpack/ml/transforms/exact.properties";
-
-        try (InputStream resource = DomainSplitFunction.class.getClassLoader().getResourceAsStream(exactResourceName)) {
-            List<String> lines = Streams.readAllLines(resource);
-            for (String line : lines) {
-                String[] split = line.split("=");
-                exactMap.put(split[0].trim(), split[1].trim());
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Could not load DomainSplit resource", e);
+        try (var stream =
+                 DomainSplitFunction.class.getClassLoader().getResourceAsStream("org/elasticsearch/xpack/ml/transforms/exact.properties")) {
+            exact = Streams.readAllLines(stream)
+                .stream()
+                .map(line -> line.split("="))
+                .collect(Collectors.toUnmodifiableMap(split -> split[0], split -> split[1]));
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
-        exact = Collections.unmodifiableMap(exactMap);
-
-        Map<String, String> underMap = new HashMap<>(30);
-        underMap.put("bd", "i");
-        underMap.put("np", "i");
-        underMap.put("jm", "i");
-        underMap.put("fj", "i");
-        underMap.put("fk", "i");
-        underMap.put("ye", "i");
-        underMap.put("sch.uk", "i");
-        underMap.put("bn", "i");
-        underMap.put("kitakyushu.jp", "i");
-        underMap.put("kobe.jp", "i");
-        underMap.put("ke", "i");
-        underMap.put("sapporo.jp", "i");
-        underMap.put("kh", "i");
-        underMap.put("mm", "i");
-        underMap.put("il", "i");
-        underMap.put("yokohama.jp", "i");
-        underMap.put("ck", "i");
-        underMap.put("nagoya.jp", "i");
-        underMap.put("sendai.jp", "i");
-        underMap.put("kw", "i");
-        underMap.put("er", "i");
-        underMap.put("mz", "i");
-        underMap.put("platform.sh", "p");
-        underMap.put("gu", "i");
-        underMap.put("nom.br", "i");
-        underMap.put("zm", "i");
-        underMap.put("pg", "i");
-        underMap.put("ni", "i");
-        underMap.put("kawasaki.jp", "i");
-        underMap.put("zw", "i");
-        under = Collections.unmodifiableMap(underMap);
-
-        Map<String, String> excludedMap = new HashMap<>(9);
-        excludedMap.put("city.yokohama.jp", "i");
-        excludedMap.put("teledata.mz", "i");
-        excludedMap.put("city.kobe.jp", "i");
-        excludedMap.put("city.sapporo.jp", "i");
-        excludedMap.put("city.kawasaki.jp", "i");
-        excludedMap.put("city.nagoya.jp", "i");
-        excludedMap.put("www.ck", "i");
-        excludedMap.put("city.sendai.jp", "i");
-        excludedMap.put("city.kitakyushu.jp", "i");
-        excluded = Collections.unmodifiableMap(excludedMap);
     }
 
     private DomainSplitFunction() {}

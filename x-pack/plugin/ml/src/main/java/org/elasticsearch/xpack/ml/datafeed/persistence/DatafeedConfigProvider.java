@@ -45,20 +45,18 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,13 +84,9 @@ public class DatafeedConfigProvider {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    public static final Map<String, String> TO_XCONTENT_PARAMS;
-    static {
-        Map<String, String> modifiable = new HashMap<>();
-        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
-        modifiable.put(ToXContentParams.INCLUDE_TYPE, "true");
-        TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
-    }
+    public static final Map<String, String> TO_XCONTENT_PARAMS = Map.of(
+        ToXContentParams.FOR_INTERNAL_STORAGE, "true",
+        ToXContentParams.INCLUDE_TYPE, "true");
 
     public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;

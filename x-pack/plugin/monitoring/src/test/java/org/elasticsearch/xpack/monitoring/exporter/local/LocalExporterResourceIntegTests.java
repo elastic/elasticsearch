@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = TEST,
-                              numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+                              numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase {
 
     public LocalExporterResourceIntegTests() throws Exception {

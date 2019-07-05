@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateJobAction extends Action<PutJobAction.Response> {
+public class UpdateJobAction extends StreamableResponseActionType<PutJobAction.Response> {
     public static final UpdateJobAction INSTANCE = new UpdateJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
@@ -92,14 +91,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             super.readFrom(in);
             jobId = in.readString();
             update = new JobUpdate(in);
-            if (in.getVersion().onOrAfter(Version.V_6_2_2)) {
-                isInternal = in.readBoolean();
-            } else {
-                isInternal = false;
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().before(Version.V_7_0_0)) {
-                in.readBoolean(); // was waitForAck
-            }
+            isInternal = in.readBoolean();
         }
 
         @Override
@@ -107,12 +99,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             super.writeTo(out);
             out.writeString(jobId);
             update.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
-                out.writeBoolean(isInternal);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().before(Version.V_7_0_0)) {
-                out.writeBoolean(false); // was waitForAck
-            }
+            out.writeBoolean(isInternal);
         }
 
         @Override

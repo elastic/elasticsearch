@@ -67,7 +67,7 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         responses = new BulkItemResponse[in.readVInt()];
         for (int i = 0; i < responses.length; i++) {
             responses[i] = BulkItemResponse.readBulkItem(in);

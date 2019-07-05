@@ -122,14 +122,15 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
                     @Override
                     public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
-                                           Store.MetadataSnapshot sourceMetaData) throws IOException {
-                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
-                        latch.countDown();
-                        try {
-                            latch.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                                           Store.MetadataSnapshot sourceMetaData, ActionListener<Void> listener) {
+                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData, ActionListener.runAfter(listener, () -> {
+                            latch.countDown();
+                            try {
+                                latch.await();
+                            } catch (InterruptedException e) {
+                                throw new AssertionError(e);
+                            }
+                        }));
                     }
                 });
             future.get();
@@ -306,7 +307,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.refresh("test");
             for (IndexShard shard : shards) {
                 try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                    TopDocs search = searcher.searcher().search(new TermQuery(new Term("f", "2")), 10);
+                    TopDocs search = searcher.search(new TermQuery(new Term("f", "2")), 10);
                     assertEquals("shard " + shard.routingEntry() + " misses new version", 1, search.totalHits.value);
                 }
             }

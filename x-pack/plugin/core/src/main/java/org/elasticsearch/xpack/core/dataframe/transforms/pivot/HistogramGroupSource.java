@@ -11,13 +11,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource> {
+public class HistogramGroupSource extends SingleGroupSource {
 
     static final ParseField INTERVAL = new ParseField("interval");
     private static final String NAME = "data_frame_histogram_group";
@@ -44,7 +46,7 @@ public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource
             double interval = (double) args[1];
             return new HistogramGroupSource(field, interval);
         });
-        declareValuesSourceFields(parser, null);
+        declareValuesSourceFields(parser);
         parser.declareDouble(optionalConstructorArg(), INTERVAL);
         return parser;
     }
@@ -98,5 +100,16 @@ public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource
     @Override
     public int hashCode() {
         return Objects.hash(field, interval);
+    }
+
+    @Override
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
+        // histograms are simple and cheap, so we skip this optimization
+        return null;
+    }
+
+    @Override
+    public boolean supportsIncrementalBucketUpdate() {
+        return false;
     }
 }

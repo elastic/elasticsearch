@@ -13,6 +13,7 @@ public final class WatchField {
     public static final ParseField CONDITION = new ParseField("condition");
     public static final ParseField ACTIONS = new ParseField("actions");
     public static final ParseField TRANSFORM = new ParseField("transform");
+    public static final ParseField FOREACH = new ParseField("foreach");
     public static final ParseField THROTTLE_PERIOD = new ParseField("throttle_period_in_millis");
     public static final ParseField THROTTLE_PERIOD_HUMAN = new ParseField("throttle_period");
     public static final ParseField METADATA = new ParseField("metadata");

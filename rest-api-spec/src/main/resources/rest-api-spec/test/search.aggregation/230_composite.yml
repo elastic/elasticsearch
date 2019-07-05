@@ -19,6 +19,22 @@ setup:
                         type: long
 
   - do:
+        indices.create:
+          index: other
+          body:
+            mappings:
+              properties:
+                date:
+                  type: date
+                long:
+                  type: long
+                nested:
+                  type: nested
+                  properties:
+                    nested_long:
+                      type: long
+
+  - do:
       index:
         index: test
         id:    1
@@ -55,15 +71,17 @@ setup:
         body:  { "date": "2017-10-21T07:00:00" }
 
   - do:
+      index:
+        index: other
+        id:    0
+        body:  { "date": "2017-10-20T03:08:45" }
+
+  - do:
       indices.refresh:
-        index: [test]
+        index: [test, other]
 
 ---
 "Simple Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -89,11 +107,6 @@ setup:
 
 ---
 "Nested Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -139,11 +152,6 @@ setup:
 
 ---
 "Aggregate After":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -181,11 +189,6 @@ setup:
 
 ---
 "Aggregate After Missing":
-  - skip:
-      version: " - 6.1.99"
-      reason:  bug fixed in 6.2.0
-
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -212,10 +215,6 @@ setup:
 
 ---
 "Invalid Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
   - do:
       catch:      /\[composite\] aggregation cannot be used with a parent aggregation/
       search:
@@ -242,8 +241,74 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 6.2.99"
-      reason:  this uses a new option (format) added in 6.3.0
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
+      features: warnings
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "interval": "1d",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-20" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+
+  - do:
+        warnings:
+          - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  after: {
+                    date: "2017-10-20"
+                  }
+                  sources: [
+                    {
+                      "date": {
+                        "date_histogram": {
+                          "field": "date",
+                          "interval": "1d",
+                          "format": "yyyy-MM-dd"
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Composite aggregation with format and calendar_interval":
+  - skip:
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       search:
@@ -258,7 +323,7 @@ setup:
                     "date": {
                       "date_histogram": {
                         "field": "date",
-                        "interval": "1d",
+                        "calendar_interval": "1d",
                         "format": "yyyy-MM-dd"
                       }
                     }
@@ -288,7 +353,7 @@ setup:
                       "date": {
                         "date_histogram": {
                           "field": "date",
-                          "interval": "1d",
+                          "calendar_interval": "1d",
                           "format": "yyyy-MM-dd"
                         }
                       }
@@ -302,10 +367,6 @@ setup:
 
 ---
 "Composite aggregation with after_key in the response":
-  - skip:
-      version: " - 6.2.99"
-      reason:  starting in 6.3.0 after_key is returned in the response
-
   - do:
         search:
           rest_total_hits_as_int: true
@@ -331,10 +392,6 @@ setup:
 
 ---
 "Composite aggregation and array size":
-  - skip:
-      version: " - 6.99.99"
-      reason:  starting in 7.0 the composite aggregation throws an execption if the provided size is greater than search.max_buckets.
-
   - do:
         catch: /.*Trying to create too many buckets.*/
         search:
@@ -357,10 +414,6 @@ setup:
 
 ---
 "Composite aggregation with nested parent":
-  - skip:
-      version: " - 6.99.99"
-      reason:  the ability to set a nested parent aggregation was added in 7.0.
-
   - do:
         search:
           rest_total_hits_as_int: true
@@ -419,3 +472,146 @@ setup:
   - match: { aggregations.1.2.buckets.0.doc_count:  2 }
   - match: { aggregations.1.2.buckets.1.key.nested: 1000 }
   - match: { aggregations.1.2.buckets.1.doc_count:  1 }
+
+---
+"Composite aggregation with unmapped field":
+  - skip:
+      version: " - 7.99.99"
+      reason:  starting in 8.0 the composite aggregation handles unmapped fields as keywords
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, other]
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                {
+                  "long": {
+                    "terms": {
+                      "field": "long"
+                    }
+                  }
+                },
+                {
+                  "kw": {
+                    "terms": {
+                      "field": "keyword"
+                    }
+                  }
+                }
+                ]
+
+  - match: {hits.total: 7}
+  - length: { aggregations.test.buckets: 5 }
+  - match: { aggregations.test.buckets.0.key.long: 0}
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.key.long: 10 }
+  - match: { aggregations.test.buckets.1.key.kw: "foo"}
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+  - match: { aggregations.test.buckets.2.key.long: 20 }
+  - match: { aggregations.test.buckets.2.key.kw: "foo" }
+  - match: { aggregations.test.buckets.2.doc_count: 1 }
+  - match: { aggregations.test.buckets.3.key.long: 100}
+  - match: { aggregations.test.buckets.3.key.kw: "bar" }
+  - match: { aggregations.test.buckets.3.doc_count: 1 }
+  - match: { aggregations.test.buckets.4.key.long: 1000 }
+  - match: { aggregations.test.buckets.4.key.kw: "bar" }
+  - match: { aggregations.test.buckets.4.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, other]
+        body:
+          aggregations:
+            test:
+              composite:
+                after: { "long": 100, "kw": "bar" }
+                sources: [
+                {
+                  "long": {
+                    "terms": {
+                      "field": "long"
+                    }
+                  }
+                },
+                {
+                  "kw": {
+                    "terms": {
+                      "field": "keyword"
+                    }
+                  }
+                }
+                ]
+
+  - match: {hits.total: 7}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.long: 1000 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Missing source":
+  - skip:
+      version: " - 7.1.99"
+      reason:  null/empty sources disallowed in 7.2
+
+  - do:
+        catch: /Composite \[sources\] cannot be null or empty/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: []
+
+  - do:
+        catch: /Required \[sources\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  size: 1
+
+
+---
+"Duplicate sources":
+  - skip:
+      version: " - 7.1.99"
+      reason:  duplicate names disallowed in 7.2
+
+  - do:
+        catch: /Composite source names must be unique, found duplicates[:] \[keyword\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    },
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+

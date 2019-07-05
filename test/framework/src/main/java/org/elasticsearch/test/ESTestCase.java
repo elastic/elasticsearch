@@ -52,6 +52,8 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -198,7 +200,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         portGenerator.set(0);
     }
 
+    // Allows distinguishing between parallel test processes
+    public static final int TEST_WORKER_VM;
+
+    protected static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
+
     static {
+        // org.gradle.test.worker starts counting at 1, but we want to start counting at 0 here
+        // in case system property is not defined (e.g. when running test from IDE), just use 0
+        TEST_WORKER_VM = RandomizedTest.systemPropertyAsInt(TEST_WORKER_SYS_PROPERTY, 1) - 1;
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
@@ -345,6 +355,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             DeprecationLogger.setThreadContext(threadContext);
         }
+    }
+
+    @BeforeClass
+    public static void setPossibleRoles() {
+        DiscoveryNode.setPossibleRoles(DiscoveryNodeRole.BUILT_IN_ROLES);
+    }
+
+    @AfterClass
+    public static void clearPossibleRoles() {
+        DiscoveryNode.setPossibleRoles(Set.of());
     }
 
     /**
@@ -953,6 +973,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = buildEnvSettings(settings);
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+    }
+
+    public Environment newEnvironment() {
+        Settings build = buildEnvSettings(Settings.EMPTY);
+        return TestEnvironment.newEnvironment(build);
     }
 
     /** Return consistent index settings for the provided index version. */

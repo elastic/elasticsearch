@@ -1,15 +1,20 @@
 {
   "ml.find_file_structure": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-file-structure.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html",
+    "stability" : "experimental",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/find_file_structure",
       "paths": [ "/_ml/find_file_structure" ],
       "params": {
         "lines_to_sample": {
           "type": "int",
           "description": "How many lines of the file should be included in the analysis",
           "default": 1000
+        },
+        "line_merge_size_limit": {
+          "type": "int",
+          "description": "Maximum number of characters permitted in a single message when lines are merged to create messages.",
+          "default": 10000
         },
         "timeout": {
           "type": "time",

@@ -1,10 +1,5 @@
 ---
 "Basic":
-
-- skip:
-    version: " - 6.99.99"
-    reason: types are required in requests before 7.0.0
-
 - do:
     index:
       index: test
@@ -82,13 +77,27 @@
 
 - match: {hits.total: 0}
 
+- do:
+    index:
+      index: ordinary
+      id:    "1"
+      body:  { "foo": "Hello: 1" }
+      refresh: wait_for
+
+- do:
+    search:
+      rest_total_hits_as_int: true
+      index: [test, ordinary]
+      ignore_throttled: false
+      body:
+        query:
+          match:
+            foo: hello
+
+- match: {hits.total: 3}
+
 ---
 "Test index options":
-
-- skip:
-    version: " - 6.99.99"
-    reason: types are required in requests before 7.0.0
-
 - do:
     index:
       index: test

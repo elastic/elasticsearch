@@ -75,13 +75,6 @@ public class RetryTests extends ESIntegTestCase {
                 Netty4Plugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(
-                ReindexPlugin.class,
-                Netty4Plugin.class);
-    }
-
     /**
      * Lower the queue sizes to be small enough that both bulk and searches will time out and have to be retried.
      */

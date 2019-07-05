@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.indexlifecycle.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -17,6 +19,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
@@ -24,7 +28,11 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Reque
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
 
+import java.io.IOException;
+
 public class TransportMoveToStepAction extends TransportMasterNodeAction<Request, Response> {
+    private static final Logger logger = LogManager.getLogger(TransportMoveToStepAction.class);
+
     IndexLifecycleService indexLifecycleService;
     @Inject
     public TransportMoveToStepAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
@@ -42,11 +50,16 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
 
     @Override
     protected Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
+    }
+
+    @Override
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         IndexMetaData indexMetaData = state.metaData().index(request.getIndex());
         if (indexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));

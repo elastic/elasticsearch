@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -17,13 +17,13 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTransformTaskAction.Response> {
+public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrameTransformTaskAction.Response> {
 
     public static final StartDataFrameTransformTaskAction INSTANCE = new StartDataFrameTransformTaskAction();
     public static final String NAME = "cluster:admin/data_frame/start_task";
@@ -33,19 +33,16 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
 
-        private String id;
+        private final String id;
 
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        }
-
-        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -91,16 +88,12 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean started;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
+        private final boolean started;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            started = in.readBoolean();
         }
 
         public Response(boolean started) {
@@ -110,12 +103,6 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
 
         public boolean isStarted() {
             return started;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            started = in.readBoolean();
         }
 
         @Override

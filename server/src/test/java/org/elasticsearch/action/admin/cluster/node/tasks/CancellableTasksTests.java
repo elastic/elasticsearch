@@ -60,35 +60,30 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
     public static class CancellableNodeRequest extends BaseNodeRequest {
         protected String requestName;
-        protected String nodeId;
 
         public CancellableNodeRequest() {
             super();
         }
 
-        public CancellableNodeRequest(CancellableNodesRequest request, String nodeId) {
-            super(nodeId);
+        public CancellableNodeRequest(CancellableNodesRequest request) {
             requestName = request.requestName;
-            this.nodeId = nodeId;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            nodeId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeString(nodeId);
         }
 
         @Override
         public String getDescription() {
-            return "CancellableNodeRequest[" + requestName + ", " + nodeId + "]";
+            return "CancellableNodeRequest[" + requestName + "]";
         }
 
         @Override
@@ -161,19 +156,19 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected CancellableNodeRequest newNodeRequest(String nodeId, CancellableNodesRequest request) {
-            return new CancellableNodeRequest(request, nodeId);
+        protected CancellableNodeRequest newNodeRequest(CancellableNodesRequest request) {
+            return new CancellableNodeRequest(request);
         }
 
         @Override
         protected NodeResponse nodeOperation(CancellableNodeRequest request, Task task) {
             assert task instanceof CancellableTask;
-            debugDelay(request.nodeId, "op1");
+            debugDelay("op1");
             if (actionStartedLatch != null) {
                 actionStartedLatch.countDown();
             }
 
-            debugDelay(request.nodeId, "op2");
+            debugDelay("op2");
             if (shouldBlock) {
                 // Simulate a job that takes forever to finish
                 // Using periodic checks method to identify that the task was cancelled
@@ -189,14 +184,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                     Thread.currentThread().interrupt();
                 }
             }
-            debugDelay(request.nodeId, "op4");
+            debugDelay("op4");
 
             return new NodeResponse(clusterService.localNode());
-        }
-
-        @Override
-        protected NodeResponse nodeOperation(CancellableNodeRequest request) {
-            throw new UnsupportedOperationException("the task parameter is required");
         }
     }
 
@@ -426,9 +416,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
     }
 
-    private static void debugDelay(String nodeId, String name) {
+    private static void debugDelay(String name) {
         // Introduce an additional pseudo random repeatable race conditions
-        String delayName = RandomizedContext.current().getRunnerSeedAsString() + ":" + nodeId + ":" + name;
+        String delayName = RandomizedContext.current().getRunnerSeedAsString() + ":" + name;
         Random random = new Random(delayName.hashCode());
         if (RandomNumbers.randomIntBetween(random, 0, 10) < 1) {
             try {

@@ -30,21 +30,19 @@ import java.util.List;
 
 public class StartDataFrameTransformResponse extends AcknowledgedTasksResponse {
 
-    private static final String STARTED = "started";
+    private static final String ACKNOWLEDGED = "acknowledged";
 
     private static final ConstructingObjectParser<StartDataFrameTransformResponse, Void> PARSER =
-            AcknowledgedTasksResponse.generateParser("start_data_frame_transform_response", StartDataFrameTransformResponse::new, STARTED);
+            AcknowledgedTasksResponse.generateParser("start_data_frame_transform_response", StartDataFrameTransformResponse::new,
+                    ACKNOWLEDGED);
 
     public static StartDataFrameTransformResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public StartDataFrameTransformResponse(boolean started, @Nullable List<TaskOperationFailure> taskFailures,
+    public StartDataFrameTransformResponse(boolean acknowledged, @Nullable List<TaskOperationFailure> taskFailures,
                                           @Nullable List<? extends ElasticsearchException> nodeFailures) {
-        super(started, taskFailures, nodeFailures);
+        super(acknowledged, taskFailures, nodeFailures);
     }
 
-    public boolean isStarted() {
-        return isAcknowledged();
-    }
 }

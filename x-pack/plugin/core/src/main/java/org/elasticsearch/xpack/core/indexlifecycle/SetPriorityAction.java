@@ -91,11 +91,6 @@ public class SetPriorityAction implements LifecycleAction {
     }
 
     @Override
-    public List<StepKey> toStepKeys(String phase) {
-        return Collections.singletonList(new StepKey(phase, NAME, NAME));
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

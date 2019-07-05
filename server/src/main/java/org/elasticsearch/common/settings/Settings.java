@@ -57,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -674,7 +673,7 @@ public final class Settings implements ToXContentFragment {
 
 
     public static final Set<String> FORMAT_PARAMS =
-        Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
+            Set.of("settings_filter", "flat_settings");
 
     /**
      * Returns {@code true} if this settings object contains no settings
@@ -1325,13 +1324,18 @@ public final class Settings implements ToXContentFragment {
         }
 
         @Override
-        public SecureString getString(String setting) throws GeneralSecurityException{
+        public SecureString getString(String setting) throws GeneralSecurityException {
             return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
-        public InputStream getFile(String setting) throws GeneralSecurityException{
+        public InputStream getFile(String setting) throws GeneralSecurityException {
             return delegate.getFile(addPrefix.apply(setting));
+        }
+
+        @Override
+        public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+            return delegate.getSHA256Digest(addPrefix.apply(setting));
         }
 
         @Override

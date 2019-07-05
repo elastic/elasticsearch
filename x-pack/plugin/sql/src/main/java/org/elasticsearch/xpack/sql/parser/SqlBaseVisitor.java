@@ -415,6 +415,13 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx);
   /**
+   * Visit a parse tree produced by the {@code case}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCase(SqlBaseParser.CaseContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -635,6 +642,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitString(SqlBaseParser.StringContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#whenClause}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitWhenClause(SqlBaseParser.WhenClauseContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#nonReserved}.
    * @param ctx the parse tree

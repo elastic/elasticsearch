@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -40,10 +40,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -67,7 +69,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -88,7 +92,6 @@ public final class MockTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
-    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -108,7 +111,8 @@ public final class MockTransportService extends TransportService {
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
         // a different default port range per JVM unless the incoming settings override it
-        int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
+        // use a non-default base port otherwise some cluster in this JVM might reuse a port
+        int basePort = 10300 + (ESTestCase.TEST_WORKER_VM * 100);
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
@@ -279,8 +283,25 @@ public final class MockTransportService extends TransportService {
             return () -> {};
         });
 
-        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
-            // don't send anything, the receiving node is unresponsive
+        transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
+            private Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
+            @Override
+            public void sendRequest(Transport.Connection connection, long requestId, String action,
+                                    TransportRequest request, TransportRequestOptions options) {
+                // don't send anything, the receiving node is unresponsive
+                toClose.add(connection);
+            }
+
+            @Override
+            public void clearCallback() {
+                // close to simulate that tcp-ip eventually times out and closes connection (necessary to ensure transport eventually
+                // responds).
+                try {
+                    IOUtils.close(toClose);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         });
     }
 
@@ -307,26 +328,38 @@ public final class MockTransportService extends TransportService {
 
         Supplier<TimeValue> delaySupplier = () -> new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
 
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
-            TimeValue delay = delaySupplier.get();
-            if (delay.millis() <= 0) {
-                return original.openConnection(discoveryNode, profile, listener);
+        transport().addConnectBehavior(transportAddress, new StubbableTransport.OpenConnectionBehavior() {
+            private CountDownLatch stopLatch = new CountDownLatch(1);
+            @Override
+            public Releasable openConnection(Transport transport, DiscoveryNode discoveryNode,
+                                             ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+                TimeValue delay = delaySupplier.get();
+                if (delay.millis() <= 0) {
+                    return original.openConnection(discoveryNode, profile, listener);
+                }
+
+                // TODO: Replace with proper setting
+                TimeValue connectingTimeout = TransportSettings.CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+                try {
+                    if (delay.millis() < connectingTimeout.millis()) {
+                        stopLatch.await(delay.millis(), TimeUnit.MILLISECONDS);
+                        return original.openConnection(discoveryNode, profile, listener);
+                    } else {
+                        stopLatch.await(connectingTimeout.millis(), TimeUnit.MILLISECONDS);
+                        listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
+                        return () -> {
+                        };
+                    }
+                } catch (InterruptedException e) {
+                    listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
+                    return () -> {
+                    };
+                }
             }
 
-            // TODO: Replace with proper setting
-            TimeValue connectingTimeout = TransportSettings.CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
-            try {
-                if (delay.millis() < connectingTimeout.millis()) {
-                    Thread.sleep(delay.millis());
-                    return original.openConnection(discoveryNode, profile, listener);
-                } else {
-                    Thread.sleep(connectingTimeout.millis());
-                    listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                    return () -> {};
-                }
-            } catch (InterruptedException e) {
-                listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                return () -> {};
+            @Override
+            public void clearCallback() {
+                stopLatch.countDown();
             }
         });
 

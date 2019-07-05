@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,12 +22,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.core.dataframe.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
@@ -60,7 +61,7 @@ public class PivotTests extends ESTestCase {
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -82,43 +83,67 @@ public class PivotTests extends ESTestCase {
         return namedXContentRegistry;
     }
 
-    public void testValidateExistingIndex() throws Exception {
-        Pivot pivot = new Pivot(new String[]{"existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 
-        assertValidTransform(client, pivot);
+    /*
+      Had to disable warnings because tests get random date histo configs, and changing to
+      new interval format was non-trivial.  Best for ML team to fix
+     */
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
+    public void testValidateExistingIndex() throws Exception {
+        SourceConfig source = new SourceConfig(new String[]{"existing_source_index"}, QueryConfig.matchAll());
+        Pivot pivot = new Pivot(getValidPivotConfig());
+
+        assertValidTransform(client, source, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        Pivot pivot = new Pivot(new String[]{"non_existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
+        SourceConfig source = new SourceConfig(new String[]{"non_existing_source_index"}, QueryConfig.matchAll());
+        Pivot pivot = new Pivot(getValidPivotConfig());
 
-        assertInvalidTransform(client, pivot);
+        assertInvalidTransform(client, source, pivot);
+    }
+
+    public void testInitialPageSize() throws Exception {
+        int expectedPageSize = 1000;
+
+        Pivot pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize));
+        assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
+
+        pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
+        assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
     }
 
     public void testSearchFailure() throws Exception {
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
-        Pivot pivot = new Pivot(new String[]{"existing_source_index_with_failing_shards"},
-            new MatchAllQueryBuilder(),
-            getValidPivotConfig());
+        SourceConfig source = new SourceConfig(new String[] { "existing_source_index_with_failing_shards" }, QueryConfig.matchAll());
 
-        assertInvalidTransform(client, pivot);
+        Pivot pivot = new Pivot(getValidPivotConfig());
+
+        assertInvalidTransform(client, source, pivot);
     }
 
     public void testValidateAllSupportedAggregations() throws Exception {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
+            SourceConfig source = new SourceConfig(new String[]{"existing_source"}, QueryConfig.matchAll());
 
-            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
-            assertValidTransform(client, pivot);
+            Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
+            assertValidTransform(client, source, pivot);
         }
     }
 
     public void testValidateAllUnsupportedAggregations() throws Exception {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
+            SourceConfig source = new SourceConfig(new String[]{"existing_source"}, QueryConfig.matchAll());
 
-            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
-            assertInvalidTransform(client, pivot);
+            Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
+            assertInvalidTransform(client, source, pivot);
         }
     }
 
@@ -129,8 +154,8 @@ public class PivotTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
 
             if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
@@ -162,11 +187,11 @@ public class PivotTests extends ESTestCase {
     }
 
     private PivotConfig getValidPivotConfig() throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null);
     }
 
     private PivotConfig getValidPivotConfig(AggregationConfig aggregationConfig) throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig);
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig, null);
     }
 
     private AggregationConfig getValidAggregationConfig() throws IOException {
@@ -184,6 +209,22 @@ public class PivotTests extends ESTestCase {
                 "  }\n" +
                 "}}");
         }
+        if (agg.equals(AggregationType.BUCKET_SCRIPT.getName())) {
+            return parseAggregations("{\"pivot_bucket_script\":{" +
+                "\"bucket_script\":{" +
+                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
+                "\"script\":\"return params.param_1\"}}}");
+        }
+        if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
+            return parseAggregations("{\n" +
+                "\"pivot_weighted_avg\": {\n" +
+                "  \"weighted_avg\": {\n" +
+                "   \"value\": {\"field\": \"values\"},\n" +
+                "   \"weight\": {\"field\": \"weights\"}\n" +
+                "  }\n" +
+                "}\n" +
+                "}");
+        }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");
     }
@@ -196,18 +237,18 @@ public class PivotTests extends ESTestCase {
         return AggregationConfig.fromXContent(parser, false);
     }
 
-    private static void assertValidTransform(Client client, Pivot pivot) throws Exception {
-        validate(client, pivot, true);
+    private static void assertValidTransform(Client client, SourceConfig source, Pivot pivot) throws Exception {
+        validate(client, source, pivot, true);
     }
 
-    private static void assertInvalidTransform(Client client, Pivot pivot) throws Exception {
-        validate(client, pivot, false);
+    private static void assertInvalidTransform(Client client, SourceConfig source, Pivot pivot) throws Exception {
+        validate(client, source, pivot, false);
     }
 
-    private static void validate(Client client, Pivot pivot, boolean expectValid) throws Exception {
+    private static void validate(Client client, SourceConfig source, Pivot pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validate(client, ActionListener.wrap(validity -> {
+        pivot.validate(client, source, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

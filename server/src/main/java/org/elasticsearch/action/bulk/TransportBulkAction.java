@@ -96,7 +96,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final AutoCreateIndex autoCreateIndex;
     private final ClusterService clusterService;
     private final IngestService ingestService;
-    private final TransportShardBulkAction shardBulkAction;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
@@ -105,24 +104,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
-                               TransportShardBulkAction shardBulkAction, NodeClient client,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex) {
-        this(threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
+        this(threadPool, transportService, clusterService, ingestService, client, actionFilters,
             indexNameExpressionResolver, autoCreateIndex, System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
-                               TransportShardBulkAction shardBulkAction, NodeClient client,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(BulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new);
+        super(BulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new, ThreadPool.Names.WRITE);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
-        this.shardBulkAction = shardBulkAction;
         this.autoCreateIndex = autoCreateIndex;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
@@ -165,16 +161,24 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (pipeline == null) {
                     // start to look for default pipeline via settings found in the index meta data
                     IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
+                    // check the alias for the index request (this is how normal index requests are modeled)
                     if (indexMetaData == null && indexRequest.index() != null) {
-                        // if the write request if through an alias use the write index's meta data
                         AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
                         if (indexOrAlias != null && indexOrAlias.isAlias()) {
                             AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
                             indexMetaData = alias.getWriteIndex();
                         }
                     }
+                    // check the alias for the action request (this is how upserts are modeled)
+                    if (indexMetaData == null && actionRequest.index() != null) {
+                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(actionRequest.index());
+                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                            indexMetaData = alias.getWriteIndex();
+                        }
+                    }
                     if (indexMetaData != null) {
-                        // Find the the default pipeline if one is defined from and existing index.
+                        // Find the default pipeline if one is defined from and existing index.
                         String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
                         indexRequest.setPipeline(defaultPipeline);
                         if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
@@ -258,7 +262,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+                                threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                    () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
                             }
                         }
 
@@ -431,7 +436,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
+                client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
                         for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {

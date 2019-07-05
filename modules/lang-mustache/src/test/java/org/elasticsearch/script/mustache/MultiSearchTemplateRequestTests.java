@@ -56,13 +56,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         assertThat(request.requests().get(0).getRequest().preference(), nullValue());
         assertThat(request.requests().get(1).getRequest().indices()[0], equalTo("test2"));
         assertThat(request.requests().get(1).getRequest().indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).getRequest().types()[0], equalTo("type1"));
         assertThat(request.requests().get(1).getRequest().requestCache(), nullValue());
         assertThat(request.requests().get(1).getRequest().preference(), equalTo("_local"));
         assertThat(request.requests().get(2).getRequest().indices()[0], equalTo("test4"));
         assertThat(request.requests().get(2).getRequest().indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).getRequest().types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).getRequest().types()[1], equalTo("type1"));
         assertThat(request.requests().get(2).getRequest().routing(), equalTo("123"));
         assertNotNull(request.requests().get(0).getScript());
         assertNotNull(request.requests().get(1).getScript());

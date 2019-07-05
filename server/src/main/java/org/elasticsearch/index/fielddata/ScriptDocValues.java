@@ -23,10 +23,10 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
@@ -365,8 +365,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public double geohashDistance(String geohash) {
             GeoPoint point = getValue();
-            return GeoUtils.arcDistance(point.lat(), point.lon(), GeoHashUtils.decodeLatitude(geohash),
-                GeoHashUtils.decodeLongitude(geohash));
+            return GeoUtils.arcDistance(point.lat(), point.lon(), Geohash.decodeLatitude(geohash),
+                Geohash.decodeLongitude(geohash));
         }
 
         public double geohashDistanceWithDefault(String geohash, double defaultValue) {

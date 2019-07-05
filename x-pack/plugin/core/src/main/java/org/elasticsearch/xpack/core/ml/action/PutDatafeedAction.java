@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
+public class PutDatafeedAction extends StreamableResponseActionType<PutDatafeedAction.Response> {
 
     public static final PutDatafeedAction INSTANCE = new PutDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";
@@ -119,20 +118,12 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Response> {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag was removed
-                in.readBoolean();
-            }
             datafeed = new DatafeedConfig(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_3_0)) {
-                //the acknowledged flag is no longer supported
-                out.writeBoolean(true);
-            }
             datafeed.writeTo(out);
         }
 

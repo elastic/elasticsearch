@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class MultiSearchAction extends Action<MultiSearchResponse> {
+public class MultiSearchAction extends ActionType<MultiSearchResponse> {
 
     public static final MultiSearchAction INSTANCE = new MultiSearchAction();
     public static final String NAME = "indices:data/read/msearch";
@@ -31,7 +32,7 @@ public class MultiSearchAction extends Action<MultiSearchResponse> {
     }
 
     @Override
-    public MultiSearchResponse newResponse() {
-        return new MultiSearchResponse();
+    public Writeable.Reader<MultiSearchResponse> getResponseReader() {
+        return MultiSearchResponse::new;
     }
 }

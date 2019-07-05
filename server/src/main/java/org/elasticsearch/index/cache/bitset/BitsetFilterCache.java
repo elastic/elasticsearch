@@ -38,6 +38,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -222,7 +222,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
 
         @Override
-        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final Engine.Searcher searcher) {
+        public IndexWarmer.TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
             if (indexSettings.getIndex().equals(indexShard.indexSettings().getIndex()) == false) {
                 // this is from a different index
                 return TerminationHandle.NO_WAIT;
@@ -251,11 +251,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             }
 
             if (hasNested) {
-                warmUp.add(Queries.newNonNestedFilter(indexSettings.getIndexVersionCreated()));
+                warmUp.add(Queries.newNonNestedFilter());
             }
 
-            final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
-            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
+            final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());
+            for (final LeafReaderContext ctx : reader.leaves()) {
                 for (final Query filterToWarm : warmUp) {
                     executor.execute(() -> {
                         try {

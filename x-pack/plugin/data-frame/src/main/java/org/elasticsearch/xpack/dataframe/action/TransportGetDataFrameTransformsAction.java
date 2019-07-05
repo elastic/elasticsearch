@@ -28,8 +28,6 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsActio
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
 
 
@@ -46,7 +44,7 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         searchResources(request, ActionListener.wrap(
-            r -> listener.onResponse(new Response(r.results())),
+            r -> listener.onResponse(new Response(r.results(), r.count())),
             listener::onFailure
         ));
     }
@@ -62,7 +60,7 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
     }
 
     @Override
-    protected DataFrameTransformConfig parse(XContentParser parser) throws IOException {
+    protected DataFrameTransformConfig parse(XContentParser parser) {
         return DataFrameTransformConfig.fromXContent(parser, null, true);
     }
 

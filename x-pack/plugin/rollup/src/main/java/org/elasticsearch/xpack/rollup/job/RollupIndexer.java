@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTimeZone;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -50,7 +49,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
@@ -62,7 +60,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     static final String AGGREGATION_NAME = RollupField.NAME;
 
     private final RollupJob job;
-    protected final AtomicBoolean upgradedDocumentID;
     private final CompositeAggregationBuilder compositeBuilder;
     private long maxBoundary;
 
@@ -72,11 +69,9 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
-     * @param upgradedDocumentID whether job has updated IDs (for BWC)
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
-            AtomicBoolean upgradedDocumentID) {
-        this(executor, job, initialState, initialPosition, upgradedDocumentID, new RollupIndexerJobStats());
+    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
+        this(executor, job, initialState, initialPosition, new RollupIndexerJobStats());
     }
 
     /**
@@ -85,22 +80,13 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
-     * @param upgradedDocumentID whether job has updated IDs (for BWC)
      * @param jobStats jobstats instance for collecting stats
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
-            AtomicBoolean upgradedDocumentID, RollupIndexerJobStats jobStats) {
+    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+                  Map<String, Object> initialPosition, RollupIndexerJobStats jobStats) {
         super(executor, initialState, initialPosition, jobStats);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
-        this.upgradedDocumentID = upgradedDocumentID;
-    }
-
-    /**
-     * Returns if this job has upgraded it's ID scheme yet or not
-     */
-    public boolean isUpgradedDocumentID() {
-        return upgradedDocumentID.get();
     }
 
     @Override
@@ -111,15 +97,12 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
-            // this is needed to exclude buckets that can still receive new documents.
+            // this is needed to exclude buckets that can still receive new documents
             DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
-            long rounded = dateHisto.createRounding().round(now);
-            if (dateHisto.getDelay() != null) {
-                // if the job has a delay we filter all documents that appear before it.
-                maxBoundary = rounded - TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis();
-            } else {
-                maxBoundary = rounded;
-            }
+            // if the job has a delay we filter all documents that appear before it
+            long delay = dateHisto.getDelay() != null ?
+                TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis() : 0;
+            maxBoundary = dateHisto.createRounding().round(now - delay);
             listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -128,8 +111,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
     @Override
     protected SearchRequest buildSearchRequest() {
-            // Indexer is single-threaded, and only place that the ID scheme can get upgraded is doSaveState(), so
-            // we can pass down the boolean value rather than the atomic here
         final Map<String, Object> position = getPosition();
         SearchSourceBuilder searchSource = new SearchSourceBuilder()
                 .size(0)
@@ -144,9 +125,14 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation response = searchResponse.getAggregations().get(AGGREGATION_NAME);
 
+        if (response.getBuckets().isEmpty()) {
+            // do not reset the position as we want to continue from where we stopped
+            return new IterationResult<>(Collections.emptyList(), getPosition(), true);
+        }
+
         return new IterationResult<>(
                 IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), getStats(),
-                        job.getConfig().getGroupConfig(), job.getConfig().getId(), upgradedDocumentID.get()),
+                        job.getConfig().getGroupConfig(), job.getConfig().getId()),
                 response.afterKey(), response.getBuckets().isEmpty());
     }
 
@@ -233,7 +219,13 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         final String dateHistogramField = dateHistogram.getField();
         final String dateHistogramName = RollupField.formatIndexerAggName(dateHistogramField, DateHistogramAggregationBuilder.NAME);
         final DateHistogramValuesSourceBuilder dateHistogramBuilder = new DateHistogramValuesSourceBuilder(dateHistogramName);
-        dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+        if (dateHistogram instanceof DateHistogramGroupConfig.FixedInterval) {
+            dateHistogramBuilder.fixedInterval(dateHistogram.getInterval());
+        } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
+            dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
+        } else {
+            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+        }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));
         return Collections.singletonList(dateHistogramBuilder);
@@ -310,14 +302,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
             }
         }
         return Collections.unmodifiableList(builders);
-    }
-
-    private static DateTimeZone toDateTimeZone(final String timezone) {
-        try {
-            return DateTimeZone.forOffsetHours(Integer.parseInt(timezone));
-        } catch (NumberFormatException e) {
-            return DateTimeZone.forID(timezone);
-        }
     }
 }
 

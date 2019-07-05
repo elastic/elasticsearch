@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -39,6 +40,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
+import java.util.Collections;
 
 /**
  * Close index action
@@ -76,7 +80,12 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
 
     @Override
     protected CloseIndexResponse newResponse() {
-        return new CloseIndexResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected CloseIndexResponse read(StreamInput in) throws IOException {
+        return new CloseIndexResponse(in);
     }
 
     @Override
@@ -96,20 +105,13 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected void masterOperation(final CloseIndexRequest request,
-                                   final ClusterState state,
-                                   final ActionListener<CloseIndexResponse> listener) {
-        throw new UnsupportedOperationException("The task parameter is required");
-    }
-
-    @Override
     protected void masterOperation(final Task task,
                                    final CloseIndexRequest request,
                                    final ClusterState state,
                                    final ActionListener<CloseIndexResponse> listener) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new CloseIndexResponse(true, false));
+            listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
             return;
         }
 

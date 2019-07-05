@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.ml.util;
 
-import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

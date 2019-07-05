@@ -42,7 +42,6 @@ import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -71,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -138,7 +138,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
                             .startArray(MULTI_VALUED_FIELD_NAME)
                                 .value("val" + i)
                                 .value("val" + (i + 1))
-                            .endArray().endObject()));
+                            .endArray()
+                        .endObject()));
         }
 
         getMultiSortDocs(builders);
@@ -262,7 +263,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
-        SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
+        SearchResponse allResponse = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field(field).size(10000).collectMode(randomFrom(SubAggCollectionMode.values())))
                 .get();
         assertSearchResponse(allResponse);
@@ -275,7 +276,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         final int numPartitions = randomIntBetween(2, 4);
         Set<String> foundTerms = new HashSet<>();
         for (int partition = 0; partition < numPartitions; partition++) {
-            SearchResponse response = client().prepareSearch("idx").setTypes("type").addAggregation(terms("terms").field(field)
+            SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field(field)
                     .includeExclude(new IncludeExclude(partition, numPartitions)).collectMode(randomFrom(SubAggCollectionMode.values())))
                     .get();
             assertSearchResponse(response);
@@ -292,7 +293,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms")
                                 .executionHint(randomExecutionHint())
@@ -319,7 +320,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testMultiValuedFieldWithValueScriptNotUnique() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms")
                                 .executionHint(randomExecutionHint())
@@ -345,7 +346,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testMultiValuedScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms")
                             .executionHint(randomExecutionHint())
@@ -376,7 +377,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms")
                                 .executionHint(randomExecutionHint())
@@ -422,7 +423,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -451,7 +452,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms")
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -477,7 +478,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testScriptMultiValued() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -508,7 +509,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))).get();
@@ -532,7 +533,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         // no execution hint so that the logic that decides whether or not to use ordinals is executed
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         filter("filter", termQuery(MULTI_VALUED_FIELD_NAME, "val3")).subAggregation(
                                 terms("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))))
@@ -560,7 +561,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         try {
             client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -574,7 +575,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 ElasticsearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
-                    assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));
+                    assertThat(aggException.getMessage(), startsWith("Invalid aggregation order path"));
                 } else {
                     throw e;
                 }
@@ -588,7 +589,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("tags").executionHint(randomExecutionHint()).field("tag")
                                 .collectMode(randomFrom(SubAggCollectionMode.values())).order(BucketOrder.aggregation("filter", asc))
@@ -624,7 +625,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("tags")
                                 .executionHint(randomExecutionHint())
@@ -687,7 +688,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("tags")
                                 .executionHint(randomExecutionHint())
@@ -750,7 +751,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("tags")
                                 .executionHint(randomExecutionHint())
@@ -807,7 +808,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .setTypes("type")
+
                         .addAggregation(
                                 terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -825,7 +826,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .setTypes("type")
+
                         .addAggregation(
                                 terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -847,7 +848,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             try {
                 SearchResponse response = client()
                         .prepareSearch(index)
-                        .setTypes("type")
+
                         .addAggregation(
                                 terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -866,7 +867,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
-                        .setTypes("type")
+
                         .addAggregation(
                                 terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                         .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -886,7 +887,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values())).order(BucketOrder.aggregation("stats.avg", asc))
@@ -916,7 +917,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = false;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values())).order(BucketOrder.aggregation("stats.avg", asc))
@@ -947,7 +948,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -979,7 +980,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
@@ -1089,7 +1090,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
     public void testIndexMetaField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "empty_bucket_idx")
-                .setTypes("type")
+
                 .addAggregation(
                         terms("terms").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(randomExecutionHint())
                                 .field(IndexFieldMapper.NAME)).get();

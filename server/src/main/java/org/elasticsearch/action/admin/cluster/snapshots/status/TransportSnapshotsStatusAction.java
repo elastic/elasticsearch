@@ -42,6 +42,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,7 +91,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     }
 
     @Override
-    protected void masterOperation(final SnapshotsStatusRequest request,
+    protected void masterOperation(Task task, final SnapshotsStatusRequest request,
                                    final ClusterState state,
                                    final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
         List<SnapshotsInProgress.Entry> currentSnapshots =
@@ -119,23 +120,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             TransportNodesSnapshotsStatus.Request nodesRequest =
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout());
-            transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
-                        @Override
-                        public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
-                            try {
-                                List<SnapshotsInProgress.Entry> currentSnapshots =
-                                        snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots()));
-                                listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+            transportNodesSnapshotsStatus.execute(nodesRequest,
+                ActionListener.map(
+                    listener, nodeSnapshotStatuses ->
+                        buildResponse(request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
+                            nodeSnapshotStatuses)));
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));
@@ -186,7 +175,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             break;
                         case INIT:
                         case WAITING:
-                        case STARTED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;
                         case SUCCESS:
@@ -199,7 +187,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshot(), entry.state(),
-                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState()));
+                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState(), entry.startTime(),
+                    Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L)));
             }
         }
         // Now add snapshots on disk that are not currently running
@@ -252,8 +241,10 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         default:
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
+                    final long startTime = snapshotInfo.startTime();
                     builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
-                        Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState()));
+                        Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState(),
+                        startTime, snapshotInfo.endTime() - startTime));
                 }
             }
         }

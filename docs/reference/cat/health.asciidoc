@@ -17,7 +17,7 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 1475871424 16:17:04  elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/]
-// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
 
 It has one option `ts` to disable the timestamping:
 
@@ -35,7 +35,7 @@ which looks like:
 cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
 
 A common use of this command is to verify the health is consistent
 across nodes:

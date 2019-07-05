@@ -23,11 +23,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -55,8 +55,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceSortingMVFields() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("locations").field("type", "geo_point");
@@ -182,8 +181,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     // Regression bug:
     // https://github.com/elastic/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("locations").field("type", "geo_point");
@@ -225,8 +223,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testDistanceSortingNestedFields() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company").startObject("properties")
                 .startObject("name").field("type", "text").endObject().startObject("branches").field("type", "nested")
@@ -275,7 +272,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders
-                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.ASC).setNestedPath("branches"))
+                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.ASC)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -288,7 +286,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Order: Asc, Mode: max
         searchResponse = client()
                 .prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location",
-                        40.7143528, -74.0059731).order(SortOrder.ASC).sortMode(SortMode.MAX).setNestedPath("branches"))
+                        40.7143528, -74.0059731).order(SortOrder.ASC).sortMode(SortMode.MAX)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -300,7 +299,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // Order: Desc
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders
-                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.DESC).setNestedPath("branches"))
+                .geoDistanceSort("branches.location", 40.7143528, -74.0059731).order(SortOrder.DESC)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -313,7 +313,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         // Order: Desc, Mode: min
         searchResponse = client()
                 .prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location",
-                        40.7143528, -74.0059731).order(SortOrder.DESC).sortMode(SortMode.MIN).setNestedPath("branches"))
+                        40.7143528, -74.0059731).order(SortOrder.DESC).sortMode(SortMode.MIN)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -325,7 +326,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         searchResponse = client()
                 .prepareSearch("companies").setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location",
-                        40.7143528, -74.0059731).sortMode(SortMode.AVG).order(SortOrder.ASC).setNestedPath("branches"))
+                        40.7143528, -74.0059731).sortMode(SortMode.AVG).order(SortOrder.ASC)
+                .setNestedSort(new NestedSortBuilder("branches")))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -337,7 +339,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("companies")
                 .setQuery(matchAllQuery()).addSort(SortBuilders.geoDistanceSort("branches.location", 40.7143528, -74.0059731)
-                        .setNestedPath("branches").sortMode(SortMode.AVG).order(SortOrder.DESC).setNestedPath("branches"))
+                .setNestedSort(new NestedSortBuilder("branches"))
+                .sortMode(SortMode.AVG).order(SortOrder.DESC))
                 .get();
 
         assertHitCount(searchResponse, 4);
@@ -349,8 +352,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("companies").setQuery(matchAllQuery())
                 .addSort(SortBuilders.geoDistanceSort("branches.location", 40.7143528, -74.0059731)
-                        .setNestedFilter(termQuery("branches.name", "brooklyn"))
-                        .sortMode(SortMode.AVG).order(SortOrder.ASC).setNestedPath("branches"))
+                        .setNestedSort(new NestedSortBuilder("branches")
+                            .setFilter(termQuery("branches.name", "brooklyn"))
+                        )
+                        .sortMode(SortMode.AVG).order(SortOrder.ASC))
                 .get();
         assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, hasId("4"));
@@ -363,7 +368,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         try {
                 client().prepareSearch("companies").setQuery(matchAllQuery())
                         .addSort(SortBuilders.geoDistanceSort("branches.location", 40.7143528, -74.0059731).sortMode(SortMode.SUM)
-                                .setNestedPath("branches"));
+                                .setNestedSort(new NestedSortBuilder("branches")));
                 fail("Sum should not be allowed as sort mode");
         } catch (IllegalArgumentException e) {
             //expected
@@ -374,8 +379,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
      * Issue 3073
      */
     public void testGeoDistanceFilter() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         double lat = 40.720611;
         double lon = -73.998776;
@@ -384,7 +388,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .startObject("pin").field("type", "geo_point");
         mapping.endObject().endObject().endObject().endObject();
 
-        XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", GeoHashUtils.stringEncode(lon, lat)).endObject();
+        XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", Geohash.stringEncode(lon, lat)).endObject();
 
         assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).get();

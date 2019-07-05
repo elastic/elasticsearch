@@ -114,7 +114,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         super.readFrom(in);
         index = in.readString();
         if (in.readBoolean()) {
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         } else {
             shardId = null;
         }
@@ -126,7 +126,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        out.writeOptionalStreamable(shardId);
+        out.writeOptionalWriteable(shardId);
         out.writeTimeValue(timeout);
         out.writeOptionalString(concreteIndex);
     }

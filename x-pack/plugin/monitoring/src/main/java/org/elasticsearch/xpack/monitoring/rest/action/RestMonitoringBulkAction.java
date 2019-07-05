@@ -8,26 +8,25 @@ package org.elasticsearch.xpack.monitoring.rest.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +35,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestMonitoringBulkAction extends XPackRestHandler {
+public class RestMonitoringBulkAction extends BaseRestHandler {
 
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
@@ -58,11 +57,10 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
                 MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
         );
 
-        final Map<MonitoredSystem, List<String>> versionsMap = new HashMap<>();
-        versionsMap.put(MonitoredSystem.KIBANA, allVersions);
-        versionsMap.put(MonitoredSystem.LOGSTASH, allVersions);
-        versionsMap.put(MonitoredSystem.BEATS, allVersions);
-        supportedApiVersions = Collections.unmodifiableMap(versionsMap);
+        supportedApiVersions = Map.of(
+                MonitoredSystem.KIBANA, allVersions,
+                MonitoredSystem.LOGSTASH, allVersions,
+                MonitoredSystem.BEATS, allVersions);
     }
 
     @Override
@@ -71,7 +69,7 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
         final String id = request.param(MONITORING_ID);
         if (Strings.isEmpty(id)) {
@@ -101,27 +99,9 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
         final long timestamp = System.currentTimeMillis();
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
-        final MonitoringBulkRequestBuilder requestBuilder = client.monitoring().prepareMonitoringBulk();
+        final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
         requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
-        return channel -> requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                {
-                    builder.field("took", response.getTookInMillis());
-                    builder.field("ignored", response.isIgnored());
-
-                    final MonitoringBulkResponse.Error error = response.getError();
-                    builder.field("errors", error != null);
-
-                    if (error != null) {
-                        builder.field("error", response.getError());
-                    }
-                }
-                builder.endObject();
-                return new BytesRestResponse(response.status(), builder);
-            }
-        });
+        return channel -> requestBuilder.execute(getRestBuilderListener(channel));
     }
 
     @Override
@@ -140,5 +120,27 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
     private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
         final List<String> monitoredSystem = supportedApiVersions.getOrDefault(system, emptyList());
         return monitoredSystem.contains(version);
+    }
+
+    static RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener(RestChannel channel) {
+        return new RestBuilderListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                {
+                    builder.field("took", response.getTookInMillis());
+                    builder.field("ignored", response.isIgnored());
+
+                    final MonitoringBulkResponse.Error error = response.getError();
+                    builder.field("errors", error != null);
+
+                    if (error != null) {
+                        builder.field("error", response.getError());
+                    }
+                }
+                builder.endObject();
+                return new BytesRestResponse(response.status(), builder);
+            }
+        };
     }
 }

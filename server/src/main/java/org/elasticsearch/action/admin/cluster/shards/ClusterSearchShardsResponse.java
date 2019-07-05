@@ -42,7 +42,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         super(in);
         groups = new ClusterSearchShardsGroup[in.readVInt()];
         for (int i = 0; i < groups.length; i++) {
-            groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
+            groups[i] = new ClusterSearchShardsGroup(in);
         }
         nodes = new DiscoveryNode[in.readVInt()];
         for (int i = 0; i < nodes.length; i++) {

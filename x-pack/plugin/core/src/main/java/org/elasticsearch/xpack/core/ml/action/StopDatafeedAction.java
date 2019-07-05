@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -29,7 +28,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
+public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> {
 
     public static final StopDatafeedAction INSTANCE = new StopDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/stop";
@@ -37,11 +36,6 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
 
     private StopDatafeedAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -96,9 +90,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             resolvedStartedDatafeedIds = in.readStringArray();
             stopTimeout = in.readTimeValue();
             force = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
+            allowNoDatafeeds = in.readBoolean();
         }
 
         public String getDatafeedId() {
@@ -160,9 +152,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             out.writeStringArray(resolvedStartedDatafeedIds);
             out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
-            }
+            out.writeBoolean(allowNoDatafeeds);
         }
 
         @Override

@@ -59,7 +59,6 @@ final class RemoteRequestBuilders {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
         addIndices(path, searchRequest.indices());
-        addTypes(path, searchRequest.types());
         path.append("_search");
         Request request = new Request("POST", path.toString());
 
@@ -75,14 +74,13 @@ final class RemoteRequestBuilders {
             request.addParameter("scroll", keepAlive.getStringRep());
         }
         request.addParameter("size", Integer.toString(searchRequest.source().size()));
-        if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
-            /*
-             * Passing `null` here just add the `version` request parameter
-             * without any value. This way of requesting the version works
-             * for all supported versions of Elasticsearch.
-             */
-            request.addParameter("version", null);
+
+        if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
+            request.addParameter("version", Boolean.FALSE.toString());
+        } else {
+            request.addParameter("version", Boolean.TRUE.toString());
         }
+
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
             // Detect if we should use search_type=scan rather than a sort
@@ -171,25 +169,11 @@ final class RemoteRequestBuilders {
     }
 
     private static String encodeIndex(String s) {
-        if (s.contains("%")) { // already encoded, pass-through to allow this in mixed version clusters
-            checkIndexOrType("Index", s);
-            return s;
-        }
         try {
             return URLEncoder.encode(s, "utf-8");
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static void addTypes(StringBuilder path, String[] types) {
-        if (types == null || types.length == 0) {
-            return;
-        }
-        for (String indexOrType : types) {
-            checkIndexOrType("Type", indexOrType);
-        }
-        path.append(Strings.arrayToCommaDelimitedString(types)).append('/');
     }
 
     private static void checkIndexOrType(String name, String indexOrType) {

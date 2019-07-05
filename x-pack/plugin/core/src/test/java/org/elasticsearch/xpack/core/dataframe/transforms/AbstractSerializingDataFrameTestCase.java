@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameNamedXContentProvider;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -41,19 +42,22 @@ public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent 
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MockDeprecatedQueryBuilder.NAME,
                 MockDeprecatedQueryBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(AggregationBuilder.class, MockDeprecatedAggregationBuilder.NAME,
                 MockDeprecatedAggregationBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, DataFrameField.TIME_BASED_SYNC.getPreferredName(),
+                TimeSyncConfig::new));
 
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class,
                 new ParseField(MockDeprecatedQueryBuilder.NAME), (p, c) -> MockDeprecatedQueryBuilder.fromXContent(p)));
         namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class,
                 new ParseField(MockDeprecatedAggregationBuilder.NAME), (p, c) -> MockDeprecatedAggregationBuilder.fromXContent(p)));
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
 
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         namedXContentRegistry = new NamedXContentRegistry(namedXContents);

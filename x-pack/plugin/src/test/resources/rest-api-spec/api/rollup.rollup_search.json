@@ -1,10 +1,17 @@
 {
   "rollup.rollup_search": {
     "documentation": "",
+    "stability" : "experimental",
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/{index}/_rollup_search",
-      "paths": [ "{index}/_rollup_search", "{index}/{type}/_rollup_search" ],
+      "paths": [ "{index}/_rollup_search"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "{index}/{type}/_rollup_search",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type": "list",

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
@@ -42,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -59,7 +61,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             Settings.EMPTY, Mockito.mock(Environment.class), new ThreadContext(Settings.EMPTY));
     }
 
-    public void testParseValidJsonWithFixedRoleNames() throws Exception {
+    public void testValidExpressionWithFixedRoleNames() throws Exception {
         String json = "{"
             + "\"roles\": [  \"kibana_user\", \"sales\" ], "
             + "\"enabled\": true, "
@@ -69,13 +71,13 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             + "    { \"except\": { \"field\": { \"metadata.active\" : false } } }"
             + "  ]}"
             + "}";
-        final ExpressionRoleMapping mapping = parse(json, "ldap_sales");
+        ExpressionRoleMapping mapping = parse(json, "ldap_sales");
         assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("kibana_user", "sales"));
         assertThat(mapping.getExpression(), instanceOf(AllExpression.class));
 
         final UserRoleMapper.UserData user1a = new UserRoleMapper.UserData(
             "john.smith", "cn=john.smith,ou=sales,dc=example,dc=com",
-            Collections.emptyList(), Collections.singletonMap("active", true), realm
+            List.of(), Map.of("active", true), realm
         );
         final UserRoleMapper.UserData user1b = new UserRoleMapper.UserData(
             user1a.getUsername(), user1a.getDn().toUpperCase(Locale.US), user1a.getGroups(), user1a.getMetadata(), user1a.getRealm()
@@ -88,20 +90,52 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         );
         final UserRoleMapper.UserData user2 = new UserRoleMapper.UserData(
             "jamie.perez", "cn=jamie.perez,ou=sales,dc=example,dc=com",
-            Collections.emptyList(), Collections.singletonMap("active", false), realm
+            List.of(), Map.of("active", false), realm
         );
 
         final UserRoleMapper.UserData user3 = new UserRoleMapper.UserData(
             "simone.ng", "cn=simone.ng,ou=finance,dc=example,dc=com",
-            Collections.emptyList(), Collections.singletonMap("active", true), realm
+            List.of(), Map.of("active", true), realm
+        );
+
+        final UserRoleMapper.UserData user4 = new UserRoleMapper.UserData(
+                "peter.null", null, List.of(), Map.of("active", true), realm
         );
 
         assertThat(mapping.getExpression().match(user1a.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(user1b.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(user1c.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(user1d.asModel()), equalTo(true));
-        assertThat(mapping.getExpression().match(user2.asModel()), equalTo(false));
-        assertThat(mapping.getExpression().match(user3.asModel()), equalTo(false));
+        assertThat(mapping.getExpression().match(user2.asModel()), equalTo(false)); // metadata.active == false
+        assertThat(mapping.getExpression().match(user3.asModel()), equalTo(false)); // dn != ou=sales,dc=example,dc=com
+        assertThat(mapping.getExpression().match(user4.asModel()), equalTo(false)); // dn == null
+
+        // expression without dn
+        json = "{"
+                + "\"roles\": [  \"superuser\", \"system_admin\", \"admin\" ], "
+                + "\"enabled\": true, "
+                + "\"rules\": { "
+                + "  \"any\": [ "
+                + "    { \"field\": { \"username\" : \"tony.stark\" } }, "
+                + "    { \"field\": { \"groups\": \"cn=admins,dc=stark-enterprises,dc=com\" } }"
+                + "  ]}"
+                + "}";
+        mapping = parse(json, "stark_admin");
+            assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("superuser", "system_admin", "admin"));
+            assertThat(mapping.getExpression(), instanceOf(AnyExpression.class));
+
+        final UserRoleMapper.UserData userTony = new UserRoleMapper.UserData(
+                "tony.stark", null, List.of("Audi R8 owners"), Map.of("boss", true), realm
+        );
+        final UserRoleMapper.UserData userPepper = new UserRoleMapper.UserData(
+                "pepper.potts", null, List.of("marvel", "cn=admins,dc=stark-enterprises,dc=com"), Map.of(), realm
+        );
+        final UserRoleMapper.UserData userMax = new UserRoleMapper.UserData(
+                "max.rockatansky", null, List.of("bronze"), Map.of("mad", true), realm
+        );
+        assertThat(mapping.getExpression().match(userTony.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(userPepper.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(userMax.asModel()), equalTo(false));
     }
 
     public void testParseValidJsonWithTemplatedRoleNames() throws Exception {
@@ -251,7 +285,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerialization() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(true);
 
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_1_0, null);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, null);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
         original.writeTo(output);
@@ -267,7 +301,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerializationPreV71() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(false);
 
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_7_0_0);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_0_1);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
         original.writeTo(output);

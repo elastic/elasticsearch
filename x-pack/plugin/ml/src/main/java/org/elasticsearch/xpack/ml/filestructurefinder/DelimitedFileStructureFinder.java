@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
-import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 import org.supercsv.exception.SuperCsvException;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -27,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -62,14 +60,14 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 throw new IllegalArgumentException("[" + overriddenColumnNames.size() + "] column names were specified [" +
                     String.join(",", overriddenColumnNames) + "] but there are [" + header.length + "] columns in the sample");
             }
-            columnNames = overriddenColumnNames.toArray(new String[overriddenColumnNames.size()]);
+            columnNames = overriddenColumnNames.toArray(new String[0]);
         } else {
-            // The column names are the header names but with blanks named column1, column2, etc.
+            // The column names are the header names but with dots replaced with underscores and blanks named column1, column2, etc.
             columnNames = new String[header.length];
             for (int i = 0; i < header.length; ++i) {
                 assert header[i] != null;
                 String rawHeader = trimFields ? header[i].trim() : header[i];
-                columnNames[i] = rawHeader.isEmpty() ? "column" + (i + 1) : rawHeader;
+                columnNames[i] = rawHeader.isEmpty() ? "column" + (i + 1) : rawHeader.replace('.', '_');
             }
         }
 
@@ -85,11 +83,14 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
                 trimFields ? row.stream().map(field -> (field == null) ? null : field.trim()).collect(Collectors.toList()) : row);
             sampleRecords.add(sampleRecord);
             sampleMessages.add(
-                sampleLines.subList(prevMessageEndLineNumber + 1, lineNumbers.get(index)).stream().collect(Collectors.joining("\n")));
+                String.join("\n", sampleLines.subList(prevMessageEndLineNumber + 1, lineNumbers.get(index))));
             prevMessageEndLineNumber = lineNumber;
         }
 
-        String preamble = Pattern.compile("\n").splitAsStream(sample).limit(lineNumbers.get(1)).collect(Collectors.joining("\n", "", "\n"));
+        String preamble = String.join("\n", sampleLines.subList(0, lineNumbers.get(1))) + "\n";
+
+        // null to allow GC before timestamp search
+        sampleLines = null;
 
         char delimiter = (char) csvPreference.getDelimiterChar();
         FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.DELIMITED)
@@ -107,7 +108,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             structureBuilder.setShouldTrimFields(true);
         }
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides,
+        Tuple<String, TimestampFormatFinder> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides,
             timeoutChecker);
         if (timeField != null) {
             String timeLineRegex = null;
@@ -119,7 +120,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             for (String column : Arrays.asList(columnNames).subList(0, columnNames.length - 1)) {
                 if (timeField.v1().equals(column)) {
                     builder.append("\"?");
-                    String simpleTimePattern = timeField.v2().simplePattern.pattern();
+                    String simpleTimePattern = timeField.v2().getSimplePattern().pattern();
                     builder.append(simpleTimePattern.startsWith("\\b") ? simpleTimePattern.substring(2) : simpleTimePattern);
                     timeLineRegex = builder.toString();
                     break;
@@ -145,11 +146,11 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
 
             structureBuilder.setTimestampField(timeField.v1())
-                .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
-                .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
+                .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
+                .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
-                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, timeField.v1(),
-                    timeField.v2().javaTimestampFormats, needClientTimeZone))
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), timeField.v1(),
+                    timeField.v2().getJavaTimestampFormats(), needClientTimeZone))
                 .setMultilineStartPattern(timeLineRegex);
         }
 
@@ -158,8 +159,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
 
         SortedMap<String, Object> mappings = mappingsAndFieldStats.v1();
         if (timeField != null) {
-            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+            mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, FileStructureUtils.DATE_MAPPING_WITHOUT_FORMAT);
         }
 
         if (mappingsAndFieldStats.v2() != null) {

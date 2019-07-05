@@ -22,8 +22,9 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -86,6 +87,7 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.CoordinatorTests;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.metadata.AliasValidator;
@@ -96,8 +98,9 @@ import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -142,6 +145,8 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -206,8 +211,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void stopServices() {
-        testClusterNodes.nodes.values().forEach(TestClusterNode::stop);
+    public void verifyReposThenStopServices() {
+        try {
+            BlobStoreTestUtil.assertConsistency(
+                (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
+                Runnable::run);
+        } finally {
+            testClusterNodes.nodes.values().forEach(TestClusterNode::stop);
+        }
     }
 
     public void testSuccessfulSnapshotAndRestore() {
@@ -680,14 +691,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         private TestClusterNode newMasterNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.MASTER);
+            return newNode(nodeName, DiscoveryNodeRole.MASTER_ROLE);
         }
 
         private TestClusterNode newDataNode(String nodeName) throws IOException {
-            return newNode(nodeName, DiscoveryNode.Role.DATA);
+            return newNode(nodeName, DiscoveryNodeRole.DATA_ROLE);
         }
 
-        private TestClusterNode newNode(String nodeName, DiscoveryNode.Role role) throws IOException {
+        private TestClusterNode newNode(String nodeName, DiscoveryNodeRole role) throws IOException {
             return new TestClusterNode(
                 new DiscoveryNode(nodeName, randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(),
                     Collections.singleton(role), Version.CURRENT), this::getDisruption);
@@ -737,13 +748,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         public void clearNetworkDisruptions() {
-            disruptedLinks.disconnected.forEach(nodeName -> {
+            final Set<String> disconnectedNodes = new HashSet<>(disruptedLinks.disconnected);
+            disruptedLinks.clear();
+            disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
                     testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
                 }
             });
-            disruptedLinks.clear();
         }
 
         private NetworkDisruption.DisruptedLinks getDisruption() {
@@ -938,9 +950,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
-                new RoutingService(clusterService, allocationService),
+                new BatchedRerouteService(clusterService, allocationService::reroute),
                 threadPool
             );
+            Map<ActionType, TransportAction> actions = new HashMap<>();
+            actions.put(GlobalCheckpointSyncAction.TYPE,
+                new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
+                    threadPool, shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseBackgroundSyncAction.TYPE,
+                new RetentionLeaseBackgroundSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseSyncAction.TYPE,
+                new RetentionLeaseSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
             final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
             indicesClusterStateService = new IndicesClusterStateService(
                 settings,
@@ -966,34 +988,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters,
                         indexNameExpressionResolver)),
-                new GlobalCheckpointSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                new RetentionLeaseSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                    new RetentionLeaseBackgroundSyncAction(
-                            settings,
-                            transportService,
-                            clusterService,
-                            indicesService,
-                            threadPool,
-                            shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver));
-            Map<Action, TransportAction> actions = new HashMap<>();
+                client);
             final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                 indicesService,
                 allocationService, new AliasValidator(), environment, indexScopedSettings,
@@ -1006,18 +1001,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 ));
             final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
             mappingUpdatedAction.setClient(client);
-            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
-                clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, indexNameExpressionResolver);
             actions.put(BulkAction.INSTANCE,
                 new TransportBulkAction(threadPool, transportService, clusterService,
                     new IngestService(
                         clusterService, threadPool, environment, scriptService,
                         new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                         Collections.emptyList()),
-                    transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
+                    client, actionFilters, indexNameExpressionResolver,
                     new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver)
                 ));
+            final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
+                clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
+                actionFilters, indexNameExpressionResolver);
+            actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
             final RestoreService restoreService = new RestoreService(
                 clusterService, repositoriesService, allocationService,
                 metaDataCreateIndexService,
@@ -1031,7 +1027,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
             actions.put(PutMappingAction.INSTANCE,
                 new TransportPutMappingAction(transportService, clusterService, threadPool, metaDataMappingService,
-                    actionFilters, indexNameExpressionResolver, new TransportPutMappingAction.RequestValidators(Collections.emptyList())));
+                    actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList())));
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -1120,7 +1116,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 allocationService, masterService, () -> persistedState,
                 hostsResolver -> testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
                     .map(n -> n.node.getAddress()).collect(Collectors.toList()),
-                clusterService.getClusterApplierService(), Collections.emptyList(), random());
+                clusterService.getClusterApplierService(), Collections.emptyList(), random(),
+                new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE);
             masterService.setClusterStatePublisher(coordinator);
             coordinator.start();
             masterService.start();

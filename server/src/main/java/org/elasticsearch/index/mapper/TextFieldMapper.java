@@ -44,6 +44,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.intervals.Intervals;
 import org.apache.lucene.search.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
@@ -51,6 +52,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -109,7 +111,8 @@ public class TextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder, TextFieldMapper> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
-        private PrefixFieldType prefixFieldType;
+        private int minPrefixChars = -1;
+        private int maxPrefixChars = -1;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -160,6 +163,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public Builder indexPrefixes(int minChars, int maxChars) {
+
             if (minChars > maxChars) {
                 throw new IllegalArgumentException("min_chars [" + minChars + "] must be less than max_chars [" + maxChars + "]");
             }
@@ -169,8 +173,8 @@ public class TextFieldMapper extends FieldMapper {
             if (maxChars >= 20) {
                 throw new IllegalArgumentException("max_chars [" + maxChars + "] must be less than 20");
             }
-            this.prefixFieldType = new PrefixFieldType(name(), name() + "._index_prefix", minChars, maxChars);
-            fieldType().setPrefixFieldType(this.prefixFieldType);
+            this.minPrefixChars = minChars;
+            this.maxPrefixChars = maxChars;
             return this;
         }
 
@@ -187,21 +191,28 @@ public class TextFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             PrefixFieldMapper prefixMapper = null;
-            if (prefixFieldType != null) {
+            if (minPrefixChars != -1) {
+                /**
+                 * Mappings before v7.2.1 use {@link Builder#name} instead of {@link Builder#fullName}
+                 * to build prefix field names so we preserve the name that was used at creation time
+                 * even if it is different from the expected one (in case the field is nested under an object
+                 * or a multi-field). This way search will continue to work on old indices and new indices
+                 * will use the expected full name.
+                 **/
+                String fullName = context.indexCreatedVersion().before(Version.V_7_2_1) ? name() : buildFullName(context);
+                PrefixFieldType prefixFieldType =
+                    new PrefixFieldType(fullName, fullName + "._index_prefix", minPrefixChars, maxPrefixChars);
+                fieldType().setPrefixFieldType(prefixFieldType);
                 if (fieldType().isSearchable() == false) {
                     throw new IllegalArgumentException("Cannot set index_prefixes on unindexed field [" + name() + "]");
                 }
                 // Copy the index options of the main field to allow phrase queries on
                 // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
-                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
-                        // frequencies are not needed because prefix queries always use a constant score
-                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
-                    } else {
-                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
-                    }
-                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                    // frequencies are not needed because prefix queries always use a constant score
+                    prefixFieldType.setIndexOptions(IndexOptions.DOCS);
+                } else {
+                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
                 }
                 if (fieldType.storeTermVectorOffsets()) {
                     prefixFieldType.setStoreTermVectorOffsets(true);
@@ -406,6 +417,17 @@ public class TextFieldMapper extends FieldMapper {
                 .add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField, value)), BooleanClause.Occur.SHOULD)
                 .build();
+        }
+
+        public IntervalsSource intervals(BytesRef term) {
+            if (term.length > maxChars) {
+                return Intervals.prefix(term.utf8ToString());
+            }
+            if (term.length >= minChars) {
+                return Intervals.fixField(name(), Intervals.term(term));
+            }
+            String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
+            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(wildcardTerm)), Intervals.term(term));
         }
 
         @Override
@@ -636,9 +658,20 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+        public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
+                                         NamedAnalyzer analyzer, boolean prefix) throws IOException {
             if (indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            if (analyzer == null) {
+                analyzer = searchAnalyzer();
+            }
+            if (prefix) {
+                BytesRef normalizedTerm = analyzer.normalize(name(), text);
+                if (prefixFieldType != null) {
+                    return prefixFieldType.intervals(normalizedTerm);
+                }
+                return Intervals.prefix(normalizedTerm.utf8ToString()); // TODO make Intervals.prefix() take a BytesRef
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);

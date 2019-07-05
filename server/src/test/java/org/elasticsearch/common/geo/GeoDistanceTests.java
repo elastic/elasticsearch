@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.Rectangle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -65,20 +64,6 @@ public class GeoDistanceTests extends ESTestCase {
                 assertThat(e.getMessage(), containsString("Unknown GeoDistance ordinal ["));
             }
         }
-    }
-
-    public void testDistanceCheck() {
-        // Note, is within is an approximation, so, even though 0.52 is outside 50mi, we still get "true"
-        double radius = DistanceUnit.convert(50, DistanceUnit.MILES, DistanceUnit.METERS);
-        Rectangle box = Rectangle.fromPointDistance(0, 0, radius);
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0.5, 0.5), equalTo(true));
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0.52, 0.52), equalTo(true));
-        assertThat(GeoUtils.rectangleContainsPoint(box, 1, 1), equalTo(false));
-
-        radius = DistanceUnit.convert(200, DistanceUnit.MILES, DistanceUnit.METERS);
-        box = Rectangle.fromPointDistance(0, 179, radius);
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0, -179), equalTo(true));
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0, -178), equalTo(false));
     }
 
     private static double arcDistance(GeoPoint p1, GeoPoint p2) {

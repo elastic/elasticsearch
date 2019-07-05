@@ -48,7 +48,9 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     GetResult getResult;
 
-    GetResponse() {
+    GetResponse(StreamInput in) throws IOException {
+        super(in);
+        getResult = GetResult.readGetResult(in);
     }
 
     public GetResponse(GetResult getResult) {
@@ -203,8 +205,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        getResult = GetResult.readGetResult(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -37,6 +37,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,7 +48,7 @@ public class SysColumnsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test_emp", IndexType.INDEX);
+    private final IndexInfo index = new IndexInfo("test_emp", IndexType.STANDARD_INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
 
 
@@ -56,7 +57,7 @@ public class SysColumnsTests extends ESTestCase {
         SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values())));
         // nested fields are ignored
-        assertEquals(13, rows.size());
+        assertEquals(15, rows.size());
         assertEquals(24, rows.get(0).size());
 
         List<?> row = rows.get(0);
@@ -143,7 +144,7 @@ public class SysColumnsTests extends ESTestCase {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 Mode.ODBC);
-        assertEquals(13, rows.size());
+        assertEquals(15, rows.size());
         assertEquals(24, rows.get(0).size());
 
         List<?> row = rows.get(0);
@@ -232,7 +233,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(Short.class, nullable(row).getClass());
         assertEquals(Short.class, sqlDataType(row).getClass());
         assertEquals(Short.class, sqlDataTypeSub(row).getClass());
-        
+
         row = rows.get(9);
         assertEquals("some.ambiguous", name(row));
         assertEquals((short) Types.VARCHAR, sqlType(row));
@@ -278,7 +279,7 @@ public class SysColumnsTests extends ESTestCase {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 Mode.JDBC);
-        assertEquals(13, rows.size());
+        assertEquals(15, rows.size());
         assertEquals(24, rows.get(0).size());
 
         List<?> row = rows.get(0);
@@ -462,7 +463,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithCatalogWildcard() throws Exception {
         executeCommand("SYS COLUMNS CATALOG 'cluster' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(13, r.size());
+            assertEquals(14, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -475,7 +476,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithMissingCatalog() throws Exception {
         executeCommand("SYS COLUMNS TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(13, r.size());
+            assertEquals(14, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -488,7 +489,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithNullCatalog() throws Exception {
         executeCommand("SYS COLUMNS CATALOG ? TABLE LIKE 'test' LIKE '%'", singletonList(new SqlTypedParamValue("keyword", null)), r -> {
-            assertEquals(13, r.size());
+            assertEquals(14, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -509,9 +510,9 @@ public class SysColumnsTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
 
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[2]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
 
         tuple.v1().execute(tuple.v2(), wrap(consumer::accept, ex -> fail(ex.getMessage())));
     }

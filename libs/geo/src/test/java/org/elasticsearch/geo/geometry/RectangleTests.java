@@ -19,6 +19,8 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.GeometryValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -32,7 +34,7 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText(true, true);
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("bbox (10.0, 20.0, 40.0, 30.0)", wkt.toWKT(new Rectangle(30, 40, 10, 20)));
         assertEquals(new Rectangle(30, 40, 10, 20), wkt.fromWKT("bbox (10.0, 20.0, 40.0, 30.0)"));
 
@@ -41,16 +43,21 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     }
 
     public void testInitValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(100, 1, 2, 3));
+        GeometryValidator validator = new GeographyValidator(true);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> validator.validate(new Rectangle(1, 100, 2, 3)));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(1, 2, 200, 3));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> validator.validate(new Rectangle(1, 2, 200, 3)));
         assertEquals("invalid longitude 200.0; must be between -180.0 and 180.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(2, 1, 2, 3));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> validator.validate(new Rectangle(2, 1, 2, 3)));
         assertEquals("max lat cannot be less than min lat", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new Rectangle(1, 2, 2, 3, 5, Double.NaN));
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> validator.validate(new Rectangle(1, 2, 2, 3, 5, Double.NaN)));
         assertEquals("only one altitude value is specified", ex.getMessage());
     }
 }

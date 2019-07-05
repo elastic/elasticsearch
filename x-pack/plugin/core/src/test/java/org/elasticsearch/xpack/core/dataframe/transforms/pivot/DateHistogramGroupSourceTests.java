@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -29,10 +32,20 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
         if (randomBoolean()) {
             dateHistogramGroupSource.setTimeZone(randomZone());
         }
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setFormat(randomAlphaOfLength(10));
-        }
         return dateHistogramGroupSource;
+    }
+
+    public void testBackwardsSerialization() throws IOException {
+        DateHistogramGroupSource groupSource = randomDateHistogramGroupSource();
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_7_2_0);
+            groupSource.writeTo(output);
+            try (StreamInput in = output.bytes().streamInput()) {
+                in.setVersion(Version.V_7_2_0);
+                DateHistogramGroupSource streamedGroupSource = new DateHistogramGroupSource(in);
+                assertEquals(groupSource, streamedGroupSource);
+            }
+        }
     }
 
     @Override

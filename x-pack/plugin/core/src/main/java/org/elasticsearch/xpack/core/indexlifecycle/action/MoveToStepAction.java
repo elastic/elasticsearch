@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,17 +24,12 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import java.io.IOException;
 import java.util.Objects;
 
-public class MoveToStepAction extends Action<MoveToStepAction.Response> {
+public class MoveToStepAction extends ActionType<MoveToStepAction.Response> {
     public static final MoveToStepAction INSTANCE = new MoveToStepAction();
     public static final String NAME = "cluster:admin/ilm/_move/post";
 
     protected MoveToStepAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

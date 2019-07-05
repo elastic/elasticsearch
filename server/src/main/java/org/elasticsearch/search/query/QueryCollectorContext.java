@@ -151,18 +151,6 @@ abstract class QueryCollectorContext {
     }
 
     /**
-     * Creates a collector that throws {@link TaskCancelledException} if the search is cancelled
-     */
-    static QueryCollectorContext createCancellableCollectorContext(BooleanSupplier cancelled) {
-        return new QueryCollectorContext(REASON_SEARCH_CANCELLED) {
-            @Override
-            Collector create(Collector in) throws IOException {
-                return new CancellableCollector(cancelled, in);
-            }
-        };
-    }
-
-    /**
      * Creates collector limiting the collection to the first <code>numHits</code> documents
      */
     static QueryCollectorContext createEarlyTerminationCollectorContext(int numHits) {

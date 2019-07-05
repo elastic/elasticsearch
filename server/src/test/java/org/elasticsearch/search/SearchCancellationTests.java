@@ -22,14 +22,18 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.search.query.CancellableCollector;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -37,6 +41,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchCancellationTests extends ESTestCase {
 
@@ -75,12 +81,22 @@ public class SearchCancellationTests extends ESTestCase {
     public void testCancellableCollector() throws IOException {
         TotalHitCountCollector collector = new TotalHitCountCollector();
         AtomicBoolean cancelled = new AtomicBoolean();
-        CancellableCollector cancellableCollector = new CancellableCollector(cancelled::get, collector);
-        final LeafCollector leafCollector = cancellableCollector.getLeafCollector(reader.leaves().get(0));
-        leafCollector.collect(0);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(reader,
+            IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+        searcher.setCheckCancelled(() -> {
+            if (cancelled.get()) {
+                throw new TaskCancelledException("cancelled");
+            }
+        });
+        LeafReaderContext leafContext = reader.leaves().get(0);
+        final Weight weight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1f);
+        searcher.searchLeaf(searcher.getIndexReader().leaves().get(0), weight, collector);
+        assertThat(collector.getTotalHits(), equalTo(leafContext.reader().numDocs()));
         cancelled.set(true);
-        leafCollector.collect(1);
-        expectThrows(TaskCancelledException.class, () -> cancellableCollector.getLeafCollector(reader.leaves().get(1)));
+        expectThrows(TaskCancelledException.class,
+            () -> searcher.searchLeaf(searcher.getIndexReader().leaves().get(0), weight, collector));
+        expectThrows(TaskCancelledException.class,
+            () -> searcher.search(new MatchAllDocsQuery(), collector));
     }
 
 }

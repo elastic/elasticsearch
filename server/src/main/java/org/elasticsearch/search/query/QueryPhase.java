@@ -34,7 +34,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -43,8 +42,10 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
@@ -68,12 +69,14 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 
-import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlyTerminationCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createFilteredCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
@@ -89,7 +92,7 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTot
 public class QueryPhase implements SearchPhase {
     private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
     public static final boolean SYS_PROP_LONG_SORT_OPTIMIZED =
-        Booleans.parseBoolean(System.getProperty("es.search.long_sort_optimized", "false"));
+        Booleans.parseBoolean(System.getProperty("es.search.long_sort_optimized", "true"));
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
@@ -124,8 +127,7 @@ public class QueryPhase implements SearchPhase {
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
-        final ContextIndexSearcher searcher = searchContext.searcher();
-        boolean rescore = execute(searchContext, searchContext.searcher(), searcher::setCheckCancelled);
+        boolean rescore = executeInternal(searchContext);
 
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
@@ -145,9 +147,8 @@ public class QueryPhase implements SearchPhase {
      * wire everything (mapperService, etc.)
      * @return whether the rescoring phase should be executed
      */
-    static boolean execute(SearchContext searchContext,
-                           final IndexSearcher searcher,
-                           Consumer<Runnable> checkCancellationSetter) throws QueryPhaseExecutionException {
+    static boolean executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+        final ContextIndexSearcher searcher = searchContext.searcher();
         SortAndFormats sortAndFormatsForRewrittenNumericSort = null;
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
@@ -220,6 +221,7 @@ public class QueryPhase implements SearchPhase {
                 hasFilterCollector = true;
             }
 
+            CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter = l -> {};
             // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
             if ((searchContext.sort() != null) && SYS_PROP_LONG_SORT_OPTIMIZED) {
                 Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
@@ -228,14 +230,17 @@ public class QueryPhase implements SearchPhase {
                     // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
                     SortField[] oldSortFields = searchContext.sort().sort.getSort();
                     DocValueFormat[] oldFormats = searchContext.sort().formats;
-                    SortField[] newSortFields = new SortField[oldSortFields.length + 1];
-                    DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
+                    SortField[] newSortFields = new SortField[oldSortFields.length + 2];
+                    DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 2];
                     newSortFields[0] = SortField.FIELD_SCORE;
                     newFormats[0] = DocValueFormat.RAW;
+                    newSortFields[newSortFields.length-1] = SortField.FIELD_SCORE;
+                    newFormats[newSortFields.length-1] = DocValueFormat.RAW;
                     System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
                     System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
                     sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
                     searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
+                    leafSorter = createLeafSorter(oldSortFields[0]);
                 }
             }
 
@@ -279,16 +284,11 @@ public class QueryPhase implements SearchPhase {
                 checkCancelled = null;
             }
 
-            checkCancellationSetter.accept(checkCancelled);
-
-            // add cancellable
-            // this only performs segment-level cancellation, which is cheap and checked regardless of
-            // searchContext.lowLevelCancellation()
-            collectors.add(createCancellableCollectorContext(searchContext.getTask()::isCancelled));
+            searcher.setCheckCancelled(checkCancelled);
 
             final boolean doProfile = searchContext.getProfilers() != null;
             // create the top docs collector last when the other collectors are known
-            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, reader, hasFilterCollector);
+            final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
             // add the top docs collector, the first collector context in the chain
             collectors.addFirst(topDocsFactory);
 
@@ -302,7 +302,12 @@ public class QueryPhase implements SearchPhase {
             }
 
             try {
-                searcher.search(query, queryCollector);
+                Weight weight = searcher.createWeight(searcher.rewrite(query), queryCollector.scoreMode(), 1f);
+                List<LeafReaderContext> leaves = new ArrayList<>(searcher.getIndexReader().leaves());
+                leafSorter.accept(leaves);
+                for (LeafReaderContext ctx : leaves) {
+                    searcher.searchLeaf(ctx, weight, queryCollector);
+                }
             } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
                 queryResult.terminatedEarly(true);
             } catch (TimeExceededException e) {
@@ -427,13 +432,39 @@ public class QueryPhase implements SearchPhase {
         return rewrittenQuery;
     }
 
-    // Restore fieldsDocs to remove the first _score sort
-    // updating in place without creating new FieldDoc objects
+    /**
+     * Creates a sorter of {@link LeafReaderContext} that orders leaves depending on the minimum
+     * value and the sort order of the provided <code>sortField</code>.
+     */
+    static CheckedConsumer<List<LeafReaderContext>, IOException> createLeafSorter(SortField sortField) {
+        return leaves -> {
+            long[] minValues = new long[leaves.size()];
+            long missingValue = (long) sortField.getMissingValue();
+            for (LeafReaderContext ctx : leaves) {
+                PointValues values = ctx.reader().getPointValues(sortField.getField());
+                if (values == null) {
+                    minValues[ctx.ord] = (long) sortField.getMissingValue();
+                } else {
+                    byte[] minValue = values.getMinPackedValue();
+                    minValues[ctx.ord] = minValue == null ? missingValue : LongPoint.decodeDimension(minValue, 0);
+                }
+            }
+            Comparator<LeafReaderContext> comparator = Comparator.comparingLong(l -> minValues[l.ord]);
+            if (sortField.getReverse()) {
+                comparator = comparator.reversed();
+            }
+            Collections.sort(leaves, comparator);
+        };
+    }
+
+    /**
+     * Restore fieldsDocs to remove the first _score and last _doc sort.
+     */
     static void restoreTopFieldDocs(QuerySearchResult result, SortAndFormats originalSortAndFormats) {
         TopDocs topDocs = result.topDocs().topDocs;
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-            fieldDoc.fields = Arrays.copyOfRange(fieldDoc.fields, 1, fieldDoc.fields.length);
+            fieldDoc.fields = Arrays.copyOfRange(fieldDoc.fields, 1, fieldDoc.fields.length-1);
         }
         TopFieldDocs newTopDocs = new TopFieldDocs(topDocs.totalHits, topDocs.scoreDocs, originalSortAndFormats.sort.getSort());
         result.topDocs(new TopDocsAndMaxScore(newTopDocs, Float.NaN), originalSortAndFormats.formats);

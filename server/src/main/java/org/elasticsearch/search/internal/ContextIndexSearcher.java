@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -132,12 +133,67 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
+    private void checkCancelled() {
+        if (checkCancelled != null) {
+            checkCancelled.run();
+        }
+    }
+
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        final Weight cancellableWeight;
-        if (checkCancelled != null) {
-            cancellableWeight = new Weight(weight.getQuery()) {
+        for (LeafReaderContext ctx : leaves) { // search each subreader
+            searchLeaf(ctx, weight, collector);
+        }
+    }
 
+    /**
+     * Lower-level search API.
+     *
+     * {@link LeafCollector#collect(int)} is called for every matching document in
+     * the provided <code>ctx</code>.
+     */
+    public void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+        checkCancelled();
+        weight = wrapWeight(weight);
+        final LeafCollector leafCollector;
+        try {
+            leafCollector = collector.getLeafCollector(ctx);
+        } catch (CollectionTerminatedException e) {
+            // there is no doc of interest in this reader context
+            // continue with the following leaf
+            return;
+        }
+        Bits liveDocs = ctx.reader().getLiveDocs();
+        BitSet liveDocsBitSet = getSparseBitSetOrNull(ctx.reader().getLiveDocs());
+        if (liveDocsBitSet == null) {
+            BulkScorer bulkScorer = weight.bulkScorer(ctx);
+            if (bulkScorer != null) {
+                try {
+                    bulkScorer.score(leafCollector, liveDocs);
+                } catch (CollectionTerminatedException e) {
+                    // collection was terminated prematurely
+                    // continue with the following leaf
+                }
+            }
+        } else {
+            // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
+            Scorer scorer = weight.scorer(ctx);
+            if (scorer != null) {
+                try {
+                    intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
+                        checkCancelled == null ? () -> {
+                        } : checkCancelled);
+                } catch (CollectionTerminatedException e) {
+                    // collection was terminated prematurely
+                    // continue with the following leaf
+                }
+            }
+        }
+    }
+
+    private Weight wrapWeight(Weight weight) {
+        if (checkCancelled != null) {
+            return new Weight(weight.getQuery()) {
                 @Override
                 public void extractTerms(Set<Term> terms) {
                     throw new UnsupportedOperationException();
@@ -169,48 +225,10 @@ public class ContextIndexSearcher extends IndexSearcher {
                 }
             };
         } else {
-            cancellableWeight = weight;
+            return weight;
         }
-        searchInternal(leaves, cancellableWeight, collector);
     }
 
-    private void searchInternal(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            final LeafCollector leafCollector;
-            try {
-                leafCollector = collector.getLeafCollector(ctx);
-            } catch (CollectionTerminatedException e) {
-                // there is no doc of interest in this reader context
-                // continue with the following leaf
-                continue;
-            }
-            Bits liveDocs = ctx.reader().getLiveDocs();
-            BitSet liveDocsBitSet = getSparseBitSetOrNull(ctx.reader().getLiveDocs());
-            if (liveDocsBitSet == null) {
-                BulkScorer bulkScorer = weight.bulkScorer(ctx);
-                if (bulkScorer != null) {
-                    try {
-                        bulkScorer.score(leafCollector, liveDocs);
-                    } catch (CollectionTerminatedException e) {
-                        // collection was terminated prematurely
-                        // continue with the following leaf
-                    }
-                }
-            } else {
-                // if the role query result set is sparse then we should use the SparseFixedBitSet for advancing:
-                Scorer scorer = weight.scorer(ctx);
-                if (scorer != null) {
-                    try {
-                        intersectScorerAndBitSet(scorer, liveDocsBitSet, leafCollector,
-                            checkCancelled == null ? () -> {} : checkCancelled);
-                    } catch (CollectionTerminatedException e) {
-                        // collection was terminated prematurely
-                        // continue with the following leaf
-                    }
-                }
-            }
-        }
-    }
 
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
         if (liveDocs instanceof SparseFixedBitSet) {

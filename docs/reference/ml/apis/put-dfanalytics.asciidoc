@@ -98,31 +98,33 @@ PUT _ml/data_frame/analytics/loganalytics
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:setup:setup_logdata]
+// TEST[setup:setup_logdata]
 
 The API returns the following result:
 
 [source,js]
 ----
 {
-    "id": "loganalytics",
-    "source": {
-        "index": ["logdata"],
-        "query": {
-            "match_all": {}
-        }
-    },
-    "dest": {
-        "index": "logdata_out",
-        "results_field": "ml"
-    },
-    "analysis": {
-        "outlier_detection": {}
-    },
-    "model_memory_limit": "1gb",
-    "create_time": 1562265491319,
-    "version": "7.4.0"
+  "id" : "loganalytics",
+  "source" : {
+    "index" : [
+      "logdata"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : {
+    "index" : "logdata_out",
+    "results_field" : "ml"
+  },
+  "analysis" : {
+    "outlier_detection" : { }
+  },
+  "model_memory_limit" : "1gb",
+  "create_time" : 1562351429434,
+  "version" : "7.3.0"
 }
 ----
-// TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version": "7.4.0"/"version": $body.version/]
+// TESTRESPONSE[s/1562351429434/$body.$_path/]
+// TESTRESPONSE[s/"version" : "7.3.0"/"version" : $body.version/]

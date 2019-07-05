@@ -32,6 +32,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -210,7 +211,8 @@ public class RecoverySourceHandler {
                                     // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
                                     // new one later on in the recovery.
                                     shard.removePeerRecoveryRetentionLease(request.targetNode().getId(),
-                                        withGenericExecutor(deleteRetentionLeaseStep));
+                                        new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC,
+                                            deleteRetentionLeaseStep, false));
                                 } catch (RetentionLeaseNotFoundException e) {
                                     logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
                                     deleteRetentionLeaseStep.onResponse(null);
@@ -240,8 +242,9 @@ public class RecoverySourceHandler {
                             // conservative estimate of the GCP for creating the lease. TODO use the actual GCP once it's appropriate
                             final long globalCheckpoint = startingSeqNo - 1;
                             // blindly create the lease. TODO integrate this with the recovery process
-                            shard.addPeerRecoveryRetentionLease(
-                                request.targetNode().getId(), globalCheckpoint, withGenericExecutor(establishRetentionLeaseStep));
+                            shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), globalCheckpoint,
+                                new ThreadedActionListener<>(logger, shard.getThreadPool(),
+                                    ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
                         } catch (RetentionLeaseAlreadyExistsException e) {
                             logger.debug("peer-recovery retention lease already exists", e);
                             establishRetentionLeaseStep.onResponse(null);
@@ -826,31 +829,5 @@ public class RecoverySourceHandler {
 
     protected void failEngine(IOException cause) {
         shard.failShard("recovery", cause);
-    }
-
-    private <Response> ActionListener<Response> withGenericExecutor(ActionListener<Response> listener) {
-        return new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    shard.getThreadPool().generic().execute(() -> listener.onResponse(response));
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    shard.getThreadPool().generic().execute(() -> listener.onFailure(e));
-                } catch (Exception e2) {
-                    e.addSuppressed(e2);
-                    final String message
-                        = new ParameterizedMessage("failed to clean up recovery [{}]", RecoverySourceHandler.this).getFormattedMessage();
-                    assert false : message + '\n' + e;
-                    logger.error(message, e);
-                }
-            }
-        };
     }
 }

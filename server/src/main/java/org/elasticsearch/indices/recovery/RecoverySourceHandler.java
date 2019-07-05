@@ -147,7 +147,7 @@ public class RecoverySourceHandler {
                 throw e;
             });
             final Consumer<Exception> onFailure = e -> {
-                Transports.assertNotTransportThread("failure of recovery from " + shard.routingEntry() + " to " + request.targetNode());
+                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[onFailure]");
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
             };
 
@@ -224,7 +224,7 @@ public class RecoverySourceHandler {
                     }
 
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
-                        Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
+                        assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
                         phase1(safeCommitRef.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps, sendFileStep);
                     }, onFailure);
 
@@ -257,14 +257,14 @@ public class RecoverySourceHandler {
             }, onFailure);
 
             establishRetentionLeaseStep.whenComplete(r -> {
-                Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
+                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
                 prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
                     shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
             }, onFailure);
 
             prepareEngineStep.whenComplete(prepareEngineTime -> {
-                Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
+                assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
                 /*
                  * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
                  * This means that any document indexed into the primary after this will be replicated to this replica as well

@@ -98,7 +98,7 @@ PUT _ml/data_frame/analytics/loganalytics
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:setup:setup_logdata]
+// TEST[setup:setup_logdata]
 
 The API returns the following result:
 

@@ -54,11 +54,7 @@ An {oldetection} configuration object has the following properties:
 `method` (Optional)::
   (string) Sets the method that {oldetection} uses. If the method is not set 
   {oldetection} uses an ensemble of different methods and normalises and 
-<<<<<<< Updated upstream
-  combines their individual {olscore}s to obtain the overall {olscore}. 
-=======
   combines their individual {olscores} to obtain the overall {olscore}. 
->>>>>>> Stashed changes
   Available methods are `lof`, `ldof`, `distance_kth_nn`, `distance_knn`.
 
 `feature_influence_threshold` (Optional):: 

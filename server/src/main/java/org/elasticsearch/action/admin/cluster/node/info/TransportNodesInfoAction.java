@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -56,8 +57,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     }
 
     @Override
-    protected NodeInfoRequest newNodeRequest(String nodeId, NodesInfoRequest request) {
-        return new NodeInfoRequest(nodeId, request);
+    protected NodeInfoRequest newNodeRequest(NodesInfoRequest request) {
+        return new NodeInfoRequest(request);
     }
 
     @Override
@@ -66,7 +67,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     }
 
     @Override
-    protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
+    protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, Task task) {
         NodesInfoRequest request = nodeRequest.request;
         return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
                 request.transport(), request.http(), request.plugins(), request.ingest(), request.indices());
@@ -79,8 +80,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         public NodeInfoRequest() {
         }
 
-        public NodeInfoRequest(String nodeId, NodesInfoRequest request) {
-            super(nodeId);
+        public NodeInfoRequest(NodesInfoRequest request) {
             this.request = request;
         }
 

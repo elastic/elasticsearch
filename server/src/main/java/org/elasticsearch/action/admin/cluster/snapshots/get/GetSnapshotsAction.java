@@ -19,24 +19,19 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Get snapshots action
  */
-public class GetSnapshotsAction extends Action<GetSnapshotsResponse> {
+public class GetSnapshotsAction extends ActionType<GetSnapshotsResponse> {
 
     public static final GetSnapshotsAction INSTANCE = new GetSnapshotsAction();
     public static final String NAME = "cluster:admin/snapshot/get";
 
     private GetSnapshotsAction() {
         super(NAME);
-    }
-
-    @Override
-    public GetSnapshotsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

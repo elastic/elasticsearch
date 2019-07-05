@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -258,8 +259,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
                 client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
         assertThat(statsResponse.getTransformsStateAndStats(), hasSize(1));
-        IndexerState indexerState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getIndexerState();
-        assertThat(indexerState, is(oneOf(IndexerState.STARTED, IndexerState.INDEXING)));
+        DataFrameTransformTaskState taskState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getTaskState();
+
+        // Since we are non-continuous, the transform could auto-stop between being started earlier and us gathering the statistics
+        assertThat(taskState, is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
 
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id, Boolean.TRUE, null);
         StopDataFrameTransformResponse stopResponse =
@@ -267,8 +270,15 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertTrue(stopResponse.isAcknowledged());
         assertThat(stopResponse.getNodeFailures(), empty());
         assertThat(stopResponse.getTaskFailures(), empty());
+
+        // Calling stop with wait_for_completion assures that we will be in the `STOPPED` state for the transform task
+        statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
+            client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
+        taskState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getTaskState();
+        assertThat(taskState, is(DataFrameTransformTaskState.STOPPED));
     }
 
+    @SuppressWarnings("unchecked")
     public void testPreview() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
@@ -290,6 +300,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         Optional<Map<String, Object>> michel = docs.stream().filter(doc -> "michel".equals(doc.get("reviewer"))).findFirst();
         assertTrue(michel.isPresent());
         assertEquals(3.6d, (double) michel.get().get("avg_rating"), 0.1d);
+
+        Map<String, Object> mappings = preview.getMappings();
+        assertThat(mappings, hasKey("properties"));
+        Map<String, Object> fields = (Map<String, Object>)mappings.get("properties");
+        assertThat(fields.get("reviewer"), equalTo(Map.of("type", "keyword")));
+        assertThat(fields.get("avg_rating"), equalTo(Map.of("type", "double")));
     }
 
     private DataFrameTransformConfig validDataFrameTransformConfig(String id, String source, String destination) {

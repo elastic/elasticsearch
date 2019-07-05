@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -46,6 +45,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -92,7 +92,6 @@ public final class MockTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
-    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -112,7 +111,8 @@ public final class MockTransportService extends TransportService {
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
         // a different default port range per JVM unless the incoming settings override it
-        int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
+        // use a non-default base port otherwise some cluster in this JVM might reuse a port
+        int basePort = 10300 + (ESTestCase.TEST_WORKER_VM * 100);
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),

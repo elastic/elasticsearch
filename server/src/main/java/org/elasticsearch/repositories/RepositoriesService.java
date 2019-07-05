@@ -434,7 +434,7 @@ public class RepositoriesService implements ClusterStateApplier {
     }
 
 
-    private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
+    private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {
             throw new IllegalStateException("trying to modify or unregister repository that is currently used ");
         }

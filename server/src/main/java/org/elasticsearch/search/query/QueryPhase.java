@@ -234,6 +234,9 @@ public class QueryPhase implements SearchPhase {
                     DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 2];
                     newSortFields[0] = SortField.FIELD_SCORE;
                     newFormats[0] = DocValueFormat.RAW;
+                    // Add a tiebreak on _doc in order to be able to search
+                    // the leaves in any order. This is needed since we reorder
+                    // the leaves based on the minimum value in each segment.
                     newSortFields[newSortFields.length-1] = SortField.FIELD_SCORE;
                     newFormats[newSortFields.length-1] = DocValueFormat.RAW;
                     System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
@@ -303,6 +306,9 @@ public class QueryPhase implements SearchPhase {
 
             try {
                 Weight weight = searcher.createWeight(searcher.rewrite(query), queryCollector.scoreMode(), 1f);
+                // We search the leaves in a different order when the numeric sort optimization is
+                // activated. Collectors expect leaves in order when searching but this is fine in this
+                // case since we only have a TopFieldCollector and we force the tiebreak on _doc.
                 List<LeafReaderContext> leaves = new ArrayList<>(searcher.getIndexReader().leaves());
                 leafSorter.accept(leaves);
                 for (LeafReaderContext ctx : leaves) {

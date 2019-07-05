@@ -105,7 +105,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
 
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
+    protected AggregatorFactory createAggregatorFactory(AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            MappedFieldType... fieldTypes) throws IOException {
         return createAggregatorFactory(aggregationBuilder, indexSearcher, createIndexSettings(),
@@ -113,7 +113,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
 
-    protected AggregatorFactory<?> createAggregatorFactory(AggregationBuilder aggregationBuilder,
+    protected AggregatorFactory createAggregatorFactory(AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            IndexSettings indexSettings,
                                                            MultiBucketConsumer bucketConsumer,
@@ -122,7 +122,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /** Create a factory for the given aggregation builder. */
-    protected AggregatorFactory<?> createAggregatorFactory(Query query,
+    protected AggregatorFactory createAggregatorFactory(Query query,
                                                            AggregationBuilder aggregationBuilder,
                                                            IndexSearcher indexSearcher,
                                                            IndexSettings indexSettings,

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchResponse;
@@ -256,11 +255,10 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .get();
         client().admin().indices().prepareRefresh().get();
 
-        try (Engine.Searcher engineSearcher = indexService.getShard(0).acquireSearcher("test")) {
-            IndexSearcher indexSearcher = engineSearcher.searcher();
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             long[] currentTime = new long[] {System.currentTimeMillis()};
             QueryShardContext queryShardContext =
-                indexService.newQueryShardContext(0, engineSearcher.reader(), () -> currentTime[0], null);
+                indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> currentTime[0], null);
 
             BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                 .field("field1", "value")
@@ -268,7 +266,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 .endObject());
             QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
             Query query = queryBuilder.toQuery(queryShardContext);
-            assertThat(indexSearcher.count(query), equalTo(3));
+            assertThat(searcher.count(query), equalTo(3));
 
             currentTime[0] = currentTime[0] + 10800000; // + 3 hours
             source = BytesReference.bytes(jsonBuilder().startObject()
@@ -277,7 +275,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 .endObject());
             queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
             query = queryBuilder.toQuery(queryShardContext);
-            assertThat(indexSearcher.count(query), equalTo(3));
+            assertThat(searcher.count(query), equalTo(3));
         }
     }
 

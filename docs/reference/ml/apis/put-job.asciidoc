@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-job]]
-=== Create jobs API
+=== Create {anomaly-jobs} API
 ++++
-<titleabbrev>Create jobs</titleabbrev>
+<titleabbrev>Create {anomaly-jobs}</titleabbrev>
 ++++
 
-Instantiates a job.
+Instantiates an {anomaly-job}.
 
 [[ml-put-job-request]]
 ==== {api-request-title}
@@ -23,10 +23,10 @@ Instantiates a job.
 [[ml-put-job-desc]]
 ==== {api-description-title}
 
-IMPORTANT: You must use {kib} or this API to create a {ml} job. Do not put a job
-            directly to the `.ml-config` index using the Elasticsearch index API.
-            If {es} {security-features} are enabled, do not give users `write`
-            privileges on the `.ml-config` index.
+IMPORTANT: You must use {kib} or this API to create an {anomaly-job}. Do not put
+a job directly to the `.ml-config` index using the {es} index API. If {es}
+{security-features} are enabled, do not give users `write` privileges on the
+`.ml-config` index.
 
 [[ml-put-job-path-parms]]
 ==== {api-path-parms-title}
@@ -121,9 +121,9 @@ When the job is created, you receive the following results:
 {
   "job_id": "total-requests",
   "job_type": "anomaly_detector",
-  "job_version": "7.0.0-alpha1",
+  "job_version": "8.0.0",
   "description": "Total sum of requests",
-  "create_time": 1517011406091,
+  "create_time": 1562346643557,
   "analysis_config": {
     "bucket_span": "10m",
     "detectors": [
@@ -148,5 +148,5 @@ When the job is created, you receive the following results:
   "results_index_name": "shared"
 }
 ----
-// TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
-// TESTRESPONSE[s/"create_time": 1517011406091/"create_time": $body.create_time/]
+// TESTRESPONSE[s/"job_version": "8.0.0"/"job_version": $body.job_version/]
+// TESTRESPONSE[s/1562346643557/$body.$_path/]

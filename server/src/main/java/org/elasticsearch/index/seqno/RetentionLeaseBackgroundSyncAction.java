@@ -21,10 +21,9 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -37,10 +36,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,6 +58,12 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
+    public static ActionType<ReplicationResponse> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public ReplicationResponse newResponse() {
+            return new ReplicationResponse();
+        }
+    };
 
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
@@ -91,39 +94,6 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                 Request::new,
                 Request::new,
                 ThreadPool.Names.MANAGEMENT);
-    }
-
-    /**
-     * Background sync the specified retention leases for the specified shard.
-     *
-     * @param shardId         the shard to sync
-     * @param retentionLeases the retention leases to sync
-     */
-    public void backgroundSync(
-            final ShardId shardId,
-            final RetentionLeases retentionLeases) {
-        Objects.requireNonNull(shardId);
-        Objects.requireNonNull(retentionLeases);
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
-            execute(
-                    new Request(shardId, retentionLeases),
-                    ActionListener.wrap(
-                            r -> {},
-                            e -> {
-                                if (ExceptionsHelper.isTransportStoppedForAction(e, ACTION_NAME + "[p]")) {
-                                    // we are likely shutting down
-                                    return;
-                                }
-                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
-                                    // the shard is closed
-                                    return;
-                                }
-                                getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
-                            }));
-        }
     }
 
     @Override
@@ -180,7 +150,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
         @Override
         public String toString() {
-            return "Request{" +
+            return "RetentionLeaseBackgroundSyncAction.Request{" +
                     "retentionLeases=" + retentionLeases +
                     ", shardId=" + shardId +
                     ", timeout=" + timeout +

@@ -41,7 +41,7 @@ public abstract class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     @Override
     public BytesRef get(int index) {
-        throw new UnsupportedOperationException("vector fields may only be used via vector functions in scripts");
+        throw new UnsupportedOperationException("accessing a vector field's value through 'get' or 'value' is not supported");
     }
 
     @Override

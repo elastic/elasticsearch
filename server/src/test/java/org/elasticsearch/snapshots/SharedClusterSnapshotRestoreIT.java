@@ -1347,7 +1347,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
     }
 
-    public void testGetSnapshotsMultipleRepos() {
+    public void testGetSnapshotsMultipleRepos() throws Exception {
         final Client client = client();
 
         List<String> snapshotList = new ArrayList<>();
@@ -1376,6 +1376,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             for (int snapshotIndex = 0; snapshotIndex < randomIntBetween(2, 5); snapshotIndex++) {
                 final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 snapshotList.add(snapshotName);
+                // Wait for at least 1ms to ensure that snapshots can be ordered by timestamp deterministically
+                for (final ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+                    final long startMillis = threadPool.absoluteTimeInMillis();
+                    assertBusy(() -> assertThat(threadPool.absoluteTimeInMillis(), greaterThan(startMillis)));
+                }
                 logger.info("--> create snapshot with index {} and name {} in repository {}", snapshotIndex, snapshotName, repoName);
                 CreateSnapshotResponse createSnapshotResponse = client.admin()
                         .cluster()

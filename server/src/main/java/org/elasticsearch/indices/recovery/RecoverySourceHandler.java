@@ -65,6 +65,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -144,8 +145,10 @@ public class RecoverySourceHandler {
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
                 throw e;
             });
-            final Consumer<Exception> onFailure = e ->
+            final Consumer<Exception> onFailure = e -> {
+                Transports.assertNotTransportThread("failure of recovery from " + shard.routingEntry() + " to " + request.targetNode());
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
+            };
 
             runUnderPrimaryPermit(() -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
@@ -206,7 +209,8 @@ public class RecoverySourceHandler {
                                     // If the target previously had a copy of this shard then a file-based recovery might move its global
                                     // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
                                     // new one later on in the recovery.
-                                    shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), deleteRetentionLeaseStep);
+                                    shard.removePeerRecoveryRetentionLease(request.targetNode().getId(),
+                                        withGenericExecutor(deleteRetentionLeaseStep));
                                 } catch (RetentionLeaseNotFoundException e) {
                                     logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
                                     deleteRetentionLeaseStep.onResponse(null);
@@ -218,6 +222,7 @@ public class RecoverySourceHandler {
                     }
 
                     deleteRetentionLeaseStep.whenComplete(ignored -> {
+                        Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
                         phase1(safeCommitRef.getIndexCommit(), shard.getLastKnownGlobalCheckpoint(), () -> estimateNumOps, sendFileStep);
                     }, onFailure);
 
@@ -236,7 +241,7 @@ public class RecoverySourceHandler {
                             final long globalCheckpoint = startingSeqNo - 1;
                             // blindly create the lease. TODO integrate this with the recovery process
                             shard.addPeerRecoveryRetentionLease(
-                                request.targetNode().getId(), globalCheckpoint, establishRetentionLeaseStep);
+                                request.targetNode().getId(), globalCheckpoint, withGenericExecutor(establishRetentionLeaseStep));
                         } catch (RetentionLeaseAlreadyExistsException e) {
                             logger.debug("peer-recovery retention lease already exists", e);
                             establishRetentionLeaseStep.onResponse(null);
@@ -249,12 +254,14 @@ public class RecoverySourceHandler {
             }, onFailure);
 
             establishRetentionLeaseStep.whenComplete(r -> {
+                Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
                 prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
                     shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo), prepareEngineStep);
             }, onFailure);
 
             prepareEngineStep.whenComplete(prepareEngineTime -> {
+                Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase2]");
                 /*
                  * add shard to replication group (shard will receive replication requests from this point on) now that engine is open.
                  * This means that any document indexed into the primary after this will be replicated to this replica as well
@@ -819,5 +826,31 @@ public class RecoverySourceHandler {
 
     protected void failEngine(IOException cause) {
         shard.failShard("recovery", cause);
+    }
+
+    private <Response> ActionListener<Response> withGenericExecutor(ActionListener<Response> listener) {
+        return new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    shard.getThreadPool().generic().execute(() -> listener.onResponse(response));
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    shard.getThreadPool().generic().execute(() -> listener.onFailure(e));
+                } catch (Exception e2) {
+                    e.addSuppressed(e2);
+                    final String message
+                        = new ParameterizedMessage("failed to clean up recovery [{}]", RecoverySourceHandler.this).getFormattedMessage();
+                    assert false : message + '\n' + e;
+                    logger.error(message, e);
+                }
+            }
+        };
     }
 }

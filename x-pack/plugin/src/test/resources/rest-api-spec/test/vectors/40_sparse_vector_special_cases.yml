@@ -87,7 +87,7 @@ setup:
   - match: {hits.hits.2._id: "3"}
 
 ---
-"Distance functions for documents missing vector field should return 0":
+"Documents missing a vector field":
 - do:
     index:
       index: test-index
@@ -105,7 +105,9 @@ setup:
 - do:
     indices.refresh: {}
 
+# expect an error when documents miss a vector field
 - do:
+    catch: bad_request
     headers:
       Content-Type: application/json
     search:
@@ -116,6 +118,22 @@ setup:
             query: {match_all: {} }
             script:
               source: "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
+              params:
+                query_vector: {"1": 10.0}
+- match: { error.root_cause.0.type: "script_exception" }
+
+# guard against missing values by checking size()
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "doc['my_sparse_vector'].size() == 0 ? 0 : cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector'])"
               params:
                 query_vector: {"1": 10.0}
 

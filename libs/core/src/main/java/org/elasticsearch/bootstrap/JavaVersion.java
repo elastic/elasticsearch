@@ -28,12 +28,14 @@ import java.util.stream.Collectors;
 public class JavaVersion implements Comparable<JavaVersion> {
 
     private final List<Integer> version;
+    private final boolean earlyAccess;
 
     public List<Integer> getVersion() {
         return version;
     }
 
-    private JavaVersion(List<Integer> version) {
+    private JavaVersion(List<Integer> version, boolean earlyAccess) {
+        this.earlyAccess = earlyAccess;
         if (version.size() >= 2 && version.get(0) == 1 && version.get(1) == 8) {
             // for Java 8 there is ambiguity since both 1.8 and 8 are supported,
             // so we rewrite the former to the latter
@@ -43,28 +45,36 @@ public class JavaVersion implements Comparable<JavaVersion> {
     }
 
     public static JavaVersion parse(String value) {
+        boolean earlyAccess = false;
         Objects.requireNonNull(value);
         if (!isValid(value)) {
             throw new IllegalArgumentException("value");
         }
-
+        if (value.endsWith("-ea")) {
+            value = value.substring(0, value.length() - 3);
+            earlyAccess = true;
+        }
         List<Integer> version = new ArrayList<>();
-        String[] components = value.split("\\.");
+        String[] components = value.replace("-ea", "").split("\\.");
         for (String component : components) {
             version.add(Integer.valueOf(component));
         }
 
-        return new JavaVersion(version);
+        return new JavaVersion(version, earlyAccess);
     }
 
     public static boolean isValid(String value) {
-        return value.matches("^0*[0-9]+(\\.[0-9]+)*$");
+        return value.matches("^0*[0-9]+(\\.[0-9]+)*(-ea)?$");
     }
 
     private static final JavaVersion CURRENT = parse(System.getProperty("java.specification.version"));
 
     public static JavaVersion current() {
         return CURRENT;
+    }
+
+    public boolean isEarlyAccess() {
+        return earlyAccess;
     }
 
     @Override
@@ -78,7 +88,12 @@ public class JavaVersion implements Comparable<JavaVersion> {
             if (s > d)
                 return -1;
         }
-        return 0;
+        if (isEarlyAccess()) {
+            return -1;
+        } else if (o.isEarlyAccess()) {
+            return 1;
+        } else
+            return 0;
     }
 
     @Override
@@ -96,6 +111,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
 
     @Override
     public String toString() {
-        return version.stream().map(v -> Integer.toString(v)).collect(Collectors.joining("."));
+        final String versionString = version.stream().map(v -> Integer.toString(v)).collect(Collectors.joining("."));
+        return earlyAccess ? versionString + "-ea" : versionString;
     }
 }

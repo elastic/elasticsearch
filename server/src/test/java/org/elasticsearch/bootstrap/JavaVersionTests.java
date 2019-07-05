@@ -29,10 +29,18 @@ public class JavaVersionTests extends ESTestCase {
     public void testParse() {
         JavaVersion javaVersion = JavaVersion.parse("1.7.0");
         List<Integer> version = javaVersion.getVersion();
-        assertThat(3, is(version.size()));
-        assertThat(1, is(version.get(0)));
-        assertThat(7, is(version.get(1)));
-        assertThat(0, is(version.get(2)));
+        assertThat(version.size(), is(3));
+        assertThat(version.get(0), is(1));
+        assertThat(version.get(1), is(7));
+        assertThat(version.get(2), is(0));
+
+        JavaVersion javaVersionEarlyAccess = JavaVersion.parse("14.0.1-ea");
+        List<Integer> version14 = javaVersionEarlyAccess.getVersion();
+        assertThat(version14.size(), is(3));
+        assertThat(version14.get(0), is(14));
+        assertThat(version14.get(1), is(0));
+        assertThat(version14.get(2), is(1));
+        assertTrue(javaVersionEarlyAccess.isEarlyAccess());
     }
 
     public void testToString() {
@@ -40,6 +48,8 @@ public class JavaVersionTests extends ESTestCase {
         assertThat(javaVersion170.toString(), is("1.7.0"));
         JavaVersion javaVersion9 = JavaVersion.parse("9");
         assertThat(javaVersion9.toString(), is("9"));
+        JavaVersion javaVersion13ea = JavaVersion.parse("13.1-ea");
+        assertThat(javaVersion13ea.toString(), is("13.1-ea"));
     }
 
     public void testCompare() {
@@ -50,6 +60,9 @@ public class JavaVersionTests extends ESTestCase {
         JavaVersion onePointSevenPointTwo = JavaVersion.parse("1.7.2");
         JavaVersion onePointSevenPointOnePointOne = JavaVersion.parse("1.7.1.1");
         JavaVersion onePointSevenPointTwoPointOne = JavaVersion.parse("1.7.2.1");
+        JavaVersion fourteen = JavaVersion.parse("14");
+        JavaVersion fourteenPointTwoPointOne = JavaVersion.parse("14.2.1");
+        JavaVersion fourteenPointTwoPointOneEarlyAccess = JavaVersion.parse("14.2.1-ea");
 
         assertTrue(onePointSix.compareTo(onePointSeven) < 0);
         assertTrue(onePointSeven.compareTo(onePointSix) > 0);
@@ -57,10 +70,13 @@ public class JavaVersionTests extends ESTestCase {
         assertTrue(onePointSeven.compareTo(onePointSevenPointZero) == 0);
         assertTrue(onePointSevenPointOnePointOne.compareTo(onePointSevenPointOne) > 0);
         assertTrue(onePointSevenPointTwo.compareTo(onePointSevenPointTwoPointOne) < 0);
+        assertTrue(fourteenPointTwoPointOneEarlyAccess.compareTo(fourteenPointTwoPointOne) < 0);
+        assertTrue(fourteenPointTwoPointOneEarlyAccess.compareTo(fourteen) > 0);
+
     }
 
     public void testValidVersions() {
-        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80"};
+        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80", "12-ea", "13.0.2.3-ea"};
         for (String version : versions) {
             assertTrue(JavaVersion.isValid(version));
         }

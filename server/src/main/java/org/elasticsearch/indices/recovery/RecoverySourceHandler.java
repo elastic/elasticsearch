@@ -697,7 +697,6 @@ public class RecoverySourceHandler {
         private final IntSupplier translogOps;
         private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         private final Semaphore semaphore = new Semaphore(0);
-        private MultiFileReader.FileChunk currentChunk;
 
         private MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
             super(ActionListener.notifyOnce(listener));
@@ -712,8 +711,14 @@ public class RecoverySourceHandler {
             assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send file chunk]");
             for (; ; ) {
                 assert semaphore.availablePermits() == 0;
-                final MultiFileReader.FileChunk chunk = readNextChunk();
-                if (currentChunk == null) {
+                final MultiFileReader.FileChunk chunk;
+                try {
+                    chunk = multiFileReader.readNextChunk();
+                } catch (IOException e) {
+                    handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{ multiFileReader.currentFile() });
+                    throw e;
+                }
+                if (chunk == null) {
                     semaphore.release(); // allow other threads respond if we are not done yet.
                     if (requestSeqIdTracker.getMaxSeqNo() == requestSeqIdTracker.getProcessedCheckpoint() && semaphore.tryAcquire()) {
                         listener.onResponse(null);
@@ -721,7 +726,6 @@ public class RecoverySourceHandler {
                     break;
                 }
                 final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                currentChunk = null;
                 cancellableThreads.execute(() ->
                     recoveryTarget.writeFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk, translogOps.getAsInt(),
                         ActionListener.wrap(
@@ -740,7 +744,6 @@ public class RecoverySourceHandler {
                     )
                 );
                 if (canSendMore() == false) {
-                    readNextChunk(); // read ahead while we're waiting for acknowledgements
                     semaphore.release();
                     // Here we have to retry before abort to avoid a race situation where the other threads have flipped `canSendMore`
                     // condition but they are not going to resume the sending process because this thread still holds the semaphore.
@@ -749,19 +752,6 @@ public class RecoverySourceHandler {
                     }
                 }
             }
-        }
-
-        private MultiFileReader.FileChunk readNextChunk() throws Exception {
-            assert semaphore.availablePermits() == 0;
-            if (currentChunk == null) {
-                try {
-                    currentChunk = multiFileReader.readNextChunk();
-                } catch (IOException e) {
-                    handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{multiFileReader.currentFile()});
-                    throw e;
-                }
-            }
-            return currentChunk;
         }
 
         private boolean canSendMore() {

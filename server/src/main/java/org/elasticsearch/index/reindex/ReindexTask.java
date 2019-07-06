@@ -83,8 +83,9 @@ public class ReindexTask extends AllocatedPersistentTask {
         // TODO: What is happening here? Putting headers back in place for possible different thread action listener?
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
-            // TODO: Always store currently for compatibility
             ReindexRequest reindexRequest = reindexJob.getReindexRequest();
+            // TODO: Always store currently for compatibility
+            reindexRequest.setShouldStoreResult(true);
             client.execute(ReindexAction.INSTANCE, reindexRequest, new ContextPreservingActionListener<>(supplier,
                 new ActionListener<>() {
                     @Override

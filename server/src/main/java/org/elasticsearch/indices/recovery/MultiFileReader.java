@@ -89,7 +89,7 @@ final class MultiFileReader implements Closeable {
         final byte[] buffer = Objects.requireNonNullElseGet(recycledBuffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
         final int bytesRead = currentInput.read(buffer);
         if (bytesRead == -1) {
-            throw new CorruptIndexException("file truncated, expected length= " + md.length() + " position=" + currentChunkPosition, md.name());
+            throw new CorruptIndexException("file truncated; length=" + md.length() + " position=" + currentChunkPosition, md.name());
         }
         final long chunkPosition = currentChunkPosition;
         currentChunkPosition += bytesRead;

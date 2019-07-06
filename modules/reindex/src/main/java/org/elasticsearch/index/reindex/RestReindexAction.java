@@ -99,8 +99,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 @Override
                 public RestResponse buildResponse(StartReindexJobAction.Response response, XContentBuilder builder) throws Exception {
                     builder.startObject();
-                    // TODO: This is a different task that we returned in the past. In the past we had the
-                    //  public API task ID (node id + long). This is the generated UUID for the persistent task.
+                    // This is the ephemeral task-id from the first node that is assigned the task (for BWC).
                     builder.field("task", response.getTaskId());
 
                     // TODO: Are there error conditions for the non-wait case?

@@ -62,7 +62,6 @@ public class ReindexTask extends AllocatedPersistentTask {
         protected void nodeOperation(AllocatedPersistentTask task, ReindexJob reindexJob, PersistentTaskState state) {
             ReindexTask reindexTask = (ReindexTask) task;
             reindexTask.doReindex(reindexJob);
-
         }
 
         @Override
@@ -98,7 +97,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.error("Failed to update task state to success.", e);
+                                logger.info("Failed to update task state to success.", e);
                                 markAsFailed(e);
                             }
                         });
@@ -114,7 +113,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.error("Failed to update task state to failed.", e);
+                                logger.info("Failed to update task state to failed.", e);
                                 markAsFailed(ex);
                             }
                         });

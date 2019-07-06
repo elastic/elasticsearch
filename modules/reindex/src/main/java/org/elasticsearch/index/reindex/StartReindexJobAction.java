@@ -39,9 +39,6 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
     public static final StartReindexJobAction INSTANCE = new StartReindexJobAction();
     // TODO: Name
     public static final String NAME = "indices:data/write/start_reindex";
-//    public static final String NAME = "indices:admin/reindex/start_reindex";
-//    public static final String NAME = "cluster:admin/reindex/start_reindex";
-//    public static final String NAME = "indices:data/reindex/start_reindex";
 
     private StartReindexJobAction() {
         super(NAME, Response::new);
@@ -131,11 +128,7 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
         public Response(StreamInput in) throws IOException {
             super(in);
             taskId = in.readString();
-            reindexResponse = in.readOptionalWriteable((input) -> {
-                BulkByScrollResponse bulkByScrollResponse = new BulkByScrollResponse();
-                bulkByScrollResponse.readFrom(input);
-                return bulkByScrollResponse;
-            });
+            reindexResponse = in.readOptionalStreamable(BulkByScrollResponse::new);
         }
 
         @Override

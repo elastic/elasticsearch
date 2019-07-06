@@ -101,21 +101,14 @@ public class ReindexFailoverIT extends ReindexTestCase {
         logger.info("--> restarting node: " + nodeName);
         internalCluster().restartNode(nodeName, new InternalTestCluster.RestartCallback());
 
-        logger.info("--> waiting to cluster to heal");
-        ensureStableCluster(4);
-
         ensureYellow("dest");
-        refresh();
+
+        assertBusy(() -> assertEquals(docCount, client().prepareSearch("dest").get().getHits().getTotalHits().value));
 
         for (int i = 0; i < docCount; i++) {
-            int docId = i;
-            assertBusy(() -> {
-                GetResponse getResponse = client().prepareGet("dest", "_doc", Integer.toString(docId)).get();
-                assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
-            });
+            GetResponse getResponse = client().prepareGet("dest", "_doc", Integer.toString(i)).get();
+            assertTrue("Doc with id [" + i + "] is missing", getResponse.isExists());
         }
-
-        assertEquals(docCount, client().prepareSearch("dest").get().getHits().getTotalHits().value);
     }
 
     @Override

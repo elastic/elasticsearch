@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,11 +31,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -96,11 +93,7 @@ public class TransportStartReindexJobAction
 
             @Override
             public void onFailure(Exception e) {
-                // TODO: This probably should not happen as we are generating the UUID ourselves?
-                if (e instanceof ResourceAlreadyExistsException) {
-                    e = new ElasticsearchStatusException("Cannot create job [" + generatedId +
-                        "] because it has already been created (task exists)", RestStatus.CONFLICT, e);
-                }
+                assert e instanceof ResourceAlreadyExistsException == false : "UUID generation should not produce conflicts";
                 listener.onFailure(e);
             }
         });
@@ -108,8 +101,8 @@ public class TransportStartReindexJobAction
     }
 
     private void waitForReindexDone(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
-        // TODO: Configurable timeout? This currently has a low timeout to prevent tests from hanging.
-        persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(true), TimeValue.timeValueSeconds(15),
+        // TODO: Configurable timeout?
+        persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(true), null,
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
@@ -129,8 +122,8 @@ public class TransportStartReindexJobAction
     }
 
     private void waitForReindexTask(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
-        // TODO: Configurable timeout? This currently has a low timeout to prevent tests from hanging.
-        persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(false), TimeValue.timeValueSeconds(15),
+        // TODO: Configurable timeout?
+        persistentTasksService.waitForPersistentTaskCondition(taskId, new ReindexPredicate(false), null,
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
@@ -143,9 +136,7 @@ public class TransportStartReindexJobAction
                             @Override
                             public void onResponse(GetReindexJobTaskAction.Responses responses) {
                                 List<GetReindexJobTaskAction.Response> tasks = responses.getTasks();
-                                if (tasks.size() > 1) {
-                                    listener.onFailure(new IllegalStateException("Multiple nodes accessed"));
-                                }
+                                assert tasks.size() == 1 : "Should have accessed a single node";
                                 GetReindexJobTaskAction.Response response = tasks.get(0);
                                 listener.onResponse(new StartReindexJobAction.Response(true, response.getTaskId().toString()));
                             }

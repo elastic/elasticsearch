@@ -136,7 +136,7 @@ public class TransportStartReindexJobAction
                             @Override
                             public void onResponse(GetReindexJobTaskAction.Responses responses) {
                                 List<GetReindexJobTaskAction.Response> tasks = responses.getTasks();
-                                assert tasks.size() == 1 : "Should have accessed a single node";
+                                assert tasks.size() == 1 : "Expected 1 response, found " + tasks.size();
                                 GetReindexJobTaskAction.Response response = tasks.get(0);
                                 listener.onResponse(new StartReindexJobAction.Response(true, response.getTaskId().toString()));
                             }

@@ -68,7 +68,7 @@ POST mylogs-pre-ilm-2019.06.25/_doc
 // TEST[continued]
 
 
-
+[[ilm-with-existing-periodic-indices]]
 === Managing existing periodic indices with {ilm-init}
 
 The simplest way to manage existing indices while transitioning to fully
@@ -149,7 +149,9 @@ PUT _ilm/policy/mylogs_policy
 // CONSOLE
 // TEST[continued]
 
-You can create a policy for existing indices by removing the `rollover` action, and in this case, the `hot` phase is now empty so we can remove that too:
+You can create a policy for existing indices by removing the `rollover` action,
+and in this case, the `hot` phase is now empty so we can remove that too:
+
 [source,js]
 -----------------------
 PUT _ilm/policy/mylogs_policy_existing
@@ -186,7 +188,7 @@ PUT _ilm/policy/mylogs_policy_existing
 Creating a separate policy for historical indices will also allow using
 different `min_age` values, to use higher values and prevent many indices from
 running through the policy at once, which many be important if you policy
-includes potentially resource-intesive operations like force merge.
+includes potentially resource-intensive operations like force merge.
 
 You can configure the lifecycle for many policies at once by using wildcards in
 the index name, but be careful that you don't include any indices that you don't
@@ -212,6 +214,167 @@ PUT mylogs-pre-ilm*/_settings <1>
 Once all pre-{ilm-init} indices have aged out and been deleted, the policy for
 historical indices can be deleted.
 
+[[ilm-reindexing-into-rollover]]
 === Reindexing via {ilm-init}
 
-TODO
+In some cases, it may be useful to reindex data into {ilm-init}-managed indices.
+This is more complex than simply attaching policies to existing indices as
+described in <<ilm-with-existing-periodic-indices,the previous section>>, and
+requires pausing indexing during the reindexing process. However, this technique
+may be useful in cases where periodic indices were created with very small
+amounts of data leading to excessive shard counts, or for indices which grow
+steadily over time, but have not been broken up into time-series indices leading
+to shards which are much too large, situations that cause significant
+performance problems.
+
+Before getting started with reindexing data, the new index structure should be
+set up. For this section, we'll be using the same setup described in
+<<ilm-with-existing-indices,{ilm-imit} with existing indices>>.
+
+First, we'll set up a template with rollover, and can include any additional
+phases required. For simplicity, we'll just use rollover:
+
+[source,js]
+-----------------------
+PUT _ilm/policy/sample_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_age": "7d",
+            "max_size": "50G"
+          }
+        }
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+And now we'll update the index template for our indices to include the relevant
+{ilm-init} settings:
+
+[source,js]
+-----------------------
+PUT _template/mylogs_template
+{
+  "index_patterns": [
+    "ilm-mylogs-*" <1>
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "index": {
+      "lifecycle": {
+        "name": "mylogs_condensed_policy", <2>
+        "rollover_alias": "mylogs" <3>
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "message": {
+        "type": "text"
+      },
+      "@timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+<1> The new index pattern has a prefix compared to the old one, this will
+    make it easier to reindex later
+<2> The name of the policy we defined above
+<3> The name of the alias we'll use to write to and query
+
+And create the first index with the alias specified in the `rollover_alias`
+setting in the index template:
+
+[source,js]
+-----------------------
+PUT ilm-mylogs-000001
+{
+  "aliases": {
+    "mylogs": {
+      "is_write_index": true
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+At this point, new indexing should be paused to ensure that all existing data is
+reindexed properly. Adding new data to existing indices during this process can
+cause data to be added to the existing indices, but not be reindexed into the
+new indices.
+
+By default, {ilm-init} only checks rollover conditions every 10 minutes. Under
+normal indexing load, this usually works well, but during reindexing, indices
+can grow very, very quickly. We'll need to set the poll interval to something
+shorter to ensure that the new indices don't grow too large while waiting for
+the rollover check:
+
+[source,js]
+-----------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "indices.lifecycle.poll_interval": "1m"
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[skip:don't want to overwrite this setting for other tests]
+
+We're now ready to reindex our data using the <<docs-reindex,reindex API>>. If
+you have a timestamp or date field in your documents, as in this example, it may
+be useful to specify that the documents should be sorted by that field - this
+will mean that all documents in `ilm-mylogs-000001` come before all documents in
+`ilm-mylogs-000002`, and so on. However, if this is not a requirement, omitting
+the sort will allow the data to be reindexed more quickly.
+
+[source,js]
+-----------------------
+POST _reindex
+{
+  "source": {
+    "index": "mylogs-*", <1>
+    "sort": { "@timestamp": "desc" }
+  },
+  "dest": {
+    "index": "mylogs" <2>
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+<1> This index pattern matches our existing indices. Using the prefix for
+    the new indices makes using this index pattern much easier.
+<2> The alias set up above
+
+Once this completes, indexing new data can be resumed, as long as all new
+documents are indexed into the alias used above. All data, existing and new, can
+be queried using that alias as well. We should also be sure to set the
+{ilm-init} poll interval back to its default value, because keeping it set too
+low can cause unnecessary load on the current master node:
+
+[source,js]
+-----------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "indices.lifecycle.poll_interval": null
+  }
+}
+
+-----------------------
+// CONSOLE
+// TEST[skip:don't want to overwrite this setting for other tests]

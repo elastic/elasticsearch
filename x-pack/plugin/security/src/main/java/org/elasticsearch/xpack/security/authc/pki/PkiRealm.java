@@ -116,7 +116,10 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
         assert pkiHeaderValue instanceof X509Certificate[];
         X509Certificate[] certificates = (X509Certificate[]) pkiHeaderValue;
-        return token(certificates);
+        if (certificates.length == 0) {
+            return null;
+        }
+        return new X509AuthenticationToken(certificates);
     }
 
     @Override
@@ -171,13 +174,6 @@ public class PkiRealm extends Realm implements CachingRealm {
     @Override
     public void lookupUser(String username, ActionListener<User> listener) {
         listener.onResponse(null);
-    }
-
-    static X509AuthenticationToken token(X509Certificate[] certificates) {
-        if (certificates.length == 0) {
-            return null;
-        }
-        return new X509AuthenticationToken(certificates);
     }
 
     static String getPrincipalFromSubjectDN(Pattern principalPattern, X509AuthenticationToken token, Logger logger) {

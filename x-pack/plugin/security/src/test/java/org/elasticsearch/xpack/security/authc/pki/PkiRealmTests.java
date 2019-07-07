@@ -308,7 +308,7 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("CN=PKI Client");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate});
+        X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[]{certificate});
         assertThat(token, notNullValue());
         assertThat(token.dn(), is("CN=PKI Client"));
 
@@ -322,7 +322,7 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("CN=PKI Client, OU=Security");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate});
+        X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[]{certificate});
         assertThat(token, notNullValue());
         assertThat(token.dn(), is("CN=PKI Client, OU=Security"));
 
@@ -336,7 +336,7 @@ public class PkiRealmTests extends ESTestCase {
         X500Principal principal = new X500Principal("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Security");
         when(certificate.getSubjectX500Principal()).thenReturn(principal);
 
-        X509AuthenticationToken token = PkiRealm.token(new X509Certificate[]{certificate});
+        X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[]{certificate});
         assertThat(token, notNullValue());
         assertThat(token.dn(), is("EMAILADDRESS=pki@elastic.co, CN=PKI Client, OU=Security"));
 

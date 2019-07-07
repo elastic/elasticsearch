@@ -38,28 +38,28 @@ import java.util.Objects;
 
 public class InternalPercentileRanksBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentileRanksBucket {
     private double[] percentile_ranks;
-    private double[] percents;
+    private double[] values;
     private boolean keyed = true;
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
-    InternalPercentileRanksBucket(String name, double[] percents, double[] PercentileRanks, boolean keyed,
+    InternalPercentileRanksBucket(String name, double[] values, double[] PercentileRanks, boolean keyed,
                                      DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-        if ((PercentileRanks.length == percents.length) == false) {
-            throw new IllegalArgumentException("The number of provided percents and PercentileRanks didn't match. percents: "
-                    + Arrays.toString(percents) + ", Percentile Ranks: " + Arrays.toString(PercentileRanks));
+        if ((PercentileRanks.length == values.length) == false) {
+            throw new IllegalArgumentException("The number of provided values and PercentileRanks didn't match. values: "
+                    + Arrays.toString(values) + ", Percentile Ranks: " + Arrays.toString(PercentileRanks));
         }
         this.format = formatter;
         this.percentile_ranks = percentile_ranks;
-        this.percents = percents;
+        this.values = values;
         this.keyed = keyed;
         computeLookup();
     }
 
     private void computeLookup() {
-        for (int i = 0; i < percents.length; i++) {
-            percentileLookups.put(percents[i], percentile_ranks[i]);
+        for (int i = 0; i < values.length; i++) {
+            percentileLookups.put(values[i], percentile_ranks[i]);
         }
     }
 
@@ -70,7 +70,7 @@ public class InternalPercentileRanksBucket extends InternalNumericMetricsAggrega
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         percentile_ranks = in.readDoubleArray();
-        percents = in.readDoubleArray();
+        values = in.readDoubleArray();
         keyed = in.readBoolean();
 
         computeLookup();
@@ -80,7 +80,7 @@ public class InternalPercentileRanksBucket extends InternalNumericMetricsAggrega
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(percentile_ranks);
-        out.writeDoubleArray(percents);
+        out.writeDoubleArray(values);
         out.writeBoolean(keyed);
     }
 
@@ -90,18 +90,18 @@ public class InternalPercentileRanksBucket extends InternalNumericMetricsAggrega
     }
 
     @Override
-    public double percentile_rank(double percent) throws IllegalArgumentException {
-        Double percentile_ranks = percentileLookups.get(percent);
+    public double percentile_rank(double value) throws IllegalArgumentException {
+        Double percentile_ranks = percentileLookups.get(value);
         if (percentile_ranks == null) {
-            throw new IllegalArgumentException("Percent requested [" + String.valueOf(percent) + "] was not" +
-                    " one of the computed percentile ranks.  Available keys are: " + Arrays.toString(percents));
+            throw new IllegalArgumentException("value requested [" + String.valueOf(value) + "] was not" +
+                    " one of the computed percentile ranks.  Available keys are: " + Arrays.toString(values));
         }
         return percentile_ranks;
     }
 
     @Override
-    public String percentileRankAsString(double percent) {
-        return format.format(percentile_rank(percent)).toString();
+    public String percentileRankAsString(double value) {
+        return format.format(percentile_rank(value)).toString();
     }
 
     DocValueFormat formatter() {
@@ -110,7 +110,7 @@ public class InternalPercentileRanksBucket extends InternalNumericMetricsAggrega
 
     @Override
     public Iterator<Percentile> iterator() {
-        return new Iter(percents, percentile_ranks);
+        return new Iter(values, percentile_ranks);
     }
 
     @Override
@@ -127,26 +127,26 @@ public class InternalPercentileRanksBucket extends InternalNumericMetricsAggrega
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject("values");
-            for (double percent : percents) {
-                double value = percentile_rank(percent);
-                boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
-                String key = String.valueOf(percent);
+            for (double value : values) {
+                double value = percentile_rank(value);
+                boolean hasValue = (Double.isInfinite(value) == true || Double.isNaN(value) == true) != true;
+                String key = String.valueOf(value);
                 builder.field(key, hasValue ? value : null);
                 if (hasValue && format != DocValueFormat.RAW) {
-                    builder.field(key + "_as_string", percentileAsString(percent));
+                    builder.field(key + "_as_string", percentileAsString(value));
                 }
             }
             builder.endObject();
         } else {
             builder.startArray("values");
-            for (double percent : percents) {
-                double value = percentile_rank(percent);
+            for (double value : values) {
+                double value = percentile_rank(value);
                 boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
                 builder.startObject();
-                builder.field("key", percent);
+                builder.field("key", value);
                 builder.field("value", hasValue ? value : null);
                 if (hasValue && format != DocValueFormat.RAW) {
-                    builder.field(String.valueOf(percent) + "_as_string", percentileRankAsString(percent));
+                    builder.field(String.valueOf(value) + "_as_string", percentileRankAsString(value));
                 }
                 builder.endObject();
             }
@@ -162,34 +162,34 @@ public class InternalPercentileRanksBucket extends InternalNumericMetricsAggrega
         if (super.equals(obj) == false) return false;
 
         InternalPercentileRanksBucket that = (InternalPercentileRanksBucket) obj;
-        return Arrays.equals(percents, that.percents) && Arrays.equals(percentile_ranks, that.percentile_ranks);
+        return Arrays.equals(values, that.values) && Arrays.equals(percentile_ranks, that.percentile_ranks);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(percents), Arrays.hashCode(percentile_ranks));
+        return Objects.hash(super.hashCode(), Arrays.hashCode(values), Arrays.hashCode(percentile_ranks));
     }
 
-    public static class Iter implements Iterator<PercentileRank> {
+    public static class Iter implements Iterator<Percentile> {
 
-        private final double[] percents;
+        private final double[] values;
         private final double[] percentile_ranks;
         private int i;
 
-        public Iter(double[] percents, double[] percentile_ranks) {
-            this.percents = percents;
-            this.percentiles = percentiles;
+        public Iter(double[] values, double[] percentile_ranks) {
+            this.values = values;
+            this.percentile_ranks = percentile_ranks;
             i = 0;
         }
 
         @Override
         public boolean hasNext() {
-            return i < percents.length;
+            return i < values.length;
         }
 
         @Override
         public Percentile next() {
-            final Percentile next = new PercentileRank(percents[i], percentile_ranks[i]);
+            final Percentile next = new Percentile(percentile_ranks[i], values[i]);
             ++i;
             return next;
         }

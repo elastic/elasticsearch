@@ -33,14 +33,14 @@ import java.util.Map;
 
 public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
-    private final double[] percents;
+    private final double[] values;
     private boolean keyed = true;
     private List<Double> data;
 
-    PercentileRanksBucketPipelineAggregator(String name, double[] percents, boolean keyed, String[] bucketsPaths,
+    PercentileRanksBucketPipelineAggregator(String name, double[] values, boolean keyed, String[] bucketsPaths,
                                         GapPolicy gapPolicy, DocValueFormat formatter, Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
-        this.percents = percents;
+        this.values = values;
         this.keyed = keyed;
     }
 
@@ -49,13 +49,13 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
      */
     public PercentileRanksBucketPipelineAggregator(StreamInput in) throws IOException {
         super(in);
-        percents = in.readDoubleArray();
+        values = in.readDoubleArray();
         keyed = in.readBoolean();
     }
 
     @Override
     public void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDoubleArray(percents);
+        out.writeDoubleArray(values);
         out.writeBoolean(keyed);
     }
 
@@ -74,28 +74,45 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
         data.add(bucketValue);
     }
 
+    private int binarySearch(List<int> data, int target) {
+        int lo = 0;
+        int hi = data.size() - 1;
+        int mid = 0;
+        while (lo <= hi) {
+            mid = lo + (hi - lo) / 2;
+            if (data[mid] == target) return mid;
+            if (data[mid] < target) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return lo;
+    }
+
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
 
-        // Perform the sorting and percentile collection now that all the data
+        // Perform the sorting and percentile rank collection now that all the data
         // has been collected.
         Collections.sort(data);
         int n = data.size() - 1;
-        double[] PercentileRanks = new double[percents.length];
+        double[] percentileRanks = new double[values.length];
+
         if (data.size() == 0) {
-            for (int i = 0; i < percents.length; i++) {
-                PercentileRanks[i] = Double.NaN;
+            for (int i = 0; i < values.length; i++) {
+                percentileRanks[i] = Double.NaN;
             }
         } else {
-            for (int i = 0; i < percents.length; i++) {
-                int index = (int) Math.round((percents[i] / 100.0) * (n));
-                double percentile = data.get(index);
-                PercentileRanks[i] = (percentile/100)*n;
+            for (int i = 0; i < values.length; i++) {
+                int index = binarySearch(data, values[i]);
+                double percentile_rank = index/n;
+                percentileRanks[i] = percentile_rank*100;
             }
         }
 
         // todo need postCollection() to clean up temp sorted data?
 
-        return new InternalPercentileRanksBucket(name(), percents, PercentileRanks, keyed, format, pipelineAggregators, metadata);
+        return new InternalPercentileRanksBucket(name(), values, PercentileRanks, keyed, format, pipelineAggregators, metadata);
     }
 }

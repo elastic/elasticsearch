@@ -74,7 +74,7 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
         data.add(bucketValue);
     }
 
-    public int binarySearch(List<int> data, int target) {
+    public int binarySearch(List<Double> data, double target) {
         int lo = 0;
         int hi = data.size() - 1;
         int mid = 0;
@@ -96,7 +96,7 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
         // Perform the sorting and percentile rank collection now that all the data
         // has been collected.
         Collections.sort(data);
-        int n = data.size() - 1;
+        int n = data.size();
         double[] percentileRanks = new double[values.length];
 
         if (data.size() == 0) {
@@ -106,7 +106,7 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
         } else {
             for (int i = 0; i < values.length; i++) {
                 int index = binarySearch(data, values[i]);
-                double percentile_rank = index/n;
+                double percentile_rank = (double) index/n;
                 percentileRanks[i] = percentile_rank*100;
             }
         }

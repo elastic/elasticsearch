@@ -74,7 +74,7 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
         data.add(bucketValue);
     }
 
-    private int binarySearch(List<int> data, int target) {
+    public int binarySearch(List<int> data, int target) {
         int lo = 0;
         int hi = data.size() - 1;
         int mid = 0;

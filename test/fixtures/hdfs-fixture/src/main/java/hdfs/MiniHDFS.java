@@ -34,7 +34,9 @@ import org.apache.hadoop.hdfs.server.namenode.ha.HATestUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.net.ServerSocket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -44,6 +46,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 
 /**
  * MiniHDFS test fixture. There is a CLI tool, but here we can
@@ -94,11 +97,16 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
             cfg.set(DFSConfigKeys.DFS_ENCRYPT_DATA_TRANSFER_KEY, "true");
+            // If we ask port to be allocated automatically, this fails in case of secure hdfs setup
+            // it needs port to be privileged. See org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter
+            cfg.set(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
+            cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
         }
 
         UserGroupInformation.setConfiguration(cfg);
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
+        builder.checkDataNodeAddrConfig(true);
         if (secure) {
             builder.nameNodePort(9998);
         } else {
@@ -173,6 +181,35 @@ public class MiniHDFS {
         tmp = Files.createTempFile(baseDir, null, null);
         Files.write(tmp, portFileContent.getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
+
+        while(true) {
+            Thread.sleep(2000);
+        }
     }
 
+
+    /**
+     * Return a free port number. There is no guarantee it will remain free, so
+     * it should be used immediately.
+     * @param secure if {@code true} then returns free port less than 1024.
+     * @returns a free port if found or else returns 0
+     */
+    private static int getFreeSocketPort(boolean secure) {
+        int port = 0;
+        int tries = 0;
+        do {
+            try {
+                port = secure ? new Random().nextInt(1024) : 0;
+                ServerSocket s = new ServerSocket(port);
+                s.setReuseAddress(true);
+                port = s.getLocalPort();
+                s.close();
+                return port;
+            } catch (IOException e) {
+                // Could not get a free port, continue
+            }
+            tries++;
+        } while (tries < 100 && (port == 0 && !secure) || (secure && port > 1024));
+        return port;
+    }
 }

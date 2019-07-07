@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -70,7 +71,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
 
                 // TODO if transportService is already connected to this address then skip the handshaking
 
@@ -80,38 +81,68 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     emptySet(), Version.CURRENT.minimumCompatibilityVersion());
 
                 logger.trace("[{}] opening probe connection", this);
-                final Connection connection = transportService.openConnection(targetNode,
+                transportService.openConnection(targetNode,
                     ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
-                        TimeValue.MINUS_ONE, null));
-                logger.trace("[{}] opened probe connection", this);
+                        TimeValue.MINUS_ONE, null), new ActionListener<>() {
+                        @Override
+                        public void onResponse(Connection connection) {
+                            logger.trace("[{}] opened probe connection", this);
 
-                final DiscoveryNode remoteNode;
-                try {
-                    remoteNode = transportService.handshake(connection, probeHandshakeTimeout.millis());
-                    // success means (amongst other things) that the cluster names match
-                    logger.trace("[{}] handshake successful: {}", this, remoteNode);
-                } catch (Exception e) {
-                    // we opened a connection and successfully performed a low-level handshake, so we were definitely talking to an
-                    // Elasticsearch node, but the high-level handshake failed indicating some kind of mismatched configurations
-                    // (e.g. cluster name) that the user should address
-                    logger.warn(new ParameterizedMessage("handshake failed for [{}]", this), e);
-                    listener.onFailure(e);
-                    return;
-                } finally {
-                    IOUtils.closeWhileHandlingException(connection);
-                }
+                            // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
+                            // the connection is closed in the onResponse handler
+                            transportService.handshake(connection, probeHandshakeTimeout.millis(), new NotifyOnceListener<DiscoveryNode>() {
 
-                if (remoteNode.equals(transportService.getLocalNode())) {
-                    // TODO cache this result for some time? forever?
-                    listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
-                } else if (remoteNode.isMasterNode() == false) {
-                    // TODO cache this result for some time?
-                    listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
-                } else {
-                    transportService.connectToNode(remoteNode);
-                    logger.trace("[{}] full connection successful: {}", this, remoteNode);
-                    listener.onResponse(remoteNode);
-                }
+                                @Override
+                                protected void innerOnResponse(DiscoveryNode remoteNode) {
+                                    try {
+                                        // success means (amongst other things) that the cluster names match
+                                        logger.trace("[{}] handshake successful: {}", this, remoteNode);
+                                        IOUtils.closeWhileHandlingException(connection);
+
+                                        if (remoteNode.equals(transportService.getLocalNode())) {
+                                            // TODO cache this result for some time? forever?
+                                            listener.onFailure(new ConnectTransportException(remoteNode, "local node found"));
+                                        } else if (remoteNode.isMasterNode() == false) {
+                                            // TODO cache this result for some time?
+                                            listener.onFailure(new ConnectTransportException(remoteNode, "non-master-eligible node found"));
+                                        } else {
+                                            transportService.connectToNode(remoteNode, new ActionListener<Void>() {
+                                                @Override
+                                                public void onResponse(Void ignored) {
+                                                    logger.trace("[{}] full connection successful: {}", this, remoteNode);
+                                                    listener.onResponse(remoteNode);
+                                                }
+
+                                                @Override
+                                                public void onFailure(Exception e) {
+                                                    listener.onFailure(e);
+                                                }
+                                            });
+                                        }
+                                    } catch (Exception e) {
+                                        listener.onFailure(e);
+                                    }
+                                }
+
+                                @Override
+                                protected void innerOnFailure(Exception e) {
+                                    // we opened a connection and successfully performed a low-level handshake, so we were definitely
+                                    // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
+                                    // mismatched configurations (e.g. cluster name) that the user should address
+                                    logger.warn(new ParameterizedMessage("handshake failed for [{}]", this), e);
+                                    IOUtils.closeWhileHandlingException(connection);
+                                    listener.onFailure(e);
+                                }
+
+                            });
+
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
             }
 
             @Override

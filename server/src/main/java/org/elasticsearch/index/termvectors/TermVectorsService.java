@@ -96,7 +96,7 @@ public class TermVectorsService  {
             request.id(), uidTerm)
                 .version(request.version()).versionType(request.versionType()));
                 Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
-            Fields topLevelFields = fields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
+            Fields topLevelFields = fields(get.searcher() != null ? get.searcher().getIndexReader() : searcher.getIndexReader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {

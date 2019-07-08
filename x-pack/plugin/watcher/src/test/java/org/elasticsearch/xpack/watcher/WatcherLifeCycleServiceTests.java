@@ -35,14 +35,12 @@ import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -73,12 +71,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     private WatcherService watcherService;
     private WatcherLifeCycleService lifeCycleService;
 
-    @Captor
-    private ArgumentCaptor<Consumer<Void>> voidConsumerCaptor;
-
     @Before
     public void prepareServices() {
-        MockitoAnnotations.initMocks(this);
         ClusterService clusterService = mock(ClusterService.class);
         Answer<Object> answer = invocationOnMock -> {
             AckedClusterStateUpdateTask updateTask = (AckedClusterStateUpdateTask) invocationOnMock.getArguments()[1];
@@ -183,10 +177,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stoppedClusterState, clusterState));
+        ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
         verify(watcherService, times(1))
-            .stop(eq("watcher manually marked to shutdown by cluster state update"), voidConsumerCaptor.capture());
+            .stop(eq("watcher manually marked to shutdown by cluster state update"), captor.capture());
         assertEquals(WatcherState.STOPPING, lifeCycleService.getState());
-        voidConsumerCaptor.getValue().accept(null);
+        captor.getValue().run();
         assertEquals(WatcherState.STOPPED, lifeCycleService.getState());
 
         // Starting via cluster state update, as the watcher metadata block is removed/set to true

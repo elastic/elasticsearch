@@ -269,8 +269,8 @@ public class WatcherServiceTests extends ESTestCase {
         csBuilder.metaData(MetaData.builder());
 
         service.reload(csBuilder.build(), "whatever");
-        verify(executionService).clearExecutionsAndQueue(null);
-        verify(executionService, never()).pause(null);
+        verify(executionService).clearExecutionsAndQueue(any());
+        verify(executionService, never()).pause(any());
         verify(triggerService).pauseExecution();
     }
 

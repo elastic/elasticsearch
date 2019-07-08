@@ -57,7 +57,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         this.state.set(WatcherState.STOPPING);
         shutDown = true;
         clearAllocationIds();
-        watcherService.shutDown(null);
+        watcherService.shutDown(() -> {});
         this.state.set(WatcherState.STOPPED);
     }
 
@@ -88,9 +88,11 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         }
 
         boolean isWatcherStoppedManually = isWatcherStoppedManually(event.state());
+        boolean isStoppedOrStopping = this.state.get() == WatcherState.STOPPED ||
+            this.state.get() == WatcherState.STOPPING;
         // if this is not a data node, we need to start it ourselves possibly
         if (event.state().nodes().getLocalNode().isDataNode() == false &&
-            isWatcherStoppedManually == false && (this.state.get() == WatcherState.STOPPED || this.state.get() == WatcherState.STOPPING)) {
+            isWatcherStoppedManually == false && isStoppedOrStopping) {
             this.state.set(WatcherState.STARTING);
             watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
             return;
@@ -99,14 +101,11 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (isWatcherStoppedManually) {
             if (this.state.get() == WatcherState.STARTED) {
                 clearAllocationIds();
-                this.state.set(WatcherState.STOPPING);
+                this.state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING);
                 //waiting to set state to stopped until after all currently running watches are finished
-                watcherService.stop("watcher manually marked to shutdown by cluster state update", a -> {
-                    //ensure that Watcher wasn't restarted between stopping and now.
-                    if (state.get() == WatcherState.STOPPING) {
-                        state.set(WatcherState.STOPPED);
-                    }
-
+                watcherService.stop("watcher manually marked to shutdown by cluster state update", () -> {
+                    //only transition from stopping -> stopped (which may not be the case if restarted quickly)
+                    state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
                 });
             }
             return;
@@ -149,7 +148,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids");
-                } else if (state.get() == WatcherState.STOPPED || state.get() == WatcherState.STOPPING) {
+                } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
                 }

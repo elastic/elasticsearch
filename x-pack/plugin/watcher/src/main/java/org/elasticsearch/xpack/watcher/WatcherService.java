@@ -151,7 +151,7 @@ public class WatcherService {
      *
      * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may not be {@code null}
      */
-    public void stop(String reason, Consumer<Void> stoppedListener) {
+    public void stop(String reason, Runnable stoppedListener) {
         assert stoppedListener != null;
         logger.info("stopping watch service, reason [{}]", reason);
         executionService.pause(stoppedListener);
@@ -162,12 +162,13 @@ public class WatcherService {
      * shuts down the trigger service as well to make sure there are no lingering threads
      * also no need to check anything, as this is final, we just can go to status STOPPED
      *
-     * @param stopListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be {@code null} assuming the
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be a no-op assuming the
      *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      */
-    void shutDown(@Nullable Consumer<Void> stopListener) {
+    void shutDown(Runnable stoppedListener) {
+        assert stoppedListener != null;
         logger.info("stopping watch service, reason [shutdown initiated]");
-        executionService.pause(stopListener);
+        executionService.pause(stoppedListener);
         triggerService.stop();
         stopExecutor();
         logger.debug("watch service has been shut down");
@@ -194,7 +195,7 @@ public class WatcherService {
         processedClusterStateVersion.set(state.getVersion());
 
         triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.clearExecutionsAndQueue(null);
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
         executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),

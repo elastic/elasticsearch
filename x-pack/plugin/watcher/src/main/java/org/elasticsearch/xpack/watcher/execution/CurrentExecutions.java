@@ -70,10 +70,11 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
      * In addition it waits for a certain amount of time for current executions to finish before returning
      *
      * @param maxStopTimeout The maximum wait time to wait to current executions to finish
-     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be {@code null} assuming the
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be a no-op assuming the
      *                       {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
      */
-    void sealAndAwaitEmpty(TimeValue maxStopTimeout, @Nullable Consumer<Void> stoppedListener) {
+    void sealAndAwaitEmpty(TimeValue maxStopTimeout, Runnable stoppedListener) {
+        assert stoppedListener != null;
         lock.lock();
         // We may have current executions still going on.
         // We should try to wait for the current executions to have completed.
@@ -90,10 +91,8 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
             Thread.currentThread().interrupt();
         } finally {
             //fully stop Watcher after all executions are finished
-            if(stoppedListener != null) {
-                stoppedListener.accept(null);
-                logger.info("watch service has stopped");
-            }
+            stoppedListener.run();
+            logger.info("watch service has stopped");
             lock.unlock();
         }
     }

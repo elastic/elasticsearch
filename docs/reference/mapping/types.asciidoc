@@ -16,8 +16,6 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 [float]
 === Complex datatypes
-
-<<array>>::     Array support does not require a dedicated `type`
 <<object>>::    `object` for single JSON objects
 <<nested>>::    `nested` for arrays of JSON objects
 
@@ -41,6 +39,13 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 <<parent-join>>::   Defines parent/child relation for documents within the same index
 
 <<alias>>::         Defines an alias to an existing field.
+
+[float]
+[[types-array-handling]]
+=== Arrays
+In {es}, arrays do not require a dedicated field datatype. Any field can contain
+zero or more values by default, however, all values in the array must be of the
+same datatype. See <<array>>.
 
 [float]
 === Multi-fields

@@ -282,7 +282,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 MultiGeoValues.GeoPointValue(new GeoPoint(missing().toString()));
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
         } else if (vs instanceof ValuesSource.GeoShape) {
-            final MultiGeoValues.GeoShapeValue missing = new MultiGeoValues.GeoShapeValue(null);
+            final MultiGeoValues.GeoShapeValue missing = new MultiGeoValues.GeoShapeValue(0, 0, 0, 0);
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoShape) vs, missing);
         } else {
             // Should not happen

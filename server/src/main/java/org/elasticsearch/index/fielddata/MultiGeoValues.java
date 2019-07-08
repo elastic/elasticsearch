@@ -18,20 +18,22 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.geo.Extent;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 
 import java.io.IOException;
 
 /**
- * A stateful lightweight per document set of {@link GeoPoint} values.
+ * A stateful lightweight per document set of geo values.
  * To iterate over values in a document use the following pattern:
  * <pre>
- *   GeoPointValues values = ..;
+ *   MultiGeoValues values = ..;
  *   values.setDocId(docId);
  *   final int numValues = values.count();
  *   for (int i = 0; i &lt; numValues; i++) {
- *       GeoPoint value = values.valueAt(i);
+ *       GeoValue value = values.valueAt(i);
  *       // process value
  *   }
  * </pre>
@@ -115,40 +117,54 @@ public abstract class MultiGeoValues {
     }
 
     public static class GeoShapeValue implements GeoValue {
-        private final GeometryTreeReader reader;
+        private final double minLat;
+        private final double maxLat;
+        private final double minLon;
+        private final double maxLon;
 
-        public GeoShapeValue(GeometryTreeReader reader) {
-            this.reader = reader;
+        public GeoShapeValue(GeometryTreeReader reader) throws IOException {
+            Extent extent = reader.getExtent();
+            this.minLat = GeoEncodingUtils.decodeLatitude(extent.minY);
+            this.maxLat = GeoEncodingUtils.decodeLatitude(extent.maxY);
+            this.maxLon = GeoEncodingUtils.decodeLongitude(extent.maxX);
+            this.minLon = GeoEncodingUtils.decodeLongitude(extent.minX);
+        }
+
+        public GeoShapeValue(double minLat, double minLon, double maxLat, double maxLon) {
+            this.minLat = minLat;
+            this.minLon = minLon;
+            this.maxLat = maxLat;
+            this.maxLon = maxLon;
         }
 
         @Override
         public double minLat() {
-            throw new UnsupportedOperationException("TODO: depends on #42968");
+            return minLat;
         }
 
         @Override
         public double maxLat() {
-            throw new UnsupportedOperationException("TODO: depends on #42968");
+            return maxLat;
         }
 
         @Override
         public double minLon() {
-            throw new UnsupportedOperationException("TODO: depends on #42968");
+            return minLon;
         }
 
         @Override
         public double maxLon() {
-            throw new UnsupportedOperationException("TODO: depends on #42968");
+            return maxLon;
         }
 
         @Override
         public double lat() {
-            throw new UnsupportedOperationException("TODO: depends on #42968");
+            throw new UnsupportedOperationException("centroid of GeoShape is not defined");
         }
 
         @Override
         public double lon() {
-            throw new UnsupportedOperationException("TODO: depends on #42968");
+            throw new UnsupportedOperationException("centroid of GeoShape is not defined");
         }
     }
 

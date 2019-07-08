@@ -649,6 +649,7 @@ public class GeoUtils {
                                                            final GeoPoint... fromPoints) {
         final MultiGeoValues singleValues = FieldData.unwrapSingleton(geoPointValues);
         if (singleValues != null && fromPoints.length == 1) {
+            assert singleValues.docValueCount() == 1;
             return FieldData.singleton(new NumericDoubleValues() {
 
                 @Override

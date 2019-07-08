@@ -80,7 +80,7 @@ public enum FieldData {
 
             @Override
             public int docValueCount() {
-                return 1;
+                return 0;
             }
 
             @Override

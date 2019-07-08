@@ -44,7 +44,7 @@ public class ReindexJob implements PersistentTaskParams {
     private static String HEADERS = "headers";
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContent(p),
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReindexRequest.fromXContentWithParams(p),
             new ParseField(REINDEX_REQUEST));
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), new ParseField(HEADERS));
     }

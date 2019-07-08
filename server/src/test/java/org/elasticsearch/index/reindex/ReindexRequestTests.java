@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -50,6 +51,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
 
     private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
+    private boolean serializeParams = false;
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
@@ -72,7 +74,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     @Override
     protected ToXContent.Params getToXContentParams() {
         HashMap<String, String> params = new HashMap<>();
-        params.put("serialize_params", Boolean.TRUE.toString());
+        if (serializeParams) {
+            params.put("serialize_params", Boolean.TRUE.toString());
+        }
         return new ToXContent.MapParams(params);
     }
 
@@ -122,12 +126,13 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             reindexRequest.setRefresh(randomBoolean());
         }
 
-        if (randomBoolean()) {
-            reindexRequest.setScroll(TimeValue.timeValueSeconds(randomIntBetween(30, 60)));
+        // Scroll is only propagated if params are serialized
+        if (randomBoolean() && serializeParams) {
+            reindexRequest.setScroll(TimeValue.parseTimeValue(randomPositiveTimeValue(), "scroll"));
         }
 
         if (randomBoolean()) {
-            reindexRequest.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(30, 60)));
+            reindexRequest.setTimeout((TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout")));
         }
 
         if (randomBoolean()) {
@@ -139,7 +144,13 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
 
         if (randomBoolean()) {
-            reindexRequest.setWaitForActiveShards(randomInt(3));
+            if (randomBoolean()) {
+                reindexRequest.setWaitForActiveShards(ActiveShardCount.DEFAULT);
+            } else if (randomBoolean()) {
+                reindexRequest.setWaitForActiveShards(ActiveShardCount.NONE);
+            } else {
+                reindexRequest.setWaitForActiveShards(randomInt(3));
+            }
         }
 
         return reindexRequest;
@@ -147,7 +158,11 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
-        return ReindexRequest.fromXContent(parser);
+        if (serializeParams) {
+            return ReindexRequest.fromXContentWithParams(parser);
+        } else {
+            return ReindexRequest.fromXContent(parser);
+        }
     }
 
     @Override
@@ -161,7 +176,6 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertArrayEquals(expectedInstance.getSearchRequest().indices(), newInstance.getSearchRequest().indices());
         assertEquals(expectedInstance.getSearchRequest(), newInstance.getSearchRequest());
         assertEquals(expectedInstance.getMaxDocs(), newInstance.getMaxDocs());
-        assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
         assertEquals(expectedInstance.isAbortOnVersionConflict(), newInstance.isAbortOnVersionConflict());
         assertEquals(expectedInstance.getRemoteInfo(), newInstance.getRemoteInfo());
         assertEquals(expectedInstance.getDestination().getPipeline(), newInstance.getDestination().getPipeline());
@@ -169,12 +183,14 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(expectedInstance.getDestination().opType(), newInstance.getDestination().opType());
         assertEquals(expectedInstance.getDestination().type(), newInstance.getDestination().type());
 
-        assertEquals(expectedInstance.isRefresh(), newInstance.isRefresh());
-        assertEquals(expectedInstance.getScrollTime(), newInstance.getScrollTime());
-        assertEquals(expectedInstance.getTimeout(), newInstance.getTimeout());
-        assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
-        assertEquals(expectedInstance.getRequestsPerSecond(), newInstance.getRequestsPerSecond(), 0.1);
-        assertEquals(expectedInstance.getWaitForActiveShards(), newInstance.getWaitForActiveShards());
+        if (serializeParams) {
+            assertEquals(expectedInstance.isRefresh(), newInstance.isRefresh());
+            assertEquals(expectedInstance.getScrollTime(), newInstance.getScrollTime());
+            assertEquals(expectedInstance.getTimeout(), newInstance.getTimeout());
+            assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
+            assertEquals(expectedInstance.getRequestsPerSecond(), newInstance.getRequestsPerSecond(), 0.1);
+            assertEquals(expectedInstance.getWaitForActiveShards(), newInstance.getWaitForActiveShards());
+        }
     }
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {

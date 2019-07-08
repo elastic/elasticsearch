@@ -370,6 +370,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, Void> PARSER_WITH_PARAMS = new ObjectParser<>("reindex_with_params");
 
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in reindex requests is deprecated.";
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ReindexRequest.class));
@@ -404,14 +405,22 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
+        PARSER_WITH_PARAMS.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
+        PARSER_WITH_PARAMS.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"),
+            ObjectParser.ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
+        PARSER_WITH_PARAMS.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
         // avoid silently accepting an ignored size.
         PARSER.declareInt((r,s) -> failOnSizeSpecified(), new ParseField("size"));
+        PARSER_WITH_PARAMS.declareInt((r,s) -> failOnSizeSpecified(), new ParseField("size"));
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
             ObjectParser.ValueType.OBJECT);
+        PARSER_WITH_PARAMS.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
+            ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
-        PARSER.declareObject(ReindexRequest::setParams, (p, c) -> ReindexParams.fromXContent(p), new ParseField("params"));
+        PARSER_WITH_PARAMS.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
+        PARSER_WITH_PARAMS.declareObject(ReindexRequest::setParams, (p, c) -> ReindexParams.fromXContent(p), new ParseField("params"));
     }
 
     private static void setParams(ReindexRequest reindexRequest, ReindexParams params) {
@@ -436,6 +445,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public static ReindexRequest fromXContent(XContentParser parser) throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
         PARSER.parse(parser, reindexRequest, null);
+        return reindexRequest;
+    }
+
+    public static ReindexRequest fromXContentWithParams(XContentParser parser) throws IOException {
+        ReindexRequest reindexRequest = new ReindexRequest();
+        PARSER_WITH_PARAMS.parse(parser, reindexRequest, null);
         return reindexRequest;
     }
 

@@ -42,7 +42,7 @@ information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 ==== Notes
 
 [[prefix-query-short-ex]]
-===== Short request Example
+===== Short request example
 You can shorten `prefix` searches by combining the `<field>` and `value`
 parameters. For example:
 

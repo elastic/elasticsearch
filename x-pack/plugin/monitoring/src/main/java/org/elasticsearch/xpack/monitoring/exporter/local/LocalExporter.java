@@ -39,13 +39,14 @@ import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -430,7 +431,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private void getClusterAlertsInstallationAsyncActions(final boolean indexExists, final List<Runnable> asyncActions,
                                                           final AtomicInteger pendingResponses) {
-        final WatcherClient watcher = new WatcherClient(client);
         final boolean canAddWatches = licenseState.isMonitoringClusterAlertsAllowed();
 
         for (final String watchId : ClusterAlertsUtil.WATCH_IDS) {
@@ -442,31 +442,30 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 if (addWatch) {
                     logger.trace("checking monitoring watch [{}]", uniqueWatchId);
 
-                    asyncActions.add(() -> watcher.getWatch(new GetWatchRequest(uniqueWatchId),
-                                                            new GetAndPutWatchResponseActionListener(watcher, watchId, uniqueWatchId,
+                    asyncActions.add(() -> client.execute(GetWatchAction.INSTANCE, new GetWatchRequest(uniqueWatchId),
+                                                            new GetAndPutWatchResponseActionListener(client, watchId, uniqueWatchId,
                                                                                                      pendingResponses)));
                 } else {
                     logger.trace("pruning monitoring watch [{}]", uniqueWatchId);
 
-                    asyncActions.add(() -> watcher.deleteWatch(new DeleteWatchRequest(uniqueWatchId),
+                    asyncActions.add(() -> client.execute(DeleteWatchAction.INSTANCE, new DeleteWatchRequest(uniqueWatchId),
                                                                new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses)));
                 }
             } else if (addWatch) {
-                asyncActions.add(() -> putWatch(watcher, watchId, uniqueWatchId, pendingResponses));
+                asyncActions.add(() -> putWatch(client, watchId, uniqueWatchId, pendingResponses));
             }
         }
     }
 
-    private void putWatch(final WatcherClient watcher, final String watchId, final String uniqueWatchId,
+    private void putWatch(final Client client, final String watchId, final String uniqueWatchId,
                           final AtomicInteger pendingResponses) {
         final String watch = ClusterAlertsUtil.loadWatch(clusterService, watchId);
 
         logger.trace("adding monitoring watch [{}]", uniqueWatchId);
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN,
+        executeAsyncWithOrigin(client, MONITORING_ORIGIN, PutWatchAction.INSTANCE,
                 new PutWatchRequest(uniqueWatchId, new BytesArray(watch), XContentType.JSON),
-                new ResponseActionListener<PutWatchResponse>("watch", uniqueWatchId, pendingResponses, watcherSetup),
-                watcher::putWatch);
+                new ResponseActionListener<>("watch", uniqueWatchId, pendingResponses, watcherSetup));
     }
 
     /**
@@ -614,15 +613,15 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private class GetAndPutWatchResponseActionListener implements ActionListener<GetWatchResponse> {
 
-        private final WatcherClient watcher;
+        private final Client client;
         private final String watchId;
         private final String uniqueWatchId;
         private final AtomicInteger countDown;
 
-        private GetAndPutWatchResponseActionListener(final WatcherClient watcher,
+        private GetAndPutWatchResponseActionListener(final Client client,
                                                      final String watchId, final String uniqueWatchId,
                                                      final AtomicInteger countDown) {
-            this.watcher = Objects.requireNonNull(watcher);
+            this.client = Objects.requireNonNull(client);
             this.watchId = Objects.requireNonNull(watchId);
             this.uniqueWatchId = Objects.requireNonNull(uniqueWatchId);
             this.countDown = Objects.requireNonNull(countDown);
@@ -636,7 +635,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
                 responseReceived(countDown, true, watcherSetup);
             } else {
-                putWatch(watcher, watchId, uniqueWatchId, countDown);
+                putWatch(client, watchId, uniqueWatchId, countDown);
             }
         }
 

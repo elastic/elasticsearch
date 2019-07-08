@@ -33,6 +33,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
 
     @Override
     protected PolygonBuilder createTestShapeBuilder() {
+
         return createRandomShape();
     }
 

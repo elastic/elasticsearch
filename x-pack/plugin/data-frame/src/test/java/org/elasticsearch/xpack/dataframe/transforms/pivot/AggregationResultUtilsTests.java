@@ -135,8 +135,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                   KEY, asMap(
                                           targetField, "ID3"),
                                   aggTypedName, asMap(
-                                          "value", 12.55),
-                                  DOC_COUNT, 9)
+                                          "value", Double.NaN),
+                                  DOC_COUNT, 0)
                     ));
 
         List<Map<String, Object>> expected = asList(
@@ -150,14 +150,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         ),
                 asMap(
                         targetField, "ID3",
-                        aggName, 12.55
+                        aggName, null
                         )
                 );
         Map<String, String> fieldTypeMap = asStringMap(
             targetField, "keyword",
             aggName, "double"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 20);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 11);
     }
 
     public void testExtractCompositeAggregationResultsMultipleGroups() throws IOException {
@@ -212,8 +212,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                           targetField2, "ID2_2"
                                           ),
                                   aggTypedName, asMap(
-                                          "value", 12.55),
-                                  DOC_COUNT, 4)
+                                          "value", Double.NaN),
+                                  DOC_COUNT, 0)
                     ));
 
         List<Map<String, Object>> expected = asList(
@@ -235,7 +235,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 asMap(
                         targetField, "ID3",
                         targetField2, "ID2_2",
-                        aggName, 12.55
+                        aggName, null
                         )
                 );
         Map<String, String> fieldTypeMap = asStringMap(
@@ -243,7 +243,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             targetField, "keyword",
             targetField2, "keyword"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 10);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 6);
     }
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
@@ -287,7 +287,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                   aggTypedName, asMap(
                                           "value", 12.55),
                                   aggTypedName2, asMap(
-                                          "value", -2.44),
+                                          "value", Double.NaN),
                                   DOC_COUNT, 1)
                     ));
 
@@ -305,7 +305,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 asMap(
                         targetField, "ID3",
                         aggName, 12.55,
-                        aggName2, -2.44
+                        aggName2, null
                         )
                 );
         Map<String, String> fieldTypeMap = asStringMap(
@@ -383,8 +383,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
                     aggTypedName, asMap(
                         "value", 12.55),
                     aggTypedName2, asMap(
-                        "value", -100.44,
-                        "value_as_string", "-100.44F"),
+                        "value", Double.NaN,
+                        "value_as_string", "NaN"),
                     DOC_COUNT, 4)
             ));
 
@@ -411,7 +411,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 targetField, "ID3",
                 targetField2, "ID2_2",
                 aggName, 12.55,
-                aggName2, "-100.44F"
+                aggName2, null
             )
         );
         Map<String, String> fieldTypeMap = asStringMap(
@@ -476,8 +476,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         targetField2, "ID2_2"
                     ),
                     aggTypedName, asMap(
-                        "value", asMap("field", 12.0)),
-                    DOC_COUNT, 4)
+                        "value", null),
+                    DOC_COUNT, 0)
             ));
 
         List<Map<String, Object>> expected = asList(
@@ -499,14 +499,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
             asMap(
                 targetField, "ID3",
                 targetField2, "ID2_2",
-                aggName, asMap("field", 12.0)
+                aggName, null
             )
         );
         Map<String, String> fieldTypeMap = asStringMap(
             targetField, "keyword",
             targetField2, "keyword"
         );
-        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 10);
+        executeTest(groupBy, aggregationBuilders, Collections.emptyList(), input, fieldTypeMap, expected, 6);
     }
 
     public void testExtractCompositeAggregationResultsWithPipelineAggregation() throws IOException {
@@ -576,7 +576,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                     aggTypedName, asMap(
                         "value", 12.0),
                     pipelineAggTypedName, asMap(
-                        "value", 12.0),
+                        "value", Double.NaN),
                     DOC_COUNT, 4)
             ));
 
@@ -603,7 +603,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 targetField, "ID3",
                 targetField2, "ID2_2",
                 aggName, 12.0,
-                pipelineAggName, 12.0
+                pipelineAggName, null
             )
         );
         Map<String, String> fieldTypeMap = asStringMap(

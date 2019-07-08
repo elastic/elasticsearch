@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-data-types]]
-== Data Types
+=== Data Types
 
 [cols="^,^m,^,^"]
 
@@ -89,7 +89,7 @@ s|SQL precision
 
 [[sql-multi-field]]
 [float]
-=== SQL and multi-fields
+==== SQL and multi-fields
 
 A core concept in {es} is that of an `analyzed` field, that is a full-text value that is interpreted in order
 to be effectively indexed. These fields are of type <<text, `text`>> and are not used for sorting or aggregations as their actual value depends on the <<analyzer, `analyzer`>> used hence why {es} also offers the <<keyword, `keyword`>> type for storing the _exact_

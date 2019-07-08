@@ -1,9 +1,9 @@
 {
   "xpack.usage": {
     "documentation": "Retrieve information about xpack features usage",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/usage",
       "paths": [ "/_xpack/usage" ],
       "parts": {},
       "params": {

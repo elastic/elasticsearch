@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.GeometryCollection;
@@ -32,7 +32,6 @@ import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +42,7 @@ import java.util.List;
  * appropriate tree structure for each type of
  * {@link Geometry} into a byte array.
  */
-public class GeometryTreeWriter {
+public class GeometryTreeWriter implements Writeable {
 
     private final GeometryTreeBuilder builder;
 
@@ -52,30 +51,28 @@ public class GeometryTreeWriter {
         geometry.visit(builder);
     }
 
-    public BytesRef toBytesRef() throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         // only write a geometry extent for the tree if the tree
         // contains multiple sub-shapes
         boolean prependExtent = builder.shapeWriters.size() > 1;
-        output.writeBoolean(prependExtent);
+        out.writeBoolean(prependExtent);
         if (prependExtent) {
-            output.writeInt(builder.minLon);
-            output.writeInt(builder.minLat);
-            output.writeInt(builder.maxLon);
-            output.writeInt(builder.maxLat);
+            out.writeInt(builder.minLon);
+            out.writeInt(builder.minLat);
+            out.writeInt(builder.maxLon);
+            out.writeInt(builder.maxLat);
         }
-        output.writeVInt(builder.shapeWriters.size());
-        for (EdgeTreeWriter writer : builder.shapeWriters) {
-            output.writeEnum(ShapeType.POLYGON);
-            output.writeBytesRef(writer.toBytesRef());
+        out.writeVInt(builder.shapeWriters.size());
+        for (ShapeTreeWriter writer : builder.shapeWriters) {
+            out.writeEnum(writer.getShapeType());
+            writer.writeTo(out);
         }
-        output.close();
-        return output.bytes().toBytesRef();
     }
 
     class GeometryTreeBuilder implements GeometryVisitor<Void, RuntimeException> {
 
-        private List<EdgeTreeWriter> shapeWriters;
+        private List<ShapeTreeWriter> shapeWriters;
         // integers are used to represent int-encoded lat/lon values
         int minLat;
         int maxLat;
@@ -88,11 +85,12 @@ public class GeometryTreeWriter {
             maxLat = maxLon = Integer.MIN_VALUE;
         }
 
-        private void addWriter(EdgeTreeWriter writer) {
-            minLon = Math.min(minLon, writer.minX);
-            minLat = Math.min(minLat, writer.minY);
-            maxLon = Math.max(maxLon, writer.maxX);
-            maxLat = Math.max(maxLat, writer.maxY);
+        private void addWriter(ShapeTreeWriter writer) {
+            Extent extent = writer.getExtent();
+            minLon = Math.min(minLon, extent.minX);
+            minLat = Math.min(minLat, extent.minY);
+            maxLon = Math.max(maxLon, extent.maxX);
+            maxLat = Math.max(maxLat, extent.maxY);
             shapeWriters.add(writer);
         }
 
@@ -145,12 +143,16 @@ public class GeometryTreeWriter {
 
         @Override
         public Void visit(Point point) {
-            throw new UnsupportedOperationException("support for Point is a TODO");
+            Point2DWriter writer = new Point2DWriter(point);
+            addWriter(writer);
+            return null;
         }
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            throw new UnsupportedOperationException("support for MultiPoint is a TODO");
+            Point2DWriter writer = new Point2DWriter(multiPoint);
+            addWriter(writer);
+            return null;
         }
 
         @Override

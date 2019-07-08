@@ -43,7 +43,7 @@ import java.util.List;
 import java.util.Map;
 
 public class GeoDistanceRangeAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoDistanceRangeAggregatorFactory> {
+        extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
     private final InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory = InternalGeoDistance.FACTORY;
     private final GeoPoint origin;
@@ -54,7 +54,7 @@ public class GeoDistanceRangeAggregatorFactory
 
     public GeoDistanceRangeAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
             Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, SearchContext context,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.origin = origin;
         this.ranges = ranges;

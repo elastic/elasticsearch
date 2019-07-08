@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
@@ -158,8 +159,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds(transformConfig1.getId(),
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Collections.singletonList("transform1_expand"),
+            new Tuple<>(1L, Collections.singletonList("transform1_expand")),
             null,
             null);
 
@@ -167,8 +169,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("transform1_expand,transform2_expand",
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand"),
+            new Tuple<>(2L, Arrays.asList("transform1_expand", "transform2_expand")),
             null,
             null);
 
@@ -176,8 +179,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("transform1*,transform2_expand,transform3_expand",
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -185,8 +189,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     PageParams.defaultParams(),
+                    true,
                     listener),
-            Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform1_expand", "transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -194,8 +199,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(0, 1),
+                    true,
                     listener),
-            Collections.singletonList("transform1_expand"),
+            new Tuple<>(3L, Collections.singletonList("transform1_expand")),
             null,
             null);
 
@@ -203,8 +209,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("_all",
                     new PageParams(1, 2),
+                    true,
                     listener),
-            Arrays.asList("transform2_expand", "transform3_expand"),
+            new Tuple<>(3L, Arrays.asList("transform2_expand", "transform3_expand")),
             null,
             null);
 
@@ -212,13 +219,28 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener ->
                 transformsConfigManager.expandTransformIds("unknown,unknown2",
                     new PageParams(1, 2),
+                    true,
                     listener),
-            (List<String>)null,
+            (Tuple<Long, List<String>>)null,
             null,
             e -> {
                 assertThat(e, instanceOf(ResourceNotFoundException.class));
                 assertThat(e.getMessage(),
                     equalTo(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown,unknown2")));
+            });
+
+        // expand 1 id implicitly that does not exist
+        assertAsync(listener ->
+                transformsConfigManager.expandTransformIds("unknown*",
+                    new PageParams(1, 2),
+                    false,
+                    listener),
+            (Tuple<Long, List<String>>)null,
+            null,
+            e -> {
+                assertThat(e, instanceOf(ResourceNotFoundException.class));
+                assertThat(e.getMessage(),
+                    equalTo(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown*")));
             });
 
     }
@@ -239,7 +261,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
     }
 
     public void testGetStateAndStatsMultiple() throws InterruptedException {
-        int numStats = randomInt(5);
+        int numStats = randomIntBetween(10, 15);
         List<DataFrameTransformStateAndStats> expectedStats = new ArrayList<>();
         for (int i=0; i<numStats; i++) {
             DataFrameTransformStateAndStats stat =

@@ -24,6 +24,7 @@ import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Optional;
 
 /**
  * A tree reader.
@@ -33,42 +34,57 @@ import java.nio.ByteBuffer;
  */
 public class GeometryTreeReader {
 
-    private final BytesRef bytesRef;
+    private final ByteBufferStreamInput input;
 
     public GeometryTreeReader(BytesRef bytesRef) {
-        this.bytesRef = bytesRef;
+        this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
     }
 
-    public boolean containedInOrCrosses(int minLon, int minLat, int maxLon, int maxLat) throws IOException {
-        ByteBufferStreamInput input = new ByteBufferStreamInput(
-            ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+    public Extent getExtent() throws IOException {
+        input.position(0);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
-            int thisMinLon = input.readInt();
-            int thisMinLat = input.readInt();
-            int thisMaxLon = input.readInt();
-            int thisMaxLat = input.readInt();
+            return new Extent(input);
+        }
+        assert input.readVInt() == 1;
+        ShapeType shapeType = input.readEnum(ShapeType.class);
+        ShapeTreeReader reader = getReader(shapeType, input);
+        return reader.getExtent();
+    }
 
-            if (thisMinLat > maxLat || thisMaxLon < minLon || thisMaxLat < minLat || thisMinLon > maxLon) {
-                return false; // tree and bbox-query are disjoint
-            }
-
-            if (minLon <= thisMinLon && minLat <= thisMinLat && maxLon >= thisMaxLon && maxLat >= thisMaxLat) {
-                return true; // bbox-query fully contains tree's extent.
+    public boolean intersects(Extent extent) throws IOException {
+        input.position(0);
+        boolean hasExtent = input.readBoolean();
+        if (hasExtent) {
+            Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(input, extent);
+            if (extentCheck.isPresent()) {
+                return extentCheck.get();
             }
         }
 
         int numTrees = input.readVInt();
         for (int i = 0; i < numTrees; i++) {
             ShapeType shapeType = input.readEnum(ShapeType.class);
-            if (ShapeType.POLYGON.equals(shapeType)) {
-                BytesRef treeRef = input.readBytesRef();
-                EdgeTreeReader reader = new EdgeTreeReader(treeRef);
-                if (reader.containedInOrCrosses(minLon, minLat, maxLon, maxLat)) {
-                    return true;
-                }
+            ShapeTreeReader reader = getReader(shapeType, input);
+            if (reader.intersects(extent)) {
+                return true;
             }
         }
         return false;
+    }
+
+    private static ShapeTreeReader getReader(ShapeType shapeType, ByteBufferStreamInput input) throws IOException {
+        switch (shapeType) {
+            case POLYGON:
+                return new EdgeTreeReader(input);
+            case POINT:
+            case MULTIPOINT:
+                return new Point2DReader(input);
+            case LINESTRING:
+            case MULTILINESTRING:
+                throw new UnsupportedOperationException("TODO: linestring and multilinestring");
+            default:
+                throw new UnsupportedOperationException("unsupported shape type [" + shapeType + "]");
+        }
     }
 }

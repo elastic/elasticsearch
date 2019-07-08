@@ -19,15 +19,16 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class IndexAnalyzersTests extends ESTestCase {
 
@@ -38,16 +39,14 @@ public class IndexAnalyzersTests extends ESTestCase {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         {
             NullPointerException ex = expectThrows(NullPointerException.class,
-                    () -> new IndexAnalyzers(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), analyzers,
-                            Collections.emptyMap(), Collections.emptyMap()));
+                    () -> new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap()));
             assertEquals("the default analyzer must be set", ex.getMessage());
         }
         {
             analyzers.put(AnalysisRegistry.DEFAULT_ANALYZER_NAME,
                     new NamedAnalyzer("otherName", AnalyzerScope.INDEX, new StandardAnalyzer()));
             IllegalStateException ex = expectThrows(IllegalStateException.class,
-                    () -> new IndexAnalyzers(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), analyzers,
-                            Collections.emptyMap(), Collections.emptyMap()));
+                    () -> new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap()));
             assertEquals("default analyzer must have the name [default] but was: [otherName]", ex.getMessage());
         }
     }
@@ -58,8 +57,7 @@ public class IndexAnalyzersTests extends ESTestCase {
         analyzers.put(AnalysisRegistry.DEFAULT_ANALYZER_NAME, analyzer);
 
         // if only "default" is set in the map, all getters should return the same analyzer
-        try (IndexAnalyzers indexAnalyzers = new IndexAnalyzers(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), analyzers,
-                Collections.emptyMap(), Collections.emptyMap())) {
+        try (IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap())) {
             assertSame(analyzer, indexAnalyzers.getDefaultIndexAnalyzer());
             assertSame(analyzer, indexAnalyzers.getDefaultSearchAnalyzer());
             assertSame(analyzer, indexAnalyzers.getDefaultSearchQuoteAnalyzer());
@@ -67,8 +65,7 @@ public class IndexAnalyzersTests extends ESTestCase {
 
         analyzers.put(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME,
                 new NamedAnalyzer("my_search_analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()));
-        try (IndexAnalyzers indexAnalyzers = new IndexAnalyzers(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), analyzers,
-                Collections.emptyMap(), Collections.emptyMap())) {
+        try (IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap())) {
             assertSame(analyzer, indexAnalyzers.getDefaultIndexAnalyzer());
             assertEquals("my_search_analyzer", indexAnalyzers.getDefaultSearchAnalyzer().name());
             assertEquals("my_search_analyzer", indexAnalyzers.getDefaultSearchQuoteAnalyzer().name());
@@ -76,12 +73,44 @@ public class IndexAnalyzersTests extends ESTestCase {
 
         analyzers.put(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME,
                 new NamedAnalyzer("my_search_quote_analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()));
-        try (IndexAnalyzers indexAnalyzers = new IndexAnalyzers(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY), analyzers,
-                Collections.emptyMap(), Collections.emptyMap())) {
+        try (IndexAnalyzers indexAnalyzers = new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap())) {
             assertSame(analyzer, indexAnalyzers.getDefaultIndexAnalyzer());
             assertEquals("my_search_analyzer", indexAnalyzers.getDefaultSearchAnalyzer().name());
             assertEquals("my_search_quote_analyzer", indexAnalyzers.getDefaultSearchQuoteAnalyzer().name());
         }
+    }
+
+    public void testClose() throws IOException {
+
+        AtomicInteger closes = new AtomicInteger(0);
+        NamedAnalyzer a = new NamedAnalyzer("default", AnalyzerScope.INDEX, new WhitespaceAnalyzer()){
+            @Override
+            public void close() {
+                super.close();
+                closes.incrementAndGet();
+            }
+        };
+
+        NamedAnalyzer n = new NamedAnalyzer("keyword_normalizer", AnalyzerScope.INDEX, new KeywordAnalyzer()){
+            @Override
+            public void close() {
+                super.close();
+                closes.incrementAndGet();
+            }
+        };
+
+        NamedAnalyzer w = new NamedAnalyzer("whitespace_normalizer", AnalyzerScope.INDEX, new WhitespaceAnalyzer()){
+            @Override
+            public void close() {
+                super.close();
+                closes.incrementAndGet();
+            }
+        };
+
+        IndexAnalyzers ia = new IndexAnalyzers(Map.of("default", a), Map.of("n", n), Map.of("w", w));
+        ia.close();
+        assertEquals(3, closes.get());
+
     }
 
 }

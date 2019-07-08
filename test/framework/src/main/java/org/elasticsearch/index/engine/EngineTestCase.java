@@ -37,12 +37,14 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -74,6 +76,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -111,6 +114,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -165,7 +169,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             final TotalHitCountCollector collector = new TotalHitCountCollector();
-            searcher.searcher().search(new MatchAllDocsQuery(), collector);
+            searcher.search(new MatchAllDocsQuery(), collector);
             assertThat(collector.getTotalHits(), equalTo(numDocs));
         }
     }
@@ -264,11 +268,13 @@ public abstract class EngineTestCase extends ESTestCase {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
                 assertMaxSeqNoInCommitUserData(engine);
+                assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
                 assertMaxSeqNoInCommitUserData(replicaEngine);
+                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
             assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
             assertThat(replicaEngine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
@@ -410,7 +416,7 @@ public abstract class EngineTestCase extends ESTestCase {
         String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId,
             primaryTermSupplier.getAsLong());
         return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
-            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier);
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier, seqNo -> {});
     }
 
     protected TranslogHandler createTranslogHandler(IndexSettings indexSettings) {
@@ -768,7 +774,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             final TotalHitCountCollector collector = new TotalHitCountCollector();
-            searcher.searcher().search(new MatchAllDocsQuery(), collector);
+            searcher.search(new MatchAllDocsQuery(), collector);
             assertThat(collector.getTotalHits(), equalTo(numDocs));
         }
     }
@@ -834,7 +840,7 @@ public abstract class EngineTestCase extends ESTestCase {
             final Engine.Operation.TYPE opType = randomFrom(Engine.Operation.TYPE.values());
             final boolean isNestedDoc = includeNestedDocs && opType == Engine.Operation.TYPE.INDEX && randomBoolean();
             final int nestedValues = between(0, 3);
-            final long startTime = threadPool.relativeTimeInMillis();
+            final long startTime = threadPool.relativeTimeInNanos();
             final int copies = allowDuplicate && rarely() ? between(2, 4) : 1;
             for (int copy = 0; copy < copies; copy++) {
                 final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
@@ -926,7 +932,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (lastFieldValue != null) {
             try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
                 final TotalHitCountCollector collector = new TotalHitCountCollector();
-                searcher.searcher().search(new TermQuery(new Term("value", lastFieldValue)), collector);
+                searcher.search(new TermQuery(new Term("value", lastFieldValue)), collector);
                 assertThat(collector.getTotalHits(), equalTo(1));
             }
         }
@@ -1005,7 +1011,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
             List<DocIdSeqNoAndSource> docs = new ArrayList<>();
-            for (LeafReaderContext leafContext : searcher.reader().leaves()) {
+            for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
                 LeafReader reader = leafContext.reader();
                 NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
                 NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
@@ -1111,11 +1117,41 @@ public abstract class EngineTestCase extends ESTestCase {
         List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
         for (IndexCommit commit : commits) {
             try (DirectoryReader reader = DirectoryReader.open(commit)) {
-                AtomicLong maxSeqNoFromDocs = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-                Lucene.scanSeqNosInReader(reader, 0, Long.MAX_VALUE, n -> maxSeqNoFromDocs.set(Math.max(n, maxSeqNoFromDocs.get())));
                 assertThat(Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                    greaterThanOrEqualTo(maxSeqNoFromDocs.get()));
+                    greaterThanOrEqualTo(maxSeqNosInReader(reader)));
             }
+        }
+    }
+
+    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(Engine engine) throws IOException {
+        if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false || engine instanceof InternalEngine == false) {
+            return;
+        }
+        try {
+            engine.refresh("test");
+            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                DirectoryReader reader = Lucene.wrapAllDocsLive(searcher.getDirectoryReader());
+                Set<Long> seqNos = new HashSet<>();
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                    NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                    int docId;
+                    while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                        assertTrue(seqNoDocValues.advanceExact(docId));
+                        long seqNo = seqNoDocValues.longValue();
+                        assertThat(seqNo, greaterThanOrEqualTo(0L));
+                        if (primaryTermDocValues.advanceExact(docId)) {
+                            if (seqNos.add(seqNo) == false) {
+                                final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+                                leaf.reader().document(docId, idFieldVisitor);
+                                throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (AlreadyClosedException ignored) {
+
         }
     }
 
@@ -1148,7 +1184,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * @throws InterruptedException if the thread was interrupted while blocking on the condition
      */
     public static void waitForOpsToComplete(InternalEngine engine, long seqNo) throws InterruptedException {
-        engine.getLocalCheckpointTracker().waitForOpsToComplete(seqNo);
+        engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(seqNo);
     }
 
     public static boolean hasSnapshottedCommits(Engine engine) {
@@ -1176,5 +1212,23 @@ public abstract class EngineTestCase extends ESTestCase {
         public long getAsLong() {
             return get();
         }
+    }
+
+    static long maxSeqNosInReader(DirectoryReader reader) throws IOException {
+        long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        for (LeafReaderContext leaf : reader.leaves()) {
+            final NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            while (seqNoDocValues.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNoDocValues.longValue());
+            }
+        }
+        return maxSeqNo;
+    }
+
+    /**
+     * Returns the number of times a version was looked up either from version map or from the index.
+     */
+    public static long getNumVersionLookups(Engine engine) {
+        return ((InternalEngine) engine).getNumVersionLookups();
     }
 }

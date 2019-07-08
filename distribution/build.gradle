@@ -117,7 +117,7 @@ task buildTransportModules {
 
 void copyModule(Sync copyTask, Project module) {
   copyTask.configure {
-    dependsOn { module.bundlePlugin }
+    dependsOn "${module.path}:bundlePlugin"
     from({ zipTree(module.bundlePlugin.outputs.files.singleFile) }) {
       includeEmptyDirs false
 
@@ -167,6 +167,7 @@ buildDefaultLog4jConfig.doLast(writeLog4jProperties)
 
 // copy log4j2.properties from modules that have it
 void copyLog4jProperties(Task buildTask, Project module) {
+  buildTask.dependsOn "${module.path}:bundlePlugin"
   buildTask.doFirst {
     FileTree tree = zipTree(module.bundlePlugin.outputs.files.singleFile)
     FileTree filtered = tree.matching {
@@ -400,11 +401,11 @@ task run(type: RunTask) {
       setting 'xpack.graph.enabled', 'true'
       setting 'xpack.watcher.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
-      setupCommand 'setupTestAdmin',
-        'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     } else if (licenseType != 'basic') {
       throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
     }
+    setupCommand 'setupTestAdmin',
+            'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'true'
     setting 'xpack.sql.enabled', 'true'

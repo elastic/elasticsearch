@@ -358,6 +358,26 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Suggestions run on an empty index should return a suggest element as part of the response. See #42473 for details.
+     */
+    public void testSuggestEmptyIndex() throws IOException, InterruptedException {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("v");
+        SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion("foo", prefix))
+                .setFetchSource("a", "b").get();
+        Suggest suggest = searchResponse.getSuggest();
+        assertNotNull(suggest);
+        CompletionSuggestion completionSuggestion = suggest.getSuggestion("foo");
+        CompletionSuggestion.Entry options = completionSuggestion.getEntries().get(0);
+        assertEquals("v", options.getText().string());
+        assertEquals(1, options.getLength());
+        assertEquals(0, options.getOffset());
+        assertEquals(0, options.options.size());
+    }
+
     public void testThatWeightsAreWorking() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 

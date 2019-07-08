@@ -38,6 +38,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43013")
     public void testTooManyPartitions() throws Exception {
         assumeFalse("AwaitsFix(bugUrl = \"https://github.com/elastic/elasticsearch/issues/32033\")", Constants.WINDOWS);
         Detector.Builder detector = new Detector.Builder("count", null);

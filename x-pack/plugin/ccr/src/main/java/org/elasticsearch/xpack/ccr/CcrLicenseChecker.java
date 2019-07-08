@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -355,7 +355,7 @@ public final class CcrLicenseChecker {
             return new FilterClient(client) {
                 @Override
                 protected <Request extends ActionRequest, Response extends ActionResponse>
-                void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+                void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                     final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                     try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
                         super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
@@ -370,7 +370,7 @@ public final class CcrLicenseChecker {
         return new FilterClient(client) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     threadContext.markAsSystemContext();

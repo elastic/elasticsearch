@@ -335,3 +335,4 @@ thirdPartyAudit.ignoreMissingClasses (
 )
 
 thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
+

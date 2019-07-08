@@ -80,7 +80,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 return reader;
             }
 
-            DirectoryReader wrappedReader = reader;
+            DirectoryReader wrappedReader = permissions.getFieldPermissions().filter(reader);
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
                 BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
@@ -90,7 +90,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 }
             }
 
-            return permissions.getFieldPermissions().filter(wrappedReader);
+            return wrappedReader;
         } catch (IOException e) {
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);

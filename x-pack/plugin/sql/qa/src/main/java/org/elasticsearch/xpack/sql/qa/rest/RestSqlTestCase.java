@@ -432,7 +432,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                     "      \"test2\"\n" + 
                     "    ]\n" + 
                     "  ]\n" + 
-                    "}";
+                    "}\n";
         } else {
             expected = "{\n" + 
                     "  \"columns\" : [\n" + 
@@ -449,9 +449,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                     "      \"test2\"\n" + 
                     "    ]\n" + 
                     "  ]\n" + 
-                    "}";
+                    "}\n";
         }
-        prettyPrintingTests(expected, "true", columnar);
+        executeAndAssertPrettyPrinting(expected, "true", columnar);
     }
     
     public void testPrettyPrintingDisabled() throws IOException {
@@ -462,10 +462,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         } else {
             expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"rows\":[[\"test1\"],[\"test2\"]]}";
         }
-        prettyPrintingTests(expected, randomFrom("false", null), columnar);
+        executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
     }
     
-    private void prettyPrintingTests(String expectedJson, String prettyParameter, boolean columnar)
+    private void executeAndAssertPrettyPrinting(String expectedJson, String prettyParameter, boolean columnar)
             throws IOException {
         index("{\"test1\":\"test1\"}",
               "{\"test1\":\"test2\"}");

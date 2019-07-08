@@ -1,0 +1,58 @@
+import org.elasticsearch.gradle.VersionProperties
+
+import java.util.regex.Matcher
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+    testCompile 'commons-io:commons-io:2.6'
+    testCompile gradleTestKit()
+    testCompile (project.project(':test:framework')) {
+        exclude group: "commons-logging"
+    }
+}
+
+task integTest(type: Test) {
+    // integration test requires the local testing repo to simulate unpublished dependencies
+    dependsOn project.rootProject.allprojects.collect {
+        it.tasks.matching { it.name == 'publishNebulaPublicationToTestRepository'}
+    }
+
+    exclude "**/*Tests.class"
+
+    FileCollection examplesToTest = files(
+            project(':example-plugins').subprojects.collect { it.projectDir }
+    )
+    inputs.files(examplesToTest.sort())
+
+    // tell BuildExamplePluginsIT where to find the example plugins
+    systemProperty (
+            'test.build-tools.plugin.examples',
+            examplesToTest.asPath,
+    )
+    systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    systemProperty 'test.version_under_test', version
+
+    Matcher isLuceneSnapshot = (/\w+-snapshot-([a-z0-9]+)/ =~ VersionProperties.lucene)
+    if (isLuceneSnapshot) {
+        systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
+    }
+
+    // These tests run Gradle which doesn't have FIPS support
+    onlyIf {
+        project.inFipsJvm == false
+    }
+}
+check.dependsOn(integTest)
+
+
+project.testingConventions {
+    naming.clear()
+    naming {
+        IT {
+            baseClass 'org.junit.Assert'
+        }
+    }
+}
+
+test.enabled = false

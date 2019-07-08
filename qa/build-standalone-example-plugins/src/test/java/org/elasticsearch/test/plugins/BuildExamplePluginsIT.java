@@ -16,22 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle;
+package org.elasticsearch.test.plugins;
 
+
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.commons.io.FileUtils;
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SuppressForbidden;
 import org.gradle.testkit.runner.GradleRunner;
+import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,14 +46,18 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-@Ignore("https://github.com/elastic/elasticsearch/issues/42453")
-public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
-    private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
+@RunWith(RandomizedRunner.class)
+@SuppressForbidden(reason = "FileUtils,  File.separator, File.pathSeparator")
+public class BuildExamplePluginsIT extends Assert {
+
+    protected final Logger logger = LogManager.getLogger(getClass());
+
+    private static final List<Path> EXAMPLE_PLUGINS = Collections.unmodifiableList(
         Arrays.stream(
             Objects.requireNonNull(System.getProperty("test.build-tools.plugin.examples"))
                 .split(File.pathSeparator)
-        ).map(File::new).collect(Collectors.toList())
+        ).map(Paths::get).collect(Collectors.toList())
     );
 
     private static final String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
@@ -54,9 +65,9 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
 
-    public final File examplePlugin;
+    public final Path examplePlugin;
 
-    public BuildExamplePluginsIT(File examplePlugin) {
+    public BuildExamplePluginsIT(Path examplePlugin) {
         this.examplePlugin = examplePlugin;
     }
 
@@ -64,7 +75,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     public static void assertProjectsExist() {
         assertEquals(
             EXAMPLE_PLUGINS,
-            EXAMPLE_PLUGINS.stream().filter(File::exists).collect(Collectors.toList())
+            EXAMPLE_PLUGINS.stream().filter(Files::exists).collect(Collectors.toList())
         );
     }
 
@@ -76,8 +87,10 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             .collect(Collectors.toList());
     }
 
+
+    @Test
     public void testCurrentExamplePlugin() throws IOException {
-        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
+        FileUtils.copyDirectory(examplePlugin.toFile(), tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
 
         adaptBuildScriptForTest();
 
@@ -85,11 +98,16 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             tmpDir.newFile("NOTICE.txt").toPath(),
             "dummy test notice".getBytes(StandardCharsets.UTF_8)
         );
+        Files.write(
+            tmpDir.newFile("settings.gradle").toPath(),
+            "".getBytes(StandardCharsets.UTF_8)
+        );
+
 
         GradleRunner.create()
             .withProjectDir(tmpDir.getRoot())
-            .withArguments("clean", "check", "-s", "-i", "--warning-mode=all", "--scan")
-            .withPluginClasspath()
+            .withTestKitDir(Files.createTempDirectory("gradle-testkit").toAbsolutePath().toFile())
+            .withArguments("clean", "assemble")
             .build();
     }
 
@@ -104,6 +122,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
                 "            name = \"test\"\n" +
                 "            url = '" + getLocalTestRepoPath() + "'\n" +
                 "        }\n" +
+                "        jcenter()\n" +
                 "    }\n" +
                 "    dependencies {\n" +
                 "        classpath \"org.elasticsearch.gradle:build-tools:" + BUILD_TOOLS_VERSION + "\"\n" +
@@ -130,16 +149,15 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
                 "    name \"test\"\n" +
                 "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
-                "  flatDir {\n" +
-                "    dir '" + getLocalTestDownloadsPath() + "'\n" +
-                "  }\n" +
+                "  jcenter() \n" +
                 luceneSnapshotRepo +
                 "}\n"
         );
         Files.delete(getTempPath("build.gradle"));
         Files.move(getTempPath("build.gradle.new"), getTempPath("build.gradle"));
-        System.err.print("Generated build script is:");
-        Files.readAllLines(getTempPath("build.gradle")).forEach(System.err::println);
+
+        logger.info("Generated build script is:");
+        Files.readAllLines(getTempPath("build.gradle")).forEach(logger::info);
     }
 
     private Path getTempPath(String fileName) {
@@ -156,6 +174,23 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             );
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    protected String getLocalTestRepoPath() {
+        return getLocalTestPath("test.local-test-repo-path");
+    }
+
+    private String getLocalTestPath(String propertyName) {
+        String property = System.getProperty(propertyName);
+        Objects.requireNonNull(property, propertyName + " not passed to tests");
+        Path file = Paths.get(property);
+        assertTrue("Expected " + property + " to exist, but it did not!", Files.exists(file));
+        if (File.separator.equals("\\")) {
+            // Use / on Windows too, the build script is not happy with \
+            return file.toAbsolutePath().toString().replace(File.separator, "/");
+        } else {
+            return file.toAbsolutePath().toString();
         }
     }
 }

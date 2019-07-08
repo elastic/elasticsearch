@@ -185,33 +185,7 @@ if (project != rootProject) {
     into localDownloads
   }
     
-  task integTest(type: Test) {
-    // integration test requires the local testing repo for example plugin builds
-    dependsOn project.rootProject.allprojects.collect {
-      it.tasks.matching { it.name == 'publishNebulaPublicationToTestRepository'}
-    }
-    dependsOn setupLocalDownloads
-    exclude "**/*Tests.class"
-    inputs.dir(file("src/testKit"))
-    // tell BuildExamplePluginsIT where to find the example plugins
-    systemProperty (
-            'test.build-tools.plugin.examples',
-            files(
-                    project(':example-plugins').subprojects.collect { it.projectDir }
-            ).asPath,
-    )
-    systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
-    systemProperty 'test.local-test-downloads-path', localDownloads
-    systemProperty 'test.version_under_test', version
-    Matcher isLuceneSnapshot = (/\w+-snapshot-([a-z0-9]+)/ =~ versions.lucene)
-    if (isLuceneSnapshot) {
-      systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
-    }
-    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
-    // These tests run Gradle which doesn't have FIPS support
-    onlyIf { project.inFipsJvm == false }
-  }
-  check.dependsOn(integTest)
+  
 
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
@@ -234,6 +208,23 @@ if (project != rootProject) {
       }
     }
   }
+
+  task integTest(type: Test) {
+    inputs.dir(file("src/testKit"))
+    // integration test requires the local testing repo to simulate unpublished dependencies
+    dependsOn project.rootProject.allprojects.collect {
+        it.tasks.matching { it.name == 'publishNebulaPublicationToTestRepository'}
+    }
+    systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    systemProperty 'test.version_under_test', version
+    Matcher isLuceneSnapshot = (/\w+-snapshot-([a-z0-9]+)/ =~ versions.lucene)
+    if (isLuceneSnapshot) {
+          systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
+    }
+    onlyIf { project.inFipsJvm == false }
+    maxParallelForks = System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+  }
+  check.dependsOn(integTest)
 
   /*
    * We alread configure publication and we don't need or want this one that

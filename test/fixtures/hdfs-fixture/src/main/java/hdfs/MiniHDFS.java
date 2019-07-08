@@ -107,7 +107,7 @@ public class MiniHDFS {
         // If we ask port to be allocated automatically, this fails in case of secure hdfs setup
         // it needs port to be privileged. See org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter
         cfg.set(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
-        cfg.set(DFSConfigKeys.DFS_DATANODE_IPC_ADDRESS_DEFAULT, "0.0.0.0:" + getFreeSocketPort(secure));
+        cfg.set(DFSConfigKeys.DFS_DATANODE_IPC_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
         cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
         LOG.info("datanode address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY));
         LOG.info("datanode ipc address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_IPC_ADDRESS_DEFAULT));

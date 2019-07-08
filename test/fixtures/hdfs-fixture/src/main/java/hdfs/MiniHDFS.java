@@ -174,4 +174,5 @@ public class MiniHDFS {
         Files.write(tmp, portFileContent.getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
     }
+
 }

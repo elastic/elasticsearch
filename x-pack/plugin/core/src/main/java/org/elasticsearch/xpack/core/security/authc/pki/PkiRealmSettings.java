@@ -76,6 +76,7 @@ public final class PkiRealmSettings {
         settings.add(USERNAME_PATTERN_SETTING);
         settings.add(CACHE_TTL_SETTING);
         settings.add(CACHE_MAX_USERS_SETTING);
+        settings.add(ALLOW_DELEGATION_SETTING);
 
         settings.add(TRUST_STORE_PATH);
         settings.add(TRUST_STORE_PASSWORD);

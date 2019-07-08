@@ -79,7 +79,7 @@ public class PkiRealmTests extends ESTestCase {
 
         assertThat(realm.supports(null), is(false));
         assertThat(realm.supports(new UsernamePasswordToken("", new SecureString(new char[0]))), is(false));
-        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0])), is(true));
+        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], randomBoolean())), is(true));
     }
 
     public void testExtractToken() throws Exception {
@@ -92,6 +92,7 @@ public class PkiRealmTests extends ESTestCase {
         X509AuthenticationToken token = realm.token(threadContext);
         assertThat(token, is(notNullValue()));
         assertThat(token.dn(), is("CN=Elasticsearch Test Node, OU=elasticsearch, O=org"));
+        assertThat(token.isDelegated(), is(false));
     }
 
     public void testAuthenticateBasedOnCertToken() throws Exception {
@@ -250,6 +251,50 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.principal(), is("Elasticsearch Test Node"));
         assertThat(user.roles(), is(notNullValue()));
         assertThat(user.roles().length, is(0));
+    }
+
+    public void testAuthenticationDelegationSuccess() throws Exception {
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate }, true);
+
+        UserRoleMapper roleMapper = buildRoleMapper();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.security.authc.realms.pki.my_pki.truststore.secure_password", "testnode");
+        Settings settings = Settings.builder()
+                .put(globalSettings)
+                .put("xpack.security.authc.realms.pki.my_pki.truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.authc.realms.pki.my_pki.allow_delegation", true)
+                .setSecureSettings(secureSettings)
+                .build();
+        PkiRealm realmWithDelegation = buildRealm(roleMapper, settings);
+        AuthenticationResult result = authenticate(delegatedToken, realmWithDelegation);
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser(), is(notNullValue()));
+        assertThat(result.getUser().principal(), is("Elasticsearch Test Node"));
+        assertThat(result.getUser().roles(), is(notNullValue()));
+        assertThat(result.getUser().roles().length, is(0));
+    }
+
+    public void testAuthenticationDelegationFailure() throws Exception {
+        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate }, true);
+
+        UserRoleMapper roleMapper = buildRoleMapper();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.security.authc.realms.pki.my_pki.truststore.secure_password", "testnode");
+        Settings settings = Settings.builder()
+                .put(globalSettings)
+                .put("xpack.security.authc.realms.pki.my_pki.truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .setSecureSettings(secureSettings)
+                .build();
+        PkiRealm realmNoDelegation = buildRealm(roleMapper, settings);
+
+        AuthenticationResult result = authenticate(delegatedToken, realmNoDelegation);
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
+        assertThat(result.getUser(), is(nullValue()));
+        assertThat(result.getMessage(), containsString("Realm does not permit delegation for"));
     }
 
     public void testVerificationFailsUsingADifferentTruststore() throws Exception {

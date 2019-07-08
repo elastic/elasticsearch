@@ -76,6 +76,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
     private DelegatedAuthorizationSupport delegatedRealms;
+    private final boolean allowAuthenticationDelegation;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
         this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
@@ -93,6 +94,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
                 .build();
         this.delegatedRealms = null;
+        this.allowAuthenticationDelegation = config.getSetting(PkiRealmSettings.ALLOW_DELEGATION_SETTING);
     }
 
     @Override
@@ -137,6 +139,8 @@ public class PkiRealm extends Realm implements CachingRealm {
                 }
             } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
+            } else if (false == allowAuthenticationDelegation && token.isDelegated()) {
+                listener.onResponse(AuthenticationResult.unsuccessful("Realm does not permit delegation for " + token.dn(), null));
             } else {
                 final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
                 if (principal == null) {

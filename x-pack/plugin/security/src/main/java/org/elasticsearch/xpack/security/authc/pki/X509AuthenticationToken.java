@@ -14,10 +14,16 @@ public class X509AuthenticationToken implements AuthenticationToken {
 
     private final String dn;
     private final X509Certificate[] credentials;
+    private final boolean isDelegated;
 
     public X509AuthenticationToken(X509Certificate[] certificates) {
+        this(certificates, false);
+    }
+
+    public X509AuthenticationToken(X509Certificate[] certificates, boolean isDelegated) {
         this.credentials = Objects.requireNonNull(certificates);
         this.dn = certificates.length == 0 ? "" : certificates[0].getSubjectX500Principal().toString();
+        this.isDelegated = isDelegated;
     }
 
     @Override
@@ -37,5 +43,9 @@ public class X509AuthenticationToken implements AuthenticationToken {
     @Override
     public void clearCredentials() {
         // noop
+    }
+
+    public boolean isDelegated() {
+        return isDelegated;
     }
 }

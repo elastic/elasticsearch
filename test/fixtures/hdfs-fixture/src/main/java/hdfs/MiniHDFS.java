@@ -32,10 +32,13 @@ import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.MiniDFSNNTopology;
 import org.apache.hadoop.hdfs.server.namenode.ha.HATestUtil;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -53,6 +56,8 @@ import java.util.Random;
  * easily properly setup logging, avoid parsing JSON, etc.
  */
 public class MiniHDFS {
+    public static final Logger LOG =
+        LoggerFactory.getLogger(MiniHDFS.class.getName());
 
     private static String PORT_FILE_NAME = "ports";
     private static String PID_FILE_NAME = "pid";
@@ -101,6 +106,8 @@ public class MiniHDFS {
             // it needs port to be privileged. See org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter
             cfg.set(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
             cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
+            LOG.info("datanode address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY));
+            LOG.info("datanode http address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY));
         }
 
         UserGroupInformation.setConfiguration(cfg);
@@ -196,20 +203,21 @@ public class MiniHDFS {
      */
     private static int getFreeSocketPort(boolean secure) {
         int port = 0;
-        int tries = 0;
+        int noOfTries = 0;
         do {
             try {
                 port = secure ? new Random().nextInt(1024) : 0;
-                ServerSocket s = new ServerSocket(port);
+                ServerSocket s = new ServerSocket();
                 s.setReuseAddress(true);
+                s.bind(new InetSocketAddress(port));
                 port = s.getLocalPort();
                 s.close();
                 return port;
             } catch (IOException e) {
                 // Could not get a free port, continue
             }
-            tries++;
-        } while (tries < 100 && (port == 0 && !secure) || (secure && port > 1024));
+            noOfTries++;
+        } while (noOfTries < 100 && (port == 0) || (secure && port > 1024));
         return port;
     }
 }

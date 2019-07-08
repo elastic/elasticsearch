@@ -92,7 +92,7 @@ public class SamlSpMetadataBuilder {
         this.attributeNames = new LinkedHashMap<>();
         this.contacts = new ArrayList<>();
         this.serviceName = "Elasticsearch";
-        this.nameIdFormat = NameID.TRANSIENT;
+        this.nameIdFormat = null;
         this.authnRequestsSigned = Boolean.FALSE;
     }
 
@@ -222,7 +222,7 @@ public class SamlSpMetadataBuilder {
         spRoleDescriptor.setWantAssertionsSigned(true);
         spRoleDescriptor.setAuthnRequestsSigned(this.authnRequestsSigned);
 
-        if (Strings.hasLength(nameIdFormat)) {
+        if (Strings.isNullOrEmpty(nameIdFormat) == false) {
             spRoleDescriptor.getNameIDFormats().add(buildNameIdFormat());
         }
         spRoleDescriptor.getAssertionConsumerServices().add(buildAssertionConsumerService());
@@ -247,6 +247,9 @@ public class SamlSpMetadataBuilder {
     }
 
     private NameIDFormat buildNameIdFormat() {
+        if (Strings.isNullOrEmpty(nameIdFormat)) {
+            throw new IllegalStateException("NameID format has not been specified");
+        }
         final NameIDFormat format = new NameIDFormatBuilder().buildObject();
         format.setFormat(this.nameIdFormat);
         return format;

@@ -31,7 +31,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
         super(idpDescriptor, spConfig, clock);
         this.spBinding = spBinding;
         this.idpBinding = idBinding;
-        this.nameIdSettings = new NameIDPolicySettings(NameID.TRANSIENT, false, null);
+        this.nameIdSettings = new NameIDPolicySettings(null, false, null);
     }
 
     SamlAuthnRequestBuilder forceAuthn(Boolean forceAuthn) {
@@ -80,7 +80,7 @@ class SamlAuthnRequestBuilder extends SamlMessageBuilder {
 
     private NameIDPolicy buildNameIDPolicy() {
         NameIDPolicy nameIDPolicy = SamlUtils.buildObject(NameIDPolicy.class, NameIDPolicy.DEFAULT_ELEMENT_NAME);
-        nameIDPolicy.setFormat(nameIdSettings.format);
+        nameIDPolicy.setFormat(Strings.isNullOrEmpty(nameIdSettings.format) ? null : nameIdSettings.format);
         nameIDPolicy.setAllowCreate(nameIdSettings.allowCreate);
         nameIDPolicy.setSPNameQualifier(Strings.isNullOrEmpty(nameIdSettings.spNameQualifier) ? null : nameIdSettings.spNameQualifier);
         return nameIDPolicy;

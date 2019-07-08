@@ -26,16 +26,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.ReplicationTracker;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
@@ -45,12 +41,10 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -60,7 +54,6 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
@@ -408,7 +401,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
         ensureGreen(index);
         if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            assertAllCopiesHaveRetentionLeases(index);
+            assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
         }
     }
 
@@ -451,7 +444,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     putSettingsRequest.setJsonEntity("{\"index.routing.allocation.exclude._name\":\"" + oldNodeName + "\"}");
                     assertOK(client().performRequest(putSettingsRequest));
                     ensureGreen(index);
-                    assertAllCopiesHaveRetentionLeases(index);
+                    assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
                 } else {
                     ensureGreen(index);
                 }
@@ -459,42 +452,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
             case UPGRADED:
                 ensureGreen(index);
-                assertAllCopiesHaveRetentionLeases(index);
+                assertBusy(() -> RetentionLeaseUtils.assertAllCopiesHavePeerRecoveryRetentionLeases(client(), index));
                 break;
         }
-    }
-
-    private void assertAllCopiesHaveRetentionLeases(String index) throws Exception {
-        assertBusy(() -> {
-            final Request statsRequest = new Request("GET", "/" + index + "/_stats");
-            statsRequest.addParameter("level", "shards");
-            final Map<?, ?> shardsStats = ObjectPath.createFromResponse(client().performRequest(statsRequest))
-                .evaluate("indices." + index + ".shards");
-            for (Map.Entry<?, ?> shardCopiesEntry : shardsStats.entrySet()) {
-                final List<?> shardCopiesList = (List<?>) shardCopiesEntry.getValue();
-
-                final Set<String> expectedLeaseIds = new HashSet<>();
-                for (Object shardCopyStats : shardCopiesList) {
-                    final String nodeId
-                        = Objects.requireNonNull((String) ((Map<?, ?>) (((Map<?, ?>) shardCopyStats).get("routing"))).get("node"));
-                    expectedLeaseIds.add(ReplicationTracker.getPeerRecoveryRetentionLeaseId(
-                        ShardRouting.newUnassigned(new ShardId("_na_", "test", 0), false, RecoverySource.PeerRecoverySource.INSTANCE,
-                            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")).initialize(nodeId, null, 0L)));
-                }
-
-                final Set<String> actualLeaseIds = new HashSet<>();
-                for (Object shardCopyStats : shardCopiesList) {
-                    final List<?> leases
-                        = (List<?>) ((Map<?, ?>) (((Map<?, ?>) shardCopyStats).get("retention_leases"))).get("leases");
-                    for (Object lease : leases) {
-                        actualLeaseIds.add(Objects.requireNonNull((String) (((Map<?, ?>) lease).get("id"))));
-                    }
-                }
-                assertThat("[" + index + "][" + shardCopiesEntry.getKey() + "] has leases " + actualLeaseIds
-                        + " but expected " + expectedLeaseIds,
-                    actualLeaseIds, hasItems(expectedLeaseIds.toArray(new String[0])));
-            }
-        });
     }
 
     /**

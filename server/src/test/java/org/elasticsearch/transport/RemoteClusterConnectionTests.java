@@ -1289,35 +1289,35 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-            return t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(
-                    new Transport.Connection() {
-                        @Override
-                        public DiscoveryNode getNode() {
-                            return node;
-                        }
+                t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
+                    (delegatedListener, connection) -> delegatedListener.onResponse(
+                        new Transport.Connection() {
+                            @Override
+                            public DiscoveryNode getNode() {
+                                return node;
+                            }
 
-                        @Override
-                        public void sendRequest(long requestId, String action, TransportRequest request,
-                                                TransportRequestOptions options) throws IOException {
-                            connection.sendRequest(requestId, action, request, options);
-                        }
+                            @Override
+                            public void sendRequest(long requestId, String action, TransportRequest request,
+                                                    TransportRequestOptions options) throws IOException {
+                                connection.sendRequest(requestId, action, request, options);
+                            }
 
-                        @Override
-                        public void addCloseListener(ActionListener<Void> listener) {
-                            connection.addCloseListener(listener);
-                        }
+                            @Override
+                            public void addCloseListener(ActionListener<Void> listener) {
+                                connection.addCloseListener(listener);
+                            }
 
-                        @Override
-                        public boolean isClosed() {
-                            return connection.isClosed();
-                        }
+                            @Override
+                            public boolean isClosed() {
+                                return connection.isClosed();
+                            }
 
-                        @Override
-                        public void close() {
-                            connection.close();
-                        }
-                    })));
+                            @Override
+                            public void close() {
+                                connection.close();
+                            }
+                        })));
         });
         return stubbableTransport;
     }

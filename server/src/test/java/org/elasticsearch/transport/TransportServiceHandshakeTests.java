@@ -20,6 +20,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -110,7 +112,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, TestProfiles.LIGHT_PROFILE)){
-            DiscoveryNode connectedNode = handleA.transportService.handshake(connection, timeout);
+            DiscoveryNode connectedNode = PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut));
             assertNotNull(connectedNode);
             // the name and version should be updated
             assertEquals(connectedNode.getName(), "TS_B");
@@ -132,7 +134,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
                 TestProfiles.LIGHT_PROFILE)) {
-                handleA.transportService.handshake(connection, timeout);
+                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
         assertThat(ex.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
@@ -153,7 +155,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
                 TestProfiles.LIGHT_PROFILE)) {
-                handleA.transportService.handshake(connection, timeout);
+                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
         assertThat(ex.getMessage(), containsString("handshake failed, incompatible version"));

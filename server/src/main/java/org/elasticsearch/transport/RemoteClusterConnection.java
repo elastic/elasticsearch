@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -448,14 +449,16 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                         logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
                             proxyAddress);
                         final TransportService.HandshakeResponse handshakeResponse;
-                        ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
-                        Transport.Connection connection = manager.openConnection(seedNode, profile);
+                        final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
+                        final Transport.Connection connection = PlainActionFuture.get(
+                            fut -> manager.openConnection(seedNode, profile, fut));
                         boolean success = false;
                         try {
                             try {
                                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
-                                handshakeResponse = transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                                    (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
+                                handshakeResponse = PlainActionFuture.get(fut ->
+                                    transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
+                                        (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()), fut));
                             } catch (IllegalStateException ex) {
                                 logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
                                     "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
@@ -464,7 +467,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
                             final DiscoveryNode handshakeNode = maybeAddProxyAddress(proxyAddress, handshakeResponse.getDiscoveryNode());
                             if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
-                                manager.connectToNode(handshakeNode, null, transportService.connectionValidator(handshakeNode));
+                                PlainActionFuture.get(fut -> manager.connectToNode(handshakeNode, null,
+                                    transportService.connectionValidator(handshakeNode), ActionListener.map(fut, x -> null)));
                                 if (remoteClusterName.get() == null) {
                                     assert handshakeResponse.getClusterName().value() != null;
                                     remoteClusterName.set(handshakeResponse.getClusterName());
@@ -578,8 +582,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                                 DiscoveryNode node = maybeAddProxyAddress(proxyAddress, n);
                                 if (nodePredicate.test(node) && connectedNodes.size() < maxNumRemoteConnections) {
                                     try {
-                                        connectionManager.connectToNode(node, null,
-                                            transportService.connectionValidator(node)); // noop if node is connected
+                                        // noop if node is connected
+                                        PlainActionFuture.get(fut -> connectionManager.connectToNode(node, null,
+                                            transportService.connectionValidator(node), ActionListener.map(fut, x -> null)));
                                         connectedNodes.add(node);
                                     } catch (ConnectTransportException | IllegalStateException ex) {
                                         // ISE if we fail the handshake with an version incompatible node

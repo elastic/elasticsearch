@@ -399,12 +399,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Map<String, BlobContainer> foundIndices;
             final Set<String> rootBlobs;
             try {
-                final RepositoryData repositoryData = getRepositoryData();
+                rootBlobs = blobContainer().listBlobs().keySet();
+                final RepositoryData repositoryData = getRepositoryData(latestGeneration(rootBlobs));
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
                 foundIndices = blobStore().blobContainer(basePath().add("indices")).children();
-                rootBlobs = blobContainer().listBlobs().keySet();
                 writeIndexGen(updatedRepositoryData, repositoryStateId);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
@@ -691,7 +691,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoryData getRepositoryData() {
         try {
-            final long indexGen = latestIndexBlobId();
+            return getRepositoryData(latestIndexBlobId());
+        } catch (NoSuchFileException ex) {
+            // repository doesn't have an index blob, its a new blank repo
+            return RepositoryData.EMPTY;
+        } catch (IOException ioe) {
+            throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
+        }
+    }
+
+    private RepositoryData getRepositoryData(long indexGen) {
+        try {
+            if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
+                return RepositoryData.EMPTY;
+            }
             final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
             RepositoryData repositoryData;
@@ -738,14 +751,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return readOnly;
     }
 
-    protected void writeIndexGen(final RepositoryData repositoryData, final long repositoryStateId) throws IOException {
+    protected void writeIndexGen(final RepositoryData repositoryData, final long expectedGen) throws IOException {
         assert isReadOnly() == false; // can not write to a read only repository
-        final long currentGen = latestIndexBlobId();
-        if (currentGen != repositoryStateId) {
+        final long currentGen = repositoryData.getGenId();
+        if (currentGen != expectedGen) {
             // the index file was updated by a concurrent operation, so we were operating on stale
             // repository data
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
-                                              repositoryStateId + "], actual current generation [" + currentGen +
+                                              expectedGen + "], actual current generation [" + currentGen +
                                               "] - possibly due to simultaneous snapshot deletion requests");
         }
         final long newGen = currentGen + 1;
@@ -824,13 +837,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private long listBlobsToGetLatestIndexId() throws IOException {
         Map<String, BlobMetaData> blobs = blobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX);
-        long latest = RepositoryData.EMPTY_REPO_GEN;
         if (blobs.isEmpty()) {
             // no snapshot index blobs have been written yet
-            return latest;
+            return RepositoryData.EMPTY_REPO_GEN;
         }
-        for (final BlobMetaData blobMetaData : blobs.values()) {
-            final String blobName = blobMetaData.name();
+        return latestGeneration(blobs.keySet());
+    }
+
+    private long latestGeneration(Collection<String> rootBlobs) {
+        long latest = RepositoryData.EMPTY_REPO_GEN;
+        for (String blobName : rootBlobs) {
+            if (blobName.startsWith(INDEX_FILE_PREFIX) == false) {
+                continue;
+            }
             try {
                 final long curr = Long.parseLong(blobName.substring(INDEX_FILE_PREFIX.length()));
                 latest = Math.max(latest, curr);
@@ -1152,20 +1171,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private Tuple<BlobStoreIndexShardSnapshots, Integer> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs,
                                                                                            BlobContainer shardContainer) {
-        int latest = -1;
         Set<String> blobKeys = blobs.keySet();
-        for (String name : blobKeys) {
-            if (name.startsWith(SNAPSHOT_INDEX_PREFIX)) {
-                try {
-                    int gen = Integer.parseInt(name.substring(SNAPSHOT_INDEX_PREFIX.length()));
-                    if (gen > latest) {
-                        latest = gen;
-                    }
-                } catch (NumberFormatException ex) {
-                    logger.warn("failed to parse index file name [{}]", name);
-                }
-            }
-        }
+        long latestGen = latestGeneration(blobKeys);
+        assert latestGen < Integer.MAX_VALUE;
+        int latest = (int) latestGen;
         if (latest >= 0) {
             try {
                 final BlobStoreIndexShardSnapshots shardSnapshots =

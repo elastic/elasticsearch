@@ -175,6 +175,19 @@ public final class RepositoryData {
     }
 
     /**
+     * Create a new instance with the given generation and all other fields equal to this instance.
+     *
+     * @param newGeneration New Generation
+     * @return New instance
+     */
+    public RepositoryData withGenId(long newGeneration) {
+        if (newGeneration == genId) {
+            return this;
+        }
+        return new RepositoryData(newGeneration, this.snapshotIds, this.snapshotStates, this.indexSnapshots, incompatibleSnapshotIds);
+    }
+
+    /**
      * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
      */
     public RepositoryData removeSnapshot(final SnapshotId snapshotId) {

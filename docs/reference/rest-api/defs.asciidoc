@@ -8,7 +8,7 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
-* <<data-frame-transform,{dataframe-transforms-cap}>>
+* <<data-frame-transform-resource,{dataframe-transforms-cap}>>
 * <<ml-filter-resource,Filters>>
 * <<ml-job-resource,Jobs>>
 * <<ml-jobstats,Job statistics>>

@@ -61,8 +61,7 @@ or old results are deleted, the job counts are not reset.
   (long) The number of bucket results produced by the job.
 
 `earliest_record_timestamp`::
-  (string) The timestamp of the earliest chronologically ordered record.
-  The datetime string is in ISO 8601 format.
+  (date) The timestamp of the earliest chronologically input document.
 
 `empty_bucket_count`::
   (long) The number of buckets which did not contain any data. If your data contains many
@@ -86,13 +85,13 @@ or old results are deleted, the job counts are not reset.
   (string) A unique identifier for the job.
 
 `last_data_time`::
-  (datetime) The timestamp at which data was last analyzed, according to server time.
+  (date) The timestamp at which data was last analyzed, according to server time.
 
 `latest_empty_bucket_timestamp`::
   (date) The timestamp of the last bucket that did not contain any data.
 
 `latest_record_timestamp`::
-  (date) The timestamp of the last processed record.
+  (date) The timestamp of the latest chronologically input document.
 
 `latest_sparse_bucket_timestamp`::
   (date) The timestamp of the last bucket that was considered sparse.

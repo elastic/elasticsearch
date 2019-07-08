@@ -58,7 +58,8 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   (string) Free text description of the {dataframe-transform}.
 
 `dest` (Required)::
-  (object) The destination configuration, consisting of `index`.
+  (object) The destination configuration, consisting of `index`. See
+  <<<<data-frame-transform-dest>>>>.
 
 `pivot` (Optional)::
   (object) Defines the pivot function `group by` fields and the aggregation to
@@ -66,7 +67,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 
 `source` (Required)::
   (object) The source configuration, which consists of `index` and optionally
-  a `query`.
+  a `query`. See <<data-frame-transform-source>>.
 
 [discrete]
 [[put-data-frame-transform-example]]

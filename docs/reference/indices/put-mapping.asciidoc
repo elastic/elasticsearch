@@ -1,14 +1,105 @@
 [[indices-put-mapping]]
-== Put Mapping
+== Put mapping API
+++++
+<titleabbrev>Put mapping</titleabbrev>
+++++
 
-The PUT mapping API allows you to add fields to an existing index or to change search only settings of existing fields.
+Adds fields to an existing index.
+
+[float]
+[[indices-put-mapping-request]]
+=== {api-request-title}
+
+`PUT <index>/_mapping`
+
+`POST <index>/_mapping`
+
+[float]
+[[indices-put-mapping-desc]]
+=== {api-description-title}
+
+You can use the put mapping API to add fields to an existing index. You also can
+use the API to make the following changes to existing fields:
+
+* Add new <<properties,properties>> to <<object,object>> fields.
+* Add new <<multi-fields,multi-fields>>.
+* Change the <<ignore-above,`ignore_above`>> mapping parameter.
+
+[float]
+[[indices-put-mapping-path-params]]
+=== {api-path-parms-title}
+
+`<index>` (Required)::
++
+--
+(string) Comma-separated list or wildcard expression of index names to update.
+
+You can use a value of `_all` or `*` to update all indices.
+--
+
+[float]
+[[indices-put-mapping-query-params]]
+=== {api-query-parms-title}
+
+`allow_no_indices` (Optional)::
+(boolean) Indicates whether the operation is skipped if a wildcard expression
+matches no indices. Defaults to `false`.
+
+`expand_wildcards` (Optional)::
++
+--
+(string) Indicates whether wildcard expressions should expand to
+<<indices-open-close, open or closed indices>>. Possible values are:
+
+* `open` (Default)
+* `closed`
+* `none`
+* `all`
+--
+
+`ignore_unavailable` (Optional)::
+(boolean) Indicates whether unavailable indices are skipped. Defaults to
+`false`.
+
+`include_type_name` (Optional)::
++
+--
+(boolean) Indicates whether the type name is included in the response. Defaults
+to `false`.
+
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
+Although mappings in responses no longer contain a type name by default, you can
+still request the old format through the parameter include_type_name. For more
+details, please see <<removal-of-types>>.
+--
+
+include::{docdir}/rest-api/timeoutparms.asciidoc[]
+
+[float]
+[[indices-put-mapping-request-body]]
+=== {api-request-body-title}
+
+`properties` (Required)::
++
+--
+(object) Describes fields in the index and their datatypes. See
+<<mapping-types>>.
+
+You can use this parameter to add new fields. You also can make the following
+changes to existing fields:
+
+* Add new <<properties,properties>> to <<object,object>> fields.
+* Add new <<multi-fields,multi-fields>>.
+* Change the <<ignore-above,`ignore_above`>> mapping parameter.
+--
+
+[float]
+[[indices-put-mapping-example]]
+=== {api-examples-title}
 
 [source,js]
---------------------------------------------------
-PUT twitter <1>
-{}
-
-PUT twitter/_mapping <2>
+----
+PUT twitter/_mapping
 {
   "properties": {
     "email": {
@@ -16,97 +107,4 @@ PUT twitter/_mapping <2>
     }
   }
 }
---------------------------------------------------
-// CONSOLE
-<1> <<indices-create-index,Creates an index>> called `twitter` without any mapping.
-<2> Uses the PUT mapping API to add a new field called `email`.
-
-More information on how to define mappings can be found in the <<mapping,mapping>> section.
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
-types in requests is now deprecated, a type can still be provided if the request parameter
-include_type_name is set. For more details, please see <<removal-of-types>>.
-
-[float]
-=== Multi-index
-
-The PUT mapping API can be applied to multiple indices with a single request.
-For example, we can update the `twitter-1` and `twitter-2` mappings at the same time:
-
-[source,js]
---------------------------------------------------
-# Create the two indices
-PUT twitter-1
-PUT twitter-2
-
-# Update both mappings
-PUT /twitter-1,twitter-2/_mapping <1>
-{
-  "properties": {
-    "user_name": {
-      "type": "text"
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-<1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
-
-
-[[updating-field-mappings]]
-[float]
-=== Updating field mappings
-
-In general, the mapping for existing fields cannot be updated.  There are some
-exceptions to this rule. For instance:
-
-* new <<properties>> can be added to <<object>> fields.
-* new <<multi-fields,multi-fields>> can be added to existing fields.
-* the <<ignore-above>> parameter can be updated.
-
-For example:
-
-[source,js]
------------------------------------
-PUT my_index <1>
-{
-  "mappings": {
-    "properties": {
-      "name": {
-        "properties": {
-          "first": {
-            "type": "text"
-          }
-        }
-      },
-      "user_id": {
-        "type": "keyword"
-      }
-    }
-  }
-}
-
-PUT my_index/_mapping
-{
-  "properties": {
-    "name": {
-      "properties": {
-        "last": { <2>
-          "type": "text"
-        }
-      }
-    },
-    "user_id": {
-      "type": "keyword",
-      "ignore_above": 100 <3>
-    }
-  }
-}
------------------------------------
-// CONSOLE
-<1> Create an index with a `first` field under the `name` <<object>> field, and a `user_id` field.
-<2> Add a `last` field under the `name` object field.
-<3> Update the `ignore_above` setting from its default of 0.
-
-Each <<mapping-params,mapping parameter>> specifies whether or not its setting
-can be updated on an existing field.
+----

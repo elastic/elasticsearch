@@ -25,6 +25,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -35,12 +37,16 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.StopWatch;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -62,10 +68,14 @@ import org.elasticsearch.transport.Transports;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -693,31 +703,30 @@ public class RecoverySourceHandler {
      */
     private class MultiFileSender extends ActionRunnable<Void> implements Closeable {
         private final Store store;
-        private final MultiFileReader multiFileReader;
         private final IntSupplier translogOps;
         private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         private final Semaphore semaphore = new Semaphore(0);
+        private boolean closed = false;
+        private final Iterator<StoreFileMetaData> remainingFiles;
+        private StoreFileMetaData currentFile;
+        private InputStreamIndexInput currentInput = null;
+        private long currentChunkPosition = 0;
+        private final Deque<byte[]> recycledBuffers = ConcurrentCollections.newDeque();
 
-        private MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
+        MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
             super(ActionListener.notifyOnce(listener));
             this.store = store;
             this.translogOps = translogOps;
-            this.multiFileReader = new MultiFileReader(store, files, chunkSizeInBytes);
+            this.remainingFiles = Arrays.asList(files).iterator();
         }
 
         @Override
         protected void doRun() throws Exception {
             assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
             assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send file chunk]");
-            for (; ; ) {
+            while (true) {
                 assert semaphore.availablePermits() == 0;
-                final MultiFileReader.FileChunk chunk;
-                try {
-                    chunk = multiFileReader.readNextChunk();
-                } catch (IOException e) {
-                    handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{ multiFileReader.currentFile() });
-                    throw e;
-                }
+                final FileChunk chunk = readNextChunk();
                 if (chunk == null) {
                     semaphore.release(); // allow other threads respond if we are not done yet.
                     if (requestSeqIdTracker.getMaxSeqNo() == requestSeqIdTracker.getProcessedCheckpoint() && semaphore.tryAcquire()) {
@@ -736,9 +745,16 @@ public class RecoverySourceHandler {
                                     sendFileExecutor.execute(this); // fork off from the network thread
                                 }
                             },
-                            e -> ActionListener.completeWith(listener, () -> {
-                                handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{ chunk.md });
-                                throw e;
+                            // need to fork as `handleErrorOnSendFiles` might read some files which should not happen on the network thread
+                            e -> sendFileExecutor.execute(new ActionRunnable<>(this.listener) {
+                                @Override
+                                protected void doRun() throws Exception {
+                                    cancellableThreads.execute(semaphore::acquire);
+                                    try (Releasable ignored = semaphore::release) {
+                                        handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{chunk.md});
+                                        throw e;
+                                    }
+                                }
                             })
                         )
                     )
@@ -754,13 +770,79 @@ public class RecoverySourceHandler {
             }
         }
 
-        private boolean canSendMore() {
+        FileChunk readNextChunk() throws Exception {
+            assert semaphore.availablePermits() == 0;
+            if (closed) {
+                throw new IllegalStateException("MultiFileSender was closed");
+            }
+            try {
+                if (currentInput == null) {
+                    if (remainingFiles.hasNext() == false) {
+                        return null;
+                    }
+                    currentChunkPosition = 0;
+                    currentFile = remainingFiles.next();
+                    final IndexInput indexInput = store.directory().openInput(currentFile.name(), IOContext.READONCE);
+                    currentInput = new InputStreamIndexInput(indexInput, currentFile.length()) {
+                        @Override
+                        public void close() throws IOException {
+                            indexInput.close(); //InputStreamIndexInput's close is noop
+                        }
+                    };
+                }
+                final byte[] buffer = Objects.requireNonNullElseGet(recycledBuffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
+                final int bytesRead = currentInput.read(buffer);
+                if (bytesRead == -1) {
+                    throw new CorruptIndexException("file truncated; " +
+                        "length=" + currentFile.length() + " position=" + currentChunkPosition, currentFile.name());
+                }
+                final long chunkPosition = currentChunkPosition;
+                currentChunkPosition += bytesRead;
+                final boolean lastChunk = currentChunkPosition == currentFile.length();
+                final FileChunk chunk = new FileChunk(currentFile, new BytesArray(buffer, 0, bytesRead), chunkPosition, lastChunk,
+                    () -> recycledBuffers.addFirst(buffer));
+                if (lastChunk) {
+                    IOUtils.close(currentInput, () -> currentInput = null);
+                }
+                return chunk;
+            } catch (IOException e) {
+                handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{currentFile});
+                throw e;
+            }
+        }
+
+        boolean canSendMore() {
             return requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentFileChunks;
         }
 
         @Override
         public void close() throws IOException {
-            multiFileReader.close();
+            assert semaphore.availablePermits() == 0;
+            if (closed == false) {
+                closed = true;
+                IOUtils.close(recycledBuffers::clear, currentInput, () -> currentInput = null);
+            }
+        }
+    }
+
+    private static class FileChunk implements Releasable {
+        final StoreFileMetaData md;
+        final BytesReference content;
+        final long position;
+        final boolean lastChunk;
+        final Releasable onClose;
+
+        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk, Releasable onClose) {
+            this.md = md;
+            this.content = content;
+            this.position = position;
+            this.lastChunk = lastChunk;
+            this.onClose = onClose;
+        }
+
+        @Override
+        public void close() {
+            onClose.close();
         }
     }
 
@@ -800,6 +882,7 @@ public class RecoverySourceHandler {
 
     private void handleErrorOnSendFiles(Store store, Exception e, StoreFileMetaData[] mds) throws Exception {
         final IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(e);
+        assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[handle error on send/clean files]");
         if (corruptIndexException != null) {
             Exception localException = null;
             for (StoreFileMetaData md : mds) {
@@ -830,4 +913,5 @@ public class RecoverySourceHandler {
     protected void failEngine(IOException cause) {
         shard.failShard("recovery", cause);
     }
+
 }

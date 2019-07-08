@@ -107,6 +107,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -457,8 +458,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 failedEngine.set(true);
             }
         };
+        PlainActionFuture<Void> sendFileFuture = new PlainActionFuture<>();
         try {
-            PlainActionFuture<Void> sendFileFuture = new PlainActionFuture<>();
             handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), () -> 0, sendFileFuture);
             sendFileFuture.actionGet();
             fail("exception index");
@@ -472,6 +473,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 assertEquals(ex.getMessage(), "boom");
             }
         }
+        IOUtils.close(() -> terminate(threadPool), () -> threadPool = null);
         assertFalse(failedEngine.get());
         IOUtils.close(store);
     }
@@ -671,7 +673,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             assertThat(error.get(), notNullValue());
             assertThat(error.get().getMessage(), containsString("test chunk exception"));
         });
-        assertThat("no more chunks should be sent", sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks)));
+        assertThat("no more chunks should be sent", sentChunks.get(),
+            lessThanOrEqualTo(Math.min(totalChunks, maxConcurrentChunks * 2)));
         store.close();
     }
 

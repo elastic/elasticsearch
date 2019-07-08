@@ -26,44 +26,37 @@ include::{docdir}/administering/rollover-index.asciidoc[tag=rollover-index-intro
 `<alias>` (Required)::
 +
 --
-(string) <<indices-aliases,Index alias>> you wish to point to a new index.
+(string) Index alias you wish to point to a new index.
 
-The alias must point to a write index to successfully roll over an index.
+This alias must point to a write index. If this alias points to an index with a
+`is_write_index` setting of `false`, {es} returns an error.
 
-You can achieve this in two ways, depending on your configuration:
+If this alias points only to a single index with a default `is_write_index`
+setting of `null`, {es} removes the existing index from the alias and adds the
+new index to the alias.
 
-- The alias points to a single index and the index's `is_write_index` setting is
-`false` ornot configured (defaults to `null`).
-+
-In this scenario, the original index will have their rollover alias will be
-added to the newly created index, and removed from the original (rolled-over)
-index.
-
-- The alias points to one or more indices and the index to be rolled has a
-`is_write_index` setting of `true`.
-+
-In this scenario, the write index will have its rollover alias' `is_write_index`
-set to `false`, while the newly created index will now have the rollover alias
-pointing to it as the write index with `is_write_index` as `true`.
+If this alias points to one or more indices with a `is_write_index` setting of
+`true`, {es} changes the `is_write_index` setting of the existing index to
+`false`. The new index has a `is_write_index` setting of `true`.
 --
 
 `<new-index>` (Optional)::
 +
 --
-(string) Name of the new index for the `<alias>`.
+(string) New index to which the alias points after the rollover.
 
 This cannot be an existing index. If this index exists prior to the request,
 {es} returns an error.
 
-If no `<new-index>` is provided and the `<alias>` points to an existing index
-that ends with with `-` and a number, such as `logs-000001`, the name of the nex
-index follows the same pattern and increments the number, such as `logs-000002`.
-The number is zero-padded with a length of 6, regardless of the existing index's
-name.
+If no value is provided and the alias points to an existing
+index that ends with with `-` and a number, such as `logs-000001`, the name of
+the nex index follows the same pattern and increments the number, such as
+`logs-000002`. The number is zero-padded with a length of 6, regardless of the
+existing index's name.
 --
 
 [float]
-[[indices-rollover-indexi-query-params]]
+[[indices-rollover-index-query-params]]
 ==== {api-query-parms-title}
 
 `dry_run` (Optional)::
@@ -72,7 +65,7 @@ name.
 (boolean) Indicates whether the request only checks for matching rollover
 conditions. Defaults to `false`.
 
-If `true`, the index alias will **not** rollover, even if a condition in
+If `true`, the index alias will **not** roll over, even if a condition in
 `conditions` matches.
 --
 

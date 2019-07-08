@@ -11,7 +11,6 @@ a function to be used to compute a new score for each document returned
 by the query. For more information on scripting see
 <<modules-scripting, scripting documentation>>.
 
-
 Here is an example of using `script_score` to assign each matched document
 a score equal to the number of likes divided by 10:
 
@@ -31,8 +30,7 @@ GET /_search
      }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// NOTCONSOLE
 
 NOTE: The values returned from `script_score` cannot be negative. In general,
 Lucene requires the scores produced by queries to be non-negative in order to
@@ -97,6 +95,40 @@ cosine similarity between a given query vector and document vectors.
 
 [source,js]
 --------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_dense_vector": {
+        "type": "dense_vector",
+        "dims": 3
+      },
+      "my_sparse_vector" : {
+        "type" : "sparse_vector"
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{
+  "my_dense_vector": [0.5, 10, 6],
+  "my_sparse_vector": {"2": 1.5, "15" : 2, "50": -1.1, "4545": 1.1}
+}
+
+PUT my_index/_doc/2
+{
+  "my_dense_vector": [-0.5, 10, 10],
+  "my_sparse_vector": {"2": 2.5, "10" : 1.3, "55": -2.3, "113": 1.6}
+}
+
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
 {
   "query": {
     "script_score": {
@@ -113,7 +145,7 @@ cosine similarity between a given query vector and document vectors.
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 <1> The script adds 1.0 to the cosine similarity to prevent the score from being negative.
 <2> To take advantage of the script optimizations, provide a query vector as a script parameter.
 
@@ -122,6 +154,7 @@ between a given query vector and document vectors.
 
 [source,js]
 --------------------------------------------------
+GET my_index/_search
 {
   "query": {
     "script_score": {
@@ -138,13 +171,14 @@ between a given query vector and document vectors.
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 
 For dense_vector fields, `dotProduct` calculates the measure of
 dot product between a given query vector and document vectors.
 
 [source,js]
 --------------------------------------------------
+GET my_index/_search
 {
   "query": {
     "script_score": {
@@ -153,7 +187,7 @@ dot product between a given query vector and document vectors.
       },
       "script": {
         "source": """
-          double value = dotProduct(params.query_vector, doc['my_vector']);
+          double value = dotProduct(params.query_vector, doc['my_dense_vector']);
           return sigmoid(1, Math.E, -value); <1>
         """,
         "params": {
@@ -164,7 +198,7 @@ dot product between a given query vector and document vectors.
   }
 }
 --------------------------------------------------
-// NOTCONSOLE
+// CONSOLE
 
 <1> Using the standard sigmoid function prevents scores from being negative.
 
@@ -173,6 +207,7 @@ between a given query vector and document vectors.
 
 [source,js]
 --------------------------------------------------
+GET my_index/_search
 {
   "query": {
     "script_score": {
@@ -192,7 +227,117 @@ between a given query vector and document vectors.
   }
 }
 --------------------------------------------------
+// CONSOLE
+
+For dense_vector fields, `l1norm` calculates L^1^ distance
+(Manhattan distance) between a given query vector and
+document vectors.
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match_all": {}
+      },
+      "script": {
+        "source": "l1norm(params.queryVector, doc['my_dense_vector'])",
+        "params": {
+          "queryVector": [4, 3.4, -0.2]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: Unlike `cosineSimilarity` that represent similarity, `l1norm` and
+`l2norm` shown below represent distances or differences. This means, that
+the more similar are the vectors, the less will be the scores produced by the
+`l1norm` and `l2norm` functions. Thus, if you need more similar vectors to
+score higher, you should reverse the output from `l1norm` and `l2norm`:
+
+[source,js]
+--------------------------------------------------
+"source": " 1/ l1norm(params.queryVector, doc['my_dense_vector'])"
+--------------------------------------------------
 // NOTCONSOLE
+
+For sparse_vector fields, `l1normSparse` calculates L^1^ distance
+between a given query vector and document vectors.
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match_all": {}
+      },
+      "script": {
+        "source": "l1normSparse(params.queryVector, doc['my_sparse_vector'])",
+        "params": {
+          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+For dense_vector fields, `l2norm` calculates L^2^ distance
+(Euclidean distance) between a given query vector and
+document vectors.
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match_all": {}
+      },
+      "script": {
+        "source": "l2norm(params.queryVector, doc['my_dense_vector'])",
+        "params": {
+          "queryVector": [4, 3.4, -0.2]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Similarly, for sparse_vector fields, `l2normSparse` calculates L^2^ distance
+between a given query vector and document vectors.
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "script_score": {
+      "query": {
+        "match_all": {}
+      },
+      "script": {
+        "source": "l2normSparse(params.queryVector, doc['my_sparse_vector'])",
+        "params": {
+          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 NOTE: If a document doesn't have a value for a vector field on which
 a vector function is executed, an error will be thrown.

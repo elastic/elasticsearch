@@ -2,7 +2,7 @@ version: '3'
 services:
   minio-fixture:
     build:
-      context: ./testfixtures_shared/minio-docker
+      context: ./build/minio-docker
       dockerfile: Dockerfile
     ports:
       - "9000"

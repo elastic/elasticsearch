@@ -498,7 +498,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_update/1?pretty
+POST /customer/_doc/1?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -510,7 +510,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_update/1?pretty
+POST /customer/_doc/1?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -522,7 +522,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/_update/1?pretty
+POST /customer/_doc/1?pretty
 {
   "script" : "ctx._source.age += 5"
 }

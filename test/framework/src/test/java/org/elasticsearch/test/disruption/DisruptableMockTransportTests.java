@@ -20,6 +20,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Tuple;
@@ -146,8 +147,13 @@ public class DisruptableMockTransportTests extends ESTestCase {
         service1.start();
         service2.start();
 
-        service1.connectToNode(node2);
-        service2.connectToNode(node1);
+        final PlainActionFuture<Void> fut1 = new PlainActionFuture<>();
+        service1.connectToNode(node2, fut1);
+        final PlainActionFuture<Void> fut2 = new PlainActionFuture<>();
+        service2.connectToNode(node1, fut2);
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(fut1.isDone());
+        assertTrue(fut2.isDone());
     }
 
     private TransportRequestHandler<TransportRequest.Empty> requestHandlerShouldNotBeCalled() {

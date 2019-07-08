@@ -195,8 +195,16 @@ between a given query vector and document vectors.
 // NOTCONSOLE
 
 NOTE: If a document doesn't have a value for a vector field on which
-a vector function is executed, 0 is returned as a result
-for this document.
+a vector function is executed, an error will be thrown.
+
+You can check if a document has a value for the field `my_vector` by
+`doc['my_vector'].size() == 0`. Your overall script can look like this:
+
+[source,js]
+--------------------------------------------------
+"source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, doc['my_vector'])"
+--------------------------------------------------
+// NOTCONSOLE
 
 NOTE: If a document's dense vector field has a number of dimensions
 different from the query's vector, an error will be thrown.

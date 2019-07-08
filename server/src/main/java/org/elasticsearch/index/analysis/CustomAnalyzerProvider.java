@@ -64,7 +64,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME)) {
             return new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap);
         } else {
-            return new CustomAnalyzer(components.getTokenizerName(), components.getTokenizerFactory(), components.getCharFilters(),
+            return new CustomAnalyzer(components.getTokenizerFactory(), components.getCharFilters(),
                     components.getTokenFilters(), positionIncrementGap, offsetGap);
         }
     }

@@ -26,7 +26,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -70,8 +69,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
     public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
         Setting.Property.PrivateIndex);
     private final SegmentsStats stats;
-    private volatile DirectoryReader lastOpenedReader;
-    private final DirectoryReader canMatchReader;
+    private volatile ElasticsearchDirectoryReader lastOpenedReader;
+    private final ElasticsearchDirectoryReader canMatchReader;
 
     public FrozenEngine(EngineConfig config) {
         super(config, null, null, true, Function.identity());
@@ -159,8 +158,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
     }
 
-    private synchronized DirectoryReader getOrOpenReader() throws IOException {
-        DirectoryReader reader = null;
+    private synchronized ElasticsearchDirectoryReader getOrOpenReader() throws IOException {
+        ElasticsearchDirectoryReader reader = null;
         boolean success = false;
         try {
             reader = getReader();
@@ -168,9 +167,9 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
                     listeners.beforeRefresh();
                 }
-                reader = DirectoryReader.open(engineConfig.getStore().directory(), OFF_HEAP_READER_ATTRIBUTES);
+                final DirectoryReader dirReader = DirectoryReader.open(engineConfig.getStore().directory(), OFF_HEAP_READER_ATTRIBUTES);
+                reader = lastOpenedReader = wrapReader(dirReader, Function.identity());
                 processReader(reader);
-                reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
                     listeners.afterRefresh(true);
@@ -186,7 +185,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @SuppressForbidden(reason = "we manage references explicitly here")
-    private synchronized DirectoryReader getReader() {
+    private synchronized ElasticsearchDirectoryReader getReader() {
         if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
             return lastOpenedReader;
         }
@@ -220,20 +219,23 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
             // special case we only want to report segment stats if we have a reader open. in that case we only get a reader if we still
             // have one open at the time and can inc it's reference.
-            DirectoryReader reader = maybeOpenReader ? getOrOpenReader() : getReader();
+            ElasticsearchDirectoryReader reader = maybeOpenReader ? getOrOpenReader() : getReader();
             if (reader == null) {
                 // we just hand out a searcher on top of an empty reader that we opened for the ReadOnlyEngine in the #open(IndexCommit)
                 // method. this is the case when we don't have a reader open right now and we get a stats call any other that falls in
                 // the category that doesn't trigger a reopen
                 if ("can_match".equals(source)) {
                     canMatchReader.incRef();
-                    return new Searcher(source, new IndexSearcher(canMatchReader), canMatchReader::decRef);
+                    return new Searcher(source, canMatchReader,
+                        engineConfig.getSimilarity(), engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy(),
+                        canMatchReader::decRef);
                 }
                 return super.acquireSearcher(source, scope);
             } else {
                 try {
                     LazyDirectoryReader lazyDirectoryReader = new LazyDirectoryReader(reader, this);
-                    Searcher newSearcher = new Searcher(source, new IndexSearcher(lazyDirectoryReader),
+                    Searcher newSearcher = new Searcher(source, lazyDirectoryReader,
+                        engineConfig.getSimilarity(), engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy(),
                         () -> IOUtils.close(lazyDirectoryReader, store::decRef));
                     releaseRefeference = false;
                     return newSearcher;

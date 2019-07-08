@@ -31,6 +31,7 @@ import org.junit.After;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -103,40 +104,28 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             .get();
         long numDocs = randomIntBetween(32, 2048);
         Instant now = Instant.now();
-        Instant oneWeekAgo = now.minus(Duration.ofDays(7));
-        Instant twoWeeksAgo = oneWeekAgo.minus(Duration.ofDays(7));
-        indexDocs(logger, "data-1", numDocs, twoWeeksAgo.toEpochMilli(), oneWeekAgo.toEpochMilli());
-
-        client().admin().indices().prepareCreate("data-2")
-            .addMapping("type", "time", "type=date")
-            .get();
-        client().admin().cluster().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
-        long numDocs2 = randomIntBetween(32, 2048);
-        indexDocs(logger, "data-2", numDocs2, oneWeekAgo.toEpochMilli(), now.toEpochMilli());
+        indexDocs(logger, "data-1", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
 
         String jobId = "lookback-job";
         Job.Builder job = createScheduledJob(jobId);
-
         registerJob(job);
-        PutJobAction.Response putJobResponse = putJob(job);
-        assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
-
+        putJob(job);
         openJob(jobId);
         assertBusy(() -> assertEquals(getJobStats(jobId).get(0).getState(), JobState.OPENED));
 
         String datafeedId = jobId + "-datafeed";
-        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, jobId, List.of("data-1", "data-2"));
-
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, jobId, Arrays.asList("data-1"));
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
 
         startDatafeed(datafeedId, 0L, now.toEpochMilli());
         assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts(jobId);
-            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
+            assertThat(getDataCounts(jobId).getProcessedRecordCount(), equalTo(numDocs));
             assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
         }, 60, TimeUnit.SECONDS);
+
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
 
         deleteDatafeed(datafeedId);
 
@@ -144,22 +133,12 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         putDatafeed(datafeedConfig);
         assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
 
-        openJob(jobId);
-        startDatafeed(datafeedId, 0L, now.toEpochMilli());
-        assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts(jobId);
-            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs + numDocs2));
-            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
-        }, 60, TimeUnit.SECONDS);
-
         waitUntilJobIsClosed(jobId);
 
         String otherJobId = "other-lookback-job";
         Job.Builder otherJob = createScheduledJob(otherJobId);
-
         registerJob(otherJob);
-        PutJobAction.Response putOtherJobResponse = putJob(otherJob);
-        assertThat(putOtherJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
+        putJob(otherJob);
 
         updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(otherJobId).build());
         assertDatafeedStats(datafeedId, DatafeedState.STOPPED, otherJobId, equalTo(0L));

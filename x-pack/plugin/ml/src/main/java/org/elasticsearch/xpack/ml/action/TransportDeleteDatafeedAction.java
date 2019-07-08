@@ -7,12 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -34,12 +29,11 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.io.IOException;
 
@@ -157,8 +151,9 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             datafeedId,
             ActionListener.wrap(
                 datafeedConfigBuilder -> {
-                    deleteDatafeedTimingStats(
-                        datafeedConfigBuilder.build().getJobId(),
+                    String jobId = datafeedConfigBuilder.build().getJobId();
+                    JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                    jobDataDeleter.deleteDatafeedTimingStats(
                         ActionListener.wrap(
                             unused1 -> {
                                 datafeedConfigProvider.deleteDatafeedConfig(
@@ -170,30 +165,6 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                             listener::onFailure));
                 },
                 listener::onFailure));
-    }
-
-    /**
-     * Delete the datafeed config document
-     *
-     * @param jobId The job id
-     * @param actionListener Deleted datafeed listener
-     */
-    private void deleteDatafeedTimingStats(String jobId,  ActionListener<DeleteResponse> actionListener) {
-        DeleteRequest request =
-            new DeleteRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId), DatafeedTimingStats.documentId(jobId))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED
-                    || deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND;
-                actionListener.onResponse(deleteResponse);
-            }
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        });
     }
 
     @Override

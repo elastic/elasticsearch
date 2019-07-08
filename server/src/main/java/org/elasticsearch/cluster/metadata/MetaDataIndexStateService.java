@@ -87,6 +87,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -247,13 +248,13 @@ public class MetaDataIndexStateService {
         }
 
         // Check if index closing conflicts with any running restores
-        Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, indicesToClose::contains);
+        Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, indicesToClose);
         if (restoringIndices.isEmpty() == false) {
             throw new IllegalArgumentException("Cannot close indices that are being restored: " + restoringIndices);
         }
 
         // Check if index closing conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToClose::contains);
+        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToClose);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException("Cannot close indices that are being snapshotted: " + snapshottingIndices +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");
@@ -461,7 +462,7 @@ public class MetaDataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running restores
-                Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, index::equals);
+                Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, singleton(index));
                 if (restoringIndices.isEmpty() == false) {
                     closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
                         "verification of shards before closing " + index + " succeeded but index is being restored in the meantime")));
@@ -470,7 +471,7 @@ public class MetaDataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running snapshots
-                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, index::equals);
+                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, singleton(index));
                 if (snapshottingIndices.isEmpty() == false) {
                     closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
                         "verification of shards before closing " + index + " succeeded but index is being snapshot in the meantime")));

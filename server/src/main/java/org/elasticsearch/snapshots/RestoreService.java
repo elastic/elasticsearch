@@ -858,9 +858,9 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Returns the indices that match the given predicate and that are currently being restored.
+     * Returns the indices that are currently being restored and that are contained in the indices-to-check set.
      */
-    public static Set<Index> restoringIndices(final ClusterState currentState, final Predicate<Index> predicate) {
+    public static Set<Index> restoringIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
         final RestoreInProgress restore = currentState.custom(RestoreInProgress.TYPE);
         if (restore == null) {
             return emptySet();
@@ -870,7 +870,7 @@ public class RestoreService implements ClusterStateApplier {
         for (RestoreInProgress.Entry entry : restore) {
             for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
                 Index index = shard.key.getIndex();
-                if (predicate.test(index)
+                if (indicesToCheck.contains(index)
                     && shard.value.state().completed() == false
                     && currentState.getMetaData().index(index) != null) {
                     indices.add(index);

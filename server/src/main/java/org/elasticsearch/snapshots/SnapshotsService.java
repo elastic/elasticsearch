@@ -83,7 +83,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -1420,9 +1419,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Returns the indices that match the given predicate and that are currently being snapshotted (with partial == false).
+     * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
      */
-    public static Set<Index> snapshottingIndices(final ClusterState currentState, final Predicate<Index> predicate) {
+    public static Set<Index> snapshottingIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
         final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
         if (snapshots == null) {
             return emptySet();
@@ -1434,14 +1433,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (entry.state() == State.INIT) {
                     for (IndexId index : entry.indices()) {
                         IndexMetaData indexMetaData = currentState.metaData().index(index.getName());
-                        if (indexMetaData != null && predicate.test(indexMetaData.getIndex())) {
+                        if (indexMetaData != null && indicesToCheck.contains(indexMetaData.getIndex())) {
                             indices.add(indexMetaData.getIndex());
                         }
                     }
                 } else {
                     for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards()) {
                         Index index = shard.key.getIndex();
-                        if (predicate.test(index)
+                        if (indicesToCheck.contains(index)
                             && shard.value.state().completed() == false
                             && currentState.getMetaData().index(index) != null) {
                             indices.add(index);

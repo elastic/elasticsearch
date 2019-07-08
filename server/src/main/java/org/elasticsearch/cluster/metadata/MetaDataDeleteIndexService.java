@@ -94,7 +94,7 @@ public class MetaDataDeleteIndexService {
         final Set<Index> indicesToDelete = indices.stream().map(i -> meta.getIndexSafe(i).getIndex()).collect(toSet());
 
         // Check if index deletion conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToDelete::contains);
+        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToDelete);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException("Cannot delete indices that are being snapshotted: " + snapshottingIndices +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");

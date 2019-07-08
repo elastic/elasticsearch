@@ -179,6 +179,9 @@ class NioHttpClient implements Closeable {
         private ClientChannelFactory(CountDownLatch latch, Collection<FullHttpResponse> content) {
             super(new RawChannelFactory(NetworkService.TCP_NO_DELAY.get(Settings.EMPTY),
                 NetworkService.TCP_KEEP_ALIVE.get(Settings.EMPTY),
+                NetworkService.TCP_KEEP_IDLE.get(Settings.EMPTY),
+                NetworkService.TCP_KEEP_INTERVAL.get(Settings.EMPTY),
+                NetworkService.TCP_KEEP_COUNT.get(Settings.EMPTY),
                 NetworkService.TCP_REUSE_ADDRESS.get(Settings.EMPTY),
                 Math.toIntExact(NetworkService.TCP_SEND_BUFFER_SIZE.get(Settings.EMPTY).getBytes()),
                 Math.toIntExact(NetworkService.TCP_RECEIVE_BUFFER_SIZE.get(Settings.EMPTY).getBytes())));

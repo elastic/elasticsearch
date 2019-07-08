@@ -19,15 +19,19 @@
 
 package org.elasticsearch.nio;
 
+import jdk.net.ExtendedSocketOptions;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
+import java.net.SocketOption;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel, Socket extends NioSocketChannel> {
@@ -150,14 +154,20 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
 
         private final boolean tcpNoDelay;
         private final boolean tcpKeepAlive;
+        private final int tcpKeepIdle;
+        private final int tcpKeepInterval;
+        private final int tcpKeepCount;
         private final boolean tcpReusedAddress;
         private final int tcpSendBufferSize;
         private final int tcpReceiveBufferSize;
 
-        public RawChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReusedAddress, int tcpSendBufferSize,
-                                 int tcpReceiveBufferSize) {
+        public RawChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, int tcpKeepIdle, int tcpKeepInterval, int tcpKeepCount,
+                                 boolean tcpReusedAddress, int tcpSendBufferSize, int tcpReceiveBufferSize) {
             this.tcpNoDelay = tcpNoDelay;
             this.tcpKeepAlive = tcpKeepAlive;
+            this.tcpKeepIdle = tcpKeepIdle;
+            this.tcpKeepInterval = tcpKeepInterval;
+            this.tcpKeepCount = tcpKeepCount;
             this.tcpReusedAddress = tcpReusedAddress;
             this.tcpSendBufferSize = tcpSendBufferSize;
             this.tcpReceiveBufferSize = tcpReceiveBufferSize;
@@ -211,6 +221,18 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             java.net.Socket socket = channel.socket();
             socket.setTcpNoDelay(tcpNoDelay);
             socket.setKeepAlive(tcpKeepAlive);
+            if (tcpKeepAlive) {
+                final Set<SocketOption<?>> supportedOptions = channel.supportedOptions();
+                if (supportedOptions.contains(ExtendedSocketOptions.TCP_KEEPIDLE) && tcpKeepIdle >= 0) {
+                    socket.setOption(ExtendedSocketOptions.TCP_KEEPIDLE, tcpKeepIdle);
+                }
+                if (supportedOptions.contains(ExtendedSocketOptions.TCP_KEEPINTERVAL) && tcpKeepInterval >= 0) {
+                    socket.setOption(ExtendedSocketOptions.TCP_KEEPINTERVAL, tcpKeepInterval);
+                }
+                if (supportedOptions.contains(ExtendedSocketOptions.TCP_KEEPCOUNT) && tcpKeepCount >= 0) {
+                    socket.setOption(ExtendedSocketOptions.TCP_KEEPCOUNT, tcpKeepCount);
+                }
+            }
             socket.setReuseAddress(tcpReusedAddress);
             if (tcpSendBufferSize > 0) {
                 socket.setSendBufferSize(tcpSendBufferSize);

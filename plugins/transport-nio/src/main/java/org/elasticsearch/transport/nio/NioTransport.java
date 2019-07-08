@@ -146,6 +146,9 @@ public class NioTransport extends TcpTransport {
         private TcpChannelFactoryImpl(ProfileSettings profileSettings, boolean isClient) {
             super(new RawChannelFactory(profileSettings.tcpNoDelay,
                 profileSettings.tcpKeepAlive,
+                profileSettings.tcpKeepIdle,
+                profileSettings.tcpKeepInterval,
+                profileSettings.tcpKeepCount,
                 profileSettings.reuseAddress,
                 Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
                 Math.toIntExact(profileSettings.receiveBufferSize.getBytes())));

@@ -84,6 +84,15 @@ example above:
 * `publish_host`: The host which is published in informational APIs
 * `tcp.no_delay`: Configures the `TCP_NO_DELAY` option for this socket
 * `tcp.keep_alive`: Configures the `SO_KEEPALIVE` option for this socket
+* `tcp.keep_idle`: Configures the `TCP_KEEPIDLE` option for this socket.
+   Only applicable on Linux and Mac. Defaults to -1, which does not set this
+   option at the socket level, but uses default system configuration instead.
+* `tcp.keep_interval`: Configures the `TCP_KEEPINTVL` option for this socket.
+   Only applicable on Linux and Mac. Defaults to -1, which does not set this
+   option at the socket level, but uses default system configuration instead.
+* `tcp.keep_count`: Configures the `TCP_KEEPCNT` option for this socket.
+   Only applicable on Linux and Mac. Defaults to -1, which does not set this
+   option at the socket level, but uses default system configuration instead.
 * `tcp.reuse_address`: Configures the `SO_REUSEADDR` option for this socket
 * `tcp.send_buffer_size`: Configures the send buffer size of the socket
 * `tcp.receive_buffer_size`: Configures the receive buffer size of the socket

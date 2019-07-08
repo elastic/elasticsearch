@@ -82,7 +82,8 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
     class SecurityHttpChannelFactory extends ChannelFactory<NioHttpServerChannel, NioHttpChannel> {
 
         private SecurityHttpChannelFactory() {
-            super(new RawChannelFactory(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize));
+            super(new RawChannelFactory(tcpNoDelay, tcpKeepAlive, tcpKeepIdle, tcpKeepInterval, tcpKeepCount, reuseAddress,
+                tcpSendBufferSize, tcpReceiveBufferSize));
         }
 
         @Override

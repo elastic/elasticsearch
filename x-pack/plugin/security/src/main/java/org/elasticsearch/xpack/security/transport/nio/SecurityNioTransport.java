@@ -112,7 +112,8 @@ public class SecurityNioTransport extends NioTransport {
     protected Function<DiscoveryNode, TcpChannelFactory> clientChannelFactoryFunction(ProfileSettings profileSettings) {
         return (node) -> {
             final ChannelFactory.RawChannelFactory rawChannelFactory = new ChannelFactory.RawChannelFactory(profileSettings.tcpNoDelay,
-                profileSettings.tcpKeepAlive, profileSettings.reuseAddress, Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
+                profileSettings.tcpKeepAlive, profileSettings.tcpKeepIdle, profileSettings.tcpKeepInterval, profileSettings.tcpKeepCount,
+                profileSettings.reuseAddress, Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
                 Math.toIntExact(profileSettings.receiveBufferSize.getBytes()));
             SNIHostName serverName;
             String configuredServerName = node.getAttributes().get("server_name");
@@ -137,6 +138,9 @@ public class SecurityNioTransport extends NioTransport {
         private SecurityTcpChannelFactory(ProfileSettings profileSettings, boolean isClient) {
             this(new RawChannelFactory(profileSettings.tcpNoDelay,
                 profileSettings.tcpKeepAlive,
+                profileSettings.tcpKeepIdle,
+                profileSettings.tcpKeepInterval,
+                profileSettings.tcpKeepCount,
                 profileSettings.reuseAddress,
                 Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
                 Math.toIntExact(profileSettings.receiveBufferSize.getBytes())), profileSettings.profileName, isClient);

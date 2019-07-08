@@ -32,10 +32,12 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
+import jdk.net.ExtendedSocketOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -53,6 +55,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
@@ -148,6 +151,23 @@ public class Netty4Transport extends TcpTransport {
 
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
+        if (TransportSettings.TCP_KEEP_ALIVE.get(settings)) {
+            // Netty logs a warning if it can't set the option, so try this only on supported platforms
+            if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
+                if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
+                    bootstrap.option(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPIDLE),
+                        TransportSettings.TCP_KEEP_IDLE.get(settings));
+                }
+                if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
+                    bootstrap.option(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPINTERVAL),
+                        TransportSettings.TCP_KEEP_INTERVAL.get(settings));
+                }
+                if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
+                    bootstrap.option(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPCOUNT),
+                        TransportSettings.TCP_KEEP_COUNT.get(settings));
+                }
+            }
+        }
 
         final ByteSizeValue tcpSendBufferSize = TransportSettings.TCP_SEND_BUFFER_SIZE.get(settings);
         if (tcpSendBufferSize.getBytes() > 0) {
@@ -185,6 +205,21 @@ public class Netty4Transport extends TcpTransport {
 
         serverBootstrap.childOption(ChannelOption.TCP_NODELAY, profileSettings.tcpNoDelay);
         serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, profileSettings.tcpKeepAlive);
+        if (profileSettings.tcpKeepAlive) {
+            // Netty logs a warning if it can't set the option, so try this only on supported platforms
+            if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
+                if (profileSettings.tcpKeepIdle >= 0) {
+                    serverBootstrap.childOption(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPIDLE), profileSettings.tcpKeepIdle);
+                }
+                if (profileSettings.tcpKeepInterval >= 0) {
+                    serverBootstrap.childOption(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPINTERVAL),
+                        profileSettings.tcpKeepInterval);
+                }
+                if (profileSettings.tcpKeepCount >= 0) {
+                    serverBootstrap.childOption(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPCOUNT), profileSettings.tcpKeepCount);
+                }
+            }
+        }
 
         if (profileSettings.sendBufferSize.getBytes() != -1) {
             serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(profileSettings.sendBufferSize.getBytes()));

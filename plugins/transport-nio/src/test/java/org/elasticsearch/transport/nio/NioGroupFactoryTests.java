@@ -57,7 +57,7 @@ public class NioGroupFactoryTests extends ESTestCase {
     private static class BindingFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
 
         private BindingFactory() {
-            super(new ChannelFactory.RawChannelFactory(false, false, false, -1, -1));
+            super(new ChannelFactory.RawChannelFactory(false, false, -1, -1, -1, false, -1, -1));
         }
 
         @Override

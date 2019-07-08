@@ -1341,6 +1341,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testPeerRecoveryRetentionLeases() throws IOException {
+        assumeTrue(getOldClusterVersion() + " does not support soft deletes", getOldClusterVersion().onOrAfter(Version.V_6_5_0));
         if (isRunningAgainstOldCluster()) {
             XContentBuilder settings = jsonBuilder();
             settings.startObject();
@@ -1348,6 +1349,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 settings.startObject("settings");
                 settings.field("number_of_shards", between(1, 5));
                 settings.field("number_of_replicas", between(0, 1));
+                if (randomBoolean() || getOldClusterVersion().before(Version.V_7_0_0)) {
+                    // this is the default after v7.0.0, but is required before that
+                    settings.field("soft_deletes.enabled", true);
+                }
                 settings.endObject();
             }
             settings.endObject();

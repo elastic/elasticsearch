@@ -1288,7 +1288,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * prior to {@link Version#V_7_4_0} that does not create peer-recovery retention leases.
      */
     public synchronized void createMissingPeerRecoveryRetentionLeases(ActionListener<Void> listener) {
-        if (hasAllPeerRecoveryRetentionLeases == false) {
+        if (indexSettings().isSoftDeleteEnabled()
+            && indexSettings().getIndexMetaData().getState() == IndexMetaData.State.OPEN
+            && hasAllPeerRecoveryRetentionLeases == false) {
+
             final List<ShardRouting> shardRoutings = routingTable.assignedShards();
             final GroupedActionListener<ReplicationResponse> groupedActionListener = new GroupedActionListener<>(ActionListener.wrap(vs -> {
                 setHasAllPeerRecoveryRetentionLeases();

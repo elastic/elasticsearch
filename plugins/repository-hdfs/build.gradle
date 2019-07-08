@@ -137,7 +137,11 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     if (integTestTaskName.contains("Secure")) {
-      dependsOn secureHdfsFixture
+      if (integTestTaskName.contains("Ha")) {
+        dependsOn secureHaHdfsFixture
+      } else {
+        dependsOn secureHdfsFixture
+      }
     }
 
     runner {

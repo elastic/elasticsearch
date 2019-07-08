@@ -110,7 +110,7 @@ public class MiniHDFS {
         cfg.set(DFSConfigKeys.DFS_DATANODE_IPC_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
         cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
         LOG.info("datanode address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY));
-        LOG.info("datanode ipc address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_IPC_ADDRESS_DEFAULT));
+        LOG.info("datanode ipc address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_IPC_ADDRESS_KEY));
         LOG.info("datanode http address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY));
 
         UserGroupInformation.setConfiguration(cfg);

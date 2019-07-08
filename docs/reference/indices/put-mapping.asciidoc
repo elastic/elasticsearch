@@ -108,3 +108,4 @@ PUT twitter/_mapping
   }
 }
 ----
+// CONSOLE

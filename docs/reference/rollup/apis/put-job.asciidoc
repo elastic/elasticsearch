@@ -2,6 +2,7 @@
 [testenv="basic"]
 [[rollup-put-job]]
 === Create {rollup-jobs} API
+[subs="attributes"]
 ++++
 <titleabbrev>Create {rollup-jobs}</titleabbrev>
 ++++

@@ -7,8 +7,8 @@
 [[rollup-jobs-endpoint]]
 === Jobs
 
-* <<rollup-put-job,Create>> or <<rollup-delete-job,delete>> {rollup-jobs}
-* <<rollup-start-job,Start>> or <<rollup-stop-job,stop>> {rollup-jobs}
+* <<rollup-put-job,Create>> or <<rollup-delete-job,delete {rollup-jobs}>>
+* <<rollup-start-job,Start>> or <<rollup-stop-job,stop {rollup-jobs}>>
 * <<rollup-get-job,Get {rollup-jobs}>>
 * <<rollup-job-config,Job configuration details>>
 
@@ -29,9 +29,9 @@
 include::apis/put-job.asciidoc[]
 include::apis/delete-job.asciidoc[]
 include::apis/get-job.asciidoc[]
-include::apis/start-job.asciidoc[]
-include::apis/stop-job.asciidoc[]
 include::apis/rollup-caps.asciidoc[]
 include::apis/rollup-index-caps.asciidoc[]
 include::apis/rollup-search.asciidoc[]
 include::apis/rollup-job-config.asciidoc[]
+include::apis/start-job.asciidoc[]
+include::apis/stop-job.asciidoc[]

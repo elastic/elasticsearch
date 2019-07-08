@@ -42,7 +42,6 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -71,7 +70,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -84,7 +82,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -100,11 +97,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -113,21 +107,17 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.node.NodeMocksPlugin;
@@ -208,7 +198,6 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -404,7 +393,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    public void randomIndexTemplate() {
+    private void randomIndexTemplate() {
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
@@ -513,12 +502,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private TestCluster buildWithPrivateContext(final Scope scope, final long seed) throws Exception {
-        return RandomizedContext.current().runWithPrivateRandomness(seed, new Callable<TestCluster>() {
-            @Override
-            public TestCluster call() throws Exception {
-                return buildTestCluster(scope, seed);
-            }
-        });
+        return RandomizedContext.current().runWithPrivateRandomness(seed, () -> buildTestCluster(scope, seed));
     }
 
     private TestCluster buildAndPutCluster(Scope currentClusterScope, long seed) throws Exception {
@@ -552,11 +536,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    protected final void afterInternal(boolean afterClass) throws Exception {
+    private void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
-            clearDisruptionScheme();
+            if (isInternalCluster()) {
+                internalCluster().clearDisruptionScheme();
+            }
             try {
                 if (cluster() != null) {
                     if (currentClusterScope != Scope.TEST) {
@@ -699,12 +685,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         internalCluster().setDisruptionScheme(scheme);
     }
 
-    public void clearDisruptionScheme() {
-        if (isInternalCluster()) {
-            internalCluster().clearDisruptionScheme();
-        }
-    }
-
     /**
      * Returns a settings object used in {@link #createIndex(String...)} and {@link #prepareCreate(String)} and friends.
      * This method can be overwritten by subclasses to set defaults for the indices that are created by the test.
@@ -832,50 +812,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         });
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get());
-    }
-
-    /**
-     * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
-     * started shards and checks for concrete mappings.
-     */
-    public void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) throws Exception {
-        Set<String> nodes = internalCluster().nodesInclude(index);
-        assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
-        for (String node : nodes) {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-            IndexService indexService = indicesService.indexService(resolveIndex(index));
-            assertThat("index service doesn't exists on " + node, indexService, notNullValue());
-            MapperService mapperService = indexService.mapperService();
-            for (String fieldName : fieldNames) {
-                MappedFieldType fieldType = mapperService.fullName(fieldName);
-                assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
-            }
-        }
-        assertMappingOnMaster(index, type, fieldNames);
-    }
-
-    /**
-     * Waits for the given mapping type to exists on the master node.
-     */
-    public void assertMappingOnMaster(final String index, final String type, final String... fieldNames) throws Exception {
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
-        assertThat(mappings, notNullValue());
-        MappingMetaData mappingMetaData = mappings.get(type);
-        assertThat(mappingMetaData, notNullValue());
-
-        Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
-        assertFalse(mappingSource.isEmpty());
-        assertTrue(mappingSource.containsKey("properties"));
-
-        for (String fieldName : fieldNames) {
-            Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
-            if (fieldName.indexOf('.') != -1) {
-                fieldName = fieldName.replace(".", ".properties.");
-            }
-            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(),
-                    XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
-        }
     }
 
     /** Ensures the result counts are as expected, and logs the results if different */
@@ -1016,16 +952,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Waits until at least a give number of document is visible for searchers
      *
-     * @param numDocs number of documents to wait for.
-     * @return the actual number of docs seen.
-     */
-    public long waitForDocs(final long numDocs) throws InterruptedException {
-        return waitForDocs(numDocs, null);
-    }
-
-    /**
-     * Waits until at least a give number of document is visible for searchers
-     *
      * @param numDocs number of documents to wait for
      * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. If supplied it will be first checked for documents indexed.
      *                This saves on unneeded searches.
@@ -1096,22 +1022,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public void logClusterState() {
         logger.debug("cluster state:\n{}\n{}",
             client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
-    }
-
-    /**
-     * Prints the segments info for the given indices as debug logging.
-     */
-    public void logSegmentsState(String... indices) throws Exception {
-        IndicesSegmentResponse segsRsp = client().admin().indices().prepareSegments(indices).get();
-        logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices,
-            Strings.toString(segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS)));
-    }
-
-    /**
-     * Prints current memory stats as info logging.
-     */
-    public void logMemoryStats() {
-        logger.info("memory: {}", Strings.toString(client().admin().cluster().prepareNodesStats().clear().setJvm(true).get(), true, true));
     }
 
     protected void ensureClusterSizeConsistency() {
@@ -1558,7 +1468,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    private AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
+    private final AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
 
     /** Disables an index block for the specified index */
     public static void disableIndexBlock(String index, String block) {
@@ -1927,7 +1837,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             nodePrefix, mockPlugins, getClientWrapper(), forbidPrivateIndexSettings());
     }
 
-    protected NodeConfigurationSource getNodeConfigSource() {
+    private NodeConfigurationSource getNodeConfigSource() {
         Settings.Builder initialNodeSettings = Settings.builder();
         Settings.Builder initialTransportClientSettings = Settings.builder();
         if (addMockTransportService()) {
@@ -2280,13 +2190,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected static synchronized RestClient getRestClient() {
         if (restClient == null) {
-            restClient = createRestClient(null);
+            restClient = createRestClient();
         }
         return restClient;
     }
 
-    protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback) {
-        return createRestClient(httpClientConfigCallback, "http");
+    protected static RestClient createRestClient() {
+        return createRestClient(null, "http");
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {

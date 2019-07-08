@@ -107,7 +107,6 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
@@ -673,8 +672,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             assertThat(error.get(), notNullValue());
             assertThat(error.get().getMessage(), containsString("test chunk exception"));
         });
-        assertThat("no more chunks should be sent", sentChunks.get(),
-            lessThanOrEqualTo(Math.min(totalChunks, maxConcurrentChunks * 2)));
+        assertThat("no more chunks should be sent", sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks)));
         store.close();
     }
 

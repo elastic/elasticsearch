@@ -39,6 +39,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
@@ -81,6 +82,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
@@ -704,12 +706,12 @@ public class RecoverySourceHandler {
         private final IntSupplier translogOps;
         private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         private final Semaphore semaphore = new Semaphore(0);
-        private boolean closed = false;
         private final Iterator<StoreFileMetaData> remainingFiles;
         private StoreFileMetaData currentFile;
         private InputStreamIndexInput currentInput = null;
         private long currentChunkPosition = 0;
         private final Deque<byte[]> recycledBuffers = ConcurrentCollections.newDeque();
+        private final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
 
         MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
             super(ActionListener.notifyOnce(listener));
@@ -724,6 +726,10 @@ public class RecoverySourceHandler {
             assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send file chunk]");
             while (true) {
                 assert semaphore.availablePermits() == 0;
+                if (error.get() != null) {
+                    handleErrorOnSendFiles(store, error.get().v2(), new StoreFileMetaData[]{error.get().v1()});
+                    throw error.get().v2();
+                }
                 final FileChunk chunk = readNextChunk();
                 if (chunk == null) {
                     semaphore.release(); // allow other threads respond if we are not done yet.
@@ -743,25 +749,20 @@ public class RecoverySourceHandler {
                                     sendFileExecutor.execute(this); // fork off from the network thread
                                 }
                             },
-                            // need to fork as `handleErrorOnSendFiles` might read some files which should not happen on the network thread
-                            e -> sendFileExecutor.execute(new ActionRunnable<>(this.listener) {
-                                @Override
-                                protected void doRun() throws Exception {
-                                    cancellableThreads.execute(semaphore::acquire);
-                                    try (Releasable ignored = semaphore::release) {
-                                        handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{chunk.md});
-                                        throw e;
-                                    }
+                            e -> {
+                                if (error.compareAndSet(null, Tuple.tuple(chunk.md, e)) && semaphore.tryAcquire()) {
+                                    // have to fork as handleErrorOnSendFiles can read file which should not happen on the network thread.
+                                    sendFileExecutor.execute(this);
                                 }
                             })
-                        )
                     )
                 );
                 if (canSendMore() == false) {
                     semaphore.release();
                     // Here we have to retry before abort to avoid a race situation where the other threads have flipped `canSendMore`
                     // condition but they are not going to resume the sending process because this thread still holds the semaphore.
-                    if (canSendMore() == false || semaphore.tryAcquire() == false) {
+                    final boolean changed = canSendMore() || error.get() != null;
+                    if (changed == false || semaphore.tryAcquire() == false) {
                         break;
                     }
                 }
@@ -770,9 +771,6 @@ public class RecoverySourceHandler {
 
         FileChunk readNextChunk() throws Exception {
             assert semaphore.availablePermits() == 0;
-            if (closed) {
-                throw new IllegalStateException("MultiFileSender was closed");
-            }
             try {
                 if (currentInput == null) {
                     if (remainingFiles.hasNext() == false) {
@@ -816,10 +814,7 @@ public class RecoverySourceHandler {
         @Override
         public void close() throws IOException {
             assert semaphore.availablePermits() == 0;
-            if (closed == false) {
-                closed = true;
-                IOUtils.close(recycledBuffers::clear, currentInput, () -> currentInput = null);
-            }
+            IOUtils.close(recycledBuffers::clear, currentInput, () -> currentInput = null);
         }
     }
 

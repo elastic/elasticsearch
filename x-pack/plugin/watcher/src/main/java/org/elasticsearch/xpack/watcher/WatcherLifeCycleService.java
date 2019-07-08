@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -35,6 +37,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 public class WatcherLifeCycleService implements ClusterStateListener {
 
+    private static final Logger logger = LogManager.getLogger(WatcherLifeCycleService.class);
     private final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STARTED);
     private final AtomicReference<List<ShardRouting>> previousShardRoutings = new AtomicReference<>(Collections.emptyList());
     private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
@@ -105,7 +108,13 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                 //waiting to set state to stopped until after all currently running watches are finished
                 watcherService.stop("watcher manually marked to shutdown by cluster state update", () -> {
                     //only transition from stopping -> stopped (which may not be the case if restarted quickly)
-                    state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
+                    boolean stopped = state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
+                    if (stopped) {
+                        logger.info("watcher has stopped");
+                    } else {
+                        logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
+                    }
+
                 });
             }
             return;

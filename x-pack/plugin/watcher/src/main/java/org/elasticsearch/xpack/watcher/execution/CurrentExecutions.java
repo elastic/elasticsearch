@@ -90,7 +90,6 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
         } finally {
             //fully stop Watcher after all executions are finished
             stoppedListener.run();
-            logger.info("watch service has stopped");
             lock.unlock();
         }
     }

@@ -21,9 +21,6 @@ dependencies {
     testCompile project(path: xpackModule('sql:sql-action'))
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
 
     compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
     compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'

@@ -12,9 +12,6 @@ dependencies {
     testImplementation 'com.google.jimfs:jimfs:1.1'
     testCompile project(":test:framework")
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
 }
 
 dependencyLicenses {

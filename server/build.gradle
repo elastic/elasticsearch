@@ -78,7 +78,7 @@ dependencies {
   compile project(':libs:elasticsearch-secure-sm')
   compile project(':libs:elasticsearch-x-content')
   compile project(":libs:elasticsearch-geo")
-  
+
   compileOnly project(':libs:elasticsearch-plugin-classloader')
   testRuntime project(':libs:elasticsearch-plugin-classloader')
 
@@ -126,25 +126,11 @@ dependencies {
     java12Compile sourceSets.main.output
   }
 
-  if (isEclipse == false || project.path == ":server-tests") {
-    testCompile(project(":test:framework")) {
-      // tests use the locally compiled version of server
-      exclude group: 'org.elasticsearch', module: 'server'
-    }
+  testCompile(project(":test:framework")) {
+    // tests use the locally compiled version of server
+    exclude group: 'org.elasticsearch', module: 'server'
   }
-}
 
-if (isEclipse) {
-  // in eclipse the project is under a fake root, we need to change around the source sets
-  sourceSets {
-    if (project.path == ":server") {
-      main.java.srcDirs = ['java']
-      main.resources.srcDirs = ['resources']
-    } else {
-      test.java.srcDirs = ['java']
-      test.resources.srcDirs = ['resources']
-    }
-  }
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
@@ -324,18 +310,18 @@ dependencyLicenses {
   }
 }
 
-if (isEclipse == false || project.path == ":server-tests") {
-  task integTest(type: Test) {
-    description = 'Multi-node tests'
-    mustRunAfter test
 
-    include '**/*IT.class'
-  }
+task integTest(type: Test) {
+  description = 'Multi-node tests'
+  mustRunAfter test
 
-  check.dependsOn integTest
-
-  task internalClusterTest {
-     dependsOn integTest    
-  }
+   include '**/*IT.class'
 }
+
+check.dependsOn integTest
+
+task internalClusterTest {
+   dependsOn integTest
+}
+
 

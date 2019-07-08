@@ -25,29 +25,14 @@ dependencies {
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
-
-    if (isEclipse == false || project.path == ":libs:elasticsearch-secure-sm-tests") {
-        testCompile(project(":test:framework")) {
-            exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'
-        }
+    
+    testCompile(project(":test:framework")) {
+        exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'
     }
 }
 
 forbiddenApisMain {
     replaceSignatureFiles 'jdk-signatures'
-}
-
-if (isEclipse) {
-    // in Eclipse the project is under a fake root so we need to change around the source sets
-    sourceSets {
-        if (project.path == ":libs:elasticsearch-secure-sm") {
-            main.java.srcDirs = ['java']
-            main.resources.srcDirs = ['resources']
-        } else {
-            test.java.srcDirs = ['java']
-            test.resources.srcDirs = ['resources']
-        }
-    }
 }
 
 // JAR hell is part of core which we do not want to add as a dependency

@@ -357,6 +357,41 @@ allprojects {
         // this is *NOT* a path or a file.
         folder.output = "build-eclipse/" + i
       }
+
+      // Eclipse now supports main and test source sets, but the Gradle and buildship tooling does not yet so we
+      // edit the generated .classpath to correctly mark test vs non test code and dependencies
+      // for more info: https://github.com/eclipse/buildship/issues/689 and https://github.com/gradle/gradle/issues/4802
+      Set<String> testOnlyProjectDependencies = new HashSet();
+      if (configurations.findByName("testCompile") != null) {
+        testOnlyProjectDependencies.addAll(
+          configurations.testCompile.getDependencies().findAll {
+            it instanceof ProjectDependency
+          }.collect {
+            it.dependencyProject.path
+          }
+        )
+      }
+      if (configurations.findByName("compile") != null) {
+        testOnlyProjectDependencies.removeAll(
+                configurations.compile.getDependencies().findAll {
+                  it instanceof ProjectDependency
+                }.collect {
+                  it.dependencyProject.path
+                }
+        )
+      }
+      classpath.entries.each {
+        if (it.hasProperty("entryAttributes")) {
+          if (it.entryAttributes.containsKey("gradle_used_by_scope")) {
+            it.entryAttributes['test'] = (it.entryAttributes['gradle_used_by_scope'] == 'test')
+          }
+          if (it.hasProperty("path") && it.path.startsWith("/:")) {
+            if (testOnlyProjectDependencies.contains(it.path.substring(1))) {
+              it.entryAttributes['test'] = true
+            }
+          }
+        }
+      }
     }
   }
 

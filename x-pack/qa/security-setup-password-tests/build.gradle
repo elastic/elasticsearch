@@ -6,9 +6,6 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('security'), configuration: 'runtime')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
 }
 
 integTest.runner {

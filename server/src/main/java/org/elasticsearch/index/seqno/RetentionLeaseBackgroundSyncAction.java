@@ -180,7 +180,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
         @Override
         public String toString() {
-            return "Request{" +
+            return "RetentionLeaseBackgroundSyncAction.Request{" +
                     "retentionLeases=" + retentionLeases +
                     ", shardId=" + shardId +
                     ", timeout=" + timeout +

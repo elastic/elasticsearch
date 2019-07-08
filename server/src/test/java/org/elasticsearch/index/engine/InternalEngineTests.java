@@ -261,7 +261,9 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
-        assertFalse("safe access should NOT be required last indexing round was only append only", engine.isSafeAccessRequired());
+        if (operation.origin() == PRIMARY) {
+            assertFalse("safe access should NOT be required last indexing round was only append only", engine.isSafeAccessRequired());
+        }
         engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid(), primaryTerm.get()));
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         engine.refresh("test");
@@ -3476,7 +3478,7 @@ public class InternalEngineTests extends EngineTestCase {
                 operation.versionType(), REPLICA, operation.startTime()+1, UNASSIGNED_SEQ_NO, 0);
         // operations with a seq# equal or lower to the local checkpoint are not indexed to lucene
         // and the version lookup is skipped
-        final boolean belowLckp = operation.seqNo() == 0 && retry.seqNo() == 0;
+        final boolean sameSeqNo = operation.seqNo() == retry.seqNo();
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertLuceneOperations(engine, 1, 0, 0);
@@ -3486,19 +3488,19 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(1, engine.getNumVersionLookups());
             assertLuceneOperations(engine, 1, 0, 1);
             Engine.IndexResult retryResult = engine.index(retry);
-            assertEquals(belowLckp ? 1 : 2, engine.getNumVersionLookups());
+            assertEquals(sameSeqNo ? 1 : 2, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
         } else {
             Engine.IndexResult retryResult = engine.index(retry);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(1, engine.getNumVersionLookups());
+            assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             engine.delete(delete);
             assertLuceneOperations(engine, 1, 0, 1);
-            assertEquals(2, engine.getNumVersionLookups());
+            assertEquals(1, engine.getNumVersionLookups());
             Engine.IndexResult indexResult = engine.index(operation);
-            assertEquals(belowLckp ? 2 : 3, engine.getNumVersionLookups());
+            assertEquals(sameSeqNo ? 1 : 2, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
         }
@@ -3517,7 +3519,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.Index retry = appendOnlyReplica(doc.get(), true, 1, randomIntBetween(0, 5));
         // operations with a seq# equal or lower to the local checkpoint are not indexed to lucene
         // and the version lookup is skipped
-        final boolean belowLckp = operation.seqNo() == 0 && retry.seqNo() == 0;
+        final boolean sameSeqNo = operation.seqNo() == retry.seqNo();
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertLuceneOperations(engine, 1, 0, 0);
@@ -3529,13 +3531,13 @@ public class InternalEngineTests extends EngineTestCase {
             } else {
                 assertLuceneOperations(engine, 1, 0, 0);
             }
-            assertEquals(belowLckp ? 0 : 1, engine.getNumVersionLookups());
+            assertEquals(sameSeqNo ? 0 : 1, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
         } else {
             Engine.IndexResult retryResult = engine.index(retry);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(1, engine.getNumVersionLookups());
+            assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             Engine.IndexResult indexResult = engine.index(operation);
             if (operation.seqNo() > retry.seqNo()) {
@@ -3543,7 +3545,7 @@ public class InternalEngineTests extends EngineTestCase {
             } else {
                 assertLuceneOperations(engine, 1, 0, 0);
             }
-            assertEquals(belowLckp ? 1 : 2, engine.getNumVersionLookups());
+            assertEquals(sameSeqNo ? 0 : 1, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
         }
@@ -3584,27 +3586,27 @@ public class InternalEngineTests extends EngineTestCase {
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(1, engine.getNumVersionLookups());
+            assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(indexResult.getTranslogLocation());
             if (randomBoolean()) {
                 engine.refresh("test");
             }
             Engine.IndexResult retryResult = engine.index(duplicate);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(2, engine.getNumVersionLookups());
+            assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
         } else {
             Engine.IndexResult retryResult = engine.index(duplicate);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(1, engine.getNumVersionLookups());
+            assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             if (randomBoolean()) {
                 engine.refresh("test");
             }
             Engine.IndexResult indexResult = engine.index(operation);
             assertLuceneOperations(engine, 1, 0, 0);
-            assertEquals(2, engine.getNumVersionLookups());
+            assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retryResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
         }
@@ -5190,102 +5192,6 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
             assertThat(tombstonesInVersionMap(engine).values(), empty());
         }
-    }
-
-    public void testTrackMaxSeqNoOfNonAppendOnlyOperations() throws Exception {
-        IOUtils.close(engine, store);
-        store = createStore();
-        final Path translogPath = createTempDir();
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (InternalEngine engine = createEngine(store, translogPath, globalCheckpoint::get)) {
-            final CountDownLatch latch = new CountDownLatch(1);
-            final Thread appendOnlyIndexer = new Thread(() -> {
-                try {
-                    latch.countDown();
-                    final int numDocs = scaledRandomIntBetween(100, 1000);
-                    for (int i = 0; i < numDocs; i++) {
-                        ParsedDocument doc =
-                            testParsedDocument("append-only" + i, null, testDocumentWithTextField(), SOURCE, null);
-                        if (randomBoolean()) {
-                            engine.index(appendOnlyReplica(doc, randomBoolean(), 1, generateNewSeqNo(engine)));
-                        } else {
-                            engine.index(appendOnlyPrimary(doc, randomBoolean(), randomNonNegativeLong()));
-                        }
-                    }
-                } catch (Exception ex) {
-                    throw new RuntimeException("Failed to index", ex);
-                }
-            });
-            appendOnlyIndexer.setName("append-only indexer");
-            appendOnlyIndexer.start();
-            latch.await();
-            long maxSeqNoOfNonAppendOnly = SequenceNumbers.NO_OPS_PERFORMED;
-            final int numOps = scaledRandomIntBetween(100, 1000);
-            for (int i = 0; i < numOps; i++) {
-                ParsedDocument parsedDocument =
-                    testParsedDocument(Integer.toString(i), null, testDocumentWithTextField(), SOURCE, null);
-                if (randomBoolean()) { // On replica - update max_seqno for non-append-only operations
-                    final long seqno = generateNewSeqNo(engine);
-                    final Engine.Index doc = replicaIndexForDoc(parsedDocument, 1, seqno, randomBoolean());
-                    if (randomBoolean()) {
-                        engine.index(doc);
-                    } else {
-                        engine.delete(new Engine.Delete(doc.type(), doc.id(), doc.uid(), seqno, doc.primaryTerm(),
-                            doc.version(), doc.versionType(), doc.origin(), threadPool.relativeTimeInMillis(), UNASSIGNED_SEQ_NO, 0));
-                    }
-                    maxSeqNoOfNonAppendOnly = seqno;
-                } else { // On primary - do not update max_seqno for non-append-only operations
-                    if (randomBoolean()) {
-                        engine.index(indexForDoc(parsedDocument));
-                    } else {
-                        engine.delete(new Engine.Delete(parsedDocument.type(), parsedDocument.id(),
-                            newUid(parsedDocument.id()), primaryTerm.get()));
-                    }
-                }
-            }
-            appendOnlyIndexer.join(120_000);
-            assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(maxSeqNoOfNonAppendOnly));
-            engine.syncTranslog();
-            globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
-            engine.flush();
-        }
-        try (InternalEngine engine = createEngine(store, translogPath, globalCheckpoint::get)) {
-            assertThat("max_seqno from non-append-only was not bootstrap from the safe commit",
-                engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(globalCheckpoint.get()));
-        }
-    }
-
-    public void testSkipOptimizeForExposedAppendOnlyOperations() throws Exception {
-        long lookupTimes = 0L;
-        final int initDocs = between(0, 10);
-        for (int i = 0; i < initDocs; i++) {
-            index(engine, i);
-            lookupTimes++;
-        }
-        // doc1 is delayed and arrived after a non-append-only op.
-        final long seqNoAppendOnly1 = generateNewSeqNo(engine);
-        final long seqnoNormalOp = generateNewSeqNo(engine);
-        if (randomBoolean()) {
-            engine.index(replicaIndexForDoc(
-                testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, seqnoNormalOp, false));
-        } else {
-            engine.delete(replicaDeleteForDoc("d", 1, seqnoNormalOp, randomNonNegativeLong()));
-        }
-        lookupTimes++;
-        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
-        assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(seqnoNormalOp));
-
-        // should not optimize for doc1 and process as a regular doc (eg. look up in version map)
-        engine.index(appendOnlyReplica(testParsedDocument("append-only-1", null, testDocumentWithTextField(), SOURCE, null),
-            false, randomNonNegativeLong(), seqNoAppendOnly1));
-        lookupTimes++;
-        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
-
-        // optimize for other append-only 2 (its seqno > max_seqno of non-append-only) - do not look up in version map.
-        engine.index(appendOnlyReplica(testParsedDocument("append-only-2", null,
-            testDocumentWithTextField(), SOURCE, null),
-            false, randomNonNegativeLong(), generateNewSeqNo(engine)));
-        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
     }
 
     public void testTrimUnsafeCommits() throws Exception {

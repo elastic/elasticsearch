@@ -182,7 +182,7 @@ public class RetentionLeaseSyncAction extends
 
         @Override
         public String toString() {
-            return "Request{" +
+            return "RetentionLeaseSyncAction.Request{" +
                     "retentionLeases=" + retentionLeases +
                     ", shardId=" + shardId +
                     ", timeout=" + timeout +

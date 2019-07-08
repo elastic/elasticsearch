@@ -524,6 +524,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
             }
+            final Engine engine = shard.getEngineOrNull();
+            if (engine != null) {
+                EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+            }
         } finally {
             IOUtils.close(() -> shard.close("test", false), shard.store());
         }

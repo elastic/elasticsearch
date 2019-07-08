@@ -442,23 +442,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode());
+        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
+            final ClusterState stateForJoinValidation = getStateForMasterService();
 
-        final ClusterState stateForJoinValidation = getStateForMasterService();
-
-        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
-            onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
-            if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                // we do this in a couple of places including the cluster update thread. This one here is really just best effort
-                // to ensure we fail as fast as possible.
-                JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
-                    stateForJoinValidation.getNodes().getMinNodeVersion());
+            if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+                onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+                if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                    // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+                    // to ensure we fail as fast as possible.
+                    JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                        stateForJoinValidation.getNodes().getMinNodeVersion());
+                }
+                sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
+            } else {
+                processJoinRequest(joinRequest, joinCallback);
             }
-            sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
-
-        } else {
-            processJoinRequest(joinRequest, joinCallback);
-        }
+        }, joinCallback::onFailure));
     }
 
     // package private for tests

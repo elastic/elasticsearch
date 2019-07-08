@@ -81,7 +81,7 @@ pivot function `group by` fields and the aggregation to reduce the data.
 [[data-frame-transform-pivot-properties]]
 ===== {api-definitions-title}
 
-`aggregations`::
+`aggregations` or `aggs`::
 (object) Defines how to aggregate the grouped data. The following composite
 aggregations are supported:
 +

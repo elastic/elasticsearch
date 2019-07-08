@@ -343,7 +343,7 @@ We could write the query as:
 ==================================
 As written above, this template is not valid JSON because it includes the
 _section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in elasticsearch (see <<pre-registered-templates>>) or, when used
+either be stored in {es} (see <<pre-registered-templates>>) or, when used
 via the REST API, should be written as a string:
 
 [source,js]

@@ -148,7 +148,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_INTERVAL.getKey(), randomIntBetween(-1, 1000));
         }
         if (randomBoolean()) {
-            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_COUNT.getKey(), randomIntBetween(-1, 1000));
+            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_COUNT.getKey(), randomIntBetween(-1, 10));
         }
 
         final Settings connectionSettings = connectionSettingsBuilder.build();

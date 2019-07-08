@@ -419,13 +419,11 @@ public class RecoverySourceHandler {
                     recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
                         phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep));
 
-                sendFileInfoStep.whenComplete(r -> {
-                    sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFileChunkStep);
-                }, listener::onFailure);
+                sendFileInfoStep.whenComplete(r ->
+                    sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFileChunkStep), listener::onFailure);
 
-                sendFileChunkStep.whenComplete(r -> {
-                    cleanFiles(store, recoverySourceMetadata, translogOps, globalCheckpoint, cleanFilesStep);
-                }, listener::onFailure);
+                sendFileChunkStep.whenComplete(r ->
+                    cleanFiles(store, recoverySourceMetadata, translogOps, globalCheckpoint, cleanFilesStep), listener::onFailure);
 
                 final long totalSize = totalSizeInBytes;
                 final long existingTotalSize = existingTotalSizeInBytes;

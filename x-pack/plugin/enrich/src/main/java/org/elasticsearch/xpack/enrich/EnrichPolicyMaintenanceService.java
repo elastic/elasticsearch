@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.enrich;
 
 import java.util.Arrays;
@@ -105,15 +110,15 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
             .indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
             .indicesOptions(IndicesOptions.lenientExpand());
         // Check that no enrich policies are being executed
-        final EnrichPolicyLocks.LockState lockState = enrichPolicyLocks.lockState();
-        if (lockState.runningPolicies == false) {
+        final EnrichPolicyLocks.EnrichPolicyExecutionState executionState = enrichPolicyLocks.captureExecutionState();
+        if (executionState.arePoliciesInFlight == false) {
             client.admin().indices().getIndex(indices, new ActionListener<>() {
                 @Override
                 public void onResponse(GetIndexResponse getIndexResponse) {
                     // Ensure that no enrich policy executions started while we were retrieving the snapshot of index data
                     // If executions were kicked off, we can't be sure that the indices we are about to process are a
                     // stable state of the system (they could be new indices created by a policy that hasn't been published yet).
-                    if (enrichPolicyLocks.isSafe(lockState)) {
+                    if (enrichPolicyLocks.isSameState(executionState)) {
                         String[] removeIndices = Arrays.stream(getIndexResponse.getIndices())
                             .filter(indexName -> shouldRemoveIndex(getIndexResponse, policies, indexName))
                             .toArray(String[]::new);

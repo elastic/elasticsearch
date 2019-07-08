@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -33,46 +38,46 @@ public class EnrichPolicyLocksTests extends ESTestCase {
     public void testSafePoint() {
         EnrichPolicyLocks policyLocks = new EnrichPolicyLocks();
         String policy = "policy";
-        EnrichPolicyLocks.LockState lockState;
+        EnrichPolicyLocks.EnrichPolicyExecutionState executionState;
 
-        // Get a safe point - should note as safe and revision 1 since nothing has happened yet
-        lockState = policyLocks.lockState();
-        assertThat(lockState.runningPolicies, is(true));
-        assertThat(lockState.revision, is(0L));
-        assertThat(policyLocks.isSafe(lockState), is(true));
+        // Get exec state - should note as safe and revision 1 since nothing has happened yet
+        executionState = policyLocks.captureExecutionState();
+        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.executions, is(0L));
+        assertThat(policyLocks.isSameState(executionState), is(true));
 
-        // Get another safe point - should still note as safe and revision 1 since nothing has happened yet
-        lockState = policyLocks.lockState();
-        assertThat(lockState.runningPolicies, is(true));
-        assertThat(lockState.revision, is(0L));
-        assertThat(policyLocks.isSafe(lockState), is(true));
+        // Get another exec state - should still note as safe and revision 1 since nothing has happened yet
+        executionState = policyLocks.captureExecutionState();
+        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.executions, is(0L));
+        assertThat(policyLocks.isSameState(executionState), is(true));
 
         // Lock a policy and leave it open (a
         policyLocks.lockPolicy(policy);
 
-        // Get a third safe point - should have a new revision and report unsafe since execution is in progress
-        lockState = policyLocks.lockState();
-        assertThat(lockState.runningPolicies, is(false));
-        assertThat(lockState.revision, is(1L));
-        assertThat(policyLocks.isSafe(lockState), is(false));
+        // Get a third exec state - should have a new revision and report unsafe since execution is in progress
+        executionState = policyLocks.captureExecutionState();
+        assertThat(executionState.arePoliciesInFlight, is(true));
+        assertThat(executionState.executions, is(1L));
 
         // Unlock the policy
         policyLocks.releasePolicy(policy);
 
-        // Get a fourth safe point - should have the same revision as third, and report safe since the previous execution is complete
-        lockState = policyLocks.lockState();
-        assertThat(lockState.runningPolicies, is(false));
-        assertThat(lockState.revision, is(1L));
-        assertThat(policyLocks.isSafe(lockState), is(false));
+        // Get a fourth exec state - should have the same revision as third, and report no policies in flight since the previous execution
+        // is complete
+        executionState = policyLocks.captureExecutionState();
+        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.executions, is(1L));
 
-        // Create a fifth safe point, lock and release a policy, and check if the safe point is still safe
-        lockState = policyLocks.lockState();
-        assertThat(lockState.runningPolicies, is(false));
-        assertThat(lockState.revision, is(1L));
+        // Create a fifth exec state, lock and release a policy, and check if the captured exec state is the same as the current state in
+        // the lock object
+        executionState = policyLocks.captureExecutionState();
+        assertThat(executionState.arePoliciesInFlight, is(false));
+        assertThat(executionState.executions, is(1L));
         policyLocks.lockPolicy(policy);
         policyLocks.releasePolicy(policy);
-        // Should report as unsafe as there was a transient "policy execution" between getting the safe point and checking it.
-        assertThat(policyLocks.isSafe(lockState), is(false));
+        // Should report as not the same as there was a transient "policy execution" between getting the exec state and checking it.
+        assertThat(policyLocks.isSameState(executionState), is(false));
     }
 
     public void testReleasePolicy() {

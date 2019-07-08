@@ -1,5 +1,5 @@
 [[array]]
-=== Array handling
+=== Arrays
 
 In Elasticsearch, there is no dedicated `array` datatype.  Any field can contain
 zero or more values by default, however, all values in the array must be of the

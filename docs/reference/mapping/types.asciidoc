@@ -56,7 +56,7 @@ string::         <<text,`text`>> and <<keyword,`keyword`>>
 
 [float]
 [[types-array-handling]]
-=== Array handling
+=== Arrays
 In {es}, arrays do not require a dedicated field datatype. Any field can contain
 zero or more values by default, however, all values in the array must be of the
 same datatype. See <<array>>.
@@ -76,6 +76,8 @@ This is the purpose of _multi-fields_.  Most datatypes support multi-fields
 via the <<multi-fields>> parameter.
 
 include::types/alias.asciidoc[]
+
+include::types/array.asciidoc[]
 
 include::types/binary.asciidoc[]
 
@@ -120,5 +122,3 @@ include::types/dense-vector.asciidoc[]
 include::types/sparse-vector.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
-
-include::types/array.asciidoc[]

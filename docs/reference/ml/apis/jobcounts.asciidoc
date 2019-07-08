@@ -95,7 +95,7 @@ or old results are deleted, the job counts are not reset.
   (date) The timestamp of the last bucket that did not contain any data.
 
 `latest_record_timestamp`::
-  (date) The timestamp of the last input document.
+  (date) The timestamp of the latest chronologically input document.
 
 `latest_sparse_bucket_timestamp`::
   (date) The timestamp of the last bucket that was considered sparse.

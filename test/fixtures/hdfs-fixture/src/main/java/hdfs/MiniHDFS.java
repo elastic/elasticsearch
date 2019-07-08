@@ -102,13 +102,14 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
             cfg.set(DFSConfigKeys.DFS_ENCRYPT_DATA_TRANSFER_KEY, "true");
-            // If we ask port to be allocated automatically, this fails in case of secure hdfs setup
-            // it needs port to be privileged. See org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter
-            cfg.set(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
-            cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
-            LOG.info("datanode address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY));
-            LOG.info("datanode http address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY));
         }
+
+        // If we ask port to be allocated automatically, this fails in case of secure hdfs setup
+        // it needs port to be privileged. See org.apache.hadoop.hdfs.server.datanode.SecureDataNodeStarter
+        cfg.set(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
+        cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:" + getFreeSocketPort(secure));
+        LOG.info("datanode address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY));
+        LOG.info("datanode http address : " + cfg.get(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY));
 
         UserGroupInformation.setConfiguration(cfg);
 

@@ -1238,7 +1238,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             {
                 settings.startObject("settings");
                 settings.field("number_of_shards", between(1, 5));
-                settings.field("number_of_replicas", between(0, 2));
+                settings.field("number_of_replicas", between(0, 1));
                 settings.endObject();
             }
             settings.endObject();

@@ -30,13 +30,6 @@ For more information, see
   (object) The source of the data for the {dataframe-transform}. See
   <<data-frame-transform-source>>.
 
-[discrete]
-[[data-frame-transform-example]]
-==== {api-examples-title}
-
-See the
-<<put-data-frame-transform-example,create {dataframe-transforms} API examples>>.
-
 [[data-frame-transform-dest]]
 ==== Dest objects
 
@@ -52,7 +45,6 @@ you create a {dataframe-transform}, you must define its destination.
 
 `pipeline`::
   (string) The unique identifier for a <<pipeline,pipeline>>.
-//TBD: Does the pipeline need to already exist or can we define a new one here?
 
 [[data-frame-transform-source]]
 ==== Source objects
@@ -112,3 +104,9 @@ per pivot. The following groupings are supported:
 * {ref}/search-aggregations-bucket-composite-aggregation.html#_histogram[Histogram]
 * {ref}/search-aggregations-bucket-composite-aggregation.html#_date_histogram[Date Histogram]
 --
+
+[[data-frame-transform-example]]
+==== {api-examples-title}
+
+See the
+<<put-data-frame-transform-example,create {dataframe-transforms} API examples>>.

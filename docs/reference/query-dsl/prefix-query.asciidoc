@@ -15,8 +15,7 @@ GET /_search
     "query": {
         "prefix": {
             "user": {
-                "value": "ki",
-                "rewrite": "constant_score"
+                "value": "ki"
             }
         }
     }
@@ -25,7 +24,7 @@ GET /_search
 // CONSOLE
 
 [[prefix-query-top-level-params]]
-==== Top-level parameters for `term`
+==== Top-level parameters for `prefix`
 `<field>` (Required)::
 (string) Field you wish to search.
 
@@ -38,3 +37,22 @@ GET /_search
 `rewrite` (Optional)::
 (string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+[[prefix-query-notes]]
+==== Notes
+
+[[prefix-query-short-ex]]
+===== Short request Example
+You can shorten `prefix` searches by combining the `<field>` and `value`
+parameters. For example:
+
+[source,js]
+----
+GET /_search
+{
+    "query": {
+        "prefix" : { "user" : "ki" }
+    }
+}
+----
+// CONSOLE

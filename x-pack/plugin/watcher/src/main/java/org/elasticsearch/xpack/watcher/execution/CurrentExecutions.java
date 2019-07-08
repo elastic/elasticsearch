@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 
@@ -18,7 +17,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 

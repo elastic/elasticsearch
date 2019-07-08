@@ -33,19 +33,23 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
@@ -64,6 +68,7 @@ public class DiskThresholdMonitor {
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
                                 Client client, LongSupplier currentTimeMillisSupplier, RerouteService rerouteService) {
@@ -135,14 +140,23 @@ public class DiskThresholdMonitor {
         }
         final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToMarkReadOnly = new HashSet<>();
+        RoutingNodes routingNodes = state.getRoutingNodes();
+        Set<String> indicesToMarkIneligibleForAutoRelease = new HashSet<>();
+        //Ensure we release indices on nodes that have a usage response from node stats
+        markNodesMissingUsageIneligibleForRelease(routingNodes, usages, indicesToMarkIneligibleForAutoRelease);
 
         for (final ObjectObjectCursor<String, DiskUsage> entry : usages) {
             final String node = entry.key;
             final DiskUsage usage = entry.value;
             warnAboutDiskIfNeeded(usage);
+            RoutingNode routingNode = routingNodes.node(node);
+            // Only unblock index if all nodes that contain shards of it are below the high disk watermark
+            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
+                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+                markIneligiblityForAutoRelease(routingNode, indicesToMarkIneligibleForAutoRelease);
+            }
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-                final RoutingNode routingNode = state.getRoutingNodes().node(node);
                 if (routingNode != null) { // this might happen if we haven't got the full cluster-state yet?!
                     for (ShardRouting routing : routingNode) {
                         indicesToMarkReadOnly.add(routing.index().getName());
@@ -181,7 +195,7 @@ public class DiskThresholdMonitor {
             }
         }
 
-        final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 2);
+        final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 3);
 
         if (reroute) {
             logger.info("rerouting shards: [{}]", explanation);
@@ -196,19 +210,50 @@ public class DiskThresholdMonitor {
         } else {
             listener.onResponse(null);
         }
+        // Get set of indices that are eligible to be automatically unblocked
+        // Only collect indices that are currently blocked
+        final String[] indices = state.routingTable().indicesRouting().keys().toArray(String.class);
+        Set<String> indicesToAutoRelease = Arrays.stream(indices)
+            .filter(index -> indicesToMarkIneligibleForAutoRelease.contains(index) == false)
+            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .collect(Collectors.toCollection(HashSet::new));
+
+        if (indicesToAutoRelease.isEmpty() == false) {
+            if (diskThresholdSettings.isAutoReleaseIndexEnabled()) {
+                logger.info("Releasing read-only allow delete block on indices: [{}]", indicesToAutoRelease);
+                updateIndicesReadOnly(indicesToAutoRelease, listener, false);
+            } else {
+                deprecationLogger.deprecated("[{}] will be removed in 8.0.0", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY);
+                listener.onResponse(null);
+            }
+        } else {
+            listener.onResponse(null);
+        }
 
         indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
         if (indicesToMarkReadOnly.isEmpty() == false) {
-            markIndicesReadOnly(indicesToMarkReadOnly, ActionListener.wrap(r -> {
-                setLastRunTimeMillis();
-                listener.onResponse(r);
-            }, e -> {
-                logger.debug("marking indices readonly failed", e);
-                setLastRunTimeMillis();
-                listener.onFailure(e);
-            }));
+            updateIndicesReadOnly(indicesToMarkReadOnly, listener, true);
         } else {
             listener.onResponse(null);
+        }
+    }
+
+    private void markNodesMissingUsageIneligibleForRelease(RoutingNodes routingNodes, ImmutableOpenMap<String, DiskUsage> usages,
+                                                           Set<String> indicesToMarkIneligibleForAutoRelease) {
+        for (RoutingNode routingNode : routingNodes) {
+            if (usages.containsKey(routingNode.nodeId()) == false) {
+                markIneligiblityForAutoRelease(routingNode, indicesToMarkIneligibleForAutoRelease);
+            }
+        }
+
+    }
+
+    private void markIneligiblityForAutoRelease(RoutingNode routingNode, Set<String> indicesToMarkIneligibleForAutoRelease) {
+        if (routingNode != null) {
+            for (ShardRouting routing : routingNode) {
+                String indexName = routing.index().getName();
+                indicesToMarkIneligibleForAutoRelease.add(indexName);
+            }
         }
     }
 
@@ -216,10 +261,19 @@ public class DiskThresholdMonitor {
         lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
     }
 
-    protected void markIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener) {
+    protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
         // set read-only block but don't block on the response
-        client.admin().indices().prepareUpdateSettings(indicesToMarkReadOnly.toArray(Strings.EMPTY_ARRAY))
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build())
-            .execute(ActionListener.map(listener, r -> null));
+        String value = readOnly ? Boolean.TRUE.toString() : null;
+        ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
+            setLastRunTimeMillis();
+            listener.onResponse(r);
+        }, e -> {
+            logger.debug("marking indices read-only [{}] failed", readOnly,  e);
+            setLastRunTimeMillis();
+            listener.onFailure(e);
+        });
+        client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY)).
+            setSettings(Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, value).build()).
+            execute(ActionListener.map(wrappedListener, r -> null));
     }
 }

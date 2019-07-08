@@ -369,7 +369,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
             IndexMetaData.INDEX_PRIORITY_SETTING,
             IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
-            IndexMetaData.SETTING_STRICT_TERMS_ENUM,
+            IndexMetaData.INDEX_STRICT_TERMS_ENUM_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
             EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
             ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,

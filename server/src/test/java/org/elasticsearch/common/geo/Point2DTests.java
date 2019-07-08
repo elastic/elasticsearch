@@ -55,7 +55,7 @@ public class Point2DTests extends ESTestCase {
     }
 
     public void testPoints() throws IOException {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 500; i++) {
             int minX = randomIntBetween(-180, 170);
             int maxX = randomIntBetween(minX + 10, 180);
             int minY = randomIntBetween(-90, 80);

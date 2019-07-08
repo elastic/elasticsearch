@@ -192,8 +192,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             = new org.elasticsearch.action.admin.indices.get.GetIndexRequest();
         request.indices(indexName);
 
-        boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync,
-                expectWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE));
+        boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync);
         assertTrue(response);
     }
 

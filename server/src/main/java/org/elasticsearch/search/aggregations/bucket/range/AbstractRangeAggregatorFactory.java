@@ -35,15 +35,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class AbstractRangeAggregatorFactory<AF extends AbstractRangeAggregatorFactory<AF, R>, R extends Range>
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
+public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final InternalRange.Factory<?, ?> rangeFactory;
     private final R[] ranges;
     private final boolean keyed;
 
     public AbstractRangeAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, R[] ranges, boolean keyed,
-            InternalRange.Factory<?, ?> rangeFactory, SearchContext context, AggregatorFactory<?> parent,
+            InternalRange.Factory<?, ?> rangeFactory, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.ranges = ranges;

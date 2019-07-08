@@ -138,8 +138,7 @@ public class S3Repository extends AbstractRepository {
             ObjectListing object_listing = client.listObjects(request);
             prefixes.addAll(object_listing.getCommonPrefixes());
 
-            while (object_listing.isTruncated()) ;
-            {
+            while (object_listing.isTruncated()) {
                 object_listing = client.listNextBatchOfObjects(object_listing);
                 prefixes.addAll(object_listing.getCommonPrefixes());
             }

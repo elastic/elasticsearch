@@ -153,6 +153,13 @@ settings belong in the `elasticsearch.yml` file.
    https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-[AWS
    documentation] for details). Defaults to `false`.
 
+`disable_chunked_encoding`::
+    Whether chunked encoding should be disabled or not. If `true`, the
+    chunked encoding will be disabled. If `false`, the chunked encoding will
+    be automatically determined by the AWS Java SDK (See
+    https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#withChunkedEncodingDisabled-java.lang.Boolean-[AWS
+    documentation] for details). Defaults to `false`.
+
 [[repository-s3-path-style-deprecation]]
 NOTE: In versions `7.0`, `7.1`, `7.2` and `7.3` all bucket operations used the
 https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/[now-deprecated]

@@ -3,7 +3,12 @@
 [[ml-dfanalytics-resources]]
 === {dfanalytics-cap} resources
 
-A {dfanalytics} configuration object has the following properties:
+//{dfanalytics-cap} resources relate to APIs such as <<put-dfanalytics>> and
+//<<get-dfanalytics>>.
+
+[discrete]
+[[ml-dfanalytics-properties]]
+==== {api-definitions-title}
 
 `analysis`::
   (object) The type of analysis that is performed on the `source`. For example: 
@@ -36,15 +41,21 @@ A {dfanalytics} configuration object has the following properties:
   (object) The source configuration, consisting of `index` and optionally a 
   `query`. For more information, see <<dfanalytics-source-resources>>.
 
-[float]
 [[dfanalytics-types]]
-==== Analysis types
+==== Analysis objects
   
-[float]
+{dfanalytics-cap} resources contain `analysis` objects. For example, when you
+create a {dfanalytics-job}, you must define the type of analysis it performs.
+
+[discrete]
 [[oldetection-resources]]
 ===== {oldetection-cap} configuration objects 
 
 An {oldetection} configuration object has the following properties:
+
+[discrete]
+[[oldetection-properties]]
+==== {api-definitions-title}
 
 `n_neighbors` (Optional)::
   (integer) Defines the value for how many nearest neighbors each method of 
@@ -62,11 +73,15 @@ An {oldetection} configuration object has the following properties:
   calculate its {fiscore}. 
   Value range: 0-1 (`0.1` by default).
   
-[float]
 [[dfanalytics-dest-resources]]
 ==== Dest configuration objects
 
-The `dest` configuration object has the following properties:
+{dfanalytics-cap} resources contain `dest` objects. For example, when you
+create a {dfanalytics-job}, you must define its destination.
+
+[discrete]
+[[dfanalytics-dest-properties]]
+==== {api-definitions-title}
 
 `index` (Required)::
   (string) The name of the index in which to store the results of the 
@@ -76,11 +91,15 @@ The `dest` configuration object has the following properties:
   (string) The name of the field in which to store the results of the analysis. 
   The default value is `ml`.
   
-[float]
 [[dfanalytics-source-resources]]
 ==== Source configuration objects
 
-The `source` configuration object has the following properties:
+{dfanalytics-cap} resources contain `source` objects. For example, when you
+create a {dfanalytics-job}, you must define its source.
+
+[discrete]
+[[dfanalytics-source-properties]]
+==== {api-definitions-title}
 
 `index` (Required)::
   (array) An array of index names on which to perform the analysis. It can be a 
@@ -92,3 +111,4 @@ The `source` configuration object has the following properties:
   options that are supported by {es} can be used, as this object is
   passed verbatim to {es}. By default, this property has the following
   value: `{"match_all": {"boost": 1}}`.
+  

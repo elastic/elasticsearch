@@ -23,12 +23,14 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geo.geometry.Polygon;
+import org.elasticsearch.geo.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -138,6 +140,14 @@ public class EdgeTreeTests extends ESTestCase {
         output.close();
         EdgeTreeReader reader = new EdgeTreeReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)), true);
         assertTrue(reader.containsBottomLeft(new Extent(xMin, yMin, xMax, yMax)));
+    }
+
+    public void testGetShapeType() {
+        int[] pointCoord = new int[] { 0 };
+        assertThat(new EdgeTreeWriter(pointCoord, pointCoord, true).getShapeType(), equalTo(ShapeType.POLYGON));
+        assertThat(new EdgeTreeWriter(pointCoord, pointCoord, false).getShapeType(), equalTo(ShapeType.LINESTRING));
+        assertThat(new EdgeTreeWriter(List.of(pointCoord, pointCoord), List.of(pointCoord, pointCoord), false).getShapeType(),
+            equalTo(ShapeType.MULTILINESTRING));
     }
 
     private int[] asIntArray(double[] doub, Function<Double, Integer> encode) {

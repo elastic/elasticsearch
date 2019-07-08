@@ -90,7 +90,7 @@ public class GeometryTreeTests extends ESTestCase {
         }
     }
 
-    public void testPacManClosedPolygon() throws Exception {
+    public void testPacManPolygon() throws Exception {
         // pacman
         double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
         double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
@@ -105,6 +105,23 @@ public class GeometryTreeTests extends ESTestCase {
         assertTrue(reader.intersects(new Extent(-12, -12, 12, 12)));
         assertTrue(reader.intersects(new Extent(-2, -1, 2, 0)));
         assertTrue(reader.intersects(new Extent(-5, -6, 2, -2)));
+    }
+
+    public void testPacManClosedLineString() throws Exception {
+        // pacman
+        double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
+        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
+
+        // test cell crossing poly
+        GeometryTreeWriter writer = new GeometryTreeWriter(new Line(px, py));
+        BytesStreamOutput output = new BytesStreamOutput();
+        writer.writeTo(output);
+        output.close();
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        assertTrue(reader.intersects(new Extent(2, -1, 11, 1)));
+        assertTrue(reader.intersects(new Extent(-12, -12, 12, 12)));
+        assertTrue(reader.intersects(new Extent(-2, -1, 2, 0)));
+        assertFalse(reader.intersects(new Extent(-5, -6, 2, -2)));
     }
 
     public void testPacManLineString() throws Exception {

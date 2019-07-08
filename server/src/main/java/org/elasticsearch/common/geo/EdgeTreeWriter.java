@@ -20,6 +20,7 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
@@ -38,16 +39,21 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
     static final int EDGE_SIZE_IN_BYTES = 28;
 
     private final Extent extent;
-    private final boolean closed;
+    private final boolean hasArea;
     private final int numShapes;
     final Edge tree;
 
 
-    EdgeTreeWriter(int[] x, int[] y, boolean closed) {
-        this(Collections.singletonList(x), Collections.singletonList(y), closed);
+    /**
+     * @param x        array of the x-coordinate of points.
+     * @param y        array of the y-coordinate of points.
+     * @param hasArea  true if edge-tree represents a {@link Polygon} and has a non-zero area, false otherwise.
+     */
+    EdgeTreeWriter(int[] x, int[] y, boolean hasArea) {
+        this(Collections.singletonList(x), Collections.singletonList(y), hasArea);
     }
 
-    EdgeTreeWriter(List<int[]> x, List<int[]> y, boolean closed) {
+    EdgeTreeWriter(List<int[]> x, List<int[]> y, boolean hasArea) {
         this.numShapes = x.size();
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
@@ -78,7 +84,7 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
         edges.sort(Edge::compareTo);
         this.extent = new Extent(minX, minY, maxX, maxY);
         this.tree = createTree(edges, 0, edges.size() - 1);
-        this.closed = closed;
+        this.hasArea = hasArea;
     }
 
     @Override
@@ -88,7 +94,7 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
 
     @Override
     public ShapeType getShapeType() {
-        return closed ? ShapeType.POLYGON : (numShapes > 1 ? ShapeType.MULTILINESTRING: ShapeType.LINESTRING);
+        return hasArea ? ShapeType.POLYGON : (numShapes > 1 ? ShapeType.MULTILINESTRING: ShapeType.LINESTRING);
     }
 
     @Override

@@ -3989,6 +3989,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexMetaData metaData = IndexMetaData.builder("index")
                 .putMapping("some_type", "{ \"properties\": {}}")
                 .settings(settings)
+                .primaryTerm(0, 1)
                 .build();
         IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         recoverShardFromStore(shard);

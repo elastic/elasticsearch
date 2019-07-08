@@ -951,14 +951,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 lastSnapshotStatus.getIndexVersion(),
                 indexCommitPointFiles,
                 lastSnapshotStatus.getStartTime(),
-                // snapshotStatus.startTime() is assigned on the same machine,
-                // so it's safe to use the relative time in millis
                 threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
                 lastSnapshotStatus.getIncrementalFileCount(),
                 lastSnapshotStatus.getIncrementalSize()
             );
 
-            //TODO: The time stored in snapshot doesn't include cleanup time.
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
             try {
                 indexShardSnapshotFormat.write(snapshot, shardContainer, snapshotId.getUUID());

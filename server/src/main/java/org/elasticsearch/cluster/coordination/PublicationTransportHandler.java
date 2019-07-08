@@ -165,19 +165,19 @@ public class PublicationTransportHandler {
                 if (destination.equals(nodes.getLocalNode())) {
                     // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
                     final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
-                    assert previousRequest == null;
+                    // we might override an in-flight publication to self in case where we failed as master and became master again,
+                    // and the new publication started before the previous one completed (which fails anyhow because of higher current term)
+                    assert previousRequest == null || previousRequest.getAcceptedState().term() < publishRequest.getAcceptedState().term();
                     responseActionListener = new ActionListener<PublishWithJoinResponse>() {
                         @Override
                         public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
-                            final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(null);
-                            assert previousRequest == publishRequest;
+                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
                             originalListener.onResponse(publishWithJoinResponse);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(null);
-                            assert previousRequest == publishRequest;
+                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
                             originalListener.onFailure(e);
                         }
                     };

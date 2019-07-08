@@ -654,7 +654,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private static ClusterState stateForNode(ClusterState state, DiscoveryNode node) {
-        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
+        // Remove and add back local node to update ephemeral id on restarts
+        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(
+            state.nodes()).remove(node.getId()).add(node).localNodeId(node.getId())).build();
     }
 
     private final class TestClusterNodes {
@@ -753,7 +755,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
-                    testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
+                    testClusterNodes.nodes.values().forEach(n -> n.transportService.openConnection(node, null));
                 }
             });
         }

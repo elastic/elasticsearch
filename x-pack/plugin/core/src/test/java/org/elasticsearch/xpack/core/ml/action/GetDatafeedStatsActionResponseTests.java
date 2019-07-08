@@ -108,7 +108,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         assertThat(nodeAttributes, hasEntry("ml.max_open_jobs", "5"));
 
         Map<String, Object> timingStatsMap = (Map<String, Object>) dfStatsMap.get("timing_stats");
-        assertThat(timingStatsMap.size(), is(equalTo(2)));
+        assertThat(timingStatsMap.size(), is(equalTo(3)));
         assertThat(timingStatsMap, hasEntry("job_id", "my-job-id"));
         assertThat(timingStatsMap, hasEntry("search_count", 5));
         assertThat(timingStatsMap, hasEntry("total_search_time_ms", 123.456));

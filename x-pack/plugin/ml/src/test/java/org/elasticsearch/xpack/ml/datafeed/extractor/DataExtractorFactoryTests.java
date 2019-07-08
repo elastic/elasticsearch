@@ -256,7 +256,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
             },
             e -> fail()
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+        DataExtractorFactory.create(
+            client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), timingStatsReporter, listener);
 
         // Test with remote index, aggregation, and chunking
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
@@ -264,7 +265,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
             e -> fail()
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+        DataExtractorFactory.create(
+            client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), timingStatsReporter, listener);
 
         // Test with remote index, no aggregation, and no chunking
         datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
@@ -276,7 +278,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
             e -> fail()
         );
 
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+        DataExtractorFactory.create(
+            client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), timingStatsReporter, listener);
 
         // Test with remote index, no aggregation, and chunking
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
@@ -284,7 +287,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
             e -> fail()
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
+        DataExtractorFactory.create(
+            client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), timingStatsReporter, listener);
     }
 
     public void testCreateDataExtractorFactoryGivenRollupAndValidAggregationAndAutoChunk() {

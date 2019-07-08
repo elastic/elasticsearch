@@ -3,8 +3,8 @@
 [[ml-dfanalytics-resources]]
 === {dfanalytics-cap} resources
 
-//{dfanalytics-cap} resources relate to APIs such as <<put-dfanalytics>> and
-//<<get-dfanalytics>>.
+{dfanalytics-cap} resources relate to APIs such as <<put-dfanalytics>> and
+<<get-dfanalytics>>.
 
 [discrete]
 [[ml-dfanalytics-properties]]

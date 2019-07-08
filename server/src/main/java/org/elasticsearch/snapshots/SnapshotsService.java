@@ -286,7 +286,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                 request.partial(),
                                                                 State.INIT,
                                                                 snapshotIndices,
-                                                                System.currentTimeMillis(),
+                                                                threadPool.absoluteTimeInMillis(),
                                                                 repositoryData.getGenId(),
                                                                 null,
                                                                 request.userMetadata());
@@ -1170,7 +1170,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // add the snapshot deletion to the cluster state
                     SnapshotDeletionsInProgress.Entry entry = new SnapshotDeletionsInProgress.Entry(
                         snapshot,
-                        System.currentTimeMillis(),
+                        threadPool.absoluteTimeInMillis(),
                         repositoryStateId
                     );
                     if (deletionsInProgress != null) {

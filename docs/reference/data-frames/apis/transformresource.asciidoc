@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[data-frame-transform]]
+[[data-frame-transform-resource]]
 === {dataframe-transform-cap} resources
 
 {dataframe-transform-cap} resources relate to the <<data-frame-apis>>.

@@ -87,7 +87,7 @@ example above:
 * `tcp.keep_idle`: Configures the `TCP_KEEPIDLE` option for this socket, which determines the time in seconds that a connection must be idle before starting to send TCP keepalive probes.
    Only applicable on Linux and Mac. Defaults to -1, which does not set this
    option at the socket level, but uses default system configuration instead.
-* `tcp.keep_interval`: Configures the `TCP_KEEPINTVL` option for this socket.
+* `tcp.keep_interval`: Configures the `TCP_KEEPINTVL` option for this socket, which determines the time in seconds between sending TCP keepalive probes.
    Only applicable on Linux and Mac. Defaults to -1, which does not set this
    option at the socket level, but uses default system configuration instead.
 * `tcp.keep_count`: Configures the `TCP_KEEPCNT` option for this socket.

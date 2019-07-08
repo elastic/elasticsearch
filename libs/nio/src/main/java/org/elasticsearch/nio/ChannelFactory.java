@@ -222,7 +222,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             socket.setTcpNoDelay(tcpNoDelay);
             socket.setKeepAlive(tcpKeepAlive);
             if (tcpKeepAlive) {
-                final Set<SocketOption<?>> supportedOptions = channel.supportedOptions();
+                final Set<SocketOption<?>> supportedOptions = socket.supportedOptions();
                 if (tcpKeepIdle >= 0) {
                     final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
                     if (keepIdleOption != null && supportedOptions.contains(keepIdleOption)) {

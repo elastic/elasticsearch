@@ -19,7 +19,7 @@
 
 package org.elasticsearch.nio;
 
-import jdk.net.ExtendedSocketOptions;
+import org.elasticsearch.core.internal.net.NetUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -223,14 +223,23 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             socket.setKeepAlive(tcpKeepAlive);
             if (tcpKeepAlive) {
                 final Set<SocketOption<?>> supportedOptions = channel.supportedOptions();
-                if (supportedOptions.contains(ExtendedSocketOptions.TCP_KEEPIDLE) && tcpKeepIdle >= 0) {
-                    socket.setOption(ExtendedSocketOptions.TCP_KEEPIDLE, tcpKeepIdle);
+                if (tcpKeepIdle >= 0) {
+                    final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                    if (keepIdleOption != null && supportedOptions.contains(keepIdleOption)) {
+                        socket.setOption(keepIdleOption, tcpKeepIdle);
+                    }
                 }
-                if (supportedOptions.contains(ExtendedSocketOptions.TCP_KEEPINTERVAL) && tcpKeepInterval >= 0) {
-                    socket.setOption(ExtendedSocketOptions.TCP_KEEPINTERVAL, tcpKeepInterval);
+                if (tcpKeepInterval >= 0) {
+                    final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                    if (keepIntervalOption != null && supportedOptions.contains(keepIntervalOption)) {
+                        socket.setOption(keepIntervalOption, tcpKeepInterval);
+                    }
                 }
-                if (supportedOptions.contains(ExtendedSocketOptions.TCP_KEEPCOUNT) && tcpKeepCount >= 0) {
-                    socket.setOption(ExtendedSocketOptions.TCP_KEEPCOUNT, tcpKeepCount);
+                if (tcpKeepCount >= 0) {
+                    final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                    if (keepCountOption != null && supportedOptions.contains(keepCountOption)) {
+                        socket.setOption(keepCountOption, tcpKeepCount);
+                    }
                 }
             }
             socket.setReuseAddress(tcpReusedAddress);

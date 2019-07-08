@@ -41,7 +41,6 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
-import jdk.net.ExtendedSocketOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -55,6 +54,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -65,6 +65,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
+import java.net.SocketOption;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -194,16 +195,23 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 // Netty logs a warning if it can't set the option, so try this only on supported platforms
                 if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
                     if (SETTING_HTTP_TCP_KEEP_IDLE.get(settings) >= 0) {
-                        serverBootstrap.childOption(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPIDLE),
-                            SETTING_HTTP_TCP_KEEP_IDLE.get(settings));
+                        final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                        if (keepIdleOption != null) {
+                            serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), SETTING_HTTP_TCP_KEEP_IDLE.get(settings));
+                        }
                     }
                     if (SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                        serverBootstrap.childOption(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPINTERVAL),
-                            SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings));
+                        final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                        if (keepIntervalOption != null) {
+                            serverBootstrap.childOption(NioChannelOption.of(keepIntervalOption),
+                                SETTING_HTTP_TCP_KEEP_INTERVAL.get(settings));
+                        }
                     }
                     if (SETTING_HTTP_TCP_KEEP_COUNT.get(settings) >= 0) {
-                        serverBootstrap.childOption(NioChannelOption.of(ExtendedSocketOptions.TCP_KEEPCOUNT),
-                            SETTING_HTTP_TCP_KEEP_COUNT.get(settings));
+                        final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                        if (keepCountOption != null) {
+                            serverBootstrap.childOption(NioChannelOption.of(keepCountOption), SETTING_HTTP_TCP_KEEP_COUNT.get(settings));
+                        }
                     }
                 }
             }

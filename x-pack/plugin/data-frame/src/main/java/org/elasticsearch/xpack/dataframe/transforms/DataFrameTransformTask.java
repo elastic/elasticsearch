@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -523,17 +524,35 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
             // the progress here, and not in the executor.
             if (initialRun()) {
-                TransformProgressGatherer.getInitialProgress(this.client, getConfig(), ActionListener.wrap(
-                    newProgress -> {
-                        progress = newProgress;
-                        super.onStart(now, listener);
+                ActionListener<Map<String, Set<String>>> changedBucketsListener = ActionListener.wrap(
+                    r -> {
+                        TransformProgressGatherer.getInitialProgress(this.client, buildFilterQuery(), getConfig(), ActionListener.wrap(
+                            newProgress -> {
+                                logger.trace("[{}] reset the progress from [{}] to [{}]", transformId, progress, newProgress);
+                                progress = newProgress;
+                                super.onStart(now, listener);
+                            },
+                            failure -> {
+                                progress = null;
+                                logger.warn("Unable to load progress information for task [" + transformId + "]", failure);
+                                super.onStart(now, listener);
+                            }
+                        ));
                     },
-                    failure -> {
-                        progress = null;
-                        logger.warn("Unable to load progress information for task [" + transformId + "]", failure);
-                        super.onStart(now, listener);
+                    listener::onFailure
+                );
+
+                createCheckpoint(ActionListener.wrap(cp -> {
+                    DataFrameTransformCheckpoint oldCheckpoint = inProgressOrLastCheckpoint;
+                    if (oldCheckpoint.isEmpty()) {
+                        // this is the 1st run, accept the new in progress checkpoint and go on
+                        inProgressOrLastCheckpoint = cp;
+                        changedBucketsListener.onResponse(null);
+                    } else {
+                        logger.debug ("Getting changes from {} to {}", oldCheckpoint.getTimeUpperBound(), cp.getTimeUpperBound());
+                        getChangedBuckets(oldCheckpoint, cp, changedBucketsListener);
                     }
-                ));
+                }, listener::onFailure));
             } else {
                 super.onStart(now, listener);
             }
@@ -638,6 +657,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             r -> {
                                 // for auto stop shutdown the task
                                 if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
+                                    onStop();
                                     transformTask.shutdown();
                                 }
                                 next.run();
@@ -696,7 +716,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onStop() {
             auditor.info(transformConfig.getId(), "Data frame transform has stopped.");
-            logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
+            logger.info("Data frame transform [{}] has stopped", transformConfig.getId());
         }
 
         @Override

@@ -79,7 +79,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
 
     @Override
     protected MaxAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new MaxAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 

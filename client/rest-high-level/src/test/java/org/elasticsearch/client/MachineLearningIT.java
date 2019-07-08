@@ -164,6 +164,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1359,6 +1360,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
         assertThat(stats.getId(), equalTo(configId));
         assertThat(stats.getState(), equalTo(DataFrameAnalyticsState.STOPPED));
+        assertNull(stats.getFailureReason());
         assertNull(stats.getProgressPercent());
         assertNull(stats.getNode());
         assertNull(stats.getAssignmentExplanation());
@@ -1405,6 +1407,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43924")
     public void testStopDataFrameAnalyticsConfig() throws Exception {
         String sourceIndex = "stop-test-source-index";
         String destIndex = "stop-test-dest-index";
@@ -1436,7 +1439,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new StartDataFrameAnalyticsRequest(configId),
             machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
         assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
-        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STARTED));
+        assertThat(getAnalyticsState(configId), anyOf(equalTo(DataFrameAnalyticsState.STARTED),
+            equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING)));
 
         StopDataFrameAnalyticsResponse stopDataFrameAnalyticsResponse = execute(
             new StopDataFrameAnalyticsRequest(configId),

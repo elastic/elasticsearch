@@ -141,7 +141,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         // core
         "ping", "info",
         // security
-        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges",
+        "security.get_ssl_certificates", "security.authenticate", "security.get_user_privileges", "security.get_builtin_privileges",
         // license
         "license.get_trial_status", "license.get_basic_status"
 
@@ -824,6 +824,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("ccr.") == false &&
                                 apiName.startsWith("data_frame") == false &&
                                 apiName.endsWith("freeze") == false &&
+                                apiName.endsWith("reload_analyzers") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
                                 apiName.equals("indices.get_index_template") == false) {

@@ -57,7 +57,7 @@ you create a {dataframe-transform}, you must define its destination.
 [[data-frame-transform-source]]
 ==== Source objects
 
-{dataframe-transform-cap} resources contain `dest` objects. For example, when
+{dataframe-transform-cap} resources contain `source` objects. For example, when
 you create a {dataframe-transform}, you must define its source.
 
 [discrete]

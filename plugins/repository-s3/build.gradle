@@ -316,23 +316,32 @@ if (useFixture) {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+thirdPartyAudit {
   // classes are missing
-  'javax.servlet.ServletContextEvent', 
-  'javax.servlet.ServletContextListener', 
-  'org.apache.avalon.framework.logger.Logger', 
-  'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger',
-  'software.amazon.ion.IonReader',
-  'software.amazon.ion.IonSystem',
-  'software.amazon.ion.IonType',
-  'software.amazon.ion.IonWriter',
-  'software.amazon.ion.Timestamp',
-  'software.amazon.ion.system.IonBinaryWriterBuilder',
-  'software.amazon.ion.system.IonSystemBuilder',
-  'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
-)
-
-thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
+  ignoreMissingClasses(
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'software.amazon.ion.IonReader',
+    'software.amazon.ion.IonSystem',
+    'software.amazon.ion.IonType',
+    'software.amazon.ion.IonWriter',
+    'software.amazon.ion.Timestamp',
+    'software.amazon.ion.system.IonBinaryWriterBuilder',
+    'software.amazon.ion.system.IonSystemBuilder',
+    'software.amazon.ion.system.IonTextWriterBuilder',
+    'software.amazon.ion.system.IonWriterBuilder',
+    'javax.activation.DataHandler',
+    'com.amazonaws.services.kms.AWSKMS',
+    'com.amazonaws.services.kms.AWSKMSClient',
+    'com.amazonaws.services.kms.model.DecryptRequest',
+    'com.amazonaws.services.kms.model.DecryptResult',
+    'com.amazonaws.services.kms.model.EncryptRequest',
+    'com.amazonaws.services.kms.model.EncryptResult',
+    'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+    'com.amazonaws.services.kms.model.GenerateDataKeyResult'
+  )
+}
 

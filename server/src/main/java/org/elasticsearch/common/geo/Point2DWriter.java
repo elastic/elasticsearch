@@ -132,7 +132,7 @@ public class Point2DWriter extends ShapeTreeWriter {
             int i = left;
             int j = right;
 
-            swapPoint(i, j);
+            swapPoint(left, k);
             if (coords[2 * right + axis] > t) {
                 swapPoint(left, right);
             }

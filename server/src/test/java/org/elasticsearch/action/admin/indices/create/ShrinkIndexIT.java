@@ -564,10 +564,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         prepareCreate("original").setSettings(Settings.builder().put(indexSettings())
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, shardCount)).get();
-        for (int i = 0; i < 30; i++) {
-            client().prepareIndex("original", "_doc")
-                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
-        }
         client().admin().indices().prepareFlush("original").get();
         ensureGreen();
         final String shrinkNode

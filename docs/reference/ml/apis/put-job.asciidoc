@@ -123,7 +123,7 @@ When the job is created, you receive the following results:
 {
   "job_id" : "total-requests",
   "job_type" : "anomaly_detector",
-  "job_version" : "8.0.0",
+  "job_version" : "7.3.0",
   "description" : "Total sum of requests",
   "create_time" : 1562352500629,
   "analysis_config" : {
@@ -150,5 +150,5 @@ When the job is created, you receive the following results:
   "results_index_name" : "shared"
 }
 ----
-// TESTRESPONSE[s/"job_version" : "8.0.0"/"job_version" : $body.job_version/]
+// TESTRESPONSE[s/"job_version" : "7.3.0"/"job_version" : $body.job_version/]
 // TESTRESPONSE[s/1562352500629/$body.$_path/]

@@ -266,7 +266,7 @@ public class WatcherService {
      */
     public void pauseExecution(String reason) {
         triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.pause(null);
+        int cancelledTaskCount = executionService.pause(() -> {});
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }
 

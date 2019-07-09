@@ -312,7 +312,6 @@ public final class TimestampFormatFinder {
             throw new IllegalArgumentException("No time format letter groups in override format [" + overrideFormat + "]");
         }
 
-        System.out.println("DMR " + grokPatternBuilder);
         return new Tuple<>(grokPatternBuilder.toString(), regexBuilder.toString());
     }
 

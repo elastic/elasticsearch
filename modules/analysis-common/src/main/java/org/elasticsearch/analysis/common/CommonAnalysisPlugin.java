@@ -83,6 +83,7 @@ import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
+import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
@@ -110,6 +111,7 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -239,7 +241,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
-        filters.put("elision", ElisionTokenFilterFactory::new);
+        filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
         filters.put("fingerprint", FingerprintTokenFilterFactory::new);
         filters.put("flatten_graph", FlattenGraphTokenFilterFactory::new);
         filters.put("french_stem", FrenchStemTokenFilterFactory::new);
@@ -399,22 +401,30 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("cjk_bigram", false, CJKBigramFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("cjk_width", true, CJKWidthFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("classic", false, ClassicFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("common_grams", false,
+        filters.add(PreConfiguredTokenFilter.singleton("common_grams", false, false,
                 input -> new CommonGramsFilter(input, CharArraySet.EMPTY_SET)));
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("delimited_payload_filter", false, input ->
-                new DelimitedPayloadTokenFilter(input,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
-                        DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("delimited_payload_filter", false, (input, version) -> {
+            if (version.onOrAfter(Version.V_7_0_0)) {
+                throw new IllegalArgumentException(
+                    "[delimited_payload_filter] is not supported for new indices, use [delimited_payload] instead");
+            }
+            if (version.onOrAfter(Version.V_6_2_0)) {
+                deprecationLogger.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
+            }
+            return new DelimitedPayloadTokenFilter(input,
+                DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
+                DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER);
+        }));
         filters.add(PreConfiguredTokenFilter.singleton("delimited_payload", false, input ->
                 new DelimitedPayloadTokenFilter(input,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
-        filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, input ->
+        filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input ->
                 new EdgeNGramTokenFilter(input, 1)));
-        filters.add(PreConfiguredTokenFilter.singletonWithVersion("edgeNGram", false, (reader, version) -> {
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("edgeNGram", false, false, (reader, version) -> {
             if (version.onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
                 throw new IllegalArgumentException(
                         "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
@@ -441,8 +451,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 new LimitTokenCountFilter(input,
                         LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT,
                         LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS)));
-        filters.add(PreConfiguredTokenFilter.singleton("ngram", false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
-        filters.add(PreConfiguredTokenFilter.singletonWithVersion("nGram", false, (reader, version) -> {
+        filters.add(PreConfiguredTokenFilter.singleton("ngram", false, false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("nGram", false, false, (reader, version) -> {
             if (version.onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
                 throw new IllegalArgumentException("The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                         + "Please change the filter name to [ngram] instead.");
@@ -459,7 +469,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("russian_stem", false, input -> new SnowballFilter(input, "Russian")));
         filters.add(PreConfiguredTokenFilter.singleton("scandinavian_folding", true, ScandinavianFoldingFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("scandinavian_normalization", true, ScandinavianNormalizationFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("shingle", false, input -> {
+        filters.add(PreConfiguredTokenFilter.singleton("shingle", false, false, input -> {
             TokenStream ts = new ShingleFilter(input);
             /**
              * We disable the graph analysis on this token stream
@@ -481,20 +491,22 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("word_delimiter", false, input ->
+        filters.add(PreConfiguredTokenFilter.singleton("word_delimiter", false, false, input ->
                 new WordDelimiterFilter(input,
                         WordDelimiterFilter.GENERATE_WORD_PARTS
                       | WordDelimiterFilter.GENERATE_NUMBER_PARTS
                       | WordDelimiterFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterFilter.SPLIT_ON_NUMERICS
                       | WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null)));
-        filters.add(PreConfiguredTokenFilter.singleton("word_delimiter_graph", false, input ->
-                new WordDelimiterGraphFilter(input,
+        filters.add(PreConfiguredTokenFilter.singletonWithVersion("word_delimiter_graph", false, false, (input, version) -> {
+            boolean adjustOffsets = version.onOrAfter(Version.V_7_3_0);
+            return new WordDelimiterGraphFilter(input, adjustOffsets, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE,
                         WordDelimiterGraphFilter.GENERATE_WORD_PARTS
                       | WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
                       | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE
                       | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
-                      | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null)));
+                      | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE, null);
+        }));
         return filters;
     }
 
@@ -508,8 +520,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("letter", LetterTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.singleton("edge_ngram",
-            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
+        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edge_ngram", (version) -> {
+            if (version.onOrAfter(Version.V_7_3_0)) {
+                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
+            }
+            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+        }));
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1)));
         tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new));
         // TODO deprecate and remove in API
@@ -518,8 +534,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
         // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.singleton("nGram", NGramTokenizer::new));
-        tokenizers.add(PreConfiguredTokenizer.singleton("edgeNGram",
-            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
+        tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edgeNGram", (version) -> {
+            if (version.onOrAfter(Version.V_7_3_0)) {
+                return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
+            }
+            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+        }));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
 
         return tokenizers;

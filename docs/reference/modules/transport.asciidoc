@@ -5,7 +5,8 @@ The transport module is used for internal communication between nodes
 within the cluster. Each call that goes from one node to the other uses
 the transport module (for example, when an HTTP GET request is processed
 by one node, and should actually be processed by another node that holds
-the data).
+the data). The transport module is also used for the `TransportClient` in the
+{es} Java API.
 
 The transport mechanism is completely asynchronous in nature, meaning
 that there is no blocking thread waiting for a response. The benefit of

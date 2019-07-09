@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -37,20 +37,20 @@ import static java.util.Collections.unmodifiableMap;
 final class TransportProxyClient {
 
     private final TransportClientNodesService nodesService;
-    private final Map<Action, TransportActionNodeProxy> proxies;
+    private final Map<ActionType, TransportActionNodeProxy> proxies;
 
     TransportProxyClient(Settings settings, TransportService transportService,
-                                TransportClientNodesService nodesService, List<Action> actions) {
+                                TransportClientNodesService nodesService, List<ActionType> actions) {
         this.nodesService = nodesService;
-        Map<Action, TransportActionNodeProxy> proxies = new HashMap<>();
-        for (Action action : actions) {
+        Map<ActionType, TransportActionNodeProxy> proxies = new HashMap<>();
+        for (ActionType action : actions) {
             proxies.put(action, new TransportActionNodeProxy(settings, action, transportService));
         }
         this.proxies = unmodifiableMap(proxies);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
-        ActionRequestBuilder<Request, Response>> void execute(final Action<Response> action,
+        ActionRequestBuilder<Request, Response>> void execute(final ActionType<Response> action,
                                                                               final Request request, ActionListener<Response> listener) {
         final TransportActionNodeProxy<Request, Response> proxy = proxies.get(action);
         assert proxy != null : "no proxy found for action: " + action;

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
@@ -63,13 +64,17 @@ public interface DataExtractorFactory {
             }
         );
 
-        GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]));
-
-        ClientHelper.executeAsyncWithOrigin(
+        if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
+            // If we have remote indices in the data feed, don't bother checking for rollup support
+            // Rollups + CCS is not supported
+            getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+        } else {
+            ClientHelper.executeAsyncWithOrigin(
                 client,
                 ClientHelper.ML_ORIGIN,
                 GetRollupIndexCapsAction.INSTANCE,
-                request,
+                new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0])),
                 getRollupIndexCapsActionHandler);
+        }
     }
 }

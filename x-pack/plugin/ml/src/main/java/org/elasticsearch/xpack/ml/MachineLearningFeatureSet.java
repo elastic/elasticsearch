@@ -115,11 +115,6 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public String description() {
-        return "Machine Learning for the Elastic Stack";
-    }
-
-    @Override
     public boolean available() {
         return licenseState != null && licenseState.isMachineLearningAllowed();
     }

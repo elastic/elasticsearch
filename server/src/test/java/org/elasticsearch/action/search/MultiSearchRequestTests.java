@@ -60,7 +60,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         LogManager.getLogger(MultiSearchRequestTests.class));
 
     public void testSimpleAdd() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch1.json");
+        MultiSearchRequest request = parseMultiSearchRequestFromFile("/org/elasticsearch/action/search/simple-msearch1.json");
         assertThat(request.requests().size(),
                 equalTo(8));
         assertThat(request.requests().get(0).indices()[0],
@@ -136,7 +136,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAdd2() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch2.json");
+        MultiSearchRequest request = parseMultiSearchRequestFromFile("/org/elasticsearch/action/search/simple-msearch2.json");
         assertThat(request.requests().size(), equalTo(5));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
         assertThat(request.requests().get(0).types().length, equalTo(0));
@@ -152,7 +152,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAdd3() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch3.json");
+        MultiSearchRequest request = parseMultiSearchRequestFromFile("/org/elasticsearch/action/search/simple-msearch3.json");
         assertThat(request.requests().size(), equalTo(4));
         assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
@@ -169,7 +169,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testSimpleAdd4() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch4.json");
+        MultiSearchRequest request = parseMultiSearchRequestFromFile("/org/elasticsearch/action/search/simple-msearch4.json");
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
         assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
@@ -188,7 +188,16 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testEmptyFirstLine1() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-empty-first-line1.json");
+        MultiSearchRequest request = parseMultiSearchRequestFromString(
+            "\n" +
+            "\n" +
+            "{ \"query\": {\"match_all\": {}}}\n" +
+            "{}\n" +
+            "{ \"query\": {\"match_all\": {}}}\n" +
+            "\n" +
+            "{ \"query\": {\"match_all\": {}}}\n" +
+            "{}\n" +
+            "{ \"query\": {\"match_all\": {}}}\n");
         assertThat(request.requests().size(), equalTo(4));
         for (SearchRequest searchRequest : request.requests()) {
             assertThat(searchRequest.indices().length, equalTo(0));
@@ -199,7 +208,16 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testEmptyFirstLine2() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-empty-first-line2.json");
+        MultiSearchRequest request = parseMultiSearchRequestFromString(
+            "\n" +
+            "{}\n" +
+            "{ \"query\": {\"match_all\": {}}}\n" +
+            "\n" +
+            "{ \"query\": {\"match_all\": {}}}\n" +
+            "{}\n" +
+            "{ \"query\": {\"match_all\": {}}}\n" +
+            "\n" +
+            "{ \"query\": {\"match_all\": {}}}\n");
         assertThat(request.requests().size(), equalTo(4));
         for (SearchRequest searchRequest : request.requests()) {
             assertThat(searchRequest.indices().length, equalTo(0));
@@ -254,11 +272,19 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertEquals(3, msearchRequest.requests().size());
     }
 
-    private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withContent(new BytesArray(data), XContentType.JSON).build();
+    private MultiSearchRequest parseMultiSearchRequestFromString(String request) throws IOException {
+        return parseMultiSearchRequest(new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(request), XContentType.JSON).build());
+    }
 
+    private MultiSearchRequest parseMultiSearchRequestFromFile(String sample) throws IOException {
+        byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
+        return parseMultiSearchRequest(new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(data), XContentType.JSON).build());
+
+    }
+
+    private MultiSearchRequest parseMultiSearchRequest(RestRequest restRequest) throws IOException {
         MultiSearchRequest request = new MultiSearchRequest();
         RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true,
             (searchRequest, parser) -> {

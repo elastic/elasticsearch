@@ -96,7 +96,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -364,7 +363,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareGet(restoredIndexName, typeName, docId).get().isExists(), equalTo(true));
     }
 
-    public void testFreshIndexUUID() {
+    public void testFreshIndexUUID() throws InterruptedException {
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -542,7 +541,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> check that aliases are not restored and existing aliases still exist");
         assertAliasesMissing(client.admin().indices().prepareAliasesExist("alias-123", "alias-1").get());
         assertAliasesExist(client.admin().indices().prepareAliasesExist("alias-3").get());
-
     }
 
     public void testRestoreTemplates() throws Exception {
@@ -595,7 +593,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> check that template is restored");
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateExists(getIndexTemplatesResponse, "test-template");
-
     }
 
     public void testIncludeGlobalState() throws Exception {
@@ -782,10 +779,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertFalse(client().admin().cluster().prepareGetPipeline("barbaz").get().isFound());
         assertNull(client().admin().cluster().prepareGetStoredScript("foobar").get().getSource());
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
-
     }
 
-    public void testSnapshotFileFailureDuringSnapshot() {
+    public void testSnapshotFileFailureDuringSnapshot() throws InterruptedException {
+        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
 
         logger.info("-->  creating repository");
@@ -844,6 +841,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDataFileFailureDuringSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
@@ -912,6 +911,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDataFileFailureDuringRestore() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Path repositoryLocation = randomRepoPath();
         Client client = client();
         logger.info("-->  creating repository");
@@ -975,6 +976,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDataFileCorruptionDuringRestore() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Path repositoryLocation = randomRepoPath();
         Client client = client();
         logger.info("-->  creating repository");
@@ -1239,7 +1242,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         SearchResponse countResponse = client.prepareSearch("test-idx").setSize(0).get();
         assertThat(countResponse.getHits().getTotalHits().value, equalTo(100L));
-
     }
 
     public void testUnallocatedShards() throws Exception {
@@ -1704,8 +1706,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .setIndices("test-idx-1").setRenamePattern("test-idx").setRenameReplacement("alias")
                 .setWaitForCompletion(true).setIncludeAliases(false).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-
-
     }
 
     public void testMoveShardWhileSnapshotting() throws Exception {
@@ -1772,6 +1772,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testDeleteRepositoryWhileSnapshotting() throws Exception {
+        disableRepoConsistencyCheck("This test uses a purposely broken repository so it would fail consistency checks");
         Client client = client();
         Path repositoryLocation = randomRepoPath();
         logger.info("-->  creating repository");
@@ -1856,8 +1857,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
     }
 
-    @TestLogging("_root:DEBUG")  // this fails every now and then: https://github.com/elastic/elasticsearch/issues/18121 but without
-    // more logs we cannot find out why
     public void testReadonlyRepository() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");
@@ -2332,7 +2331,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")).get(), numdocs);
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar")).get(), numdocs);
-
     }
 
     public void testRecreateBlocksOnRestore() throws Exception {
@@ -2426,6 +2424,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testCloseOrDeleteIndexDuringSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
 
         boolean allowPartial = randomBoolean();
@@ -2750,6 +2750,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotName() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
+
         final Client client = client();
 
         logger.info("-->  creating repository");
@@ -2770,6 +2772,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testListCorruptedSnapshot() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally leaves a broken repository");
+
         Client client = client();
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
@@ -3339,6 +3343,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotSucceedsAfterSnapshotFailure() throws Exception {
+        // TODO: Fix repo cleanup logic to handle these leaked snap-file and only exclude test-repo (the mock repo) here.
+        disableRepoConsistencyCheck(
+            "This test uses a purposely broken repository implementation that results in leaking snap-{uuid}.dat files");
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();
@@ -3609,6 +3616,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (int i = 10; i < 15; i++) {
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
         }
+        client().admin().indices().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
 
         stats = client().admin().indices().prepareStats(indexName).clear().get();
         shardStats = stats.getShards()[0];
@@ -3739,8 +3747,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareGet(restoredIndexName2, typeName, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
     }
 
-    @TestLogging("org.elasticsearch.snapshots:TRACE")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38489")
     public void testAbortedSnapshotDuringInitDoesNotStart() throws Exception {
         final Client client = client();
 

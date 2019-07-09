@@ -1,0 +1,58 @@
+[[breaking-changes-7.4]]
+== Breaking changes in 7.4
+++++
+<titleabbrev>7.4</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 7.4.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming[7.4.0]
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[[breaking_74_plugin_changes]]
+=== Plugins changes
+
+[float]
+==== TokenizerFactory changes
+
+TokenizerFactory now has a `name()` method that must be implemented.  Most
+plugin-provided TokenizerFactory implementations will extend `AbstractTokenizerFactory`,
+which now takes a `name` parameter in its constructor.
+
+[float]
+[[breaking_74_search_changes]]
+=== Search Changes
+
+[float]
+==== Forbid empty doc values in vector functions
+If a document doesn't have a value for a vector field (dense_vector
+or sparse_vector) on which a vector function is executed, an error will
+be thrown.
+
+[float]
+[[breaking_74_snapshots_changes]]
+=== Snapshot and Restore changes
+
+[float]
+==== The S3 repository plugin uses the DNS style access pattern by default
+
+Starting in version 7.4 the `repository-s3` plugin does not use the
+now-deprecated path-style access pattern by default. In versions 7.0, 7.1, 7.2
+and 7.3 the `repository-s3` plugin always used the path-style access pattern.
+This is a breaking change for deployments that only support path-style access
+but which are recognized as supporting DNS-style access by the AWS SDK. If your
+deployment only supports path-style access and is affected by this change then
+you must configure the S3 client setting `path_style_access` to `true`. This
+breaking change was made necessary by
+https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/[AWS's
+announcement] that the path-style access pattern is deprecated and will be
+unsupported on buckets created after September 30th 2020.

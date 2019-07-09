@@ -58,7 +58,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -679,7 +678,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    @TestLogging("_root:DEBUG, org.elasticsearch.transport:TRACE")
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
@@ -1291,35 +1289,35 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-            return t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(
-                    new Transport.Connection() {
-                        @Override
-                        public DiscoveryNode getNode() {
-                            return node;
-                        }
+                t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
+                    (delegatedListener, connection) -> delegatedListener.onResponse(
+                        new Transport.Connection() {
+                            @Override
+                            public DiscoveryNode getNode() {
+                                return node;
+                            }
 
-                        @Override
-                        public void sendRequest(long requestId, String action, TransportRequest request,
-                                                TransportRequestOptions options) throws IOException {
-                            connection.sendRequest(requestId, action, request, options);
-                        }
+                            @Override
+                            public void sendRequest(long requestId, String action, TransportRequest request,
+                                                    TransportRequestOptions options) throws IOException {
+                                connection.sendRequest(requestId, action, request, options);
+                            }
 
-                        @Override
-                        public void addCloseListener(ActionListener<Void> listener) {
-                            connection.addCloseListener(listener);
-                        }
+                            @Override
+                            public void addCloseListener(ActionListener<Void> listener) {
+                                connection.addCloseListener(listener);
+                            }
 
-                        @Override
-                        public boolean isClosed() {
-                            return connection.isClosed();
-                        }
+                            @Override
+                            public boolean isClosed() {
+                                return connection.isClosed();
+                            }
 
-                        @Override
-                        public void close() {
-                            connection.close();
-                        }
-                    })));
+                            @Override
+                            public void close() {
+                                connection.close();
+                            }
+                        })));
         });
         return stubbableTransport;
     }

@@ -292,13 +292,14 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     @AfterClass
     public static void stopHttpd() throws IOException {
-        for (int i = 0; i < internalCluster().size(); i++) {
+        try {
             // shut them all down otherwise we get spammed with connection refused exceptions
-            internalCluster().stopRandomDataNode();
+            internalCluster().close();
+        } finally {
+            httpsServer.stop(0);
+            httpsServer = null;
+            logDir = null;
         }
-        httpsServer.stop(0);
-        httpsServer = null;
-        logDir = null;
     }
 
     public void testJoin() throws ExecutionException, InterruptedException {

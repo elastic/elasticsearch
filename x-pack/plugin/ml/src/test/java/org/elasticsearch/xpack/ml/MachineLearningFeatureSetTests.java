@@ -13,6 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,11 +30,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -380,10 +381,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         for (int i = 0; i < nodeCount; i++) {
             Map<String, String> attrs = new HashMap<>();
             attrs.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(20));
-            Set<DiscoveryNode.Role> roles = new HashSet<>();
-            roles.add(DiscoveryNode.Role.DATA);
-            roles.add(DiscoveryNode.Role.MASTER);
-            roles.add(DiscoveryNode.Role.INGEST);
+            Set<DiscoveryNodeRole> roles = new HashSet<>();
+            roles.add(DiscoveryNodeRole.DATA_ROLE);
+            roles.add(DiscoveryNodeRole.MASTER_ROLE);
+            roles.add(DiscoveryNodeRole.INGEST_ROLE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                 attrs,
@@ -392,10 +393,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             Map<String, String> attrs = new HashMap<>();
-            Set<DiscoveryNode.Role> roles = new HashSet<>();
-            roles.add(DiscoveryNode.Role.DATA);
-            roles.add(DiscoveryNode.Role.MASTER);
-            roles.add(DiscoveryNode.Role.INGEST);
+            Set<DiscoveryNodeRole> roles = new HashSet<>();
+            roles.add(DiscoveryNodeRole.DATA_ROLE);
+            roles.add(DiscoveryNodeRole.MASTER_ROLE);
+            roles.add(DiscoveryNodeRole.INGEST_ROLE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-non-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
                 attrs,

@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.zen;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ElectMasterService.MasterCandidate;
 import org.elasticsearch.test.ESTestCase;
@@ -45,9 +46,9 @@ public class ElectMasterServiceTests extends ESTestCase {
         int count = scaledRandomIntBetween(1, 100);
         ArrayList<DiscoveryNode> nodes = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            Set<DiscoveryNodeRole> roles = new HashSet<>();
             if (randomBoolean()) {
-                roles.add(DiscoveryNode.Role.MASTER);
+                roles.add(DiscoveryNodeRole.MASTER_ROLE);
             }
             DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                     roles, Version.CURRENT);
@@ -62,8 +63,8 @@ public class ElectMasterServiceTests extends ESTestCase {
         int count = scaledRandomIntBetween(1, 100);
         ArrayList<MasterCandidate> candidates = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            Set<DiscoveryNode.Role> roles = new HashSet<>();
-            roles.add(DiscoveryNode.Role.MASTER);
+            Set<DiscoveryNodeRole> roles = new HashSet<>();
+            roles.add(DiscoveryNodeRole.MASTER_ROLE);
             DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                 roles, Version.CURRENT);
             candidates.add(

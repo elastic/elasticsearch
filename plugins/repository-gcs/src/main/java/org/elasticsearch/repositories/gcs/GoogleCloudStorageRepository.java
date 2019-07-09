@@ -94,7 +94,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected BlobPath basePath() {
+    public BlobPath basePath() {
         return basePath;
     }
 

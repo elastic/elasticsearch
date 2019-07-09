@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -67,6 +68,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -138,6 +140,14 @@ public abstract class TransportClient extends AbstractClient {
                         .put(pluginsService.updatedSettings())
                         .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
                         .build();
+        final Set<DiscoveryNodeRole> possibleRoles = Stream.concat(
+                DiscoveryNodeRole.BUILT_IN_ROLES.stream(),
+                pluginsService.filterPlugins(Plugin.class)
+                        .stream()
+                        .map(Plugin::getRoles)
+                        .flatMap(Set::stream))
+                .collect(Collectors.toSet());
+        DiscoveryNode.setPossibleRoles(possibleRoles);
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -210,10 +220,10 @@ public abstract class TransportClient extends AbstractClient {
 
             // construct the list of client actions
             final List<ActionPlugin> actionPlugins = pluginsService.filterPlugins(ActionPlugin.class);
-            final List<Action> clientActions =
+            final List<ActionType> clientActions =
                     actionPlugins.stream().flatMap(p -> p.getClientActions().stream()).collect(Collectors.toList());
             // add all the base actions
-            final List<? extends Action<?>> baseActions =
+            final List<? extends ActionType<?>> baseActions =
                     actionModule.getActions().values().stream().map(ActionPlugin.ActionHandler::getAction).collect(Collectors.toList());
             clientActions.addAll(baseActions);
             final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService, clientActions);
@@ -380,7 +390,7 @@ public abstract class TransportClient extends AbstractClient {
 
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
         proxy.execute(action, request, listener);
     }
 

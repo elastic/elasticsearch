@@ -1,9 +1,9 @@
 {
   "delete_by_query": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete-by-query.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_delete_by_query",
       "paths": ["/{index}/_delete_by_query"],
       "deprecated_paths" : [
         {

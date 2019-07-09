@@ -28,12 +28,11 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.505'
+  'aws': '1.11.562'
 ]
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -164,28 +163,20 @@ if (useFixture) {
   def minioAddress = {
     int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
-    return 'http://127.0.0.1:' + minioPort
+    'http://127.0.0.1:' + minioPort
   }
 
   File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
 
-  // We can't lazy evaluate a system property for the Minio address passed to JUnit so we write it to a resource file
-  // and pass its name instead.
-  task writeMinioAddress {
+  thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
     outputs.file(minioAddressFile)
-    doLast {
+    doFirst {
       file(minioAddressFile).text = "${ -> minioAddress.call() }"
     }
-  }
-
-  thirdPartyTest {
-    dependsOn writeMinioAddress
-    inputs.file(minioAddressFile)
+    // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
     systemProperty 'test.s3.endpoint', minioAddressFile.name
   }
-
-  BuildPlugin.requireDocker(tasks.thirdPartyTest)
 
   task integTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
@@ -200,7 +191,6 @@ if (useFixture) {
     }
   }
   check.dependsOn(integTestMinio)
-  BuildPlugin.requireDocker(tasks.integTestMinio)
 
   testClusters.integTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey

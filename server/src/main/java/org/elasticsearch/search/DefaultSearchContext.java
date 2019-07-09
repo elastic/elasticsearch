@@ -175,7 +175,8 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.clusterService = clusterService;
-        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
+        this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
+            engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
@@ -187,8 +188,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        // clear and scope phase we have
-        Releasables.close(searcher, engineSearcher);
+        Releasables.close(engineSearcher);
     }
 
     /**

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -157,7 +158,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
                     ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
-                final DiscoveryNode handshake = instance.handshake(connection, 10000);
+                final DiscoveryNode handshake = PlainActionFuture.get(fut -> instance.handshake(connection, 10000, fut));
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
                 CountDownLatch latch = new CountDownLatch(1);
                 instance.sendRequest(connection, NodeMappingRefreshAction.ACTION_NAME,

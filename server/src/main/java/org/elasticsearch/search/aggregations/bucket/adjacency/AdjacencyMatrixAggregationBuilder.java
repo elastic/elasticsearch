@@ -230,12 +230,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(filters, separator);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), filters, separator);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         AdjacencyMatrixAggregationBuilder other = (AdjacencyMatrixAggregationBuilder) obj;
         return Objects.equals(filters, other.filters) && Objects.equals(separator, other.separator);
     }

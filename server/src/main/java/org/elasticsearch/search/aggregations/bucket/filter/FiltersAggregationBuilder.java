@@ -331,12 +331,15 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(filters, keyed, otherBucket, otherBucketKey);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), filters, keyed, otherBucket, otherBucketKey);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         FiltersAggregationBuilder other = (FiltersAggregationBuilder) obj;
         return Objects.equals(filters, other.filters)
             && Objects.equals(keyed, other.keyed)

@@ -251,7 +251,7 @@ public class MatchQuery {
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
 
-        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
+        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
 
         /*
          * If a keyword analyzer is used, we know that further analysis isn't
@@ -357,15 +357,16 @@ public class MatchQuery {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        MatchQueryBuilder(Analyzer analyzer, MappedFieldType fieldType) {
+        MatchQueryBuilder(Analyzer analyzer, MappedFieldType fieldType,
+                            boolean enablePositionIncrements, boolean autoGenerateSynonymsPhraseQuery) {
             super(analyzer);
             this.fieldType = fieldType;
+            setEnablePositionIncrements(enablePositionIncrements);
             if (hasPositions(fieldType)) {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
             } else {
                 setAutoGenerateMultiTermSynonymsPhraseQuery(false);
             }
-            setEnablePositionIncrements(enablePositionIncrements);
         }
 
         @Override
@@ -508,8 +509,8 @@ public class MatchQuery {
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                spanQueries[i] = isPrefix ? new SpanTermQuery(terms[i]) :
-                    fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context);
+                spanQueries[i] = isPrefix ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context) :
+                    new SpanTermQuery(terms[i]);
             }
             return new SpanOrQuery(spanQueries);
         }

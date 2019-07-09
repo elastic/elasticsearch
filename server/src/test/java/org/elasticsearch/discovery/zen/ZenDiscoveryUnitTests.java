@@ -28,13 +28,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.coordination.ValidateJoinRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -49,7 +50,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.zen.PublishClusterStateActionTests.AssertingAckListener;
 import org.elasticsearch.discovery.zen.ZenDiscovery.ZenNodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.gateway.GatewayMetaState;
@@ -72,7 +72,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -174,7 +173,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ArrayList<DiscoveryNode> masterNodes = new ArrayList<>();
         ArrayList<DiscoveryNode> allNodes = new ArrayList<>();
         for (int i = randomIntBetween(10, 20); i >= 0; i--) {
-            Set<Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(Role.values())));
+            Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
             DiscoveryNode node = new DiscoveryNode("node_" + i, "id_" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                     roles, Version.CURRENT);
             responses.add(new ZenPing.PingResponse(node, randomBoolean() ? null : node, new ClusterName("test"), randomLong()));
@@ -371,7 +370,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
             masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
             ESAllocationTestCase.createAllocationService(),
-            Collections.emptyList(), mock(GatewayMetaState.class));
+            Collections.emptyList(), mock(GatewayMetaState.class), (s, r) -> {});
         zenDiscovery.start();
         return zenDiscovery;
     }
@@ -392,9 +391,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
             final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
-                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
             final DiscoveryNode localNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
-                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
             MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler
                 (() -> localNode, JoinTaskExecutor.addBuiltInJoinValidators(Collections.emptyList()));
             final boolean incompatible = randomBoolean();

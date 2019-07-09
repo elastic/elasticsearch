@@ -50,6 +50,7 @@ import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.Strings;
@@ -644,6 +645,15 @@ final class IndicesRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(deleteIndexTemplateRequest.masterNodeTimeout());
         request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request reloadAnalyzers(ReloadAnalyzersRequest reloadAnalyzersRequest) {
+        String endpoint = RequestConverters.endpoint(reloadAnalyzersRequest.getIndices(), "_reload_search_analyzers");
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withIndicesOptions(reloadAnalyzersRequest.indicesOptions());
+        request.addParameters(parameters.asMap());
         return request;
     }
 }

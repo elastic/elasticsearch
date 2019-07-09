@@ -52,7 +52,7 @@ Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
 --------------------------------------------------
 // TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ _cat]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ non_json]
 
 Fields can be specified either as a query parameter, or in the URL path:
 
@@ -71,7 +71,7 @@ id                     host      ip        node    field   size
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
 --------------------------------------------------
 // TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ _cat]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ non_json]
 
 And it accepts a comma delimited list:
 
@@ -91,6 +91,6 @@ Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
 Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
 --------------------------------------------------
 // TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
-// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ _cat]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ non_json]
 
 The output shows the individual fielddata for the `body` and `soul` fields, one row per field per node.

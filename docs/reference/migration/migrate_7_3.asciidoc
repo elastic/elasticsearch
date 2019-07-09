@@ -20,6 +20,8 @@ coming[7.3.0]
 
 [[breaking_73_mapping_changes]]
 === Mapping changes
+`dense_vector` field now requires `dims` parameter, specifying the number of
+dimensions for document and query vectors for this field.
 
 [float]
 ==== Defining multi-fields within multi-fields

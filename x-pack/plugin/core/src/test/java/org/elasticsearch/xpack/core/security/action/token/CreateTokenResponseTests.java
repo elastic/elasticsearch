@@ -16,7 +16,7 @@ public class CreateTokenResponseTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         CreateTokenResponse response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
-            randomBoolean() ? null : "FULL", randomAlphaOfLengthBetween(1, 10));
+            randomBoolean() ? null : "FULL", randomAlphaOfLengthBetween(1, 10), randomBoolean() ? null :randomAlphaOfLengthBetween(1, 10));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
@@ -27,7 +27,7 @@ public class CreateTokenResponseTests extends ESTestCase {
         }
 
         response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
-            randomBoolean() ? null : "FULL", null);
+            randomBoolean() ? null : "FULL", null, null);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
@@ -40,7 +40,7 @@ public class CreateTokenResponseTests extends ESTestCase {
 
     public void testSerializationToPre62Version() throws Exception {
         CreateTokenResponse response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
-            randomBoolean() ? null : "FULL", randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
+            randomBoolean() ? null : "FULL", randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10), null);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_1_4);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
@@ -59,7 +59,7 @@ public class CreateTokenResponseTests extends ESTestCase {
 
     public void testSerializationToPost62Pre65Version() throws Exception {
         CreateTokenResponse response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
-            randomBoolean() ? null : "FULL", randomAlphaOfLengthBetween(1, 10));
+            randomBoolean() ? null : "FULL", randomAlphaOfLengthBetween(1, 10), null);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_2_0, Version.V_6_4_0);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
@@ -74,7 +74,7 @@ public class CreateTokenResponseTests extends ESTestCase {
 
         // no refresh token
         response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
-            randomBoolean() ? null : "FULL", null);
+            randomBoolean() ? null : "FULL", null, null);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
             response.writeTo(output);

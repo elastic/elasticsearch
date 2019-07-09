@@ -19,11 +19,15 @@ progress of a job.
 
 `model_size_stats`::
   (object) An object that provides information about the size and contents of the model.
-  See <<ml-modelsizestats,model size stats objects>>
+  See <<ml-modelsizestats,model size stats objects>>.
 
 `forecasts_stats`::
   (object) An object that provides statistical information about forecasts
-  of this job. See <<ml-forecastsstats, forecasts stats objects>>
+  of this job. See <<ml-forecastsstats, forecasts stats objects>>.
+
+`timing_stats`::
+  (object) An object that provides statistical information about timing aspect
+  of this job. See <<ml-timingstats, timing stats objects>>.
 
 `node`::
   (object) For open jobs only, contains information about the node where the
@@ -61,8 +65,7 @@ or old results are deleted, the job counts are not reset.
   (long) The number of bucket results produced by the job.
 
 `earliest_record_timestamp`::
-  (string) The timestamp of the earliest chronologically ordered record.
-  The datetime string is in ISO 8601 format.
+  (date) The timestamp of the earliest chronologically input document.
 
 `empty_bucket_count`::
   (long) The number of buckets which did not contain any data. If your data contains many
@@ -86,13 +89,13 @@ or old results are deleted, the job counts are not reset.
   (string) A unique identifier for the job.
 
 `last_data_time`::
-  (datetime) The timestamp at which data was last analyzed, according to server time.
+  (date) The timestamp at which data was last analyzed, according to server time.
 
 `latest_empty_bucket_timestamp`::
   (date) The timestamp of the last bucket that did not contain any data.
 
 `latest_record_timestamp`::
-  (date) The timestamp of the last processed record.
+  (date) The timestamp of the latest chronologically input document.
 
 `latest_sparse_bucket_timestamp`::
   (date) The timestamp of the last bucket that was considered sparse.
@@ -208,6 +211,31 @@ The `forecasts_stats` object shows statistics about forecasts. It has the follow
 
 NOTE: `memory_bytes`, `records`, `processing_time_ms` and `status` require at least 1 forecast, otherwise
 these fields are omitted.
+
+[float]
+[[ml-timingstats]]
+==== Timing Stats Objects
+
+The `timing_stats` object shows timing-related statistics about the job's progress. It has the following properties:
+
+`job_id`::
+  (string) A numerical character string that uniquely identifies the job.
+
+`bucket_count`::
+  (long) The number of buckets processed.
+
+`minimum_bucket_processing_time_ms`::
+  (double) Minimum among all bucket processing times in milliseconds.
+
+`maximum_bucket_processing_time_ms`::
+  (double) Maximum among all bucket processing times in milliseconds.
+
+`average_bucket_processing_time_ms`::
+  (double) Average of all bucket processing times in milliseconds.
+
+`exponential_average_bucket_processing_time_ms`::
+  (double) Exponential moving average of all bucket processing times in milliseconds.
+
 
 [float]
 [[ml-stats-node]]

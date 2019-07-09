@@ -79,10 +79,10 @@ security of the Elasticsearch deployment.
 === Allowed script types setting
 
 Elasticsearch supports two script types: `inline` and `stored` (<<modules-scripting-using>>).
-By default all script types are allowed to be executed. This can be modified using the
-setting `script.allowed_types`.  Only the types specified as part of the setting will be allowed
+By default both script types are allowed to be executed. This can be modified using the
+setting `script.allowed_types`. Only the types specified as part of the setting will be allowed
 to be executed. To specify no types are allowed, set `script.allowed_types` to be `none`. To
-allow all types again, set `script.allowed_types: null` or `script.allowed_types: inline, stored`.
+allow both types again, set `script.allowed_types: null` or `script.allowed_types: inline, stored`.
 
 [source,yaml]
 ----

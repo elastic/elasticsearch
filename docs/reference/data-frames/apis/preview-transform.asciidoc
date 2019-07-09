@@ -31,6 +31,15 @@ Previews a {dataframe-transform}.
 {stack-ov}/built-in-roles.html[Built-in roles].
 
 [discrete]
+[[preview-data-frame-transform-desc]]
+==== {api-description-title}
+
+This API generates a preview of the results that you will get when you run the
+<<put-data-frame-transform,create {dataframe-transforms} API>> with the same
+configuration. It returns a maximum of 100 results. The calculations are based
+on all the current data in the source index. 
+
+[discrete]
 [[preview-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
@@ -40,6 +49,15 @@ Previews a {dataframe-transform}.
 `pivot` (Required)::
   (object) Defines the pivot function `group by` fields and the aggregation to
   reduce the data. See <<data-frame-transform-pivot>>.
+  
+[discrete]
+[[preview-data-frame-transform-response]]
+==== {api-response-body-title}
+
+`preview`::
+  (array) An array of documents. In particular, they are the JSON
+  representation of the documents that would be created in the destination index
+  by the {dataframe-transform}. 
 
 [discrete]
 ==== {api-examples-title}
@@ -90,7 +108,17 @@ The data that is returned for this example is as follows:
       "customer_id" : "12"
     }
     ...
-  ]
+  ],
+  "mappings": {
+    "properties": {
+      "max_price": {
+        "type": "double"
+      },
+      "customer_id": {
+        "type": "keyword"
+      }
+    }
+  }
 }
 ----
 // NOTCONSOLE

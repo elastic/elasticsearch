@@ -25,8 +25,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -44,7 +44,7 @@ public class GatewayAllocator {
 
     private static final Logger logger = LogManager.getLogger(GatewayAllocator.class);
 
-    private final RoutingService routingService;
+    private final RerouteService rerouteService;
 
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
@@ -55,10 +55,10 @@ public class GatewayAllocator {
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(RoutingService routingService,
+    public GatewayAllocator(RerouteService rerouteService,
                             TransportNodesListGatewayStartedShards startedAction,
                             TransportNodesListShardStoreMetaData storeAction) {
-        this.routingService = routingService;
+        this.rerouteService = rerouteService;
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
     }
@@ -72,7 +72,7 @@ public class GatewayAllocator {
 
     // for tests
     protected GatewayAllocator() {
-        this.routingService = null;
+        this.rerouteService = null;
         this.primaryShardAllocator = null;
         this.replicaShardAllocator = null;
     }
@@ -139,7 +139,7 @@ public class GatewayAllocator {
         @Override
         protected void reroute(ShardId shardId, String reason) {
             logger.trace("{} scheduling reroute for {}", shardId, reason);
-            routingService.reroute("async_shard_fetch", ActionListener.wrap(
+            rerouteService.reroute("async_shard_fetch", ActionListener.wrap(
                 r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
                 e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)));
         }

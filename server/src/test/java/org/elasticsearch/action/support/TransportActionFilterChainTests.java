@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -34,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -261,6 +263,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
     }
 
     private static class TestResponse extends ActionResponse {
-
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

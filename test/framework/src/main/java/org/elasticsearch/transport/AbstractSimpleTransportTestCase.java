@@ -1172,7 +1172,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(message);
         }
     }
@@ -1236,7 +1235,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeInt(value1);
         }
     }
@@ -1690,7 +1688,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeOptionalString(info);
         }
 

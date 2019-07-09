@@ -70,7 +70,6 @@ public class GetCertificateInfoAction extends StreamableResponseActionType<GetCe
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeVInt(certificates.size());
             for (CertificateInfo cert : certificates) {
                 cert.writeTo(out);

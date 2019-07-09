@@ -392,6 +392,8 @@ public class RetentionLeaseActions {
             super(in);
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
 }

@@ -64,7 +64,6 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(groups.length);
         for (ClusterSearchShardsGroup response : groups) {
             response.writeTo(out);

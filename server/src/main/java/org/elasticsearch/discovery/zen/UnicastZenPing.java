@@ -572,7 +572,6 @@ public class UnicastZenPing implements ZenPing {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeInt(id);
             out.writeVInt(pingResponses.length);
             for (PingResponse pingResponse : pingResponses) {

@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -1310,6 +1311,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private static class InternalMessage extends TransportMessage {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     void assertThreadContextContainsAuthentication(Authentication authentication) throws IOException {

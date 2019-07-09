@@ -63,7 +63,6 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(indexTemplates.size());
         for (IndexTemplateMetaData indexTemplate : indexTemplates) {
             indexTemplate.writeTo(out);

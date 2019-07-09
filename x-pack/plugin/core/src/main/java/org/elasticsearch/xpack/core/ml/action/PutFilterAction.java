@@ -134,7 +134,6 @@ public class PutFilterAction extends StreamableResponseActionType<PutFilterActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             filter.writeTo(out);
         }
 

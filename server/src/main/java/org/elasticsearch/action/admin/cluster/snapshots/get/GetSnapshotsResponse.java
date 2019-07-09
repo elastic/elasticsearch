@@ -83,7 +83,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(snapshots.size());
         for (SnapshotInfo snapshotInfo : snapshots) {
             snapshotInfo.writeTo(out);

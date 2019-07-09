@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -57,13 +59,19 @@ public class GetReindexJobTaskAction extends ActionType<GetReindexJobTaskAction.
         }
 
         @Override
+        public boolean match(Task task) {
+            if (task instanceof AllocatedPersistentTask) {
+                AllocatedPersistentTask persistentTask = (AllocatedPersistentTask) task;
+                return persistentTaskId.equals(persistentTask.getPersistentTaskId());
+            } else {
+                return false;
+            }
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(persistentTaskId);
-        }
-
-        public String getPersistentTaskId() {
-            return persistentTaskId;
         }
     }
 

@@ -104,7 +104,8 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Line line) {
-            throw new UnsupportedOperationException("support for Line is a TODO");
+            // TODO (waiting on #43949)
+            return null;
         }
 
         @Override

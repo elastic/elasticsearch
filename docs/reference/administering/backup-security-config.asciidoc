@@ -138,7 +138,7 @@ stored scripts. Note that this includes non-security configuration and that it c
 
 IMPORTANT: The index format is only compatible within a single major version,
 and cannot be restored onto a version earlier than the version from which it
-originated. For exmaple, you can restore a security snapshot from 6.6.0 into a 
+originated. For example, you can restore a security snapshot from 6.6.0 into a 
 6.7.0 cluster, but you cannot restore it to a cluster running {es} 6.5.0 or 7.0.0.
 
 [discrete]

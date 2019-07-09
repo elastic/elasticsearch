@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.enrich;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -45,6 +46,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private final ThreadPool threadPool;
     private final EnrichPolicyLocks enrichPolicyLocks;
 
+    private volatile boolean isMaster = false;
     private volatile Scheduler.Cancellable cancellable;
 
     EnrichPolicyMaintenanceService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
@@ -63,6 +65,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     @Override
     public void onMaster() {
         if (cancellable == null || cancellable.isCancelled()) {
+            isMaster = true;
             scheduleNext();
             clusterService.addLifecycleListener(new LifecycleListener() {
                 @Override
@@ -76,6 +79,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     @Override
     public void offMaster() {
         if (cancellable != null && cancellable.isCancelled() == false) {
+            isMaster = false;
             cancellable.cancel();
         }
     }
@@ -86,22 +90,30 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     }
 
     private void scheduleNext() {
-        try {
-            TimeValue waitTime = EnrichPlugin.ENRICH_CLEANUP_PERIOD.get(settings);
-            cancellable = threadPool.schedule(this::execute, waitTime, ThreadPool.Names.GENERIC);
-        } catch (EsRejectedExecutionException e) {
-            if (e.isExecutorShutdown()) {
-                logger.debug("failed to schedule next [enrich] maintenance task; shutting down", e);
-            } else {
-                throw e;
+        if (isMaster) {
+            try {
+                TimeValue waitTime = EnrichPlugin.ENRICH_CLEANUP_PERIOD.get(settings);
+                cancellable = threadPool.schedule(this::execute, waitTime, ThreadPool.Names.GENERIC);
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.debug("Failed to schedule next [enrich] maintenance task; shutting down", e);
+                } else {
+                    throw e;
+                }
             }
+        } else {
+            logger.debug("No longer master; skipping next scheduled [enrich] maintenance task");
         }
     }
 
     private void execute() {
         logger.debug("triggering scheduled [enrich] maintenance task");
-        cleanUpEnrichIndices();
-        scheduleNext();
+        if (isMaster) {
+            cleanUpEnrichIndices();
+            scheduleNext();
+        } else {
+            logger.debug("No longer master; skipping next scheduled [enrich] maintenance task");
+        }
     }
 
     private void cleanUpEnrichIndices() {

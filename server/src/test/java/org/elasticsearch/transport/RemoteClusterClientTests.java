@@ -53,9 +53,8 @@ public class RemoteClusterClientTests extends ESTestCase {
             Settings localSettings = Settings.builder()
                 .put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), true)
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
-            try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
-                service.start();
-                service.acceptIncomingRequests();
+            try (MockTransportService service = startTransport("local_node", Collections.emptyList(), Version.CURRENT,
+                    threadPool, localSettings)) {
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                 assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
                 Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");

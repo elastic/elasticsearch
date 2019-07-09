@@ -404,6 +404,10 @@ public class IndexResolver {
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
                 return new UnsupportedEsField(fieldName, typeName);
+            case GEO_SHAPE:
+                // TODO
+                // NORELEASE: clean this up
+                return new EsField(fieldName, esType, props, false);
             default:
                 return new EsField(fieldName, esType, props, isAggregateable);
         }

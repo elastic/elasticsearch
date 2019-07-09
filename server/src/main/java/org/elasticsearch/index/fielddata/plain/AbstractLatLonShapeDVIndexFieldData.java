@@ -59,7 +59,7 @@ public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndex
             if (info != null) {
                 checkCompatible(info);
             }
-            return new LatLonPointDVAtomicFieldData(reader, fieldName);
+            return new LatLonShapeDVAtomicFieldData(reader, fieldName);
         }
 
         @Override
@@ -71,10 +71,10 @@ public abstract class AbstractLatLonShapeDVIndexFieldData extends DocValuesIndex
         static void checkCompatible(FieldInfo fieldInfo) {
             // dv properties could be "unset", if you e.g. used only StoredField with this same name in the segment.
             if (fieldInfo.getDocValuesType() != DocValuesType.NONE
-                && fieldInfo.getDocValuesType() != LatLonDocValuesField.TYPE.docValuesType()) {
+                && fieldInfo.getDocValuesType() != DocValuesType.BINARY) {
                 throw new IllegalArgumentException("field=\"" + fieldInfo.name + "\" was indexed with docValuesType="
                     + fieldInfo.getDocValuesType() + " but this type has docValuesType="
-                    + LatLonDocValuesField.TYPE.docValuesType() + ", is the field really a LatLonDocValuesField?");
+                    + DocValuesType.BINARY + ", is the field really a geo-shape field?");
             }
         }
     }

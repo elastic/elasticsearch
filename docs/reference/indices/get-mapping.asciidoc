@@ -87,3 +87,4 @@ include::{docdir}/rest-api/timeoutparms.asciidoc[tag=master_timeout]
 GET /twitter/_mapping
 ----
 // CONSOLE
+// TEST[setup:twitter]

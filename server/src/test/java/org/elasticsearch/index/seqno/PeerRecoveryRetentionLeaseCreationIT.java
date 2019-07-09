@@ -45,8 +45,8 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
     public void testCanRecoverFromStoreWithoutPeerRecoveryRetentionLease() throws Exception {
         /*
          * In a full cluster restart from a version without peer-recovery retention leases, the leases on disk will not include a lease for
-         * the local node. The same sort of thing can happen in weird situations This test ensures that a primary that is recovering from
-         * store creates a lease for itself.
+         * the local node. The same sort of thing can happen in weird situations involving dangling indices. This test ensures that a
+         * primary that is recovering from store creates a lease for itself.
          */
 
         internalCluster().startMasterOnlyNode();

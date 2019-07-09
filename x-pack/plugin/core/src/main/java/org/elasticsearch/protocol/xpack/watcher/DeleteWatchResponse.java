@@ -89,7 +89,6 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(id);
         out.writeVLong(version);
         out.writeBoolean(found);

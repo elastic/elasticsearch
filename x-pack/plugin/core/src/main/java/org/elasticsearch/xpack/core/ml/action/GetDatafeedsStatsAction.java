@@ -22,11 +22,14 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.Version.V_7_4_0;
 
 public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDatafeedsStatsAction.Response> {
 
@@ -128,13 +131,16 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
             private DiscoveryNode node;
             @Nullable
             private String assignmentExplanation;
+            @Nullable
+            private DatafeedTimingStats timingStats;
 
             public DatafeedStats(String datafeedId, DatafeedState datafeedState, @Nullable DiscoveryNode node,
-                          @Nullable String assignmentExplanation) {
+                          @Nullable String assignmentExplanation, @Nullable DatafeedTimingStats timingStats) {
                 this.datafeedId = Objects.requireNonNull(datafeedId);
                 this.datafeedState = Objects.requireNonNull(datafeedState);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
+                this.timingStats = timingStats;
             }
 
             DatafeedStats(StreamInput in) throws IOException {
@@ -142,6 +148,11 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                 datafeedState = DatafeedState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
+                if (in.getVersion().onOrAfter(V_7_4_0)) {
+                    timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
+                } else {
+                    timingStats = null;
+                }
             }
 
             public String getDatafeedId() {
@@ -158,6 +169,10 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
 
             public String getAssignmentExplanation() {
                 return assignmentExplanation;
+            }
+
+            public DatafeedTimingStats getTimingStats() {
+                return timingStats;
             }
 
             @Override
@@ -184,6 +199,9 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                 if (assignmentExplanation != null) {
                     builder.field("assignment_explanation", assignmentExplanation);
                 }
+                if (timingStats != null) {
+                    builder.field("timing_stats", timingStats);
+                }
                 builder.endObject();
                 return builder;
             }
@@ -194,11 +212,14 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                 datafeedState.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
+                if (out.getVersion().onOrAfter(V_7_4_0)) {
+                    out.writeOptionalWriteable(timingStats);
+                }
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation);
+                return Objects.hash(datafeedId, datafeedState, node, assignmentExplanation, timingStats);
             }
 
             @Override
@@ -210,10 +231,11 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                     return false;
                 }
                 DatafeedStats other = (DatafeedStats) obj;
-                return Objects.equals(datafeedId, other.datafeedId) &&
+                return Objects.equals(this.datafeedId, other.datafeedId) &&
                         Objects.equals(this.datafeedState, other.datafeedState) &&
                         Objects.equals(this.node, other.node) &&
-                        Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
+                        Objects.equals(this.assignmentExplanation, other.assignmentExplanation) &&
+                        Objects.equals(this.timingStats, other.timingStats);
             }
         }
 
@@ -232,5 +254,4 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
             return DatafeedStats::new;
         }
     }
-
 }

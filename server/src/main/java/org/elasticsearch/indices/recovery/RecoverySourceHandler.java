@@ -415,16 +415,16 @@ public class RecoverySourceHandler {
                     phase1FileNames.size(), new ByteSizeValue(totalSizeInBytes),
                     phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSizeInBytes));
                 final StepListener<Void> sendFileInfoStep = new StepListener<>();
-                final StepListener<Void> sendFileChunkStep = new StepListener<>();
+                final StepListener<Void> sendFilesStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.execute(() ->
                     recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
                         phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep));
 
                 sendFileInfoStep.whenComplete(r ->
-                    sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFileChunkStep), listener::onFailure);
+                    sendFiles(store, phase1Files.toArray(new StoreFileMetaData[0]), translogOps, sendFilesStep), listener::onFailure);
 
-                sendFileChunkStep.whenComplete(r ->
+                sendFilesStep.whenComplete(r ->
                     cleanFiles(store, recoverySourceMetadata, translogOps, globalCheckpoint, cleanFilesStep), listener::onFailure);
 
                 final long totalSize = totalSizeInBytes;
@@ -726,9 +726,19 @@ public class RecoverySourceHandler {
             assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send file chunk]");
             while (true) {
                 assert semaphore.availablePermits() == 0;
+                cancellableThreads.checkForCancel();
                 if (error.get() != null) {
                     handleErrorOnSendFiles(store, error.get().v2(), new StoreFileMetaData[]{error.get().v1()});
                     throw error.get().v2();
+                }
+                if (canSendMore() == false) {
+                    semaphore.release();
+                    // Here we have to retry before abort to avoid a race situation where the other threads have flipped `canSendMore`
+                    // condition but they are not going to resume the sending process because this thread still holds the semaphore.
+                    final boolean changed = canSendMore() || error.get() != null;
+                    if (changed == false || semaphore.tryAcquire() == false) {
+                        break;
+                    }
                 }
                 final FileChunk chunk = readNextChunk();
                 if (chunk == null) {
@@ -757,15 +767,6 @@ public class RecoverySourceHandler {
                             })
                     )
                 );
-                if (canSendMore() == false) {
-                    semaphore.release();
-                    // Here we have to retry before abort to avoid a race situation where the other threads have flipped `canSendMore`
-                    // condition but they are not going to resume the sending process because this thread still holds the semaphore.
-                    final boolean changed = canSendMore() || error.get() != null;
-                    if (changed == false || semaphore.tryAcquire() == false) {
-                        break;
-                    }
-                }
             }
         }
 

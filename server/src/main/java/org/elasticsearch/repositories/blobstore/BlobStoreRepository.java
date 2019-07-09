@@ -884,9 +884,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
             }
 
-            Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
-            int fileListGeneration = tuple.v2();
+            long fileListGeneration = tuple.v2();
 
             if (snapshots.snapshots().stream().anyMatch(sf -> sf.snapshot().equals(snapshotId.getName()))) {
                 throw new IndexShardSnapshotFailedException(shardId,
@@ -1088,9 +1088,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
         }
 
-        Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+        Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
-        int fileListGeneration = tuple.v2();
+        long fileListGeneration = tuple.v2();
 
         try {
             indexShardSnapshotFormat.delete(shardContainer, snapshotId.getUUID());
@@ -1133,9 +1133,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param blobs              list of blobs in the container
      * @param reason             a reason explaining why the shard index file is written
      */
-    private void finalizeShard(List<SnapshotFiles> snapshots, int fileListGeneration, Map<String, BlobMetaData> blobs,
+    private void finalizeShard(List<SnapshotFiles> snapshots, long fileListGeneration, Map<String, BlobMetaData> blobs,
                                String reason, BlobContainer shardContainer, ShardId shardId, SnapshotId snapshotId) {
-        final String indexGeneration = Integer.toString(fileListGeneration + 1);
+        final String indexGeneration = Long.toString(fileListGeneration + 1);
         try {
             final List<String> blobsToDelete;
             if (snapshots.isEmpty()) {
@@ -1169,16 +1169,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param blobs list of blobs in repository
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
-    private Tuple<BlobStoreIndexShardSnapshots, Integer> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs,
+    private Tuple<BlobStoreIndexShardSnapshots, Long> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs,
                                                                                            BlobContainer shardContainer) {
         Set<String> blobKeys = blobs.keySet();
-        long latestGen = latestGeneration(blobKeys);
-        assert latestGen < Integer.MAX_VALUE;
-        int latest = (int) latestGen;
+        long latest = latestGeneration(blobKeys);
         if (latest >= 0) {
             try {
                 final BlobStoreIndexShardSnapshots shardSnapshots =
-                    indexShardSnapshotsFormat.read(shardContainer, Integer.toString(latest));
+                    indexShardSnapshotsFormat.read(shardContainer, Long.toString(latest));
                 return new Tuple<>(shardSnapshots, latest);
             } catch (IOException e) {
                 final String file = SNAPSHOT_INDEX_PREFIX + latest;

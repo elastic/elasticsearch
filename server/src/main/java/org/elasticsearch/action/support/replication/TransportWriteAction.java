@@ -35,7 +35,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -74,9 +73,7 @@ public abstract class TransportWriteAction<
         final Location location;
         if (operationResult.getFailure() != null) {
             // check if any transient write operation failures should be bubbled up
-            Exception failure = operationResult.getFailure();
-            assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-            throw failure;
+            throw operationResult.getFailure();
         } else {
             location = locationToSync(currentLocation, operationResult.getTranslogLocation());
         }

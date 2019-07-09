@@ -196,7 +196,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         builder.field("running_time_in_nanos", runningTimeNanos);
         builder.field("cancellable", cancellable);
-        if (parentTaskId.isSet() && this.getAction().contains("reindex") == false) {
+        if (parentTaskId.isSet() && parentTaskId.getNodeId().equals("cluster") == false) {
             builder.field("parent_task_id", parentTaskId.toString());
         }
         builder.startObject("headers");

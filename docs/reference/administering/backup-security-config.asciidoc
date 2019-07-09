@@ -72,7 +72,7 @@ For convenience, here are the complete steps:
 
 . Create a repository that you can use to backup the `.security` index.
 It is preferable to have a <<backup-security-repos, dedicated repository>> for
-this special index.
+this special index. If you wish, you can also snapshot the system indices for other {stack} components to this repository. 
 +
 --
 [source,js]

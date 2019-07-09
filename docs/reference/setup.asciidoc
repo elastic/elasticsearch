@@ -35,6 +35,27 @@ http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
 Elasticsearch will refuse to start if a known-bad version of Java is used.
 The bundled JVM directory may be removed when using your own JVM.
 
+[float]
+[[garbage-collectors]]
+== JVM garbage collectors
+
+The default garbage collector for {es} is Concurrent-Mark and Sweep (CMS). 
+This GC runs concurrently with the execution of the application so that it
+can minimize pauses. It does, however, have two stop-the-world phases when 
+the JVM literally halts execution so it can trace the object graph and
+collect dead objects. CMS also has trouble collecting large heaps.
+
+{es} also supports the newer Garbage First GC (G1GC). G1GC minimizes pauses 
+and operates better on large heaps than CMS. To use G1GC, you must run JDK 8u40
+or later. 
+
+You might want to switch garbage collectors if frequent, long garbage collection
+is impacting the stability of your cluster. Long GCs can cause nodes to drop out
+of a cluster for brief periods, which causes {es} to relocate shards to
+keep the cluster balanced. This in turn increases network traffic and disk
+I/O, which impacts the cluster's ability to service the normal indexing and query
+load.
+
 --
 
 include::setup/install.asciidoc[]

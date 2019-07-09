@@ -41,7 +41,6 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -64,7 +63,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         String nn1Port = "10001";
         String nn2Port = "10002";
         if (ports.hasMoreElements()) {
-             final Path path = Paths.get(ports.nextElement().getFile());
+             final Path path = PathUtils.get(ports.nextElement().toURI());
              final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
                 return Files.readAllLines(path);
              });

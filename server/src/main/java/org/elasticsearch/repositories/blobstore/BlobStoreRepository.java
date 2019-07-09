@@ -701,10 +701,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private RepositoryData getRepositoryData(long indexGen) {
+        if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
+            return RepositoryData.EMPTY;
+        }
         try {
-            if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
-                return RepositoryData.EMPTY;
-            }
             final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
             RepositoryData repositoryData;
@@ -836,12 +836,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {
-        Map<String, BlobMetaData> blobs = blobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX);
-        if (blobs.isEmpty()) {
-            // no snapshot index blobs have been written yet
-            return RepositoryData.EMPTY_REPO_GEN;
-        }
-        return latestGeneration(blobs.keySet());
+        return latestGeneration(blobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX).keySet());
     }
 
     private long latestGeneration(Collection<String> rootBlobs) {

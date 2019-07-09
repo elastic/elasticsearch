@@ -83,8 +83,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 }
             });
         } else {
-            internal.getReindexRequest().setShouldStoreResult(true);
-
             /*
              * Let's try and validate before forking so the user gets some error. The
              * task can't totally validate until it starts but this is better than

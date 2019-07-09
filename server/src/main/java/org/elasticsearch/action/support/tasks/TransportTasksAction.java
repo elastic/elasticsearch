@@ -410,7 +410,6 @@ public abstract class TransportTasksAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(nodeId);
             out.writeVInt(results.size());
             for (TaskResponse result : results) {

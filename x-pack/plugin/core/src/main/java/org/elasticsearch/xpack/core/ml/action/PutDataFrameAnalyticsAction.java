@@ -119,7 +119,6 @@ public class PutDataFrameAnalyticsAction extends StreamableResponseActionType<Pu
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             config.writeTo(out);
         }
 

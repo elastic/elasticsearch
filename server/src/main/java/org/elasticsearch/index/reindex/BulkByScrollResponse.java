@@ -186,7 +186,6 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeTimeValue(took);
         status.writeTo(out);
         out.writeList(bulkFailures);

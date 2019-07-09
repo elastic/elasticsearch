@@ -51,15 +51,15 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
             .addTask("data-frame-task-1",
                 DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-1", Version.CURRENT),
+                new DataFrameTransform("data-frame-task-1", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
             .addTask("data-frame-task-2",
                 DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-2", Version.CURRENT),
+                new DataFrameTransform("data-frame-task-2", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""))
             .addTask("data-frame-task-3",
                 DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-3", Version.CURRENT),
+                new DataFrameTransform("data-frame-task-3", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""));
 
         PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
@@ -105,9 +105,9 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
             new DataFrameAuditor(client, ""),
             mock(ThreadPool.class));
 
-        assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks"));
-        assertThat(executor.getAssignment(new DataFrameTransform("new-old-task-id", Version.V_7_2_0), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new DataFrameTransform("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
             equalTo("past-data-node-1"));
     }
 

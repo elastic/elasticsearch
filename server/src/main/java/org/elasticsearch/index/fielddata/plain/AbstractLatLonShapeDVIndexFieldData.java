@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;

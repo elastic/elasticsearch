@@ -1,0 +1,126 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.core.dataframe.transforms;
+
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
+public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
+    public static final String NAME = "data_frame/indexer_position";
+
+    public static final ParseField INDEXER_POSITION = new ParseField("indexer_position");
+    public static final ParseField CHANGES_POSITION = new ParseField("changes_position");
+
+    private Map<String, Object> indexerPosition;
+    private Map<String, Object> changesPosition;
+
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<DataFrameIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(NAME,
+            true,
+            args -> new DataFrameIndexerPosition((Map<String, Object>) args[0],(Map<String, Object>) args[1]));
+
+    static {
+        PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, INDEXER_POSITION, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, CHANGES_POSITION, ValueType.OBJECT);
+    }
+
+    public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> changesPosition) {
+        this.indexerPosition = indexerPosition;
+        this.changesPosition = changesPosition;
+    }
+
+    public DataFrameIndexerPosition(StreamInput in) throws IOException {
+        Map<String, Object> position = in.readMap();
+        indexerPosition = position == null ? null : Collections.unmodifiableMap(position);
+        position = in.readMap();
+        changesPosition = position == null ? null : Collections.unmodifiableMap(position);
+    }
+
+    public Map<String, Object> getIndexerPosition() {
+        return indexerPosition;
+    }
+
+    public void setIndexerPosition(Map<String, Object> indexerPosition) {
+        this.indexerPosition = indexerPosition;
+    }
+
+    public Map<String, Object> getChangesPosition() {
+        return changesPosition;
+    }
+
+    public void setChangesPosition(Map<String, Object> changesPosition) {
+        this.changesPosition = changesPosition;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeMap(indexerPosition);
+        out.writeMap(changesPosition);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (indexerPosition != null) {
+            builder.field(INDEXER_POSITION.getPreferredName(), indexerPosition);
+        }
+        if (changesPosition != null) {
+            builder.field(CHANGES_POSITION.getPreferredName(), changesPosition);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        DataFrameIndexerPosition that = (DataFrameIndexerPosition) other;
+
+        return Objects.equals(this.indexerPosition, that.indexerPosition) &&
+            Objects.equals(this.changesPosition, that.changesPosition);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indexerPosition, changesPosition);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    public static DataFrameIndexerPosition fromXContent(XContentParser parser) {
+        try {
+            return PARSER.parse(parser, null);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+}

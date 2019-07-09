@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,7 +37,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     private final long checkpoint;
 
     @Nullable
-    private final Map<String, Object> currentPosition;
+    private final DataFrameIndexerPosition currentPosition;
     @Nullable
     private final String reason;
     @Nullable
@@ -47,7 +45,10 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     public static final ParseField TASK_STATE = new ParseField("task_state");
     public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
+
+    // 7.3 BWC, replaced by next_position
     public static final ParseField CURRENT_POSITION = new ParseField("current_position");
+    public static final ParseField NEXT_POSITION = new ParseField("next_position");
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
     public static final ParseField REASON = new ParseField("reason");
     public static final ParseField PROGRESS = new ParseField("progress");
@@ -56,18 +57,26 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,
             true,
-            args -> new DataFrameTransformState((DataFrameTransformTaskState) args[0],
-                (IndexerState) args[1],
-                (Map<String, Object>) args[2],
-                (long) args[3],
-                (String) args[4],
-                (DataFrameTransformProgress) args[5],
-                (NodeAttributes) args[6]));
+            args -> {
+                DataFrameTransformTaskState taskState = (DataFrameTransformTaskState) args[0];
+                IndexerState indexerState = (IndexerState) args[1];
+                Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
+                // TODO: handle BWC
+
+                DataFrameIndexerPosition dataFrameIndexerPosition= (DataFrameIndexerPosition) args[3];
+                long checkpoint = (long) args[4];
+                String reason = (String) args[5];
+                DataFrameTransformProgress progress = (DataFrameTransformProgress) args[6];
+                NodeAttributes node = (NodeAttributes) args[7];
+
+                return new DataFrameTransformState(taskState, indexerState, dataFrameIndexerPosition, checkpoint, reason, progress, node);
+            });
 
     static {
         PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
         PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, CURRENT_POSITION, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), DataFrameIndexerPosition::fromXContent, NEXT_POSITION, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(optionalConstructorArg(), REASON);
         PARSER.declareField(optionalConstructorArg(), DataFrameTransformProgress.PARSER::apply, PROGRESS, ValueType.OBJECT);
@@ -76,14 +85,14 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
-                                   @Nullable Map<String, Object> position,
+                                   @Nullable DataFrameIndexerPosition position,
                                    long checkpoint,
                                    @Nullable String reason,
                                    @Nullable DataFrameTransformProgress progress,
                                    @Nullable NodeAttributes node) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.currentPosition = position == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(position));
+        this.currentPosition = position;
         this.checkpoint = checkpoint;
         this.reason = reason;
         this.progress = progress;
@@ -92,7 +101,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
-                                   @Nullable Map<String, Object> position,
+                                   @Nullable DataFrameIndexerPosition position,
                                    long checkpoint,
                                    @Nullable String reason,
                                    @Nullable DataFrameTransformProgress progress) {
@@ -102,8 +111,12 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public DataFrameTransformState(StreamInput in) throws IOException {
         taskState = DataFrameTransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
-        Map<String, Object> position = in.readMap();
-        currentPosition = position == null ? null : Collections.unmodifiableMap(position);
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            currentPosition = new DataFrameIndexerPosition(in);
+        } else {
+            Map<String, Object> position = in.readMap();
+            currentPosition = new DataFrameIndexerPosition(position, null);
+        }
         checkpoint = in.readLong();
         reason = in.readOptionalString();
         progress = in.readOptionalWriteable(DataFrameTransformProgress::new);
@@ -122,7 +135,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return indexerState;
     }
 
-    public Map<String, Object> getPosition() {
+    public DataFrameIndexerPosition getPosition() {
         return currentPosition;
     }
 
@@ -170,7 +183,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         builder.field(TASK_STATE.getPreferredName(), taskState.value());
         builder.field(INDEXER_STATE.getPreferredName(), indexerState.value());
         if (currentPosition != null) {
-            builder.field(CURRENT_POSITION.getPreferredName(), currentPosition);
+            builder.field(NEXT_POSITION.getPreferredName(), currentPosition);
         }
         builder.field(CHECKPOINT.getPreferredName(), checkpoint);
         if (reason != null) {
@@ -195,7 +208,11 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public void writeTo(StreamOutput out) throws IOException {
         taskState.writeTo(out);
         indexerState.writeTo(out);
-        out.writeMap(currentPosition);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            currentPosition.writeTo(out);
+        } else {
+            out.writeMap(currentPosition.getIndexerPosition());
+        }
         out.writeLong(checkpoint);
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(progress);

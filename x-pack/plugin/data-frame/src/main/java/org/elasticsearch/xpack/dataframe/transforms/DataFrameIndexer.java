@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -47,7 +48,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, DataFrameIndexerTransformStats> {
+public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameIndexerPosition, DataFrameIndexerTransformStats> {
 
     public static final int MINIMUM_PAGE_SIZE = 10;
     public static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
@@ -69,7 +70,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
                             DataFrameTransformConfig transformConfig,
                             Map<String, String> fieldMappings,
                             AtomicReference<IndexerState> initialState,
-                            Map<String, Object> initialPosition,
+                            DataFrameIndexerPosition initialPosition,
                             DataFrameIndexerTransformStats jobStats,
                             DataFrameTransformProgress transformProgress,
                             DataFrameTransformCheckpoint inProgressOrLastCheckpoint) {
@@ -136,7 +137,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     }
 
     @Override
-    protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
+    protected IterationResult<DataFrameIndexerPosition> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
 
         // we reached the end
@@ -145,8 +146,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         }
 
         long docsBeforeProcess = getStats().getNumDocuments();
-        IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
-            agg.afterKey(),
+
+        DataFrameIndexerPosition newPosition = new DataFrameIndexerPosition(agg.afterKey(), getPosition().getChangesPosition());
+        IterationResult<DataFrameIndexerPosition> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+            newPosition,
             agg.getBuckets().isEmpty());
         if (progress != null) {
             progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
@@ -227,7 +230,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     protected SearchRequest buildSearchRequest() {
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .aggregation(pivot.buildAggregation(getPosition(), pageSize))
+            .aggregation(pivot.buildAggregation(getPosition().getIndexerPosition(), pageSize))
             .size(0)
             .query(buildFilterQuery());
         searchRequest.source(sourceBuilder);

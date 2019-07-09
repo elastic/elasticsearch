@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
@@ -72,7 +73,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
     private final DataFrameAuditor auditor;
-    private final Map<String, Object> initialPosition;
+    private final DataFrameIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
 
     private final SetOnce<ClientDataFrameIndexer> indexer = new SetOnce<>();
@@ -95,7 +96,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         DataFrameTransformTaskState initialTaskState = DataFrameTransformTaskState.STOPPED;
         String initialReason = null;
         long initialGeneration = 0;
-        Map<String, Object> initialPosition = null;
+        DataFrameIndexerPosition initialPosition = null;
         if (state != null) {
             initialTaskState = state.getTaskState();
             initialReason = state.getReason();
@@ -383,7 +384,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private DataFrameTransformConfig transformConfig;
         private DataFrameIndexerTransformStats initialStats;
         private IndexerState indexerState = IndexerState.STOPPED;
-        private Map<String, Object> initialPosition;
+        private DataFrameIndexerPosition initialPosition;
         private DataFrameTransformProgress progress;
         private DataFrameTransformCheckpoint inProgressOrLastCheckpoint;
 
@@ -457,7 +458,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return this;
         }
 
-        ClientDataFrameIndexerBuilder setInitialPosition(Map<String, Object> initialPosition) {
+        ClientDataFrameIndexerBuilder setInitialPosition(DataFrameIndexerPosition initialPosition) {
             this.initialPosition = initialPosition;
             return this;
         }
@@ -491,7 +492,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                DataFrameTransformsConfigManager transformsConfigManager,
                                DataFrameTransformsCheckpointService transformsCheckpointService,
                                AtomicReference<IndexerState> initialState,
-                               Map<String, Object> initialPosition,
+                               DataFrameIndexerPosition initialPosition,
                                Client client,
                                DataFrameAuditor auditor,
                                DataFrameIndexerTransformStats initialStats,
@@ -615,7 +616,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        protected void doSaveState(IndexerState indexerState, Map<String, Object> position, Runnable next) {
+        protected void doSaveState(IndexerState indexerState, DataFrameIndexerPosition position, Runnable next) {
             if (indexerState.equals(IndexerState.ABORTING)) {
                 // If we're aborting, just invoke `next` (which is likely an onFailure handler)
                 next.run();

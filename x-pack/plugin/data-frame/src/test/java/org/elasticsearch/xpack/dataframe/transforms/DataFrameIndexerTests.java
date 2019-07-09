@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -68,7 +69,7 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Map<String, String> fieldMappings,
                 DataFrameAuditor auditor,
                 AtomicReference<IndexerState> initialState,
-                Map<String, Object> initialPosition,
+                DataFrameIndexerPosition initialPosition,
                 DataFrameIndexerTransformStats jobStats,
                 Function<SearchRequest, SearchResponse> searchFunction,
                 Function<BulkRequest, BulkResponse> bulkFunction,
@@ -129,7 +130,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doSaveState(IndexerState state, Map<String, Object> position, Runnable next) {
+        protected void doSaveState(IndexerState state, DataFrameIndexerPosition position, Runnable next) {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
             next.run();
         }
@@ -198,7 +199,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        Consumer<Exception> failureConsumer = e -> fail("expected circuit breaker exception to be handled");
+        Consumer<Exception> failureConsumer = e -> fail("expected circuit breaker exception to be handled, got:" + e);
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {

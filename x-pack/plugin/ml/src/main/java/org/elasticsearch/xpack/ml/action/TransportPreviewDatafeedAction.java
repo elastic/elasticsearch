@@ -86,7 +86,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                     jobBuilder.build(),
                                     xContentRegistry,
                                     new DatafeedTimingStatsReporter(timingStats, jobResultsPersister),
-                                    new ActionListener<>() {
+                                    new ActionListener<DataExtractorFactory>() {
                                         @Override
                                         public void onResponse(DataExtractorFactory dataExtractorFactory) {
                                             DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);

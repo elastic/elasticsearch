@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -286,7 +285,6 @@ public final class RepositoryData {
     }
 
     private static final String SNAPSHOTS = "snapshots";
-    private static final String INCOMPATIBLE_SNAPSHOTS = "incompatible-snapshots";
     private static final String INDICES = "indices";
     private static final String INDEX_ID = "id";
     private static final String NAME = "name";
@@ -437,48 +435,6 @@ public final class RepositoryData {
             throw new ElasticsearchParseException("start object expected");
         }
         return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, Collections.emptyList());
-    }
-
-    /**
-     * Writes the incompatible snapshot ids to x-content.
-     */
-    public XContentBuilder incompatibleSnapshotsToXContent(XContentBuilder builder) throws IOException {
-        builder.startObject();
-        // write the incompatible snapshots list
-        builder.startArray(INCOMPATIBLE_SNAPSHOTS);
-        for (final SnapshotId snapshot : getIncompatibleSnapshotIds()) {
-            snapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
-    }
-
-    /**
-     * Reads the incompatible snapshot ids from x-content, loading them into a new instance of {@link RepositoryData}
-     * that is created from the invoking instance, plus the incompatible snapshots that are read from x-content.
-     */
-    public RepositoryData incompatibleSnapshotsFromXContent(final XContentParser parser) throws IOException {
-        List<SnapshotId> incompatibleSnapshotIds = new ArrayList<>();
-        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
-            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                String currentFieldName = parser.currentName();
-                if (INCOMPATIBLE_SNAPSHOTS.equals(currentFieldName)) {
-                    if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            incompatibleSnapshotIds.add(SnapshotId.fromXContent(parser));
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("expected array for [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new ElasticsearchParseException("unknown field name  [" + currentFieldName + "]");
-                }
-            }
-        } else {
-            throw new ElasticsearchParseException("start object expected");
-        }
-        return new RepositoryData(this.genId, this.snapshotIds, this.snapshotStates, this.indexSnapshots, incompatibleSnapshotIds);
     }
 
 }

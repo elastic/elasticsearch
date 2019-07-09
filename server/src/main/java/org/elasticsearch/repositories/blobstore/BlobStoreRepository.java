@@ -137,8 +137,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String INDEX_LATEST_BLOB = "index.latest";
 
-    private static final String INCOMPATIBLE_SNAPSHOTS_BLOB = "incompatible-snapshots";
-
     private static final String TESTS_FILE = "tests-";
 
     private static final String METADATA_PREFIX = "meta-";
@@ -701,25 +699,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                      LoggingDeprecationHandler.INSTANCE, blob)) {
                 repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
             }
-
-            // now load the incompatible snapshot ids, if they exist
-            try (InputStream blob = blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, blob)) {
-                repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
-            } catch (NoSuchFileException e) {
-                if (isReadOnly()) {
-                    logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
-                            "reason is that there are no incompatible snapshots in the repository",
-                        metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
-                } else {
-                    // write an empty incompatible-snapshots blob - we do this so that there
-                    // is a blob present, which helps speed up some cloud-based repositories
-                    // (e.g. S3), which retry if a blob is missing with exponential backoff,
-                    // delaying the read of repository data and sometimes causing a timeout
-                    writeIncompatibleSnapshots(RepositoryData.EMPTY);
-                }
-            }
             return repositoryData;
         } catch (NoSuchFileException ex) {
             // repository doesn't have an index blob, its a new blank repo
@@ -770,18 +749,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("Failed to clean up old index blob [{}]", oldSnapshotIndexFile);
             }
         }
-    }
-
-    /**
-     * Writes the incompatible snapshot ids list to the `incompatible-snapshots` blob in the repository.
-     *
-     * Package private for testing.
-     */
-    void writeIncompatibleSnapshots(RepositoryData repositoryData) throws IOException {
-        assert isReadOnly() == false; // can not write to a read only repository
-        // write the incompatible snapshots blob
-        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB,
-            BytesReference.bytes(repositoryData.incompatibleSnapshotsToXContent(XContentFactory.jsonBuilder())), false);
     }
 
     /**

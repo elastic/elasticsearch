@@ -301,34 +301,25 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 XContentParser.Token token = context.parser().currentToken();
                 if (token == XContentParser.Token.START_ARRAY) {
                     token = context.parser().nextToken();
-                    if (token == XContentParser.Token.START_ARRAY) {
-                        // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
-                        while (token != XContentParser.Token.END_ARRAY) {
-                            parseGeoPointIgnoringMalformed(context, sparse);
-                            token = context.parser().nextToken();
-                        }
-                    } else {
-                        // its an array of other possible values
+                    if (token == XContentParser.Token.VALUE_NUMBER) {
+                        double lon = context.parser().doubleValue();
+                        context.parser().nextToken();
+                        double lat = context.parser().doubleValue();
+                        token = context.parser().nextToken();
                         if (token == XContentParser.Token.VALUE_NUMBER) {
-                            double lon = context.parser().doubleValue();
-                            context.parser().nextToken();
-                            double lat = context.parser().doubleValue();
+                            GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());
+                        } else if (token != XContentParser.Token.END_ARRAY) {
+                            throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", CONTENT_TYPE);
+                        }
+                        parse(context, sparse.reset(lat, lon));
+                    } else {
+                        while (token != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                parseGeoPointStringIgnoringMalformed(context, sparse);
+                            } else {
+                                parseGeoPointIgnoringMalformed(context, sparse);
+                            }
                             token = context.parser().nextToken();
-                            if (token == XContentParser.Token.VALUE_NUMBER) {
-                                GeoPoint.assertZValue(ignoreZValue.value(), context.parser().doubleValue());
-                            } else if (token != XContentParser.Token.END_ARRAY) {
-                                throw new ElasticsearchParseException("[{}] field type does not accept > 3 dimensions", CONTENT_TYPE);
-                            }
-                            parse(context, sparse.reset(lat, lon));
-                        } else {
-                            while (token != XContentParser.Token.END_ARRAY) {
-                                if (token == XContentParser.Token.VALUE_STRING) {
-                                    parseGeoPointStringIgnoringMalformed(context, sparse);
-                                } else {
-                                    parseGeoPointIgnoringMalformed(context, sparse);
-                                }
-                                token = context.parser().nextToken();
-                            }
                         }
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {

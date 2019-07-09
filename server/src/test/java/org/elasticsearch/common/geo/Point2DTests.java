@@ -32,6 +32,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class Point2DTests extends ESTestCase {
 
     public void testOnePoint() throws IOException {
@@ -45,6 +47,7 @@ public class Point2DTests extends ESTestCase {
         writer.writeTo(output);
         output.close();
         Point2DReader reader = new Point2DReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+        assertThat(reader.getExtent(), equalTo(new Extent(x, y, x, y)));
         assertTrue(reader.intersects(new Extent(x, y, x, y)));
         assertTrue(reader.intersects(new Extent(x, y, x + randomIntBetween(1, 10), y + randomIntBetween(1, 10))));
         assertTrue(reader.intersects(new Extent(x - randomIntBetween(1, 10), y - randomIntBetween(1, 10), x, y)));
@@ -74,6 +77,7 @@ public class Point2DTests extends ESTestCase {
             writer.writeTo(output);
             output.close();
             Point2DReader reader = new Point2DReader(new ByteBufferStreamInput(ByteBuffer.wrap(output.bytes().toBytesRef().bytes)));
+            assertThat(reader.getExtent(), equalTo(writer.getExtent()));
             assertTrue(reader.intersects(extent));
         }
     }

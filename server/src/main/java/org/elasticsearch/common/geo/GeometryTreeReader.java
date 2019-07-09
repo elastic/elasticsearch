@@ -76,13 +76,13 @@ public class GeometryTreeReader {
     private static ShapeTreeReader getReader(ShapeType shapeType, ByteBufferStreamInput input) throws IOException {
         switch (shapeType) {
             case POLYGON:
-                return new EdgeTreeReader(input);
+                return new EdgeTreeReader(input, true);
             case POINT:
             case MULTIPOINT:
                 return new Point2DReader(input);
             case LINESTRING:
             case MULTILINESTRING:
-                throw new UnsupportedOperationException("TODO: linestring and multilinestring");
+                return new EdgeTreeReader(input, false);
             default:
                 throw new UnsupportedOperationException("unsupported shape type [" + shapeType + "]");
         }

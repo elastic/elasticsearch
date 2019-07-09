@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -35,18 +35,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyticsStatsAction.Response> {
+public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAnalyticsStatsAction.Response> {
 
     public static final GetDataFrameAnalyticsStatsAction INSTANCE = new GetDataFrameAnalyticsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/stats/get";
 
     private GetDataFrameAnalyticsStatsAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -163,16 +158,19 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
             private final String id;
             private final DataFrameAnalyticsState state;
             @Nullable
+            private final String failureReason;
+            @Nullable
             private final Integer progressPercentage;
             @Nullable
             private final DiscoveryNode node;
             @Nullable
             private final String assignmentExplanation;
 
-            public Stats(String id, DataFrameAnalyticsState state, @Nullable Integer progressPercentage,
+            public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, @Nullable Integer progressPercentage,
                          @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
                 this.id = Objects.requireNonNull(id);
                 this.state = Objects.requireNonNull(state);
+                this.failureReason = failureReason;
                 this.progressPercentage = progressPercentage;
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
@@ -181,6 +179,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
             public Stats(StreamInput in) throws IOException {
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
+                failureReason = in.readOptionalString();
                 progressPercentage = in.readOptionalInt();
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
@@ -207,6 +206,9 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
             public XContentBuilder toUnwrappedXContent(XContentBuilder builder) throws IOException {
                 builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
                 builder.field("state", state.toString());
+                if (failureReason != null) {
+                    builder.field("failure_reason", failureReason);
+                }
                 if (progressPercentage != null) {
                     builder.field("progress_percent", progressPercentage);
                 }
@@ -234,6 +236,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(id);
                 state.writeTo(out);
+                out.writeOptionalString(failureReason);
                 out.writeOptionalInt(progressPercentage);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
@@ -241,7 +244,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
 
             @Override
             public int hashCode() {
-                return Objects.hash(id, state, progressPercentage, node, assignmentExplanation);
+                return Objects.hash(id, state, failureReason, progressPercentage, node, assignmentExplanation);
             }
 
             @Override
@@ -255,6 +258,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
                 Stats other = (Stats) obj;
                 return Objects.equals(id, other.id)
                         && Objects.equals(this.state, other.state)
+                        && Objects.equals(this.failureReason, other.failureReason)
                         && Objects.equals(this.node, other.node)
                         && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }

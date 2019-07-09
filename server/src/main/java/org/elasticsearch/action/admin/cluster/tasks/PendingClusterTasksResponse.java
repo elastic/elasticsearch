@@ -114,7 +114,6 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(pendingTasks.size());
         for (PendingClusterTask task : pendingTasks) {
             task.writeTo(out);

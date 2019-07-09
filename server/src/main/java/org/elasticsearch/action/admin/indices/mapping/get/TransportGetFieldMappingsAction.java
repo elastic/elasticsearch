@@ -68,7 +68,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
             for (final String index : concreteIndices) {
                 GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index, probablySingleFieldRequest);
 
-                client.executeLocally(TransportGetFieldMappingsIndexAction.ACTION_INSTANCE, shardRequest, new ActionListener<>() {
+                client.executeLocally(TransportGetFieldMappingsIndexAction.TYPE, shardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(GetFieldMappingsResponse result) {
                         indexResponses.set(indexCounter.getAndIncrement(), result);

@@ -29,7 +29,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -71,6 +70,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
@@ -296,6 +296,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
+        this.translogSyncProcessor = createTranslogSyncProcessor(logger, threadPool.getThreadContext(), this::getEngine);
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
@@ -1218,6 +1219,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         getEngine().failEngine(reason, e);
     }
+
     public Engine.Searcher acquireSearcher(String source) {
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
     }
@@ -1235,10 +1237,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher wrappedSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
-            assert wrappedSearcher != null;
+            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            assert newSearcher != null;
             success = true;
-            return wrappedSearcher;
+            return newSearcher;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to wrap searcher", ex);
         } finally {
@@ -1273,16 +1275,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (reader == nonClosingReaderWrapper) {
             return engineSearcher;
         } else {
-            final IndexSearcher origIndexSearcher = engineSearcher.searcher();
-            final IndexSearcher newIndexSearcher = new IndexSearcher(reader);
-            newIndexSearcher.setQueryCache(origIndexSearcher.getQueryCache());
-            newIndexSearcher.setQueryCachingPolicy(origIndexSearcher.getQueryCachingPolicy());
-            newIndexSearcher.setSimilarity(origIndexSearcher.getSimilarity());
             // we close the reader to make sure wrappers can release resources if needed....
             // our NonClosingReaderWrapper makes sure that our reader is not closed
-            return new Engine.Searcher(engineSearcher.source(), newIndexSearcher, () ->
-                IOUtils.close(newIndexSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
-                    engineSearcher)); // this will run the closeable on the wrapped engine searcher
+            return new Engine.Searcher(engineSearcher.source(), reader,
+                engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
+                () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
+                    engineSearcher)); // this will run the closeable on the wrapped engine reader
         }
     }
 
@@ -2860,19 +2858,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexShardOperationPermits.getActiveOperations();
     }
 
-    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {
-        @Override
-        protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
-            try {
-                getEngine().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
-            } catch (AlreadyClosedException ex) {
-                // that's fine since we already synced everything on engine close - this also is conform with the methods
-                // documentation
-            } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-                logger.debug("failed to sync translog", ex);
-                throw ex;
+    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor;
+
+    private static AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(Logger logger, ThreadContext threadContext,
+                                                                                   Supplier<Engine> engineSupplier) {
+        return new AsyncIOProcessor<>(logger, 1024, threadContext) {
+            @Override
+            protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
+                try {
+                    engineSupplier.get().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
+                } catch (AlreadyClosedException ex) {
+                    // that's fine since we already synced everything on engine close - this also is conform with the methods
+                    // documentation
+                } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                    logger.debug("failed to sync translog", ex);
+                    throw ex;
+                }
             }
-        }
+        };
     };
 
     /**

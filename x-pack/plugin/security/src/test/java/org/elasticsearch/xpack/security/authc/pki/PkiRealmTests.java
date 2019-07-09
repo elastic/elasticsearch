@@ -210,7 +210,7 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
-    public void testCustomUsernamePatternMismatchesAndFails() throws Exception {
+    public void testCustomUsernamePatternMismatchesAndNullToken() throws Exception {
         final Settings settings = Settings.builder()
                 .put(globalSettings)
                 .put("xpack.security.authc.realms.pki.my_pki.username_pattern", "OU=(mismatch.*?),")
@@ -222,10 +222,7 @@ public class PkiRealmTests extends ESTestCase {
         threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
         X509AuthenticationToken token = realm.token(threadContext);
-        AuthenticationResult result = authenticate(token, realm);
-        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getMessage(), containsString("Could not parse principal"));
-        assertThat(result.getUser(), is(nullValue()));
+        assertThat(token, is(nullValue()));
     }
 
     public void testVerificationUsingATruststore() throws Exception {

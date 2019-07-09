@@ -31,14 +31,14 @@ import static org.apache.lucene.geo.GeoUtils.lineCrossesLineWithBoundary;
  * serialized with the {@link EdgeTreeWriter}
  */
 public class EdgeTreeReader implements ShapeTreeReader {
-    final ByteBufferStreamInput input;
-    final int startPosition;
-    private final boolean closed;
+    private final ByteBufferStreamInput input;
+    private final int startPosition;
+    private final boolean hasArea;
 
-    public EdgeTreeReader(ByteBufferStreamInput input, boolean closed) throws IOException {
+    public EdgeTreeReader(ByteBufferStreamInput input, boolean hasArea) throws IOException {
         this.startPosition = input.position();
         this.input = input;
-        this.closed = closed;
+        this.hasArea = hasArea;
     }
 
     public Extent getExtent() throws IOException {
@@ -50,7 +50,7 @@ public class EdgeTreeReader implements ShapeTreeReader {
      * Returns true if the rectangle query and the edge tree's shape overlap
      */
     public boolean intersects(Extent extent) throws IOException {
-        if (closed) {
+        if (hasArea) {
             return containsBottomLeft(extent) || crosses(extent);
         } else {
             return crosses(extent);

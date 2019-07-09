@@ -253,8 +253,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             expectThrows(ElasticsearchTimeoutException.class, () -> future3.actionGet(timeValueMillis(scaledRandomIntBetween(1, 1000))));
 
             // once the connection is unblocked we successfully connect to it.
-            nodeConnectionBlocks.clear();
             connectionBarrier.await(10, TimeUnit.SECONDS);
+            nodeConnectionBlocks.clear();
             future3.actionGet();
             assertConnectedExactlyToNodes(nodes01);
 

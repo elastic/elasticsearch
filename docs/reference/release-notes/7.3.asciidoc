@@ -1,5 +1,10 @@
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull:  https://github.com/elastic/elasticsearch/pull/
+
 [[release-notes-7.3.0]]
 == {es} version 7.3.0
+
+coming[7.3.0]
 
 Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 
@@ -10,14 +15,14 @@ Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 CCR::
 * Do not allow modify aliases on followers {pull}43017[#43017] (issue: {issue}41396[#41396])
 
+Data Frame::
+* [ML][Data Frame] removing format support in date_histogram group_by {pull}43659[#43659]
+
 
 
 [[breaking-java-7.3.0]]
 [float]
 === Breaking Java changes
-
-Data Frame::
-* [ML][Data Frame] removing format support in date_histogram group_by {pull}43659[#43659]
 
 Mapping::
 * Refactor put mapping request validation for reuse {pull}43005[#43005] (issues: {issue}37675[#37675], {issue}41396[#41396])
@@ -56,15 +61,11 @@ Aggregations::
 Audit::
 * Enable console audit logs for docker {pull}42671[#42671] (issue: {issue}42666[#42666])
 
-Data Frame::
-* [ML] Machine learning data frame analytics {pull}43544[#43544]
-* Client-side "Stop" API method for DataFrame analytics config. {pull}42756[#42756]
-
-Features/Indices APIs::
-* CORE: Allow Setting Index Autocreate to _template {pull}32964[#32964] (issue: {issue}20640[#20640])
-
 Infra/Settings::
 * Consistent Secure Settings {pull}40416[#40416]
+
+Machine Learning::
+* [ML] Machine learning data frame analytics {pull}43544[#43544]
 
 Mapping::
 * Add support for 'flattened object' fields. {pull}42541[#42541] (issues: {issue}25312[#25312], {issue}33003[#33003])
@@ -118,8 +119,6 @@ Cluster Coordination::
 Data Frame::
 * [ML][Data Frame] add node attr to GET _stats {pull}43842[#43842] (issue: {issue}43743[#43743])
 * [ML][Data Frame] Add deduced mappings to _preview response payload {pull}43742[#43742] (issue: {issue}39250[#39250])
-* Add version and create_time to data frame analytics config {pull}43683[#43683]
-* [ML] Tag destination index with data frame metadata {pull}43567[#43567]
 * [ML][Data Frame] Add support for allow_no_match for endpoints {pull}43490[#43490] (issue: {issue}42766[#42766])
 * [ML][Data Frame] Add version and create_time to transform config {pull}43384[#43384] (issue: {issue}43037[#43037])
 * [ML][Data Frame] have sum map to a double to prevent overflows {pull}43213[#43213]
@@ -179,6 +178,8 @@ Infra/Scripting::
 * Add painless method getByPath, get value from nested collections with dotted path {pull}43129[#43129] (issue: {issue}42769[#42769])
 
 Machine Learning::
+* Add version and create_time to data frame analytics config {pull}43683[#43683]
+* [ML] Tag destination index with data frame metadata {pull}43567[#43567]
 * [ML] Improve message when native controller cannot connect {pull}43565[#43565] (issue: {issue}42341[#42341])
 * [ML] Introduce a setting for the process connect timeout {pull}43234[#43234]
 * Report exponential_avg_bucket_processing_time which gives more weight to recent buckets {pull}43189[#43189] (issue: {issue}29857[#29857])
@@ -188,7 +189,6 @@ Machine Learning::
 * [ML] Change dots in CSV column names to underscores {pull}42839[#42839] (issue: {issue}26800[#26800])
 * Report timing stats as part of the Job stats response {pull}42709[#42709] (issue: {issue}29857[#29857])
 * [ML] Better detection of binary input in find_file_structure {pull}42707[#42707]
-* [ML] Use map and filter instead of flatMap in find_file_structure {pull}42534[#42534]
 * [ML] Add a limit on line merging in find_file_structure {pull}42501[#42501] (issue: {issue}38086[#38086])
 * Implement factory methods for ValidationException {pull}41993[#41993]
 * [ML] Improve file structure finder timestamp format determination {pull}41948[#41948] (issues: {issue}35132[#35132], {issue}35137[#35137], {issue}38086[#38086])
@@ -267,6 +267,7 @@ Cluster Coordination::
 * Omit non-masters in ClusterFormationFailureHelper {pull}41344[#41344]
 
 Data Frame::
+* [ML] Data frame task failure do not make a 500 response {pull}44058[#44058] (issue: {issue}44011[#44011])
 * [ML-DataFrame] audit message missing for autostop {pull}43984[#43984] (issue: {issue}43977[#43977])
 * [ML-Data Frame] Add data frame transform cluster privileges to HLRC {pull}43879[#43879]
 * [ML][Data Frame] fix progress measurement for continuous transforms {pull}43838[#43838]
@@ -377,10 +378,12 @@ Search::
 * Deduplicate alias and concrete fields in query field expansion {pull}42328[#42328]
 
 Security::
+* Use system context for looking up connected nodes [OPEN] {pull}43991[#43991] (issue: {issue}43974[#43974])
 * SecurityIndexSearcherWrapper doesn't always carry over caches and similarity {pull}43436[#43436]
 * Detect when security index is closed {pull}42191[#42191]
 
 Snapshot/Restore::
+* Check again on-going snapshots/restores of indices before closing {pull}43873[#43873]
 * Fix Azure List by Prefix Bug {pull}42713[#42713]
 
 Store::

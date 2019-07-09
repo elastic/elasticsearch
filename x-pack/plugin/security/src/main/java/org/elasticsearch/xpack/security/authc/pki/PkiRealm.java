@@ -119,7 +119,21 @@ public class PkiRealm extends Realm implements CachingRealm {
         if (certificates.length == 0) {
             return null;
         }
-        return new X509AuthenticationToken(certificates);
+        X509AuthenticationToken token = new X509AuthenticationToken(certificates);
+        // the following block of code maintains BWC:
+        // When constructing the token object we only return it if the Subject DN of the certificate can be parsed by at least one PKI
+        // realm. We then consider the parsed Subject DN as the "principal" even though it is generally incorrect because when several
+        // realms are installed the one that first parses the principal might not be the one that finally authenticates (does trusted chain
+        // validation). In this case the principal should be set by the realm that completes the authentication. But in the common case,
+        // where a single PKI realm is configured, there is no risk of eagerly parsing the principal before authentication and it also
+        // maintains BWC.
+        String parsedPrincipal = getPrincipalFromSubjectDN(principalPattern, token, logger);
+        if (parsedPrincipal == null) {
+            return null;
+        }
+        token.setPrincipal(parsedPrincipal);
+        // end BWC code block
+        return token;
     }
 
     @Override
@@ -138,6 +152,9 @@ public class PkiRealm extends Realm implements CachingRealm {
             } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
             } else {
+                // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
+                // be set by a different realm that failed trusted chain validation. We SHOULD NOT parse the principal BEFORE this step, but
+                // we do it for BWC purposes. Changing this is a breaking change.
                 final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
                 if (principal == null) {
                     listener.onResponse(AuthenticationResult.unsuccessful("Could not parse principal from Subject DN " + token.dn(), null));

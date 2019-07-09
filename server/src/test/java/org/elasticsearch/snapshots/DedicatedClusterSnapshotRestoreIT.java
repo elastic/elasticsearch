@@ -498,8 +498,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         //   (1) index-(N+1)
         //   (2) index-N (because we keep the previous version) and
         //   (3) index-latest
-        //   (4) incompatible-snapshots
-        assertFileCount(repo, 4);
+        assertFileCount(repo, 3);
         logger.info("--> done");
     }
 

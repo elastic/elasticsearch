@@ -727,10 +727,6 @@ public class RecoverySourceHandler {
             while (true) {
                 assert semaphore.availablePermits() == 0;
                 cancellableThreads.checkForCancel();
-                if (error.get() != null) {
-                    handleErrorOnSendFiles(store, error.get().v2(), new StoreFileMetaData[]{error.get().v1()});
-                    throw error.get().v2();
-                }
                 if (canSendMore() == false) {
                     semaphore.release();
                     // Here we have to retry before abort to avoid a race situation where the other threads have flipped `canSendMore`
@@ -739,6 +735,10 @@ public class RecoverySourceHandler {
                     if (changed == false || semaphore.tryAcquire() == false) {
                         break;
                     }
+                }
+                if (error.get() != null) {
+                    handleErrorOnSendFiles(store, error.get().v2(), new StoreFileMetaData[]{error.get().v1()});
+                    throw error.get().v2();
                 }
                 final FileChunk chunk = readNextChunk();
                 if (chunk == null) {

@@ -6,6 +6,9 @@
 package org.elasticsearch.protocol.xpack.license;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 public class GetLicenseResponse extends ActionResponse {
 
@@ -21,5 +24,8 @@ public class GetLicenseResponse extends ActionResponse {
     public String getLicenseDefinition() {
         return license;
     }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
 
 }

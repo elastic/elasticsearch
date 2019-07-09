@@ -73,5 +73,4 @@ public class TaskSubmissionResponse {
     public static TaskSubmissionResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
 }

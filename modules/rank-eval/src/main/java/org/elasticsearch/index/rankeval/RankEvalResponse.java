@@ -84,7 +84,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeDouble(metricScore);
         out.writeVInt(details.size());
         for (String queryId : details.keySet()) {

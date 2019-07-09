@@ -51,7 +51,7 @@ GET /my_index/_search
                     ]
                 }
             },
-            "score_mode" : "avg",
+            "score_mode" : "avg"
         }
     }
 }

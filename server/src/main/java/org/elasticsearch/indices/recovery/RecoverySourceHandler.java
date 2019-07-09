@@ -31,7 +31,6 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -47,7 +46,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
@@ -68,6 +67,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -79,10 +79,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
@@ -113,12 +111,10 @@ public class RecoverySourceHandler {
     private final int maxConcurrentFileChunks;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
-    private final Executor sendFileExecutor;
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
-                                 Executor sendFileExecutor, int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
+                                 int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
         this.shard = shard;
-        this.sendFileExecutor = sendFileExecutor;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
         this.shardId = this.request.shardId().id();
@@ -701,77 +697,81 @@ public class RecoverySourceHandler {
      * one of the networking threads which receive/handle the acknowledgments of the current pending file chunk requests. This process will
      * continue until all chunks are sent and acknowledged.
      */
-    private class MultiFileSender extends ActionRunnable<Void> implements Closeable {
+    private class MultiFileSender extends AsyncIOProcessor<FileChunkResponse> implements Closeable {
         private final Store store;
         private final IntSupplier translogOps;
+        private final AtomicBoolean done = new AtomicBoolean(false);
+        private final ActionListener<Void> listener;
         private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
-        private final Semaphore semaphore = new Semaphore(0);
         private final Iterator<StoreFileMetaData> remainingFiles;
         private StoreFileMetaData currentFile;
         private InputStreamIndexInput currentInput = null;
         private long currentChunkPosition = 0;
-        private final Deque<byte[]> recycledBuffers = ConcurrentCollections.newDeque();
-        private final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
+        private final Deque<byte[]> recycledBuffers = new ArrayDeque<>();
+        private final FileChunkResponse INITIAL_RESPONSE = new FileChunkResponse(SequenceNumbers.UNASSIGNED_SEQ_NO, null, null);
 
         MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
-            super(ActionListener.notifyOnce(listener));
+            super(logger, maxConcurrentFileChunks * 2, shard.getThreadPool().getThreadContext());
             this.store = store;
             this.translogOps = translogOps;
             this.remainingFiles = Arrays.asList(files).iterator();
+            this.listener = ActionListener.wrap(
+                r -> {
+                    if (done.compareAndSet(false, true)) {
+                        listener.onResponse(r);
+                    }
+                },
+                e -> {
+                    if (done.compareAndSet(false, true)) {
+                        listener.onFailure(e);
+                    }
+                });
+        }
+
+        void start() {
+            put(INITIAL_RESPONSE, e -> {});
         }
 
         @Override
-        protected void doRun() throws Exception {
-            assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
-            assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send file chunk]");
-            while (true) {
-                assert semaphore.availablePermits() == 0;
-                cancellableThreads.checkForCancel();
-                if (canSendMore() == false) {
-                    semaphore.release();
-                    // Here we have to retry before abort to avoid a race situation where the other threads have flipped `canSendMore`
-                    // condition but they are not going to resume the sending process because this thread still holds the semaphore.
-                    final boolean changed = canSendMore() || error.get() != null;
-                    if (changed == false || semaphore.tryAcquire() == false) {
-                        break;
+        protected void write(List<Tuple<FileChunkResponse, Consumer<Exception>>> responses) {
+            assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send file chunks]");
+            if (done.get()) {
+                return;
+            }
+            try {
+                for (Tuple<FileChunkResponse, Consumer<Exception>> response : responses) {
+                    if (response.v1() == INITIAL_RESPONSE) {
+                        continue; // not an actual response, a marker to initialize the sending process.
+                    }
+                    requestSeqIdTracker.markSeqNoAsProcessed(response.v1().seqNo);
+                    response.v1().chunk.close();
+                    if (response.v1().failure != null) {
+                        handleErrorOnSendFiles(store, response.v1().failure, new StoreFileMetaData[]{response.v1().chunk.md});
+                        throw response.v1().failure;
                     }
                 }
-                if (error.get() != null) {
-                    handleErrorOnSendFiles(store, error.get().v2(), new StoreFileMetaData[]{error.get().v1()});
-                    throw error.get().v2();
-                }
-                final FileChunk chunk = readNextChunk();
-                if (chunk == null) {
-                    semaphore.release(); // allow other threads respond if we are not done yet.
-                    if (requestSeqIdTracker.getMaxSeqNo() == requestSeqIdTracker.getProcessedCheckpoint() && semaphore.tryAcquire()) {
-                        listener.onResponse(null);
+                while (requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentFileChunks) {
+                    cancellableThreads.checkForCancel();
+                    final FileChunk chunk = readNextChunk();
+                    if (chunk == null) {
+                        if (requestSeqIdTracker.getProcessedCheckpoint() == requestSeqIdTracker.getMaxSeqNo()) {
+                            listener.onResponse(null);
+                        }
+                        return;
                     }
-                    break;
+                    final long requestSeqId = requestSeqIdTracker.generateSeqNo();
+                    cancellableThreads.execute(() -> recoveryTarget.writeFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk,
+                        translogOps.getAsInt(), ActionListener.wrap(
+                            r -> this.put(new FileChunkResponse(requestSeqId, chunk, null), ignored -> {}),
+                            e -> this.put(new FileChunkResponse(requestSeqId, chunk, e), ignored -> {})
+                        )));
                 }
-                final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                cancellableThreads.execute(() ->
-                    recoveryTarget.writeFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk, translogOps.getAsInt(),
-                        ActionListener.wrap(
-                            r -> {
-                                chunk.close(); // release the buffer so we can reuse to reduce allocation
-                                requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
-                                if (canSendMore() && semaphore.tryAcquire()) {
-                                    sendFileExecutor.execute(this); // fork off from the network thread
-                                }
-                            },
-                            e -> {
-                                if (error.compareAndSet(null, Tuple.tuple(chunk.md, e)) && semaphore.tryAcquire()) {
-                                    // have to fork as handleErrorOnSendFiles can read file which should not happen on the network thread.
-                                    sendFileExecutor.execute(this);
-                                }
-                            })
-                    )
-                );
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
         }
 
-        FileChunk readNextChunk() throws Exception {
-            assert semaphore.availablePermits() == 0;
+        private FileChunk readNextChunk() throws Exception {
             try {
                 if (currentInput == null) {
                     if (remainingFiles.hasNext() == false) {
@@ -808,13 +808,8 @@ public class RecoverySourceHandler {
             }
         }
 
-        boolean canSendMore() {
-            return requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentFileChunks;
-        }
-
         @Override
         public void close() throws IOException {
-            assert semaphore.availablePermits() == 0;
             IOUtils.close(recycledBuffers::clear, currentInput, () -> currentInput = null);
         }
     }
@@ -840,6 +835,18 @@ public class RecoverySourceHandler {
         }
     }
 
+    private static class FileChunkResponse {
+        final long seqNo;
+        final FileChunk chunk;
+        final Exception failure;
+
+        FileChunkResponse(long seqNo, FileChunk chunk, Exception failure) {
+            this.seqNo = seqNo;
+            this.chunk = chunk;
+            this.failure = failure;
+        }
+    }
+
     void sendFiles(Store store, StoreFileMetaData[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
         StepListener<Void> wrappedListener = new StepListener<>();
@@ -852,7 +859,7 @@ public class RecoverySourceHandler {
             listener.onFailure(e);
         });
         resources.add(multiFileSender);
-        multiFileSender.run();
+        multiFileSender.start();
     }
 
     private void cleanFiles(Store store, Store.MetadataSnapshot sourceMetadata, IntSupplier translogOps,

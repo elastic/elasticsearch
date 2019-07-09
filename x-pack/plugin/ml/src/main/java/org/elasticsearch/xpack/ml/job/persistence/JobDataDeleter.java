@@ -122,8 +122,7 @@ public class JobDataDeleter {
             LOGGER.error("[" + jobId + "] An error occurred while deleting interim results", e);
         }
     }
-
-
+    
     /**
      * Delete the datafeed timing stats document from all the job results indices
      *

@@ -94,6 +94,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         assertThat(dfStatsMap, hasEntry("datafeed_id", "df-id"));
         assertThat(dfStatsMap, hasEntry("state", "started"));
         assertThat(dfStatsMap, hasKey("node"));
+        assertThat(dfStatsMap, hasKey("timing_stats"));
 
         Map<String, Object> nodeMap = (Map<String, Object>) dfStatsMap.get("node");
         assertThat(nodeMap, hasEntry("id", "df-node-id"));

@@ -937,6 +937,9 @@ public class ElasticsearchMappings {
      */
     private static void addDatafeedTimingStats(XContentBuilder builder) throws IOException {
         builder
+            .startObject(DatafeedTimingStats.SEARCH_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
             .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject();

@@ -186,6 +186,7 @@ public final class ReservedFieldNames {
             TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
 
+            DatafeedTimingStats.SEARCH_COUNT.getPreferredName(),
             DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
 
             GetResult._ID,

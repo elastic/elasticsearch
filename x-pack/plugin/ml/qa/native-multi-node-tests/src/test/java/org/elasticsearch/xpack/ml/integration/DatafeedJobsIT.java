@@ -98,55 +98,75 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         waitUntilJobIsClosed(job.getId());
     }
 
-    public void testDatafeedTimingStats() throws Exception {
-        client().admin().indices().prepareCreate("data-1")
+    public void testDatafeedTimingStats_DatafeedRecreated() throws Exception {
+        client().admin().indices().prepareCreate("data")
             .addMapping("type", "time", "type=date")
             .get();
         long numDocs = randomIntBetween(32, 2048);
         Instant now = Instant.now();
-        indexDocs(logger, "data-1", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
+        indexDocs(logger, "data", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
 
-        String jobId = "lookback-job";
-        Job.Builder job = createScheduledJob(jobId);
+        Job.Builder job = createScheduledJob("lookback-job");
+
+        String datafeedId = "lookback-datafeed";
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Arrays.asList("data"));
+
         registerJob(job);
         putJob(job);
-        openJob(jobId);
-        assertBusy(() -> assertEquals(getJobStats(jobId).get(0).getState(), JobState.OPENED));
 
-        String datafeedId = jobId + "-datafeed";
-        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, jobId, Arrays.asList("data-1"));
+        for (int i = 0; i < 2; ++i) {
+            openJob(job.getId());
+            assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+            registerDatafeed(datafeedConfig);
+            putDatafeed(datafeedConfig);
+            // Datafeed did not do anything yet, hence search_count is equal to 0.
+            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+            startDatafeed(datafeedId, 0L, now.toEpochMilli());
+            assertBusy(() -> {
+                assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
+                // Datafeed processed numDocs documents so search_count must be greater than 0.
+                assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+            }, 60, TimeUnit.SECONDS);
+            deleteDatafeed(datafeedId);
+            waitUntilJobIsClosed(job.getId());
+        }
+    }
+
+    public void testDatafeedTimingStats_DatafeedJobIdUpdated() throws Exception {
+        client().admin().indices().prepareCreate("data")
+            .addMapping("type", "time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        Instant now = Instant.now();
+        indexDocs(logger, "data", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
+
+        Job.Builder jobA = createScheduledJob("lookback-job");
+        Job.Builder jobB = createScheduledJob("other-lookback-job");
+        for (Job.Builder job : Arrays.asList(jobA, jobB)) {
+            registerJob(job);
+            putJob(job);
+        }
+
+        String datafeedId = "lookback-datafeed";
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, jobA.getId(), Arrays.asList("data"));
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
-        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
 
-        startDatafeed(datafeedId, 0L, now.toEpochMilli());
-        assertBusy(() -> {
-            assertThat(getDataCounts(jobId).getProcessedRecordCount(), equalTo(numDocs));
-            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
-        }, 60, TimeUnit.SECONDS);
-
-        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, greaterThan(0L));
-
-        deleteDatafeed(datafeedId);
-
-        registerDatafeed(datafeedConfig);
-        putDatafeed(datafeedConfig);
-        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
-
-        waitUntilJobIsClosed(jobId);
-
-        String otherJobId = "other-lookback-job";
-        Job.Builder otherJob = createScheduledJob(otherJobId);
-        registerJob(otherJob);
-        putJob(otherJob);
-
-        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(otherJobId).build());
-        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, otherJobId, equalTo(0L));
-
-        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(jobId).build());
-        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, jobId, equalTo(0L));
-
-        waitUntilJobIsClosed(otherJobId);
+        for (Job.Builder job : Arrays.asList(jobA, jobB, jobA)) {
+            openJob(job.getId());
+            assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+            // Bind datafeedId to the current job on the list, timing stats are wiped out.
+            updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(job.getId()).build());
+            // Datafeed did not do anything yet, hence search_count is equal to 0.
+            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+            startDatafeed(datafeedId, 0L, now.toEpochMilli());
+            assertBusy(() -> {
+                assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
+                // Datafeed processed numDocs documents so search_count must be greater than 0.
+                assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+            }, 60, TimeUnit.SECONDS);
+            waitUntilJobIsClosed(job.getId());
+        }
     }
 
     private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {

@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.Version.V_7_3_0;
+import static org.elasticsearch.Version.V_7_4_0;
 
 public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDatafeedsStatsAction.Response> {
 
@@ -148,7 +148,7 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                 datafeedState = DatafeedState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
-                if (in.getVersion().onOrAfter(V_7_3_0)) {
+                if (in.getVersion().onOrAfter(V_7_4_0)) {
                     timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
                 } else {
                     timingStats = null;
@@ -212,7 +212,7 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                 datafeedState.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
-                if (out.getVersion().onOrAfter(V_7_3_0)) {
+                if (out.getVersion().onOrAfter(V_7_4_0)) {
                     out.writeOptionalWriteable(timingStats);
                 }
             }

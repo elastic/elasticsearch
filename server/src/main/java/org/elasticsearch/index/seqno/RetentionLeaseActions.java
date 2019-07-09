@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -123,7 +123,7 @@ public class RetentionLeaseActions {
 
     }
 
-    public static class Add extends Action<Response> {
+    public static class Add extends StreamableResponseActionType<Response> {
 
         public static final Add INSTANCE = new Add();
         public static final String ACTION_NAME = "indices:admin/seq_no/add_retention_lease";
@@ -176,7 +176,7 @@ public class RetentionLeaseActions {
 
     }
 
-    public static class Renew extends Action<Response> {
+    public static class Renew extends StreamableResponseActionType<Response> {
 
         public static final Renew INSTANCE = new Renew();
         public static final String ACTION_NAME = "indices:admin/seq_no/renew_retention_lease";
@@ -222,7 +222,7 @@ public class RetentionLeaseActions {
 
     }
 
-    public static class Remove extends Action<Response> {
+    public static class Remove extends StreamableResponseActionType<Response> {
 
         public static final Remove INSTANCE = new Remove();
         public static final String ACTION_NAME = "indices:admin/seq_no/remove_retention_lease";
@@ -392,6 +392,8 @@ public class RetentionLeaseActions {
             super(in);
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
 }

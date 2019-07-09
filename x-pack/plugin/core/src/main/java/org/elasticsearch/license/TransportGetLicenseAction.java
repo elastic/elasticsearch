@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,7 +49,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(final GetLicenseRequest request, ClusterState state,
+    protected void masterOperation(Task task, final GetLicenseRequest request, ClusterState state,
                                    final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
         listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
     }

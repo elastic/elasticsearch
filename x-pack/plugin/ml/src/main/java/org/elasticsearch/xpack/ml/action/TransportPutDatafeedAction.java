@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -92,7 +93,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     }
 
     @Override
-    protected void masterOperation(PutDatafeedAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, PutDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
@@ -133,12 +134,16 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     }
                 }
             );
+            if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+            } else {
+                executeAsyncWithOrigin(client,
+                    ML_ORIGIN,
+                    GetRollupIndexCapsAction.INSTANCE,
+                    new GetRollupIndexCapsAction.Request(indices),
+                    getRollupIndexCapsActionHandler);
+            }
 
-            executeAsyncWithOrigin(client,
-                ML_ORIGIN,
-                GetRollupIndexCapsAction.INSTANCE,
-                new GetRollupIndexCapsAction.Request(indices),
-                getRollupIndexCapsActionHandler);
         } else {
             putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
         }

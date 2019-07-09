@@ -121,7 +121,6 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(completeMatch);
         out.writeMap(cluster, StreamOutput::writeString, StreamOutput::writeBoolean);
         writeResourcePrivileges(out, index);

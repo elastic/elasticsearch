@@ -19,21 +19,16 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class SearchScrollAction extends Action<SearchResponse> {
+public class SearchScrollAction extends ActionType<SearchResponse> {
 
     public static final SearchScrollAction INSTANCE = new SearchScrollAction();
     public static final String NAME = "indices:data/read/scroll";
 
     private SearchScrollAction() {
         super(NAME);
-    }
-
-    @Override
-    public SearchResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

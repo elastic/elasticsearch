@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+
+import java.io.IOException;
 
 /**
  * The response from converting a SAML assertion into a security token.
@@ -51,7 +51,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(principal);
         out.writeString(tokenString);
         out.writeString(refreshToken);

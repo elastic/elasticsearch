@@ -44,8 +44,8 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.intervals.Intervals;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanNearQuery;
@@ -421,13 +421,13 @@ public class TextFieldMapper extends FieldMapper {
 
         public IntervalsSource intervals(BytesRef term) {
             if (term.length > maxChars) {
-                return Intervals.prefix(term.utf8ToString());
+                return Intervals.prefix(term);
             }
             if (term.length >= minChars) {
                 return Intervals.fixField(name(), Intervals.term(term));
             }
             String wildcardTerm = term.utf8ToString() + "?".repeat(Math.max(0, minChars - term.length));
-            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(wildcardTerm)), Intervals.term(term));
+            return Intervals.or(Intervals.fixField(name(), Intervals.wildcard(new BytesRef(wildcardTerm))), Intervals.term(term));
         }
 
         @Override
@@ -671,7 +671,7 @@ public class TextFieldMapper extends FieldMapper {
                 if (prefixFieldType != null) {
                     return prefixFieldType.intervals(normalizedTerm);
                 }
-                return Intervals.prefix(normalizedTerm.utf8ToString()); // TODO make Intervals.prefix() take a BytesRef
+                return Intervals.prefix(normalizedTerm); // TODO make Intervals.prefix() take a BytesRef
             }
             IntervalBuilder builder = new IntervalBuilder(name(), analyzer == null ? searchAnalyzer() : analyzer);
             return builder.analyzeText(text, maxGaps, ordered);

@@ -75,7 +75,6 @@ public class FindFileStructureAction extends StreamableResponseActionType<FindFi
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             fileStructure.writeTo(out);
         }
 

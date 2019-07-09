@@ -891,7 +891,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
-            List.of(),
+            Arrays.asList(),
             statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
             e -> { throw new AssertionError(); });
 
@@ -899,18 +899,18 @@ public class JobResultsProviderTests extends ESTestCase {
     }
 
     public void testDatafeedTimingStats_MultipleDocumentsAtOnce() throws IOException {
-        List<Map<String, Object>> sourceFoo =
-            Arrays.asList(
-                Map.of(
-                    Job.ID.getPreferredName(), "foo",
-                    DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
-                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
-        List<Map<String, Object>> sourceBar =
-            Arrays.asList(
-                Map.of(
-                    Job.ID.getPreferredName(), "bar",
-                    DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7,
-                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0));
+        Map<String, Object> sourceFooMap = new HashMap<>();
+        sourceFooMap.put(Job.ID.getPreferredName(), "foo");
+        sourceFooMap.put(DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6);
+        sourceFooMap.put(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0);
+        Map<String, Object> sourceBarMap = new HashMap<>();
+        sourceBarMap.put(Job.ID.getPreferredName(), "bar");
+        sourceBarMap.put(DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7);
+        sourceBarMap.put(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0);
+
+        List<Map<String, Object>> sourceFoo = Arrays.asList(sourceFooMap);
+        List<Map<String, Object>> sourceBar = Arrays.asList(sourceBarMap);
+
         SearchResponse responseFoo = createSearchResponse(sourceFoo);
         SearchResponse responseBar = createSearchResponse(sourceBar);
         MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
@@ -938,13 +938,13 @@ public class JobResultsProviderTests extends ESTestCase {
             .thenReturn(
                 new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar")));
 
+        Map<String, DatafeedTimingStats> expectedStatsByJobId = new HashMap<>();
+        expectedStatsByJobId.put("foo", new DatafeedTimingStats("foo", 6, 666.0));
+        expectedStatsByJobId.put("bar", new DatafeedTimingStats("bar", 7, 777.0));
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
-            List.of("foo", "bar"),
-            statsByJobId ->
-                assertThat(
-                    statsByJobId,
-                    equalTo(Map.of("foo", new DatafeedTimingStats("foo", 6, 666.0), "bar", new DatafeedTimingStats("bar", 7, 777.0)))),
+            Arrays.asList("foo", "bar"),
+            statsByJobId -> assertThat(statsByJobId, equalTo(expectedStatsByJobId)),
             e -> { throw new AssertionError(); });
 
         verify(client).threadPool();
@@ -957,12 +957,11 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testDatafeedTimingStats_Ok() throws IOException {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName("foo");
-        List<Map<String, Object>> source =
-            Arrays.asList(
-                Map.of(
-                    Job.ID.getPreferredName(), "foo",
-                    DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
-                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
+        Map<String, Object> sourceFooMap = new HashMap<>();
+        sourceFooMap.put(Job.ID.getPreferredName(), "foo");
+        sourceFooMap.put(DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6);
+        sourceFooMap.put(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0);
+        List<Map<String, Object>> source = Arrays.asList(sourceFooMap);
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(
             queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),

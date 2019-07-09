@@ -253,13 +253,11 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
         assertThat(indexRequest.id(), equalTo("foo_datafeed_timing_stats"));
         assertThat(indexRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
-        assertThat(
-            indexRequest.sourceAsMap(),
-            equalTo(
-                Map.of(
-                    "job_id", "foo",
-                    "search_count", 6,
-                    "total_search_time_ms", 666.0)));
+        Map<String, Object> expectedSourceAsMap = new HashMap<>();
+        expectedSourceAsMap.put("job_id", "foo");
+        expectedSourceAsMap.put("search_count", 6);
+        expectedSourceAsMap.put("total_search_time_ms", 666.0);
+        assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
 
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

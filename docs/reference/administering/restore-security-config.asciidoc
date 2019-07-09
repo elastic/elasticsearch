@@ -28,7 +28,6 @@ repository holding `.security` snapshots is installed:
 GET /_snapshot/my_backup
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -59,6 +58,7 @@ bin/elasticsearch-users useradd restore_user -p password -r superuser
 --------------------------------------------------
 curl -u restore_user -X DELETE "localhost:9200/.security-*"
 --------------------------------------------------
+// NOTCONSOLE
 
 WARNING: After this step any authentication that relies on the `.security`
 index will not work. This means that all API calls that authenticate with
@@ -81,6 +81,7 @@ because it is not stored in the `.security` index and uses the built-in
  }
  '
 --------------------------------------------------
+// NOTCONSOLE
 
 <1> The `include_global_state: true` is mandatory only for a complete restore.
 This will restore the global cluster metadata, which contains configuration

@@ -48,6 +48,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
     private volatile boolean isMaster = false;
     private volatile Scheduler.Cancellable cancellable;
+    private final Semaphore maintenanceLock = new Semaphore(1);
 
     EnrichPolicyMaintenanceService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
                                    EnrichPolicyLocks enrichPolicyLocks) {
@@ -96,23 +97,27 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                 cancellable = threadPool.schedule(this::execute, waitTime, ThreadPool.Names.GENERIC);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
-                    logger.debug("Failed to schedule next [enrich] maintenance task; shutting down", e);
+                    logger.debug("Failed to schedule next [enrich] maintenance task; Shutting down", e);
                 } else {
                     throw e;
                 }
             }
         } else {
-            logger.debug("No longer master; skipping next scheduled [enrich] maintenance task");
+            logger.debug("No longer master; Skipping next scheduled [enrich] maintenance task");
         }
     }
 
     private void execute() {
-        logger.debug("triggering scheduled [enrich] maintenance task");
+        logger.debug("Triggering scheduled [enrich] maintenance task");
         if (isMaster) {
-            cleanUpEnrichIndices();
+            if (maintenanceLock.tryAcquire()) {
+                cleanUpEnrichIndices();
+            } else {
+                logger.debug("Previous [enrich] maintenance task still in progress; Skipping this execution");
+            }
             scheduleNext();
         } else {
-            logger.debug("No longer master; skipping next scheduled [enrich] maintenance task");
+            logger.debug("No longer master; Skipping next scheduled [enrich] maintenance task");
         }
     }
 
@@ -137,14 +142,18 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                         deleteIndices(removeIndices);
                     } else {
                         logger.debug("Skipping enrich index cleanup since enrich policy was executed while gathering indices");
+                        maintenanceLock.release();
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error("Failed to get indices during enrich index maintenance task", e);
+                    maintenanceLock.release();
                 }
             });
+        } else {
+            maintenanceLock.release();
         }
     }
 
@@ -178,14 +187,18 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     logger.debug("Completed deletion of stale enrich indices [{}]", () -> Arrays.toString(removeIndices));
+                    maintenanceLock.release();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(() -> "Enrich maintenance task could not delete abandoned enrich indices [" +
                         Arrays.toString(removeIndices) + "]", e);
+                    maintenanceLock.release();
                 }
             });
+        } else {
+            maintenanceLock.release();
         }
     }
 }

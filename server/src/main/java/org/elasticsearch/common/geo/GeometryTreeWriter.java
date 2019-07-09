@@ -104,14 +104,20 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Line line) {
-            throw new UnsupportedOperationException("support for Line is a TODO");
+            addWriter(new EdgeTreeWriter(asIntArray(line.getLons()), asIntArray(line.getLats()), false));
+            return null;
         }
 
         @Override
         public Void visit(MultiLine multiLine) {
+            int size = multiLine.size();
+            List<int[]> x = new ArrayList<>(size);
+            List<int[]> y = new ArrayList<>(size);
             for (Line line : multiLine) {
-                visit(line);
+                x.add(asIntArray(line.getLons()));
+                y.add(asIntArray(line.getLats()));
             }
+            addWriter(new EdgeTreeWriter(x, y, false));
             return null;
         }
 
@@ -119,7 +125,7 @@ public class GeometryTreeWriter implements Writeable {
         public Void visit(Polygon polygon) {
             // TODO (support holes)
             LinearRing outerShell = polygon.getPolygon();
-            addWriter(new EdgeTreeWriter(asIntArray(outerShell.getLons()), asIntArray(outerShell.getLats())));
+            addWriter(new EdgeTreeWriter(asIntArray(outerShell.getLons()), asIntArray(outerShell.getLats()), true));
             return null;
         }
 
@@ -137,7 +143,7 @@ public class GeometryTreeWriter implements Writeable {
                 (int) r.getMinLat()};
             int[] lons = new int[] { (int) r.getMinLon(), (int) r.getMaxLon(), (int) r.getMaxLon(), (int) r.getMinLon(),
                 (int) r.getMinLon()};
-            addWriter(new EdgeTreeWriter(lons, lats));
+            addWriter(new EdgeTreeWriter(lons, lats, true));
             return null;
         }
 

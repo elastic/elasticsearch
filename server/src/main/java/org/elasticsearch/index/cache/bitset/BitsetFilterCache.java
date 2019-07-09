@@ -91,7 +91,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         this.listener = listener;
     }
 
-    public static BitSet setupBitset(LeafReaderContext context, Query query) throws IOException {
+    public static BitSet bitsetFromQuery(Query query, LeafReaderContext context) throws IOException {
         final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
         final IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
@@ -146,7 +146,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         });
 
         return filterToFbs.computeIfAbsent(query, key -> {
-            final BitSet bitSet = setupBitset(context, query);
+            final BitSet bitSet = bitsetFromQuery(query, context);
             Value value = new Value(bitSet, shardId);
             listener.onCache(shardId, value.bitset);
             return value;

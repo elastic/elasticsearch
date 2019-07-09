@@ -338,7 +338,7 @@ final class ShardSplittingQuery extends Query {
      * executed on a recovery-private index writer. There is no point in caching it and it won't have a cache hit either.
      */
     private static BitSetProducer newParentDocBitSetProducer() {
-        return context -> BitsetFilterCache.setupBitset(context, Queries.newNonNestedFilter());
+        return context -> BitsetFilterCache.bitsetFromQuery(Queries.newNonNestedFilter(), context);
     }
 }
 

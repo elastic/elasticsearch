@@ -34,12 +34,12 @@ import org.elasticsearch.env.Environment;
 class ListKeyStoreCommand extends BaseKeyStoreCommand {
 
     ListKeyStoreCommand() {
-        super("List entries in the keystore");
-        keyStoreMustExist = true;
+        super("List entries in the keystore", true);
     }
 
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        final KeyStoreWrapper keyStore = getKeyStore();
         List<String> sortedEntries = new ArrayList<>(keyStore.getSettingNames());
         Collections.sort(sortedEntries);
         for (String entry : sortedEntries) {

@@ -31,16 +31,17 @@ import java.util.Arrays;
 
 public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
 
-    KeyStoreWrapper keyStore;
-    SecureString keyStorePassword;
-    boolean keyStoreMustExist = false;
+    private KeyStoreWrapper keyStore;
+    private SecureString keyStorePassword;
+    private final boolean keyStoreMustExist;
 
-    public BaseKeyStoreCommand(String description) {
+    public BaseKeyStoreCommand(String description, boolean keyStoreMustExist) {
         super(description);
+        this.keyStoreMustExist = keyStoreMustExist;
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         try {
             final Path configFile = env.configFile();
             keyStore = KeyStoreWrapper.load(configFile);
@@ -54,10 +55,7 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
                         return;
                     }
                 }
-                // allow the user to decide if an auto-created keystore should be password protected
-                keyStorePassword =
-                    terminal.promptYesNo("Do you want to protect the keystore with a password?", false) == false ?
-                        new SecureString(new char[0]) : readPassword(terminal, true);
+                keyStorePassword = new SecureString(new char[0]);
                 keyStore = KeyStoreWrapper.create();
                 keyStore.save(configFile, keyStorePassword.getChars());
             } else {
@@ -68,14 +66,18 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         } finally {
-            clearPassword();
+            if (keyStorePassword != null) {
+                keyStorePassword.close();
+            }
         }
     }
 
-    private void clearPassword() {
-        if (keyStorePassword != null) {
-            keyStorePassword.close();
-        }
+    protected KeyStoreWrapper getKeyStore() {
+        return keyStore;
+    }
+
+    protected SecureString getKeyStorePassword() {
+        return keyStorePassword;
     }
 
     /**
@@ -103,5 +105,11 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
         return password;
     }
 
+    /**
+     * This is called after the keystore password has been read from the stdin and the keystore is decrypted and
+     * loaded. The keystore and keystore passwords are available to classes extending {@link BaseKeyStoreCommand}
+     * using {@link BaseKeyStoreCommand#getKeyStore()} and {@link BaseKeyStoreCommand#getKeyStorePassword()}
+     * respectively.
+     */
     protected abstract void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception;
 }

@@ -59,35 +59,11 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     }
 
-    public void testMissingPromptCreate() throws Exception {
-        String password = "keystorepassword";
-        terminal.addTextInput("y");
-        terminal.addTextInput("y");
-        terminal.addSecretInput(password);
-        terminal.addSecretInput(password);
-        terminal.addSecretInput("bar");
-        execute("foo");
-        assertSecureString("foo", "bar", password);
-    }
-
     public void testMissingPromptCreateWithoutPassword() throws Exception {
         terminal.addTextInput("y");
-        terminal.addTextInput("n");
         terminal.addSecretInput("bar");
         execute("foo");
         assertSecureString("foo", "bar", "");
-    }
-
-    public void testMissingPromptCreateNotMatchingPasswords() throws Exception {
-        String password = "keystorepassword";
-        terminal.addTextInput("y");
-        terminal.addTextInput("y");
-        terminal.addSecretInput(password);
-        terminal.addSecretInput("anotherpassword");
-        terminal.addSecretInput("bar");
-        UserException e = expectThrows(UserException.class, () -> execute("foo"));
-        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
     }
 
     public void testMissingNoCreate() throws Exception {

@@ -3,12 +3,7 @@
 [[ml-dfanalytics-resources]]
 === {dfanalytics-cap} resources
 
-{dfanalytics-cap} resources relate to APIs such as <<put-dfanalytics>> and
-<<get-dfanalytics>>.
-
-[discrete]
-[[ml-dfanalytics-properties]]
-==== {api-definitions-title}
+A {dfanalytics} configuration object has the following properties:
 
 `analysis`::
   (object) The type of analysis that is performed on the `source`. For example: 
@@ -31,7 +26,7 @@
   
 `model_memory_limit`::
   (string) The approximate maximum amount of memory resources that are 
-  required for analytical processing. The default value for {dfanalytics-jobs} 
+  permitted for analytical processing. The default value for {dfanalytics-jobs} 
   is `1gb`. If your `elasticsearch.yml` file contains an 
   `xpack.ml.max_model_memory_limit` setting, an error occurs when you try to 
   create {dfanalytics-jobs} that have `model_memory_limit` values greater than 
@@ -41,67 +36,53 @@
   (object) The source configuration, consisting of `index` and optionally a 
   `query`. For more information, see <<dfanalytics-source-resources>>.
 
+[float]
 [[dfanalytics-types]]
-==== Analysis objects
+==== Analysis types
   
-{dfanalytics-cap} resources contain `analysis` objects. For example, when you
-create a {dfanalytics-job}, you must define the type of analysis it performs.
-
-[discrete]
+[float]
 [[oldetection-resources]]
 ===== {oldetection-cap} configuration objects 
 
 An {oldetection} configuration object has the following properties:
 
-[discrete]
-[[oldetection-properties]]
-==== {api-definitions-title}
-
-`n_neighbors` (Optional)::
+`n_neighbors`::
   (integer) Defines the value for how many nearest neighbors each method of 
   {oldetection} will use to calculate its {olscore}. When the value is 
   not set, the system will dynamically detect an appropriate value.
 
-`method` (Optional)::
+`method`::
   (string) Sets the method that {oldetection} uses. If the method is not set 
   {oldetection} uses an ensemble of different methods and normalises and 
   combines their individual {olscores} to obtain the overall {olscore}. 
   Available methods are `lof`, `ldof`, `distance_kth_nn`, `distance_knn`.
 
-`feature_influence_threshold` (Optional):: 
+`feature_influence_threshold`:: 
   (double) The minimum {olscore} that a document needs to have in order to 
   calculate its {fiscore}. 
   Value range: 0-1 (`0.1` by default).
   
+[float]
 [[dfanalytics-dest-resources]]
 ==== Dest configuration objects
 
-{dfanalytics-cap} resources contain `dest` objects. For example, when you
-create a {dfanalytics-job}, you must define its destination.
+The `dest` configuration object has the following properties:
 
-[discrete]
-[[dfanalytics-dest-properties]]
-==== {api-definitions-title}
-
-`index` (Required)::
+`index`::
   (string) The name of the index in which to store the results of the 
   {dfanalytics-job}.
 
-`results_field` (Optional)::
+`results_field`::
   (string) The name of the field in which to store the results of the analysis. 
   The default value is `ml`.
   
+[float]
 [[dfanalytics-source-resources]]
 ==== Source configuration objects
 
-{dfanalytics-cap} resources contain `source` objects. For example, when you
-create a {dfanalytics-job}, you must define its source.
+The `source` configuration object has the following properties:
 
-[discrete]
-[[dfanalytics-source-properties]]
-==== {api-definitions-title}
-
-`index` (Required)::
+`index`::
   (array) An array of index names on which to perform the analysis. It can be a 
   single index or index pattern as well as an array of indices or patterns.
   
@@ -111,4 +92,3 @@ create a {dfanalytics-job}, you must define its source.
   options that are supported by {es} can be used, as this object is
   passed verbatim to {es}. By default, this property has the following
   value: `{"match_all": {"boost": 1}}`.
-  

@@ -26,36 +26,36 @@ probability whether each row is an outlier.
 [[binary-sc-resources-properties]]
 ===== {api-definitions-title}
 
-`actual_field` (Required)::
+`actual_field`::
   (string) The field of the `index` which contains the `ground 
   truth`. The data type of this field can be boolean or integer. If the data 
   type is integer, the value has to be either `0` (false) or `1` (true).
 
-`predicted_probability_field` (Required)::
+`predicted_probability_field`::
   (string) The field of the `index` that defines the probability of whether the 
   item belongs to the class in question or not. It's the field that contains the 
   results of the analysis.
 
-`metrics` (Optional)::
+`metrics`::
   (object) Specifies the metrics that are used for the evaluation. Available 
   metrics:
   
-  `auc_roc` (Optional)::
+  `auc_roc`::
     (object) The AUC ROC (area under the curve of the receiver operating 
     characteristic) score and optionally the curve.
     Default value is {"includes_curve": false}.
     
-  `precision` (Optional)::
+  `precision`::
     (object) Set the different thresholds of the {olscore} at where the metric 
     is calculated.
     Default value is {"at": [0.25, 0.50, 0.75]}.
   
-  `recall` (Optional)::
+  `recall`::
     (object) Set the different thresholds of the {olscore} at where the metric 
     is calculated.
     Default value is {"at": [0.25, 0.50, 0.75]}.
   
-  `confusion_matrix` (Optional)::
+  `confusion_matrix`::
     (object) Set the different thresholds of the {olscore} at where the metrics 
     (TP - true positive, FP - false positive, TN - true negative, FN - false 
     negative) are calculated.

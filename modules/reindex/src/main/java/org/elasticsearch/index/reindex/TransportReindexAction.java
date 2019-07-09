@@ -279,7 +279,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 RestClient restClient = buildRestClient(remoteInfo, mainAction.sslConfig, task.getId(), createdThreads);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim,
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
+                    this::onScrollResponse, this::finishHim,
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);

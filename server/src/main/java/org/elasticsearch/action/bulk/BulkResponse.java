@@ -142,7 +142,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(responses.length);
         for (BulkItemResponse response : responses) {
             response.writeTo(out);

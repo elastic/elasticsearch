@@ -24,8 +24,6 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Setting;
@@ -67,8 +65,6 @@ public final class MockEngineSupport {
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final Logger logger = LogManager.getLogger(Engine.class);
     private final ShardId shardId;
-    private final QueryCache filterCache;
-    private final QueryCachingPolicy filterCachingPolicy;
     private final InFlightSearchers inFlightSearchers;
     private final MockContext mockContext;
     private final boolean disableFlushOnClose;
@@ -95,8 +91,6 @@ public final class MockEngineSupport {
     public MockEngineSupport(EngineConfig config, Class<? extends FilterDirectoryReader> wrapper) {
         Settings settings = config.getIndexSettings().getSettings();
         shardId = config.getShardId();
-        filterCache = config.getQueryCache();
-        filterCachingPolicy = config.getQueryCachingPolicy();
         final long seed =  config.getIndexSettings().getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING);
         Random random = new Random(seed);
         final double ratio = WRAP_READER_RATIO.get(settings);

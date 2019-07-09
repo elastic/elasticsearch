@@ -367,7 +367,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         internalResponse.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);

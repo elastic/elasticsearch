@@ -81,7 +81,6 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalBytesReference(source);
         out.writeOptionalStreamable(response);
     }

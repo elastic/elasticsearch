@@ -151,12 +151,14 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
                   .resolve("fixtures")
                   .resolve("secureHaHdfsFixture")
                   .resolve("ports")
+          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
           classpath += files(path)
         } else {
           Path path = buildDir.toPath()
                   .resolve("fixtures")
                   .resolve("haHdfsFixture")
                   .resolve("ports")
+          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
           classpath += files(path)
         }
       }

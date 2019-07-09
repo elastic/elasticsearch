@@ -59,11 +59,11 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         String esKerberosPrincipal = System.getProperty("test.krb5.principal.es");
         String hdfsKerberosPrincipal = System.getProperty("test.krb5.principal.hdfs");
         String kerberosKeytabLocation = System.getProperty("test.krb5.keytab.hdfs");
-        Enumeration<URL> ports = this.getClass().getClassLoader().getResources("ports");
+        String ports = System.getProperty("test.hdfs-fixture.ports");
         String nn1Port = "10001";
         String nn2Port = "10002";
-        if (ports.hasMoreElements()) {
-             final Path path = PathUtils.get(ports.nextElement().toURI());
+        if (ports.length() > 0) {
+             final Path path = PathUtils.get(ports);
              final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
                 return Files.readAllLines(path);
              });

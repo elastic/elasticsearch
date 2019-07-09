@@ -20,6 +20,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorResultsTests;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -44,6 +45,9 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
         }
         if (randomBoolean()) {
             metrics.add(ConfusionMatrixMetricResultTests.randomResult());
+        }
+        if (randomBoolean()) {
+            metrics.add(MeanSquaredErrorResultsTests.randomResult());
         }
         return new EvaluateDataFrameResponse(randomAlphaOfLength(5), metrics);
     }

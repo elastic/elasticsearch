@@ -127,7 +127,14 @@ public final class BlobStoreTestUtil {
                     .collect(Collectors.toSet());
                 assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
         }
-        final Map<String, BlobContainer> indices= repository.getBlobContainer().children().get("indices").children();
+
+        final BlobContainer indicesContainer = repository.getBlobContainer().children().get("indices");
+        final Map<String, BlobContainer> indices;
+        if (indicesContainer == null) {
+            indices = Collections.emptyMap();
+        } else {
+            indices = indicesContainer.children();
+        }
         // Assert that for each snapshot, the relevant metadata was written to index and shard folders
         for (SnapshotId snapshotId: snapshotIds) {
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);

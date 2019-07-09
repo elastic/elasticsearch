@@ -24,7 +24,7 @@ settings specify file paths to security-sensitive data, such as TLS keys and
 certificates for the HTTP client and inter-node communication and private key files for
 <<ref-saml-settings, SAML>>, <<ref-oidc-settings, OIDC>> and the
 <<ref-kerberos-settings, Kerberos>> realms. All these are also stored inside
-`ES_PATH_CONF`;the path settings are relative.
+`ES_PATH_CONF`; the path settings are relative.
 
 IMPORTANT: The `elasticsearch.keystore`, TLS keys and SAML, OIDC, and Kerberos
 realms private key files require confidentiality. This is crucial when files

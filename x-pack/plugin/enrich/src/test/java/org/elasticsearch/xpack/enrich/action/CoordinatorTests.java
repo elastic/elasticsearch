@@ -7,22 +7,33 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.apache.logging.log4j.util.BiConsumer;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.enrich.action.CoordinatorProxyAction.Coordinator;
@@ -205,6 +216,78 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(coordinator.queue.size(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
         assertThat(lookupFunction.capturedRequests.get(1).requests().get(0), sameInstance(searchRequest));
+    }
+
+    public void testLookupFunction() {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        List<String> indices = List.of("index1", "index2", "index3");
+        for (String index : indices) {
+            multiSearchRequest.add(new SearchRequest(index));
+            multiSearchRequest.add(new SearchRequest(index));
+        }
+
+        List<ShardMultiSearchAction.Request> requests = new ArrayList<>();
+        ElasticsearchClient client = new ElasticsearchClient() {
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> ActionFuture<Response> execute(
+                ActionType<Response> action, Request request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void execute(ActionType<Response> action,
+                                                                                                 Request request,
+                                                                                                 ActionListener<Response> listener) {
+                requests.add((ShardMultiSearchAction.Request) request);
+            }
+
+            @Override
+            public ThreadPool threadPool() {
+                throw new UnsupportedOperationException();
+            }
+        };
+        BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> consumer = Coordinator.lookupFunction(client);
+        consumer.accept(multiSearchRequest, null);
+
+        assertThat(requests.size(), equalTo(indices.size()));
+        requests.sort(Comparator.comparing(SingleShardRequest::index));
+        for (int i = 0; i < indices.size(); i++) {
+            String index = indices.get(i);
+            assertThat(requests.get(i).index(), equalTo(index));
+            assertThat(requests.get(i).getMultiSearchRequest().requests().size(), equalTo(2));
+            assertThat(requests.get(i).getMultiSearchRequest().requests().get(0).indices().length, equalTo(1));
+            assertThat(requests.get(i).getMultiSearchRequest().requests().get(0).indices()[0], equalTo(index));
+        }
+    }
+
+    public void testReduce() {
+        Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex = new HashMap<>();
+        Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses = new HashMap<>();
+
+        MultiSearchResponse.Item item1 = new MultiSearchResponse.Item(emptySearchResponse(), null);
+        itemsPerIndex.put("index1", List.of(new Tuple<>(0, null), new Tuple<>(1, null), new Tuple<>(2, null)));
+        shardResponses.put("index1", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[]{item1,  item1, item1}, 1), null));
+
+        Exception failure = new RuntimeException();
+        itemsPerIndex.put("index2", List.of(new Tuple<>(3, null), new Tuple<>(4, null), new Tuple<>(5, null)));
+        shardResponses.put("index2", new Tuple<>(null, failure));
+
+        MultiSearchResponse.Item item2 = new MultiSearchResponse.Item(emptySearchResponse(), null);
+        itemsPerIndex.put("index3", List.of(new Tuple<>(6, null), new Tuple<>(7, null), new Tuple<>(8, null)));
+        shardResponses.put("index3", new Tuple<>(new MultiSearchResponse(new MultiSearchResponse.Item[]{item2,  item2, item2}, 1), null));
+
+        MultiSearchResponse result = Coordinator.reduce(9, itemsPerIndex, shardResponses);
+        assertThat(result.getResponses().length, equalTo(9));
+        assertThat(result.getResponses()[0], sameInstance(item1));
+        assertThat(result.getResponses()[1], sameInstance(item1));
+        assertThat(result.getResponses()[2], sameInstance(item1));
+        assertThat(result.getResponses()[3].getFailure(), sameInstance(failure));
+        assertThat(result.getResponses()[4].getFailure(), sameInstance(failure));
+        assertThat(result.getResponses()[5].getFailure(), sameInstance(failure));
+        assertThat(result.getResponses()[6], sameInstance(item2));
+        assertThat(result.getResponses()[7], sameInstance(item2));
+        assertThat(result.getResponses()[8], sameInstance(item2));
     }
 
     private static SearchResponse emptySearchResponse() {

@@ -15,6 +15,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -24,10 +26,14 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -71,14 +77,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
         public Coordinator(Client client, Settings settings) {
             this(
-                (mrequest, consumer) -> {
-                    ShardMultiSearchAction.Request request = new ShardMultiSearchAction.Request(mrequest);
-                    ActionListener<MultiSearchResponse> listener = ActionListener.wrap(
-                        response -> consumer.accept(response, null),
-                        e -> consumer.accept(null, e)
-                    );
-                    client.execute(ShardMultiSearchAction.INSTANCE, request, listener);
-                },
+                lookupFunction(client),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS.get(settings),
                 EnrichPlugin.COORDINATOR_PROXY_QUEUE_CAPACITY.get(settings)
@@ -113,9 +112,6 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
                 final List<Slot> slots = new ArrayList<>();
                 queue.drainTo(slots, maxLookupsPerRequest);
-                // TODO: create multiple msearch requests, one per enrich index
-                // (search request from different enrich processors can be pulled from the queue)
-                // (not sure whether that should be done here, or in the new transport action)
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 slots.forEach(slot -> multiSearchRequest.add(slot.searchRequest));
 
@@ -147,7 +143,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
                 throw new AssertionError("no response and no error");
             }
 
-            // There may be room to for a new request now the numberOfOutstandingRequests has been decreased:
+            // There may be room to for a new request now that numberOfOutstandingRequests has been decreased:
             coordinateLookups();
         }
 
@@ -160,6 +156,66 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
                 this.searchRequest = Objects.requireNonNull(searchRequest);
                 this.actionListener = Objects.requireNonNull(actionListener);
             }
+        }
+
+        static BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> lookupFunction(ElasticsearchClient client) {
+            return (request, consumer) -> {
+                int slot = 0;
+                final Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex = new HashMap<>();
+                for (SearchRequest searchRequest : request.requests()) {
+                    List<Tuple<Integer, SearchRequest>> items =
+                        itemsPerIndex.computeIfAbsent(searchRequest.indices()[0], k -> new ArrayList<>());
+                    items.add(new Tuple<>(slot, searchRequest));
+                    slot++;
+                }
+
+                final AtomicInteger counter = new AtomicInteger(0);
+                final ConcurrentMap<String, Tuple<MultiSearchResponse, Exception>> shardResponses = new ConcurrentHashMap<>();
+                for (Map.Entry<String, List<Tuple<Integer, SearchRequest>>> entry : itemsPerIndex.entrySet()) {
+                    ActionListener<MultiSearchResponse> listener = ActionListener.wrap(
+                        response -> {
+                            shardResponses.put(entry.getKey(), new Tuple<>(response, null));
+                            if (counter.incrementAndGet() == itemsPerIndex.size()) {
+                                consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
+                            }
+                        },
+                        e -> {
+                            shardResponses.put(entry.getKey(), new Tuple<>(null, e));
+                            if (counter.incrementAndGet() == itemsPerIndex.size()) {
+                                consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
+                            }
+                        }
+                    );
+
+                    MultiSearchRequest mrequest = new MultiSearchRequest();
+                    entry.getValue().forEach(item -> mrequest.add(item.v2()));
+                    client.execute(ShardMultiSearchAction.INSTANCE, new ShardMultiSearchAction.Request(mrequest), listener);
+                }
+            };
+        }
+
+        static MultiSearchResponse reduce(int numRequest,
+                                          Map<String, List<Tuple<Integer, SearchRequest>>> itemsPerIndex,
+                                          Map<String, Tuple<MultiSearchResponse, Exception>> shardResponses) {
+            MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequest];
+            for (Map.Entry<String, Tuple<MultiSearchResponse, Exception>> rspEntry : shardResponses.entrySet()) {
+                List<Tuple<Integer, SearchRequest>> reqSlots = itemsPerIndex.get(rspEntry.getKey());
+                if (rspEntry.getValue().v1() != null) {
+                    MultiSearchResponse shardResponse = rspEntry.getValue().v1();
+                    for (int i = 0; i < shardResponse.getResponses().length; i++) {
+                        int slot = reqSlots.get(i).v1();
+                        items[slot] = shardResponse.getResponses()[i];
+                    }
+                } else if (rspEntry.getValue().v2() != null) {
+                    Exception e = rspEntry.getValue().v2();
+                    for (Tuple<Integer, SearchRequest> originSlot : reqSlots) {
+                        items[originSlot.v1()] = new MultiSearchResponse.Item(null, e);
+                    }
+                } else {
+                    throw new AssertionError();
+                }
+            }
+            return new MultiSearchResponse(items, 1L);
         }
 
     }

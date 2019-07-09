@@ -63,10 +63,26 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * This is an internal action, that executes msearch requests for enrich indices in a more efficient manner.
+ * Currently each search request inside a msearch request is executed as a separate search. If many search requests
+ * are targeted to the same shards then there is quite some overhead in executing each search request as a separate
+ * search (multiple search contexts, opening of multiple searchers).
+ *
+ * In case for the enrich processor, searches are always targeting the same single shard indices. This action
+ * handles multi search requests targeting enrich indices more efficiently by executing them in a bulk using the same
+ * searcher and query shard context.
+ *
+ * This action (plus some coordination logic in {@link CoordinatorProxyAction}) can be removed when msearch can
+ * execute search requests targeted to the same shard more efficiently in a bulk like style.
+ *
+ * Note that this 'msearch' implementation only supports executing a query, pagination and source filtering.
+ * Other search features are not supported, because the enrich processor isn't using these search features.
+ */
 public class ShardMultiSearchAction extends ActionType<MultiSearchResponse> {
 
     public static final ShardMultiSearchAction INSTANCE = new ShardMultiSearchAction();
-    private static final String NAME = "indices:data/read/shard_msearch";
+    private static final String NAME = "indices:data/read/shard_multi_search";
 
     private ShardMultiSearchAction() {
         super(NAME, MultiSearchResponse::new);
@@ -106,6 +122,10 @@ public class ShardMultiSearchAction extends ActionType<MultiSearchResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             multiSearchRequest.writeTo(out);
+        }
+
+        MultiSearchRequest getMultiSearchRequest() {
+            return multiSearchRequest;
         }
     }
 
@@ -172,7 +192,7 @@ public class ShardMultiSearchAction extends ActionType<MultiSearchResponse> {
                     searchSourceBuilder.fetchSource(null);
                     if (EMPTY_SOURCE.equals(searchSourceBuilder) == false) {
                         throw new IllegalStateException("search request [" + Strings.toString(searchSourceBuilder) +
-                            "] using feature that is not supported");
+                            "] is using features that is not supported");
                     }
 
                     final Query luceneQuery = queryBuilder.rewrite(context).toQuery(context);

@@ -34,6 +34,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
@@ -90,8 +91,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         @Override
         public boolean defaultDocValues(Version indexCreated) {
-            // TODO(talevy): version guard things and turn this on
-            return false;
+            return Version.V_8_0_0.onOrBefore(indexCreated);
         }
     }
 
@@ -300,7 +300,9 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                     geometry = geometries.get(0);
                 }
                 final GeometryTreeWriter writer = new GeometryTreeWriter(geometry);
-                return writer.toBytesRef();
+                BytesStreamOutput output = new BytesStreamOutput();
+                writer.writeTo(output);
+                return output.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to encode shape", e);
             }

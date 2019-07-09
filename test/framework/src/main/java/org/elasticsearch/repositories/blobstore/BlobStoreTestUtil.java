@@ -111,6 +111,7 @@ public final class BlobStoreTestUtil {
         if (indicesContainer == null) {
             foundIndexUUIDs = Collections.emptyList();
         } else {
+            // Skip Lucene MockFS extraN directory
             foundIndexUUIDs = indicesContainer.children().keySet().stream().filter(
                 s -> s.startsWith("extra") == false).collect(Collectors.toList());
         }
@@ -145,6 +146,10 @@ public final class BlobStoreTestUtil {
                 assertThat(indexContainer.listBlobs(),
                     hasKey(String.format(Locale.ROOT, BlobStoreRepository.METADATA_NAME_FORMAT, snapshotId.getUUID())));
                 for (Map.Entry<String, BlobContainer> entry : indexContainer.children().entrySet()) {
+                    // Skip Lucene MockFS extraN directory
+                    if (entry.getKey().startsWith("extra")) {
+                        continue;
+                    }
                     if (snapshotInfo.shardFailures().stream().noneMatch(shardFailure ->
                         shardFailure.index().equals(index) != false && shardFailure.shardId() == Integer.parseInt(entry.getKey()))) {
                         assertThat(entry.getValue().listBlobs(),

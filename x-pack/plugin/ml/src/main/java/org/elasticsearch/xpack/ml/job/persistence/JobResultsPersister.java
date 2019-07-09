@@ -330,11 +330,13 @@ public class JobResultsPersister {
      * Persist datafeed timing stats
      *
      * @param timingStats datafeed timing stats to persist
+     * @param refreshPolicy refresh policy to apply
      */
-    public IndexResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats) {
+    public IndexResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
         String jobId = timingStats.getJobId();
         logger.trace("[{}] Persisting datafeed timing stats", jobId);
         Persistable persistable = new Persistable(jobId, timingStats, DatafeedTimingStats.documentId(timingStats.getJobId()));
+        persistable.setRefreshPolicy(refreshPolicy);
         return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
     }
 

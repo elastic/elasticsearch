@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -46,13 +47,14 @@ public class DatafeedTimingStatsReporter {
         }
         currentTimingStats.incrementTotalSearchTimeMs(searchDuration.millis());
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
-            flush();
+            // TODO: Consider changing refresh policy to NONE here and only do IMMEDIATE on datafeed _stop action
+            flush(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
     }
 
-    private void flush() {
+    private void flush(WriteRequest.RefreshPolicy refreshPolicy) {
         persistedTimingStats = new DatafeedTimingStats(currentTimingStats);
-        jobResultsPersister.persistDatafeedTimingStats(persistedTimingStats);
+        jobResultsPersister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
     }
 
     /**

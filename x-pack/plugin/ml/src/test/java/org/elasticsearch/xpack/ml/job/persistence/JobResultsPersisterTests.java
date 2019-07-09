@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -245,13 +246,14 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister persister = new JobResultsPersister(client);
         DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 6, 666.0);
-        persister.persistDatafeedTimingStats(timingStats);
+        persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
 
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
         verify(client, times(1)).index(indexRequestCaptor.capture(), any(ActionListener.class));
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
         assertThat(indexRequest.id(), equalTo("foo_datafeed_timing_stats"));
+        assertThat(indexRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
         assertThat(
             indexRequest.sourceAsMap(),
             equalTo(

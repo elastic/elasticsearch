@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,36 +90,42 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
 
         String datafeedId = request.getUpdate().getId();
 
-        CheckedConsumer<Boolean, Exception> updateConsumer = unused1 -> {
-            datafeedConfigProvider.getDatafeedConfig(
-                datafeedId,
-                ActionListener.wrap(
-                    datafeedConfigBuilder -> {
-                        String jobId = datafeedConfigBuilder.build().getJobId();
-                        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
-                        jobDataDeleter.deleteDatafeedTimingStats(
-                            ActionListener.wrap(
-                                unused2 -> {
-                                    datafeedConfigProvider.updateDatefeedConfig(
-                                        datafeedId,
-                                        request.getUpdate(),
-                                        headers,
-                                        jobConfigProvider::validateDatafeedJob,
-                                        ActionListener.wrap(
-                                            updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                                            listener::onFailure));
-                                },
-                                listener::onFailure));
-                    },
-                    listener::onFailure));
-        };
+        CheckedConsumer<BulkByScrollResponse, Exception> updateConsumer =
+            unused -> {
+                datafeedConfigProvider.updateDatefeedConfig(
+                    datafeedId,
+                    request.getUpdate(),
+                    headers,
+                    jobConfigProvider::validateDatafeedJob,
+                    ActionListener.wrap(
+                        updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                        listener::onFailure));
+            };
+
+        CheckedConsumer<Boolean, Exception> deleteTimingStatsAndUpdateConsumer =
+            unused -> {
+                datafeedConfigProvider.getDatafeedConfig(
+                    datafeedId,
+                    ActionListener.wrap(
+                        datafeedConfigBuilder -> {
+                            String jobId = datafeedConfigBuilder.build().getJobId();
+                            if (jobId.equals(request.getUpdate().getJobId())) {
+                                // Datafeed's jobId didn't change, no point in deleting datafeed timing stats.
+                                updateConsumer.accept(null);
+                            } else {
+                                JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                                jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(updateConsumer, listener::onFailure));
+                            }
+                        },
+                        listener::onFailure));
+            };
 
 
         if (request.getUpdate().getJobId() != null) {
-            checkJobDoesNotHaveADifferentDatafeed(request.getUpdate().getJobId(), datafeedId,
-                    ActionListener.wrap(updateConsumer, listener::onFailure));
+            checkJobDoesNotHaveADifferentDatafeed(
+                request.getUpdate().getJobId(), datafeedId, ActionListener.wrap(deleteTimingStatsAndUpdateConsumer, listener::onFailure));
         } else {
-            updateConsumer.accept(Boolean.TRUE);
+            updateConsumer.accept(null);
         }
     }
 

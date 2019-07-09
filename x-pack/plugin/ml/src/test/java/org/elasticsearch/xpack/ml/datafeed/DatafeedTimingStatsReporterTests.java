@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -16,6 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
@@ -30,8 +32,8 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     }
 
     public void testReportSearchDuration() {
-        DatafeedTimingStats timingStats = new DatafeedTimingStats(JOB_ID, 3, 10000.0);
-        DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(timingStats, jobResultsPersister);
+        DatafeedTimingStatsReporter timingStatsReporter =
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(JOB_ID, 3, 10000.0), jobResultsPersister);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 3, 10000.0)));
 
         timingStatsReporter.reportSearchDuration(ONE_SECOND);
@@ -47,9 +49,11 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 7, 14000.0)));
 
         InOrder inOrder = inOrder(jobResultsPersister);
-        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 5, 12000.0));
-        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(new DatafeedTimingStats(JOB_ID, 7, 14000.0));
-        inOrder.verifyNoMoreInteractions();
+        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(
+            new DatafeedTimingStats(JOB_ID, 5, 12000.0), RefreshPolicy.IMMEDIATE);
+        inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(
+            new DatafeedTimingStats(JOB_ID, 7, 14000.0), RefreshPolicy.IMMEDIATE);
+        verifyNoMoreInteractions(jobResultsPersister);
     }
 
     public void testTimingStatsDifferSignificantly() {

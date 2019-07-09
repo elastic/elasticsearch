@@ -169,6 +169,41 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }
     }
 
+    public void testDatafeedTimingStats_QueryDelayUpdated_TimingStatsNotReset() throws Exception {
+        client().admin().indices().prepareCreate("data")
+            .addMapping("type", "time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        Instant now = Instant.now();
+        indexDocs(logger, "data", numDocs, now.minus(Duration.ofDays(14)).toEpochMilli(), now.toEpochMilli());
+
+        Job.Builder job = createScheduledJob("lookback-job");
+        registerJob(job);
+        putJob(job);
+
+        String datafeedId = "lookback-datafeed";
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Arrays.asList("data"));
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+        // Datafeed did not do anything yet, hence search_count is equal to 0.
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
+        startDatafeed(datafeedId, 0L, now.toEpochMilli());
+        assertBusy(() -> {
+            assertThat(getDataCounts(job.getId()).getProcessedRecordCount(), equalTo(numDocs));
+            // Datafeed processed numDocs documents so search_count must be greater than 0.
+            assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+        }, 60, TimeUnit.SECONDS);
+        waitUntilJobIsClosed(job.getId());
+
+        // Change something different than jobId, here: queryDelay.
+        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setQueryDelay(TimeValue.timeValueSeconds(777)).build());
+        // Search_count is still greater than 0 (i.e. has not been reset by datafeed update)
+        assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), greaterThan(0L));
+    }
+
     private void assertDatafeedStats(String datafeedId, DatafeedState state, String jobId, Matcher<Long> searchCountMatcher) {
         GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
         GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();

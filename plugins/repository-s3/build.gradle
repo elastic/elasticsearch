@@ -323,7 +323,16 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency 
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)

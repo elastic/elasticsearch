@@ -53,8 +53,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);
     private static final int MAX_DESCRIPTION_LENGTH = 1_000;
-    private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
-    private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private final String id;
     private final SourceConfig source;
@@ -94,16 +92,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
                     TimeValue frequency =
                         args[3] == null ? null : TimeValue.parseTimeValue((String) args[3], DataFrameField.FREQUENCY.getPreferredName());
-                    if (lenient == false && frequency != null) {
-                        if (frequency.compareTo(MIN_FREQUENCY) < 0) {
-                            throw new IllegalArgumentException(
-                                "minimum permitted [" + DataFrameField.FREQUENCY + "] is [" + MIN_FREQUENCY + "]");
-                        }
-                        if (frequency.compareTo(MAX_FREQUENCY) > 0) {
-                            throw new IllegalArgumentException(
-                                "highest permitted [" + DataFrameField.FREQUENCY + "] is [" + MAX_FREQUENCY + "]");
-                        }
-                    }
 
                     SyncConfig syncConfig = (SyncConfig) args[4];
                     // ignored, only for internal storage: String docType = (String) args[5];

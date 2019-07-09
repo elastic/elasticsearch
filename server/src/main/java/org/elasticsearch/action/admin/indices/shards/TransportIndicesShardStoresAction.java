@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -65,16 +67,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class TransportIndicesShardStoresAction
         extends TransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
 
-    private final TransportNodesListGatewayStartedShards listShardStoresInfo;
+    private final NodeClient client;
 
     @Inject
     public TransportIndicesShardStoresAction(TransportService transportService, ClusterService clusterService,
                                              ThreadPool threadPool, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             TransportNodesListGatewayStartedShards listShardStoresInfo) {
+                                             IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
         super(IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters,
             IndicesShardStoresRequest::new, indexNameExpressionResolver);
-        this.listShardStoresInfo = listShardStoresInfo;
+        this.client = client;
     }
 
     @Override
@@ -148,15 +149,23 @@ public class TransportIndicesShardStoresAction
                 listener.onResponse(new IndicesShardStoresResponse());
             } else {
                 for (ShardId shardId : shardIds) {
-                    InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shardId, listShardStoresInfo);
+                    InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shardId, this::listStartedShards);
                     fetch.fetchData(nodes, Collections.<String>emptySet());
                 }
             }
         }
 
+        private void listStartedShards(ShardId shardId, DiscoveryNode[] nodes,
+                                       ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener) {
+            var request = new TransportNodesListGatewayStartedShards.Request(shardId, nodes);
+            client.executeLocally(TransportNodesListGatewayStartedShards.TYPE, request,
+                ActionListener.wrap(listener::onResponse, listener::onFailure));
+        }
+
         private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards> {
 
-            InternalAsyncFetch(Logger logger, String type, ShardId shardId, TransportNodesListGatewayStartedShards action) {
+            InternalAsyncFetch(Logger logger, String type, ShardId shardId,
+                               Lister<? extends BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> action) {
                 super(logger, type, shardId, action);
             }
 

@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
@@ -37,6 +39,12 @@ public class TransportShardFlushAction
         extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
+    public static final ActionType<ReplicationResponse> TYPE = new StreamableResponseActionType<ReplicationResponse>(NAME) {
+        @Override
+        public ReplicationResponse newResponse() {
+            return new ReplicationResponse();
+        }
+    };
 
     @Inject
     public TransportShardFlushAction(Settings settings, TransportService transportService, ClusterService clusterService,

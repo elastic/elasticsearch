@@ -20,7 +20,9 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -57,6 +59,12 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                                                                         TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
     public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
+    public static final ActionType<NodesSnapshotStatus> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public NodesSnapshotStatus newResponse() {
+            return new TransportNodesSnapshotsStatus.NodesSnapshotStatus();
+        }
+    };
 
     private final SnapshotShardsService snapshotShardsService;
 
@@ -145,6 +153,10 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
+
+        public NodesSnapshotStatus() {
+
+        }
 
         public NodesSnapshotStatus(ClusterName clusterName, List<NodeSnapshotStatus> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);

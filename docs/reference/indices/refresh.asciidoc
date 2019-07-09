@@ -1,30 +1,76 @@
 [[indices-refresh]]
-== Refresh
+== Refresh API
+++++
+<titleabbrev>Refresh</titleabbrev>
+++++
 
-The refresh API allows to explicitly refresh one or more index, making
+Refresh an index, making all operations performed since the last refresh
+available for search.
+
+[float]
+[[indices-refresh-request]]
+=== {api-request-title}
+
+`POST /<index>/_refresh`
+
+`GET /<index>/_refresh`
+
+[float]
+[[indices-refresh-desc]]
+=== {api-description-title}
+
+You can use the refresh API to explicitly refresh one or more indices, making
 all operations performed since the last refresh available for search.
-The (near) real-time capabilities depend on the index engine used. For
+
+The near real-time capabilities depend on the index engine used. For
 example, the internal one requires refresh to be called, but by default a
 refresh is scheduled periodically.
 
-[source,js]
---------------------------------------------------
-POST /twitter/_refresh
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+[float]
+[[indices-refresh-path-params]]
+=== {api-path-parms-title}
+
+`<index>` (Required)::
++
+--
+(string) Comma-separated list or wildcard expression of indices to refresh.
+
+You can use a value of `_all` or `*` to refresh all indices.
+
+If no value is provided, the API refreshes all indices.
+--
 
 [float]
-=== Multi Index
+[[indices-refresh-query-params]]
+=== {api-query-parms-title}
 
-The refresh API can be applied to more than one index with a single
-call, or even on `_all` the indices.
+`allow_no_indices` (Optional)::
+(boolean) Indicates whether the operation is skipped if a wildcard expression
+matches no indices. Defaults to `false`.
+
+`expand_wildcards` (Optional)::
++
+--
+(string) Indicates whether wildcard expressions should expand to
+<<indices-open-close, open or closed indices>>. Possible values are:
+
+* `open` (Default)
+* `closed`
+* `none`
+* `all`
+--
+
+`ignore_unavailable` (Optional)::
+(boolean) Indicates whether unavailable indices are skipped. Defaults to
+`false`.
+
+[float]
+[[sample-api-example]]
+=== {api-examples-title}
 
 [source,js]
---------------------------------------------------
-POST /kimchy,elasticsearch/_refresh
-
-POST /_refresh
---------------------------------------------------
+----
+POST /twitter/_refresh
+----
 // CONSOLE
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[setup:twitter]

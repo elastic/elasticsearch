@@ -108,8 +108,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
                 assertThat(response.getStatusLine().getStatusCode(), is(401));
                 String body = EntityUtils.toString(response.getEntity());
-                assertThat(body, containsString(
-                        "unable to authenticate user [X500SubjectDN(CN=Elasticsearch Test Client, OU=elasticsearch, O=org)]"));
+                assertThat(body, containsString("unable to authenticate user [Elasticsearch Test Client]"));
             }
         }
     }

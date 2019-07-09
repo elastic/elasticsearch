@@ -121,6 +121,9 @@ public class MapXContentParserTests extends ESTestCase {
                                 case VALUE_EMBEDDED_OBJECT:
                                     assertArrayEquals(parser.binaryValue(), mapParser.binaryValue());
                                     break;
+                                case VALUE_NULL:
+                                    assertNull(mapParser.textOrNull());
+                                    break;
                             }
                             assertEquals(parser.currentName(), mapParser.currentName());
                             assertEquals(parser.isClosed(), mapParser.isClosed());
@@ -135,6 +138,7 @@ public class MapXContentParserTests extends ESTestCase {
                     parser.close();
                     mapParser.close();
                     assertEquals(parser.isClosed(), mapParser.isClosed());
+                    assertTrue(mapParser.isClosed());
                 }
             }
 

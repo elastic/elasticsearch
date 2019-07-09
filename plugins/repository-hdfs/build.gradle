@@ -145,6 +145,22 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     runner {
+      if (integTestTaskName.contains("Ha")) {
+        if (integTestTaskName.contains("Secure")) {
+          Path path = buildDir.toPath()
+                  .resolve("fixtures")
+                  .resolve("secureHaHdfsFixture")
+                  .resolve("ports")
+          classpath += files(path)
+        } else {
+          Path path = buildDir.toPath()
+                  .resolve("fixtures")
+                  .resolve("haHdfsFixture")
+                  .resolve("ports")
+          classpath += files(path)
+        }
+      }
+
       if (integTestTaskName.contains("Secure")) {
         if (disabledIntegTestTaskNames.contains(integTestTaskName) == false) {
             nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"

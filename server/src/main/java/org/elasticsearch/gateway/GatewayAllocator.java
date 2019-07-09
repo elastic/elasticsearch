@@ -169,7 +169,8 @@ public class GatewayAllocator {
             return shardState;
         }
 
-        private void listStartedShards(ShardId shardId, DiscoveryNode[] nodes, ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener) {
+        private void listStartedShards(ShardId shardId, DiscoveryNode[] nodes,
+                                       ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener) {
             var request = new TransportNodesListGatewayStartedShards.Request(shardId, nodes);
             client.executeLocally(TransportNodesListGatewayStartedShards.TYPE, request,
                 ActionListener.wrap(listener::onResponse, listener::onFailure));

@@ -55,7 +55,7 @@ public final class RepositoryData {
      * An instance initialized for an empty repository.
      */
     public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN,
-        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList());
+        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -77,27 +77,20 @@ public final class RepositoryData {
      * The snapshots that each index belongs to.
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
-    /**
-     * The snapshots that are no longer compatible with the current cluster ES version.
-     */
-    private final List<SnapshotId> incompatibleSnapshotIds;
 
-    public RepositoryData(long genId,
-                          Map<String, SnapshotId> snapshotIds,
-                          Map<String, SnapshotState> snapshotStates,
-                          Map<IndexId, Set<SnapshotId>> indexSnapshots,
-                          List<SnapshotId> incompatibleSnapshotIds) {
+
+    public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
+                          Map<IndexId, Set<SnapshotId>> indexSnapshots) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
         this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
-        this.incompatibleSnapshotIds = Collections.unmodifiableList(incompatibleSnapshotIds);
     }
 
     protected RepositoryData copy() {
-        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots);
     }
 
     /**
@@ -115,21 +108,11 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns an immutable collection of the snapshot ids in the repository that are incompatible with the
-     * current ES version.
-     */
-    public Collection<SnapshotId> getIncompatibleSnapshotIds() {
-        return incompatibleSnapshotIds;
-    }
-
-    /**
-     * Returns an immutable collection of all the snapshot ids in the repository, both active and
-     * incompatible snapshots.
+     * Returns an immutable collection of all the snapshot ids in the repository.
      */
     public Collection<SnapshotId> getAllSnapshotIds() {
-        List<SnapshotId> allSnapshotIds = new ArrayList<>(snapshotIds.size() + incompatibleSnapshotIds.size());
+        List<SnapshotId> allSnapshotIds = new ArrayList<>(snapshotIds.size());
         allSnapshotIds.addAll(snapshotIds.values());
-        allSnapshotIds.addAll(incompatibleSnapshotIds);
         return Collections.unmodifiableList(allSnapshotIds);
     }
 
@@ -170,7 +153,7 @@ public final class RepositoryData {
         for (final IndexId indexId : snapshottedIndices) {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
-        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots);
     }
 
     /**
@@ -204,7 +187,7 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, incompatibleSnapshotIds);
+        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots);
     }
 
     /**
@@ -230,13 +213,12 @@ public final class RepositoryData {
         return snapshotIds.equals(that.snapshotIds)
                    && snapshotStates.equals(that.snapshotStates)
                    && indices.equals(that.indices)
-                   && indexSnapshots.equals(that.indexSnapshots)
-                   && incompatibleSnapshotIds.equals(that.incompatibleSnapshotIds);
+                   && indexSnapshots.equals(that.indexSnapshots);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots, incompatibleSnapshotIds);
+        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots);
     }
 
     /**
@@ -292,8 +274,7 @@ public final class RepositoryData {
     private static final String STATE = "state";
 
     /**
-     * Writes the snapshots metadata and the related indices metadata to x-content, omitting the
-     * incompatible snapshots.
+     * Writes the snapshots metadata and the related indices metadata to x-content.
      */
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder) throws IOException {
         builder.startObject();
@@ -434,7 +415,7 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, Collections.emptyList());
+        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots);
     }
 
 }

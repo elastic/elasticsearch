@@ -83,7 +83,8 @@ public class GeoWKTParser {
         return parseExpectedType(text, shapeType, ignoreZValue, coerce);
     }
 
-    public static ShapeBuilder parseExpectedType(String text, GeoShapeType shapeType, boolean ignoreZValue, boolean coerce) throws IOException {
+    public static ShapeBuilder parseExpectedType(String text, GeoShapeType shapeType,
+                                                 boolean ignoreZValue, boolean coerce) throws IOException {
         try (StringReader reader = new StringReader(text)) {
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);
@@ -150,7 +151,7 @@ public class GeoWKTParser {
         return new EnvelopeBuilder(new Coordinate(minLon, maxLat), new Coordinate(maxLon, minLat));
     }
 
-    public static PointBuilder parsePoint(StreamTokenizer stream, final boolean ignoreZValue)
+    private static PointBuilder parsePoint(StreamTokenizer stream, final boolean ignoreZValue)
             throws IOException, ElasticsearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;

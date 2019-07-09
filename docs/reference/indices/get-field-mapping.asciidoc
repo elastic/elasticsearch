@@ -99,6 +99,7 @@ from the master node.
 GET /twitter/_mapping/field/message
 ----
 // CONSOLE
+// TEST[setup:twitter]
 
 The API returns the following response:
 
@@ -111,7 +112,13 @@ The API returns the following response:
              "full_name": "message",
              "mapping": {
                 "message": {
-                   "type": "text"
+                   "type": "text",
+                   "fields" : {
+                     "keyword" : {
+                        "type" : "keyword",
+                        "ignore_above" : 256
+                     }
+                   }
                 }
              }
           }

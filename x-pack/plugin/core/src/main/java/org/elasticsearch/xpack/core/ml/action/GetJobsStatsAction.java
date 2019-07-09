@@ -272,7 +272,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                     builder.field("open_time", openTime.getStringRep());
                 }
                 if (timingStats != null) {
-                    builder.field(TIMING_STATS, timingStats);
+                    builder.field(TIMING_STATS);
+                    timingStats.toXContentWithCalculatedFields(builder);
                 }
                 return builder;
             }

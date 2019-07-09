@@ -200,7 +200,8 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                     builder.field("assignment_explanation", assignmentExplanation);
                 }
                 if (timingStats != null) {
-                    builder.field("timing_stats", timingStats);
+                    builder.field("timing_stats");
+                    timingStats.toXContentWithCalculatedFields(builder);
                 }
                 builder.endObject();
                 return builder;

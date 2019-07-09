@@ -47,7 +47,6 @@ public class ReindexTask extends AllocatedPersistentTask {
     public static final String NAME = "reindex/job";
 
     private final Client client;
-    private ReindexRequest reindexRequest;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
@@ -71,6 +70,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                                                      PersistentTasksCustomMetaData.PersistentTask<ReindexJob> taskInProgress,
                                                      Map<String, String> headers) {
             ReindexRequest reindexRequest = taskInProgress.getParams().getReindexRequest();
+            headers.putAll(taskInProgress.getParams().getHeaders());
             return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, client, reindexRequest);
         }
     }
@@ -78,7 +78,6 @@ public class ReindexTask extends AllocatedPersistentTask {
     private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                         ClusterService clusterService, Client client, ReindexRequest reindexRequest) {
         super(id, type, action, "persistent " + reindexRequest.toString(), parentTask, headers);
-        this.reindexRequest = reindexRequest;
         this.client = new ParentTaskAssigningClient(client, new TaskId(clusterService.localNode().getId(), id));
     }
 
@@ -90,6 +89,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         // TODO: What is happening here? Putting headers back in place for possible different thread action listener?
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
+            ReindexRequest reindexRequest = reindexJob.getReindexRequest();
             client.execute(ReindexAction.INSTANCE, reindexRequest, new ContextPreservingActionListener<>(supplier,
                 new ActionListener<>() {
                     @Override

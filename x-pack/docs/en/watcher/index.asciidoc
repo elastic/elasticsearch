@@ -94,3 +94,5 @@ include::managing-watches.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/example-watches.asciidoc
 include::example-watches.asciidoc[]
+
+include::troubleshooting.asciidoc[]

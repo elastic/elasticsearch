@@ -40,7 +40,20 @@ public class JavaVersionTests extends ESTestCase {
         assertThat(version14.get(0), is(14));
         assertThat(version14.get(1), is(0));
         assertThat(version14.get(2), is(1));
-        assertTrue(javaVersionEarlyAccess.isEarlyAccess());
+
+        JavaVersion javaVersionOtherPrePart = JavaVersion.parse("13.2.4-somethingElseHere");
+        List<Integer> version13 = javaVersionOtherPrePart.getVersion();
+        assertThat(version13.size(), is(3));
+        assertThat(version13.get(0), is(13));
+        assertThat(version13.get(1), is(2));
+        assertThat(version13.get(2), is(4));
+
+        JavaVersion javaVersionNumericPrePart = JavaVersion.parse("13.2.4-something124443");
+        List<Integer> version11 = javaVersionNumericPrePart.getVersion();
+        assertThat(version11.size(), is(3));
+        assertThat(version11.get(0), is(13));
+        assertThat(version11.get(1), is(2));
+        assertThat(version11.get(2), is(4));
     }
 
     public void testToString() {
@@ -48,6 +61,10 @@ public class JavaVersionTests extends ESTestCase {
         assertThat(javaVersion170.toString(), is("1.7.0"));
         JavaVersion javaVersion9 = JavaVersion.parse("9");
         assertThat(javaVersion9.toString(), is("9"));
+        JavaVersion javaVersion11 = JavaVersion.parse("11.0.1-something09random");
+        assertThat(javaVersion11.toString(), is("11.0.1-something09random"));
+        JavaVersion javaVersion12 = JavaVersion.parse("12.2-2019");
+        assertThat(javaVersion12.toString(), is("12.2-2019"));
         JavaVersion javaVersion13ea = JavaVersion.parse("13.1-ea");
         assertThat(javaVersion13ea.toString(), is("13.1-ea"));
     }
@@ -60,6 +77,12 @@ public class JavaVersionTests extends ESTestCase {
         JavaVersion onePointSevenPointTwo = JavaVersion.parse("1.7.2");
         JavaVersion onePointSevenPointOnePointOne = JavaVersion.parse("1.7.1.1");
         JavaVersion onePointSevenPointTwoPointOne = JavaVersion.parse("1.7.2.1");
+        JavaVersion thirteen = JavaVersion.parse("13");
+        JavaVersion thirteenPointTwoPointOne = JavaVersion.parse("13.2.1");
+        JavaVersion thirteenPointTwoPointOneTwoThousand = JavaVersion.parse("13.2.1-2000");
+        JavaVersion thirteenPointTwoPointOneThreeThousand = JavaVersion.parse("13.2.1-3000");
+        JavaVersion thirteenPointTwoPointOneA = JavaVersion.parse("13.2.1-aaa");
+        JavaVersion thirteenPointTwoPointOneB = JavaVersion.parse("13.2.1-bbb");
         JavaVersion fourteen = JavaVersion.parse("14");
         JavaVersion fourteenPointTwoPointOne = JavaVersion.parse("14.2.1");
         JavaVersion fourteenPointTwoPointOneEarlyAccess = JavaVersion.parse("14.2.1-ea");
@@ -70,20 +93,25 @@ public class JavaVersionTests extends ESTestCase {
         assertTrue(onePointSeven.compareTo(onePointSevenPointZero) == 0);
         assertTrue(onePointSevenPointOnePointOne.compareTo(onePointSevenPointOne) > 0);
         assertTrue(onePointSevenPointTwo.compareTo(onePointSevenPointTwoPointOne) < 0);
+        assertTrue(thirteenPointTwoPointOneThreeThousand.compareTo(thirteenPointTwoPointOneTwoThousand) > 0);
+        assertTrue(thirteenPointTwoPointOneThreeThousand.compareTo(thirteenPointTwoPointOneThreeThousand) == 0);
+        assertTrue(thirteenPointTwoPointOneA.compareTo(thirteenPointTwoPointOneA) == 0);
+        assertTrue(thirteenPointTwoPointOneA.compareTo(thirteenPointTwoPointOneB) < 0);
+        assertTrue(thirteenPointTwoPointOneA.compareTo(thirteenPointTwoPointOneThreeThousand) > 0);
         assertTrue(fourteenPointTwoPointOneEarlyAccess.compareTo(fourteenPointTwoPointOne) < 0);
         assertTrue(fourteenPointTwoPointOneEarlyAccess.compareTo(fourteen) > 0);
 
     }
 
     public void testValidVersions() {
-        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80", "12-ea", "13.0.2.3-ea"};
+        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80", "12-ea", "13.0.2.3-ea", "14-something", "11.0.2-21002"};
         for (String version : versions) {
             assertTrue(JavaVersion.isValid(version));
         }
     }
 
     public void testInvalidVersions() {
-        String[] versions = new String[]{"", "1.7.0_80", "1.7."};
+        String[] versions = new String[]{"", "1.7.0_80", "1.7.", "11.2-something-else"};
         for (String version : versions) {
             assertFalse(JavaVersion.isValid(version));
         }

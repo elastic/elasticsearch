@@ -8,11 +8,10 @@
 <titleabbrev>Stop {dataframe-transforms}</titleabbrev>
 ++++
 
-beta[]
-
 Stops one or more {dataframe-transforms}.
 
-[discrete]
+beta[]
+
 [[stop-data-frame-transform-request]]
 ==== {api-request-title}
 
@@ -22,7 +21,6 @@ Stops one or more {dataframe-transforms}.
 
 `POST _data_frame/transforms/_all/_stop`
 
-[discrete]
 [[stop-data-frame-transform-prereq]]
 ==== {api-prereq-title}
 
@@ -32,7 +30,6 @@ Stops one or more {dataframe-transforms}.
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[stop-data-frame-transform-desc]]
 ==== {api-description-title}
 
@@ -41,7 +38,6 @@ comma-separated list of {dataframe-transforms} or a wildcard expression.
 All {dataframe-transforms} can be stopped by using `_all` or `*` as the
 `<data_frame_transform_id>`.
 
-[discrete]
 [[stop-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
@@ -50,7 +46,6 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the
   lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
   must start and end with alphanumeric characters.
 
-[discrete]
 [[stop-data-frame-transform-query-parms]]
 ==== {api-query-parms-title}
 
@@ -86,7 +81,6 @@ are no matches or only partial matches.
   completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
-[discrete]
 [[stop-data-frame-transform-response-codes]]
 ==== {api-response-codes-title}
 
@@ -94,7 +88,6 @@ are no matches or only partial matches.
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request. 
 
-[discrete]
 [[stop-data-frame-transform-example]]
 ==== {api-examples-title}
 

@@ -8,9 +8,9 @@
 <titleabbrev>Delete {dataframe-transforms}</titleabbrev>
 ++++
 
-beta[]
-
 Deletes an existing {dataframe-transform}.
+
+beta[]
 
 [discrete]
 [[delete-data-frame-transform-request]]
@@ -18,7 +18,6 @@ Deletes an existing {dataframe-transform}.
 
 `DELETE _data_frame/transforms/<data_frame_transform_id>`
 
-[discrete]
 [[delete-data-frame-transform-prereqs]]
 ==== {api-prereq-title}
 
@@ -28,20 +27,20 @@ Deletes an existing {dataframe-transform}.
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
+
 [[delete-data-frame-transform-desc]]
 ==== {api-description-title}
 
 NOTE: Before you can delete the {dataframe-transform}, you must stop it.
 
-[discrete]
+
 [[delete-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>` (Required)::
   (string) Identifier for the {dataframe-transform}.
 
-[discrete]
+
 [[delete-data-frame-transform-examples]]
 ==== {api-examples-title}
 

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -74,7 +74,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
-    private Map<Action<?>, Map<ActionRequest, ActionListener<?>>> actions;
+    private Map<ActionType<?>, Map<ActionRequest, ActionListener<?>>> actions;
 
     @Before
     public void setUpManager() {
@@ -90,7 +90,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final Client client = new FilterClient(mockClient) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 final Map<ActionRequest, ActionListener<?>> map = actions.getOrDefault(action, new HashMap<>());
                 map.put(request, listener);
                 actions.put(action, map);

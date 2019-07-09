@@ -20,9 +20,9 @@ public class TimingStatsReporter {
     /** Persisted timing stats. May be stale. */
     private TimingStats persistedTimingStats;
     /** Current timing stats. */
-    private TimingStats currentTimingStats;
+    private volatile TimingStats currentTimingStats;
     /** Object used to persist current timing stats. */
-    private JobResultsPersister.Builder bulkResultsPersister;
+    private final JobResultsPersister.Builder bulkResultsPersister;
 
     public TimingStatsReporter(TimingStats timingStats, JobResultsPersister.Builder jobResultsPersister) {
         Objects.requireNonNull(timingStats);
@@ -42,7 +42,15 @@ public class TimingStatsReporter {
         }
     }
 
-    public void flush() {
+    public void finishReporting() {
+        // Don't flush if current timing stats are identical to the persisted ones
+        if (currentTimingStats.equals(persistedTimingStats)) {
+            return;
+        }
+        flush();
+    }
+
+    private void flush() {
         persistedTimingStats = new TimingStats(currentTimingStats);
         bulkResultsPersister.persistTimingStats(persistedTimingStats);
     }

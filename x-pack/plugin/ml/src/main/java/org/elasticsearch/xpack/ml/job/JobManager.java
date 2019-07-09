@@ -87,6 +87,7 @@ public class JobManager {
 
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
+    private final JobResultsPersister jobResultsPersister;
     private final ClusterService clusterService;
     private final Auditor auditor;
     private final Client client;
@@ -101,10 +102,11 @@ public class JobManager {
      * Create a JobManager
      */
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
-                      ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
+                      JobResultsPersister jobResultsPersister, ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier, NamedXContentRegistry xContentRegistry) {
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
+        this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.auditor = Objects.requireNonNull(auditor);
         this.client = Objects.requireNonNull(client);
@@ -573,12 +575,11 @@ public class JobManager {
             ModelSnapshot modelSnapshot) {
 
         final ModelSizeStats modelSizeStats = modelSnapshot.getModelSizeStats();
-        final JobResultsPersister persister = new JobResultsPersister(client);
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
         CheckedConsumer<IndexResponse, Exception> modelSizeStatsResponseHandler = response -> {
-            persister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
+            jobResultsPersister.persistQuantiles(modelSnapshot.getQuantiles(), WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(quantilesResponse -> {
                         // The quantiles can be large, and totally dominate the output -
                         // it's clearer to remove them as they are not necessary for the revert op
@@ -593,7 +594,7 @@ public class JobManager {
         CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             if (response) {
                 ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
-                persister.persistModelSizeStats(revertedModelSizeStats, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(
+                jobResultsPersister.persistModelSizeStats(revertedModelSizeStats, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(
                         modelSizeStatsResponseHandler, actionListener::onFailure));
             }
         };

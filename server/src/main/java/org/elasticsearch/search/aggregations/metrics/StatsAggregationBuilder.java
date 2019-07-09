@@ -80,7 +80,7 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
 
     @Override
     protected StatsAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new StatsAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 

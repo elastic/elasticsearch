@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -55,22 +56,21 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     @Inject
     public SecurityUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Settings settings, XPackLicenseState licenseState, @Nullable Realms realms,
-                                        @Nullable CompositeRolesStore rolesStore, @Nullable NativeRoleMappingStore roleMappingStore,
-                                        @Nullable IPFilter ipFilter) {
+                                        Settings settings, XPackLicenseState licenseState, SecurityUsageServices securityServices) {
         super(XPackUsageFeatureAction.SECURITY.name(), transportService, clusterService, threadPool,
               actionFilters, indexNameExpressionResolver);
         this.enabledInSettings = XPackSettings.SECURITY_ENABLED.get(settings);
         this.settings = settings;
         this.licenseState = licenseState;
-        this.realms = realms;
-        this.rolesStore = rolesStore;
-        this.roleMappingStore = roleMappingStore;
-        this.ipFilter = ipFilter;
+        this.realms = securityServices.realms;
+        this.rolesStore = securityServices.rolesStore;
+        this.roleMappingStore = securityServices.roleMappingStore;
+        this.ipFilter = securityServices.ipFilter;
     }
 
     @Override
-    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
+                                   ActionListener<XPackUsageFeatureResponse> listener) {
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> tokenServiceUsage = tokenServiceUsage(settings);
         Map<String, Object> apiKeyServiceUsage = apiKeyServiceUsage(settings);

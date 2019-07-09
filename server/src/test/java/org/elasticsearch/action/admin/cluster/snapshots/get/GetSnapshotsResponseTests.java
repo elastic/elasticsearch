@@ -123,7 +123,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
                 // Don't inject random fields into the custom snapshot metadata, because the metadata map is equality-checked after doing a
                 // round-trip through xContent serialization/deserialization. Even though the rest of the object ignores unknown fields,
                 // `metadata` doesn't ignore unknown fields (it just includes them in the parsed object, because the keys are arbitrary),
-                // so any new fields added to the the metadata before it gets deserialized that weren't in the serialized version will
+                // so any new fields added to the metadata before it gets deserialized that weren't in the serialized version will
                 // cause the equality check to fail.
 
                 // The actual fields are nested in an array, so this regex matches fields with names of the form

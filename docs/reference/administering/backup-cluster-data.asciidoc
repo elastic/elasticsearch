@@ -23,8 +23,8 @@ the snapshot API call must be authorized.
 
 The `snapshot_user` role is a reserved role that can be assigned to the user
 who is calling the snapshot endpoint. This is the only role necessary if all the user
-does is periodic snapshots as part of the backup procedure. Besides, it also
-grants privileges to list all the existing snapshots (of any repository) as
+does is periodic snapshots as part of the backup procedure. This role includes
+the privileges to list all the existing snapshots (of any repository) as
 well as list and view settings of all indices, including the `.security` index.
 It does *not* grant privileges to create repositories, restore snapshots, or
 search within indices. Hence, the user can view and snapshot all indices, but cannot

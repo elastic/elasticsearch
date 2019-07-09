@@ -21,13 +21,14 @@ changes are infrequent after the initial setup.
 
 We recommend that you take regular (ideally, daily) backups of your {es} config
 (`$ES_PATH_CONF`) directory using the file backup software of your choice.
-Some of these files may contain sensitive data such as passwords and TLS keys,
-therefore you should investigate whether your backup software and/or storage
-solution are able to encrypt this data.
 
 TIP: We recommend that you have a configuration management plan for these
 configuration files. You may wish to check them into version control, or
 provision them though your choice of configuration management tool.
+
+Some of these files may contain sensitive data such as passwords and TLS keys,
+therefore you should investigate whether your backup software and/or storage
+solution are able to encrypt this data.
 
 Some settings in configuration files might be overridden by
 <<cluster-update-settings,cluster settings>>. You can capture these settings in

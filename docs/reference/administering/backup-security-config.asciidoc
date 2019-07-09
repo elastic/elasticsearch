@@ -32,7 +32,7 @@ are copied to the backup location, as this increases the surface for malicious
 snooping.
 
 To back up all this configuration you can use a <<backup-cluster-configuration,
-conventional file-based backup>>.
+conventional file-based backup>>, as described in the previous section.
 
 [NOTE]
 ====

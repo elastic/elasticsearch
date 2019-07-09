@@ -74,8 +74,8 @@ pivot function `group by` fields and the aggregation to reduce the data.
 ===== {api-definitions-title}
 
 `aggregations` or `aggs`::
-(object) Defines how to aggregate the grouped data. The following composite
-aggregations are supported:
+  (object) Defines how to aggregate the grouped data. The following composite
+  aggregations are supported:
 +
 --
 * {ref}/search-aggregations-metrics-avg-aggregation.html[Average]
@@ -96,14 +96,20 @@ composite aggregations. See
 --
 
 `group_by`::
-(object) Defines how to group the data. More than one grouping can be defined
-per pivot. The following groupings are supported:
+  (object) Defines how to group the data. More than one grouping can be defined
+  per pivot. The following groupings are supported:
 +
 --
 * {ref}/search-aggregations-bucket-composite-aggregation.html#_terms[Terms]
 * {ref}/search-aggregations-bucket-composite-aggregation.html#_histogram[Histogram]
 * {ref}/search-aggregations-bucket-composite-aggregation.html#_date_histogram[Date Histogram]
 --
+
+`max_page_search_size`::
+  (integer) Defines the initial page size to use for the composite aggregation 
+  for each checkpoint. This is dynamically adjusted to a lower value if circuit 
+  breaker exceptions are experienced. The default value is 500, the minimum is 
+  10 and the maximum is 10,000. 
 
 [[data-frame-transform-example]]
 ==== {api-examples-title}

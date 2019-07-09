@@ -49,12 +49,25 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
      * Resolve a {@link ValuesSourceConfig} given configuration parameters.
      */
     public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
-            QueryShardContext context,
-            ValueType valueType,
-            String field, Script script,
-            Object missing,
-            ZoneId timeZone,
-            String format) {
+        QueryShardContext context,
+        ValueType valueType,
+        String field, Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format) {
+        return resolve(context, valueType, field, script, missing, timeZone, format, s -> ValuesSourceType.BYTES);
+    }
+
+    /**
+     * Resolve a {@link ValuesSourceConfig} given configuration parameters.
+     */
+    public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
+        QueryShardContext context,
+        ValueType valueType,
+        String field, Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format, Function<Script, ValuesSourceType> resolveScriptAny) {
 
         if (field == null) {
             if (script == null) {
@@ -68,7 +81,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 // we need to have a specific value source
                 // type to know how to handle the script values, so we fallback
                 // on Bytes
-                valuesSourceType = ValuesSourceType.BYTES;
+                valuesSourceType = resolveScriptAny.apply(script);
             }
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);

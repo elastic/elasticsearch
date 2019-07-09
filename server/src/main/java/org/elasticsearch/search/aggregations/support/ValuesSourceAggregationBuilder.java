@@ -306,10 +306,21 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         return factory;
     }
 
+    /**
+     * Provide a hook for aggregations to have finer grained control of the ValuesSourceType for script values.  This will only be called if
+     * the user did not supply a type hint for the script.  The script object is provided for reference.
+     *
+     * @param script - The user supplied script
+     * @return The ValuesSourceType we expect this script to yield.
+     */
+    protected ValuesSourceType resolveScriptAny(Script script) {
+        return ValuesSourceType.BYTES;
+    }
+
     protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
         return ValuesSourceConfig.resolve(context.getQueryShardContext(),
-                valueType, field, script, missing, timeZone, format);
+                valueType, field, script, missing, timeZone, format, this::resolveScriptAny);
     }
 
     protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,

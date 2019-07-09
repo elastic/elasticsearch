@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -93,6 +94,12 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     private BucketOrder order = BucketOrder.key(true);
     private boolean keyed = false;
     private long minDocCount = 0;
+
+    @Override
+    protected ValuesSourceType resolveScriptAny(Script script) {
+        // TODO: No idea how we'd support Range scripts here.
+        return ValuesSourceType.NUMERIC;
+    }
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {

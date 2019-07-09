@@ -510,8 +510,10 @@ public class GeoUtils {
                             lon = subParser.doubleValue();
                         } else if (element == 2) {
                             lat = subParser.doubleValue();
-                        } else {
+                        } else if (element == 3) {
                             GeoPoint.assertZValue(ignoreZValue, subParser.doubleValue());
+                        } else {
+                            throw new ElasticsearchParseException("[geo_point] field type does not accept > 3 dimensions");
                         }
                     } else {
                         throw new ElasticsearchParseException("numeric value expected");

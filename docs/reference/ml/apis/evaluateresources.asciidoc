@@ -1,31 +1,30 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-evaluate-dfanalytics-resources]]
-=== Evaluate {dfanalytics} resources
+=== {dfanalytics-cap} evaluation resources
 
- An evaluation configuration object has the following properties:
+Evaluation configuration objects relate to the <<evaluate-dfanalytics>>.
+
+[discrete]
+[[ml-evaluate-dfanalytics-properties]]
+==== {api-definitions-title}
 
 `evaluation`::
   (object) Defines the type of evaluation you want to perform. The value of this 
   object can be different depending on the type of evaluation you want to 
-  perform. For more information, see <<ml-evaluation-types>>.
-  
-  
-[float]
-[[ml-evaluation-types]]
-==== Evaluation types
+  perform. For example, it can contain <<binary-sc-resources>>.
 
-
-[float]
 [[binary-sc-resources]]
-===== Binary soft classification configuration object
+==== Binary soft classification configuration objects
 
 Binary soft classification evaluates the results of an analysis which outputs 
 the probability that each {dataframe} row belongs to a certain class. For 
 example, in the context of outlier detection, the analysis outputs the 
 probability whether each row is an outlier.
 
-A binary soft classification object has the following properties:
+[discrete]
+[[binary-sc-resources-properties]]
+===== {api-definitions-title}
 
 `actual_field` (Required)::
   (string) The field of the `index` which contains the `ground 
@@ -39,7 +38,7 @@ A binary soft classification object has the following properties:
 
 `metrics` (Optional)::
   (object) Specifies the metrics that are used for the evaluation. Available 
-  mertics:
+  metrics:
   
   `auc_roc` (Optional)::
     (object) The AUC ROC (area under the curve of the receiver operating 
@@ -61,3 +60,4 @@ A binary soft classification object has the following properties:
     (TP - true positive, FP - false positive, TN - true negative, FN - false 
     negative) are calculated.
     Default value is {"at": [0.25, 0.50, 0.75]}.
+  

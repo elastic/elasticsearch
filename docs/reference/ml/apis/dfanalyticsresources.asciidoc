@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-dfanalytics-resources]]
-=== {dfanalytics-cap} resources
+=== {dfanalytics-cap} job resources
 
-dfanalytics-cap} resources relate to APIs such as <<put-dfanalytics>> and
+{dfanalytics-cap} resources relate to APIs such as <<put-dfanalytics>> and
 <<get-dfanalytics>>.	
 
 [discrete]	

@@ -287,8 +287,10 @@ public class ExecutionService {
         ctx.setNodeId(clusterService.localNode().getId());
         WatchRecord record = null;
         final String watchId = ctx.id().watchId();
+        //pull this to a local reference since the class reference can be swapped, and need to ensure same object is used for put/remove
+        final CurrentExecutions currentExecutions = this.currentExecutions.get();
         try {
-            boolean executionAlreadyExists = currentExecutions.get().put(watchId, new WatchExecution(ctx, Thread.currentThread()));
+            boolean executionAlreadyExists = currentExecutions.put(watchId, new WatchExecution(ctx, Thread.currentThread()));
             if (executionAlreadyExists) {
                 logger.trace("not executing watch [{}] because it is already queued", watchId);
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED, "Watch is already queued in thread pool");
@@ -343,7 +345,7 @@ public class ExecutionService {
 
                 triggeredWatchStore.delete(ctx.id());
             }
-            currentExecutions.get().remove(watchId);
+            currentExecutions.remove(watchId);
             logger.debug("finished [{}]/[{}]", watchId, ctx.id());
         }
         return record;

@@ -111,9 +111,7 @@ public final class RepositoryData {
      * Returns an immutable collection of all the snapshot ids in the repository.
      */
     public Collection<SnapshotId> getAllSnapshotIds() {
-        List<SnapshotId> allSnapshotIds = new ArrayList<>(snapshotIds.size());
-        allSnapshotIds.addAll(snapshotIds.values());
-        return Collections.unmodifiableList(allSnapshotIds);
+        return List.copyOf(snapshotIds.values());
     }
 
     /**

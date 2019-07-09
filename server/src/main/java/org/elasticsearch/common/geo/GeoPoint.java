@@ -25,6 +25,8 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ElasticsearchParseException;
@@ -85,6 +87,8 @@ public final class GeoPoint implements ToXContentFragment {
     public GeoPoint resetFromString(String value, final boolean ignoreZValue) {
         if (value.contains(",")) {
             return resetFromCoordinates(value, ignoreZValue);
+        } else if (value.contains("POINT")) {
+            return resetFromWKT(value, ignoreZValue);
         }
         return resetFromGeoHash(value);
     }
@@ -114,6 +118,14 @@ public final class GeoPoint implements ToXContentFragment {
         return reset(lat, lon);
     }
 
+    private GeoPoint resetFromWKT(String value, boolean ignoreZValue) {
+        try {
+            PointBuilder point = (PointBuilder)GeoWKTParser.parseExpectedType(value, GeoShapeType.POINT, ignoreZValue, false);
+            return reset(point.latitude(), point.longitude());
+        } catch (IOException e) {
+            throw  new ElasticsearchParseException("Invalid WKT format", e);
+        }
+    }
 
     public GeoPoint resetFromIndexHash(long hash) {
         lon = Geohash.decodeLongitude(hash);

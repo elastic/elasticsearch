@@ -57,6 +57,7 @@ public class GeoPointParsingTests  extends ESTestCase {
         assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
         assertPointsEqual(point.resetFromString(Double.toString(lat) + ", " + Double.toHexString(lon)), point2.reset(lat, lon));
         assertPointsEqual(point.reset(0, 0), point2.reset(0, 0));
+        assertPointsEqual(point.resetFromString("POINT(" + lon + " " + lat + ")"), point2.reset(lat, lon));
     }
 
     public void testEqualsHashCodeContract() {

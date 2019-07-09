@@ -40,7 +40,7 @@ class Point2DReader implements ShapeTreeReader {
     }
 
     public Extent getExtent() throws IOException {
-        if (size == 2) {
+        if (size == 1) {
             int x = readX(0);
             int y = readY(0);
             return new Extent(x, y, x, y);

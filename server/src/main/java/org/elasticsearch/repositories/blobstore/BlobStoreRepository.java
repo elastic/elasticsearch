@@ -174,13 +174,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String TESTS_FILE = "tests-";
 
-    private static final String METADATA_NAME_FORMAT = "meta-%s.dat";
+    private static final String METADATA_PREFIX = "meta-";
+
+    public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
 
     private static final String METADATA_CODEC = "metadata";
 
     private static final String INDEX_METADATA_CODEC = "index-metadata";
 
-    private static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
+    public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
 
     private static final String SNAPSHOT_INDEX_PREFIX = "index-";
 

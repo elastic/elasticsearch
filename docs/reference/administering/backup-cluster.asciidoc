@@ -18,6 +18,5 @@ To restore your cluster from a backup:
 
 include::backup-cluster-data.asciidoc[]
 include::backup-cluster-config.asciidoc[]
-include::backup-security-config.asciidoc[]
+include::backup-and-restore-security-config.asciidoc[]
 include::restore-cluster-data.asciidoc[]
-include::restore-security-config.asciidoc[]

@@ -188,7 +188,6 @@ public class UpdateModelSnapshotAction extends StreamableResponseActionType<Upda
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             model.writeTo(out);
         }
 

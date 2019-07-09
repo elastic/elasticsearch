@@ -153,7 +153,6 @@ public class PostCalendarEventsAction extends StreamableResponseActionType<PostC
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeList(scheduledEvents);
         }
 

@@ -523,7 +523,7 @@ The three additional settings that are required for OpenID Connect support are s
 [source, yaml]
 ------------------------------------------------------------
 xpack.security.authProviders: [oidc]
-xpack.security.auth.oidc.realm: "oidc1"
+xpack.security.authc.oidc.realm: "oidc1"
 server.xsrf.whitelist: [/api/security/v1/oidc]
 ------------------------------------------------------------
 
@@ -544,7 +544,7 @@ xpack.security.authProviders: [oidc, basic]
 This will allow users that haven't already authenticated with OpenID Connect to
 navigate directly to the `/login` page in {kib} in order to use the login form.
 
-`xpack.security.auth.oidc.realm`::
+`xpack.security.authc.oidc.realm`::
 The name of the OpenID Connect realm in {es} that should handle authentication
 for this Kibana instance.
 

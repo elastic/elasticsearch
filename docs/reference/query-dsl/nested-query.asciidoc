@@ -1,7 +1,7 @@
 [[query-dsl-nested-query]]
 === Nested Query
 
-Returns matching documents from <<nested,nested>> field objects.
+Wraps another query to search <<nested,nested>> fields.
 
 The `nested` query searches nested field objects as if they were indexed as
 separate documents. If an object matches the search, the `nested` query returns

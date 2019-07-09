@@ -102,19 +102,18 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @After
     public void cleanup() throws Exception {
         if (isMachineLearningTest() || isDataFrameTest()) {
-            logger.info("{}: waiting for pending tasks");
             ESRestTestCase.waitForPendingTasks(adminClient());
         }
     }
 
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
-        return testName != null && (testName.contains("=ml/") || testName.contains("=ml\\"));
+        return testName != null && (testName.contains("/ml/") || testName.contains("\\ml\\"));
     }
 
     protected boolean isDataFrameTest() {
         String testName = getTestName();
-        return testName != null && (testName.contains("=data_frames/") || testName.contains("=data_frames\\"));
+        return testName != null && (testName.contains("/data-frames/") || testName.contains("\\data-frames\\"));
     }
 
     /**

@@ -27,7 +27,7 @@ The following variables are available in all watcher contexts.
         The actual trigger time for the watch. This is the time the
         watch was triggered for execution.
 
-`ctx['payload']` (`Map`, read-only)::
+`ctx['payload']` (`Map`)::
         The accessible watch data based upon the
         {xpack-ref}/input.html[watch input].
 

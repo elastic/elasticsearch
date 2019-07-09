@@ -340,64 +340,19 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
-    File eclipseBuild = project.file('build-eclipse')
-    eclipse.classpath.defaultOutputDir = eclipseBuild
-    if (isEclipse) {
-      // set this so generated dirs will be relative to eclipse build
-      project.buildDir = eclipseBuild
-      // Work around https://docs.gradle.org/current/userguide/java_gradle_plugin.html confusing Eclipse by the metadata
-      // it adds to the  classpath
-      project.file("$buildDir/pluginUnderTestMetadata").mkdirs()
-    }
+    eclipse.classpath.defaultOutputDir = file('build-eclipse')
     eclipse.classpath.file.whenMerged { classpath ->
       // give each source folder a unique corresponding output folder
       int i = 0;
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
-        // this is *NOT* a path or a file.
         folder.output = "build-eclipse/" + i
-      }
-
-      // Eclipse now supports main and test source sets, but the Gradle and buildship tooling does not yet so we
-      // edit the generated .classpath to correctly mark test vs non test code and dependencies
-      // for more info: https://github.com/eclipse/buildship/issues/689 and https://github.com/gradle/gradle/issues/4802
-      Set<String> testOnlyProjectDependencies = new HashSet();
-      if (configurations.findByName("testCompile") != null) {
-        testOnlyProjectDependencies.addAll(
-          configurations.testCompile.getDependencies().findAll {
-            it instanceof ProjectDependency
-          }.collect {
-            it.dependencyProject.path
-          }
-        )
-      }
-      if (configurations.findByName("compile") != null) {
-        testOnlyProjectDependencies.removeAll(
-                configurations.compile.getDependencies().findAll {
-                  it instanceof ProjectDependency
-                }.collect {
-                  it.dependencyProject.path
-                }
-        )
-      }
-      classpath.entries.each {
-        if (it.hasProperty("entryAttributes")) {
-          if (it.entryAttributes.containsKey("gradle_used_by_scope")) {
-            it.entryAttributes['test'] = (it.entryAttributes['gradle_used_by_scope'] == 'test')
-          }
-          if (it.hasProperty("path") && it.path.startsWith("/:")) {
-            if (testOnlyProjectDependencies.contains(it.path.substring(1))) {
-              it.entryAttributes['test'] = true
-            }
-          }
-        }
       }
     }
   }
 
-  File licenseHeaderFile;
-  String prefix = ':x-pack';
-
+  File licenseHeaderFile
+  String prefix = ':x-pack'
   if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     prefix = prefix.replace(':', '_')
   }
@@ -410,7 +365,6 @@ allprojects {
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
   String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
   task copyEclipseSettings(type: Copy) {
-    // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
     into '.settings'
     filter{ it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader)}
@@ -419,19 +373,7 @@ allprojects {
   task wipeEclipseSettings(type: Delete) {
     delete '.settings'
   }
-  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
-  // otherwise the eclipse merging is *super confusing*
-  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 
-  // work arround https://github.com/gradle/gradle/issues/6582 
-  tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
-  tasks.matching { it.name == 'eclipseClasspath' }.all {
-    it.mustRunAfter { tasks.cleanEclipseClasspath }
-  }
-  tasks.matching { it.name == 'eclipseJdt' }.all {
-    it.mustRunAfter { tasks.cleanEclipseJdt }
-  }
-  tasks.copyEclipseSettings.mustRunAfter tasks.wipeEclipseSettings
 }
 
 allprojects {

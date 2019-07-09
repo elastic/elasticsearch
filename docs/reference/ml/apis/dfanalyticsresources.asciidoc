@@ -16,7 +16,7 @@
   
 `analyzed_fields`::
   (object) You can specify both `includes` and/or `excludes` patterns. If 
-  `analyzed_fields` is not set, only the relevant fileds will be included. For 
+  `analyzed_fields` is not set, only the relevant fields will be included. For 
   example all the numeric fields for {oldetection}.
 
 `dest`::

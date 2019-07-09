@@ -57,7 +57,7 @@ probability whether each row is an outlier.
   
   `confusion_matrix`::
     (object) Set the different thresholds of the {olscore} at where the metrics 
-    (TP - true positive, FP - false positive, TN - true negative, FN - false 
-    negative) are calculated.
+    (`tp` - true positive, `fp` - false positive, `tn` - true negative, `fn` - 
+    false negative) are calculated.
     Default value is {"at": [0.25, 0.50, 0.75]}.
   

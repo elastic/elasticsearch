@@ -344,7 +344,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
      */
     private void parseGeoPointIgnoringMalformed(ParseContext context, GeoPoint sparse) throws IOException {
         try {
-            parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse));
+            parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse, ignoreZValue.value()));
         } catch (ElasticsearchParseException e) {
             if (ignoreMalformed.value() == false) {
                 throw e;

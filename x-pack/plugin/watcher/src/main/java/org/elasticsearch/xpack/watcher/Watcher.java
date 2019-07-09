@@ -330,14 +330,22 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 if (response.hasFailures()) {
-                    Map<String, String> triggeredWatches = Arrays.stream(response.getItems())
+                    Map<String, String> triggeredFailures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
                         .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
-                    if (triggeredWatches.isEmpty() == false) {
-                        String failure = triggeredWatches.values().stream().collect(Collectors.joining(", "));
+                    Map<String, String> historyFailures = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (triggeredFailures.isEmpty() == false) {
+                        String failure = triggeredFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("triggered watches could not be deleted {}, failure [{}]",
-                            triggeredWatches.keySet(), Strings.substring(failure, 0, 2000));
+                            triggeredFailures.keySet(), Strings.substring(failure, 0, 2000));
+                    } else if (historyFailures.isEmpty() == false) {
+                        String failure = historyFailures.values().stream().collect(Collectors.joining(", "));
+                        logger.error("watch history could not be written {}, failure [{}]",
+                            historyFailures.keySet(), Strings.substring(failure, 0, 2000));
                     }
 
                     Map<String, String> overwrittenIds = Arrays.stream(response.getItems())

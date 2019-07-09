@@ -91,6 +91,19 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         this.listener = listener;
     }
 
+    public static BitSet setupBitset(LeafReaderContext context, Query query) throws IOException {
+        final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+        final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+        searcher.setQueryCache(null);
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        Scorer s = weight.scorer(context);
+        if (s == null) {
+            return null;
+        } else {
+            return BitSet.of(s.iterator(), context.reader().maxDoc());
+        }
+    }
+
     public IndexWarmer.Listener createListener(ThreadPool threadPool) {
         return new BitSetProducerWarmer(threadPool);
     }
@@ -115,7 +128,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         loadedFilters.invalidateAll();
     }
 
-    private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws IOException, ExecutionException {
+    private BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context) throws ExecutionException {
         final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
         if (cacheHelper == null) {
             throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
@@ -133,18 +146,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         });
 
         return filterToFbs.computeIfAbsent(query, key -> {
-            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-            searcher.setQueryCache(null);
-            final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-            Scorer s = weight.scorer(context);
-            final BitSet bitSet;
-            if (s == null) {
-                bitSet = null;
-            } else {
-                bitSet = BitSet.of(s.iterator(), context.reader().maxDoc());
-            }
-
+            final BitSet bitSet = setupBitset(context, query);
             Value value = new Value(bitSet, shardId);
             listener.onCache(shardId, value.bitset);
             return value;

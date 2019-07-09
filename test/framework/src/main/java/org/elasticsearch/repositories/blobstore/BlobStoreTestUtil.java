@@ -41,6 +41,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -134,11 +135,13 @@ public final class BlobStoreTestUtil {
                 final IndexId indexId = repositoryData.resolveIndexId(index);
                 assertThat(indices, hasKey(indexId.getId()));
                 final BlobContainer indexContainer = indices.get(indexId.getId());
-                assertThat(indexContainer.listBlobs(), hasKey("meta-" + snapshotId.getUUID() + ".dat"));
+                assertThat(indexContainer.listBlobs(),
+                    hasKey(String.format(Locale.ROOT, BlobStoreRepository.METADATA_NAME_FORMAT, snapshotId.getUUID())));
                 for (Map.Entry<String, BlobContainer> entry : indexContainer.children().entrySet()) {
                     if (snapshotInfo.shardFailures().stream().noneMatch(shardFailure ->
                         shardFailure.index().equals(index) != false && shardFailure.shardId() == Integer.parseInt(entry.getKey()))) {
-                        assertThat(entry.getValue().listBlobs(), hasKey("snap-" + snapshotId.getUUID() + ".dat"));
+                        assertThat(entry.getValue().listBlobs(),
+                            hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));
                     }
                 }
             }

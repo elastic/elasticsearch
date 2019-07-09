@@ -109,3 +109,4 @@ PUT twitter/_mapping
 }
 ----
 // CONSOLE
+// TEST[setup:twitter]

@@ -224,7 +224,18 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 }
                 fullRefreshCompletionListeners.clear();
             }
-        }, onCompletion::onFailure);
+        },
+        e -> {
+            synchronized (fullRefreshCompletionListeners) {
+                assert fullRefreshCompletionListeners.isEmpty() == false;
+                for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                    listener.onFailure(e);
+                }
+                // It's critical that we empty out the current listener list on
+                // error otherwise subsequent retries to refresh will be ignored
+                fullRefreshCompletionListeners.clear();
+            }
+        });
 
         // persistentTasks will be null if there's never been a persistent task created in this cluster
         if (persistentTasks == null) {

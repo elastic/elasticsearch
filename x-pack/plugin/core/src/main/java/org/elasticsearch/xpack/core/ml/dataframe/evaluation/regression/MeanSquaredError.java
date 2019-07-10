@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -103,9 +102,9 @@ public class MeanSquaredError implements RegressionMetric {
         return Objects.hashCode(NAME.getPreferredName());
     }
 
-
     public static class Result implements EvaluationMetricResult {
 
+        private static final String ERROR = "error";
         private final double error;
 
         public Result(double error) {
@@ -134,7 +133,7 @@ public class MeanSquaredError implements RegressionMetric {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("error", error);
+            builder.field(ERROR, error);
             builder.endObject();
             return builder;
         }

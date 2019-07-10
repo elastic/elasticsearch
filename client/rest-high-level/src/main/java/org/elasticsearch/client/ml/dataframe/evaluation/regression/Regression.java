@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,7 +45,7 @@ public class Regression implements Evaluation {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Regression, Void> PARSER = new ConstructingObjectParser<>(
-        NAME, a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
+        NAME, true, a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
@@ -76,10 +76,14 @@ public class Regression implements Evaluation {
     private final List<EvaluationMetric> metrics;
 
     public Regression(String actualField, String predictedField) {
-        this(actualField, predictedField, Collections.singletonList(new MeanSquaredError()));
+        this(actualField, predictedField, (List<EvaluationMetric>)null);
     }
 
-    Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
+    public Regression(String actualField, String predictedField, EvaluationMetric... metrics) {
+        this(actualField, predictedField, Arrays.asList(metrics));
+    }
+
+    public Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
         this.actualField = actualField;
         this.predictedField = predictedField;
         this.metrics = metrics;
@@ -96,11 +100,13 @@ public class Regression implements Evaluation {
         builder.field(ACTUAL_FIELD.getPreferredName(), actualField);
         builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
 
-        builder.startObject(METRICS.getPreferredName());
-        for (EvaluationMetric metric : metrics) {
-            builder.field(metric.getName(), metric);
+        if (metrics != null) {
+           builder.startObject(METRICS.getPreferredName());
+           for (EvaluationMetric metric : metrics) {
+               builder.field(metric.getName(), metric);
+           }
+           builder.endObject();
         }
-        builder.endObject();
 
         builder.endObject();
         return builder;

@@ -25,7 +25,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class MeanSquaredErrorTests extends AbstractXContentTestCase<MeanSquaredError> {
+public class MeanSquaredErrorMetricTests extends AbstractXContentTestCase<MeanSquaredErrorMetric> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -33,13 +33,13 @@ public class MeanSquaredErrorTests extends AbstractXContentTestCase<MeanSquaredE
     }
 
     @Override
-    protected MeanSquaredError createTestInstance() {
-        return new MeanSquaredError();
+    protected MeanSquaredErrorMetric createTestInstance() {
+        return new MeanSquaredErrorMetric();
     }
 
     @Override
-    protected MeanSquaredError doParseInstance(XContentParser parser) throws IOException {
-        return MeanSquaredError.fromXContent(parser);
+    protected MeanSquaredErrorMetric doParseInstance(XContentParser parser) throws IOException {
+        return MeanSquaredErrorMetric.fromXContent(parser);
     }
 
     @Override

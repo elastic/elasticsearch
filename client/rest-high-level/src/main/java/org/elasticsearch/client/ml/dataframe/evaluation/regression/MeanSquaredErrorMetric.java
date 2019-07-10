@@ -20,7 +20,6 @@ package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,18 +36,18 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  *
  * equation: mse = 1/n * Σ(y - y´)^2
  */
-public class MeanSquaredError implements EvaluationMetric {
+public class MeanSquaredErrorMetric implements EvaluationMetric {
 
     public static final String NAME = "mean_squared_error";
 
-    private static final ObjectParser<MeanSquaredError, Void> PARSER =
-        new ObjectParser<>("mean_squared_error", true, MeanSquaredError::new);
+    private static final ObjectParser<MeanSquaredErrorMetric, Void> PARSER =
+        new ObjectParser<>("mean_squared_error", true, MeanSquaredErrorMetric::new);
 
-    public static MeanSquaredError fromXContent(XContentParser parser) {
+    public static MeanSquaredErrorMetric fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public MeanSquaredError() {
+    public MeanSquaredErrorMetric() {
 
     }
 

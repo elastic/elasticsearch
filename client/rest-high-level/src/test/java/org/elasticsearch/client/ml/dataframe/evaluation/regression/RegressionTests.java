@@ -19,13 +19,13 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Predicate;
 
 public class RegressionTests extends AbstractXContentTestCase<Regression> {
 
@@ -36,11 +36,9 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
 
     @Override
     protected Regression createTestInstance() {
-        Regression regression = randomBoolean() ?
+        return randomBoolean() ?
             new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), Collections.singletonList(new MeanSquaredError()));
-        System.out.println(Strings.toString(regression, true, true));
-        return regression;
+            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), Collections.singletonList(new MeanSquaredErrorMetric()));
     }
 
     @Override
@@ -50,6 +48,12 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // allow unknown fields in the root of the object only
+        return field -> !field.isEmpty();
     }
 }

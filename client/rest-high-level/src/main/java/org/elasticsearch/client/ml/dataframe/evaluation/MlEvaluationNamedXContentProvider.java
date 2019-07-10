@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation;
 
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredError;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
 import org.elasticsearch.common.ParseField;
@@ -47,7 +47,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             new NamedXContentRegistry.Entry(EvaluationMetric.class, new ParseField(RecallMetric.NAME), RecallMetric::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.class, new ParseField(ConfusionMatrixMetric.NAME), ConfusionMatrixMetric::fromXContent),
-            new NamedXContentRegistry.Entry(EvaluationMetric.class, new ParseField(MeanSquaredError.NAME), MeanSquaredError::fromXContent),
+            new NamedXContentRegistry.Entry(
+                EvaluationMetric.class, new ParseField(MeanSquaredErrorMetric.NAME), MeanSquaredErrorMetric::fromXContent),
             // Evaluation metrics results
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class, new ParseField(AucRocMetric.NAME), AucRocMetric.Result::fromXContent),
@@ -56,7 +57,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class, new ParseField(RecallMetric.NAME), RecallMetric.Result::fromXContent),
             new NamedXContentRegistry.Entry(
-                EvaluationMetric.Result.class, new ParseField(MeanSquaredError.NAME), MeanSquaredError.Result::fromXContent),
+                EvaluationMetric.Result.class, new ParseField(MeanSquaredErrorMetric.NAME), MeanSquaredErrorMetric.Result::fromXContent),
             new NamedXContentRegistry.Entry(
                 EvaluationMetric.Result.class, new ParseField(ConfusionMatrixMetric.NAME), ConfusionMatrixMetric.Result::fromXContent));
     }

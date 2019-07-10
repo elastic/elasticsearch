@@ -25,20 +25,20 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class MeanSquaredErrorResultsTests extends AbstractXContentTestCase<MeanSquaredError.Result> {
+public class MeanSquaredErrorMetricResultTests extends AbstractXContentTestCase<MeanSquaredErrorMetric.Result> {
 
-    public static MeanSquaredError.Result randomResult() {
-        return new MeanSquaredError.Result(randomDouble());
+    public static MeanSquaredErrorMetric.Result randomResult() {
+        return new MeanSquaredErrorMetric.Result(randomDouble());
     }
 
     @Override
-    protected MeanSquaredError.Result createTestInstance() {
+    protected MeanSquaredErrorMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected MeanSquaredError.Result doParseInstance(XContentParser parser) throws IOException {
-        return MeanSquaredError.Result.fromXContent(parser);
+    protected MeanSquaredErrorMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return MeanSquaredErrorMetric.Result.fromXContent(parser);
     }
 
     @Override

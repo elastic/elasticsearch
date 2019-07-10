@@ -12,10 +12,10 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,31 +45,25 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
     }
 
     public void testEvaluate() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
         Aggregations aggs = new Aggregations(Arrays.asList(
             createSingleMetricAgg("regression_mean_squared_error", 0.8123),
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
         ));
 
-        MeanSquaredError precision = new MeanSquaredError();
-        EvaluationMetricResult result = precision.evaluate(aggs);
+        MeanSquaredError mse = new MeanSquaredError();
+        EvaluationMetricResult result = mse.evaluate(aggs);
 
         String expected = "{\"error\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 
     public void testEvaluate_GivenMissingAggs() {
-        SoftClassificationMetric.ClassInfo classInfo = mock(SoftClassificationMetric.ClassInfo.class);
-        when(classInfo.getName()).thenReturn("foo");
-
-        Aggregations aggs = new Aggregations(Arrays.asList(
+        Aggregations aggs = new Aggregations(Collections.singletonList(
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
         ));
 
-        MeanSquaredError precision = new MeanSquaredError();
-        EvaluationMetricResult result = precision.evaluate(aggs);
+        MeanSquaredError mse = new MeanSquaredError();
+        EvaluationMetricResult result = mse.evaluate(aggs);
         assertThat(result, is(nullValue()));
     }
 

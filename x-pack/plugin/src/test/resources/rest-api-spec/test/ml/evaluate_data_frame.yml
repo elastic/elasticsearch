@@ -567,3 +567,19 @@ setup:
           }
 
   - match: { regression.mean_squared_error.error: 28.67749840974834 }
+---
+"Test regression with null metrics":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred"
+              }
+            }
+          }
+
+  - match: { regression.mean_squared_error.error: 28.67749840974834 }

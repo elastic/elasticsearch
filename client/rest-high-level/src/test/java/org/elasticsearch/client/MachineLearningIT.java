@@ -123,7 +123,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredError;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -1604,8 +1604,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME));
         assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
 
-        MeanSquaredError.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredError.NAME);
-        assertThat(mseResult.getMetricName(), equalTo(MeanSquaredError.NAME));
+        MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
+        assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
         assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
     }
 

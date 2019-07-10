@@ -72,11 +72,25 @@ are being written to while follower indices do not receive direct writes.
 
 // tag::notable-highlights[]
 [float]
-==== Fixed memory leak when using templates in document-level seciurity
+==== Fixed memory leak when using templates in document-level security
 
 {xpack-ref}/document-level-security.html[Document-level security] was using an
 unbounded cache for the set of visible documents. This could lead to a memory
 leak when using a templated query as a role query. The cache has been fixed to
 evict based on memory usage and has a limit of 50MB.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== More memory-efficient aggregations on `keyword` fields
+
+<<search-aggregations-bucket-terms-aggregation,Terms aggregations>> generally
+need to build
+<<search-aggregations-bucket-terms-aggregation-execution-hint,global ordinals>>
+in order to run. Unfortunately this operation became more memory-intensive in
+6.0 due to the move to doc-value iterators in order to improve handling of
+sparse fields. Memory pressure of global ordinals now goes back to a more
+similar level as what you could have on pre-6.0 releases.
 
 // end::notable-highlights[]

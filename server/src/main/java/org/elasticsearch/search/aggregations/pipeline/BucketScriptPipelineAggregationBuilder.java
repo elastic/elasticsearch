@@ -214,12 +214,12 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
 
         if (bucketsPathsMap == null) {
             throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for series_arithmetic aggregation [" + reducerName + "]");
+                    + "] for bucket_script aggregation [" + reducerName + "]");
         }
 
         if (script == null) {
             throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + Script.SCRIPT_PARSE_FIELD.getPreferredName()
-                    + "] for series_arithmetic aggregation [" + reducerName + "]");
+                    + "] for bucket_script aggregation [" + reducerName + "]");
         }
 
         BucketScriptPipelineAggregationBuilder factory =

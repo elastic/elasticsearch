@@ -73,16 +73,30 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
-        } else if (path.get(0).equals("_bucket_count")) {
-            return getBuckets().size();
-        } else {
-            List<? extends InternalBucket> buckets = getBuckets();
-            Object[] propertyArray = new Object[buckets.size()];
-            for (int i = 0; i < buckets.size(); i++) {
-                propertyArray[i] = buckets.get(i).getProperty(getName(), path);
-            }
-            return propertyArray;
         }
+        String aggName = path.get(0);
+        if (aggName.equals("_bucket_count")) {
+            return getBuckets().size();
+        }
+        List<? extends InternalBucket> buckets = getBuckets();
+
+        // This is a bucket key, look through our buckets and see if we can find a match
+        if (aggName.startsWith("'") && aggName.endsWith("'")) {
+            for (InternalBucket bucket : buckets) {
+                if (bucket.getKeyAsString().equals(aggName.substring(1, aggName.length() - 1))) {
+                    return bucket.getProperty(getName(), path.subList(1, path.size()));
+                }
+            }
+            // No key match, time to give up
+            throw new InvalidAggregationPathException("Cannot find an key [" + aggName + "] in [" + getName() + "]");
+        }
+
+        Object[] propertyArray = new Object[buckets.size()];
+        for (int i = 0; i < buckets.size(); i++) {
+            propertyArray[i] = buckets.get(i).getProperty(getName(), path);
+        }
+        return propertyArray;
+
     }
 
     /**

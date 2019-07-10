@@ -119,7 +119,6 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(name);
         out.writeString(id);
         byte[] bytes = null;

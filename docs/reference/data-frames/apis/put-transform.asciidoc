@@ -58,7 +58,12 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 
 `dest` (Required)::
   (object) The destination configuration, which consists of `index` and
-  optionally a `pipeline` id.
+  optionally a `pipeline` id. See <<data-frame-transform-dest>>.
+
+`frequency` (Optional)::
+  (time units) The interval between checks for changes in the source indices
+  when the {dataframe-transform} is running continuously. Defaults to `1m`.
+  The lowest permitted value is `1s`; the highest `1h`.
 
 `pivot` (Optional)::
   (object) Defines the pivot function `group by` fields and the aggregation to
@@ -66,7 +71,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 
 `source` (Required)::
   (object) The source configuration, which consists of `index` and optionally
-  a `query`.
+  a `query`. See <<data-frame-transform-source>>.
 
 [discrete]
 [[put-data-frame-transform-example]]
@@ -90,6 +95,7 @@ PUT _data_frame/transforms/ecommerce_transform
     "index": "kibana_sample_data_ecommerce_transform",
     "pipeline": "add_timestamp_pipeline"
   },
+  "frequency": "5m",
   "pivot": {
     "group_by": {
       "customer_id": {

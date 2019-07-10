@@ -73,7 +73,7 @@ public class NamedAnalyzerTests extends ESTestCase {
                 return mode;
             }
         };
-        return new CustomAnalyzer("tokenizerName", null, new CharFilterFactory[0],
+        return new CustomAnalyzer(null, new CharFilterFactory[0],
                 new TokenFilterFactory[] { tokenFilter  });
     }
 }

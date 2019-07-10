@@ -36,14 +36,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoTileGridAggregatorFactory> {
+public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
     private final int precision;
     private final int requiredSize;
     private final int shardSize;
 
     GeoTileGridAggregatorFactory(String name, ValuesSourceConfig<GeoPoint> config, int precision, int requiredSize,
-                                 int shardSize, SearchContext context, AggregatorFactory<?> parent,
+                                 int shardSize, SearchContext context, AggregatorFactory parent,
                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);

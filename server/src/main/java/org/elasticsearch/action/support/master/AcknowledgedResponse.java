@@ -71,7 +71,6 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(acknowledged);
     }
 

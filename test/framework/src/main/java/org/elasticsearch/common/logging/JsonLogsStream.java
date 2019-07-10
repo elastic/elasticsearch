@@ -30,6 +30,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
@@ -57,10 +59,20 @@ public class JsonLogsStream {
         return from(Files.newBufferedReader(path));
     }
 
+    public static Stream<Map<String, String>> mapStreamFrom(Path path) throws IOException {
+        return new JsonLogsStream(Files.newBufferedReader(path)).streamMap();
+    }
+
     private Stream<JsonLogLine> stream() {
         Spliterator<JsonLogLine> spliterator = Spliterators.spliteratorUnknownSize(new JsonIterator(), Spliterator.ORDERED);
         return StreamSupport.stream(spliterator, false)
-                            .onClose(this::close);
+            .onClose(this::close);
+    }
+
+    private Stream<Map<String, String>> streamMap() {
+        Spliterator<Map<String, String>> spliterator = Spliterators.spliteratorUnknownSize(new MapIterator(), Spliterator.ORDERED);
+        return StreamSupport.stream(spliterator, false)
+            .onClose(this::close);
     }
 
     private void close() {
@@ -69,6 +81,26 @@ public class JsonLogsStream {
             reader.close();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private class MapIterator implements Iterator<Map<String, String>> {
+
+        @Override
+        public boolean hasNext() {
+            return parser.isClosed() == false;
+        }
+
+        @Override
+        public Map<String, String> next() {
+            Map<String, String> map;
+            try {
+                map = parser.map(LinkedHashMap::new, XContentParser::text);
+                parser.nextToken();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return map;
         }
     }
 

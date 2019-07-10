@@ -83,7 +83,6 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeCollection(cluster, StreamOutput::writeString);
         out.writeCollection(conditionalCluster, ConditionalClusterPrivileges.WRITER);
         out.writeCollection(index);

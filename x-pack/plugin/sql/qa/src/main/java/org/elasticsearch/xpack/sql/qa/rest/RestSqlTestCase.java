@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -411,6 +413,91 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+    }
+
+    public void testPrettyPrintingEnabled() throws IOException {
+        boolean columnar = randomBoolean();
+        String expected = "";
+        if (columnar) {
+            expected = "{\n" + 
+                    "  \"columns\" : [\n" + 
+                    "    {\n" + 
+                    "      \"name\" : \"test1\",\n" + 
+                    "      \"type\" : \"text\"\n" + 
+                    "    }\n" + 
+                    "  ],\n" + 
+                    "  \"values\" : [\n" + 
+                    "    [\n" + 
+                    "      \"test1\",\n" + 
+                    "      \"test2\"\n" + 
+                    "    ]\n" + 
+                    "  ]\n" + 
+                    "}\n";
+        } else {
+            expected = "{\n" + 
+                    "  \"columns\" : [\n" + 
+                    "    {\n" + 
+                    "      \"name\" : \"test1\",\n" + 
+                    "      \"type\" : \"text\"\n" + 
+                    "    }\n" + 
+                    "  ],\n" + 
+                    "  \"rows\" : [\n" + 
+                    "    [\n" + 
+                    "      \"test1\"\n" + 
+                    "    ],\n" + 
+                    "    [\n" + 
+                    "      \"test2\"\n" + 
+                    "    ]\n" + 
+                    "  ]\n" + 
+                    "}\n";
+        }
+        executeAndAssertPrettyPrinting(expected, "true", columnar);
+    }
+    
+    public void testPrettyPrintingDisabled() throws IOException {
+        boolean columnar = randomBoolean();
+        String expected = "";
+        if (columnar) {
+            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"values\":[[\"test1\",\"test2\"]]}";
+        } else {
+            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"rows\":[[\"test1\"],[\"test2\"]]}";
+        }
+        executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
+    }
+    
+    private void executeAndAssertPrettyPrinting(String expectedJson, String prettyParameter, boolean columnar)
+            throws IOException {
+        index("{\"test1\":\"test1\"}",
+              "{\"test1\":\"test2\"}");
+
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        if (prettyParameter != null) {
+            request.addParameter("pretty", prettyParameter);
+        }
+        if (randomBoolean()) {
+            // We default to JSON but we force it randomly for extra coverage
+            request.addParameter("format", "json");
+        }
+        if (randomBoolean()) {
+            // JSON is the default but randomly set it sometime for extra coverage
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Accept", randomFrom("*/*", "application/json"));
+            request.setOptions(options);
+        }
+        request.setEntity(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode("plain") + columnarParameter(columnar) + "}",
+                  ContentType.APPLICATION_JSON));
+        
+        Response response = client().performRequest(request);
+        try (InputStream content = response.getEntity().getContent()) {
+            ByteArrayOutputStream result = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int length;
+            while ((length = content.read(buffer)) != -1) {
+                result.write(buffer, 0, length);
+            }
+            String actualJson = result.toString("UTF-8");
+            assertEquals(expectedJson, actualJson);
         }
     }
 

@@ -62,9 +62,8 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
         return secureSettingsPassword;
     }
 
-    public NodesReloadSecureSettingsRequest setSecureStorePassword(SecureString secureStorePassword) {
+    public void setSecureStorePassword(SecureString secureStorePassword) {
         this.secureSettingsPassword = secureStorePassword;
-        return this;
     }
 
     public void closePassword() {

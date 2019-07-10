@@ -23,9 +23,13 @@ import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSetti
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -40,6 +44,12 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler {
+    static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER = new ObjectParser<>("reload_secure_settings", NodesReloadSecureSettingsRequest::new);
+
+    static {
+        PARSER.declareString((request, value) -> request.setSecureStorePassword(new SecureString(value.toCharArray())),
+            new ParseField("secure_settings_password"));
+    }
 
     public RestReloadSecureSettingsAction(Settings settings, RestController controller) {
         super(settings);
@@ -54,31 +64,33 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+
         final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         final NodesReloadSecureSettingsRequestBuilder nodesRequestBuilder = client.admin()
             .cluster()
             .prepareReloadSecureSettings()
             .setTimeout(request.param("timeout"))
             .setNodesIds(nodesIds);
-        if (request.hasContent()) {
-            nodesRequestBuilder.source(request.content(), request.getXContentType());
-        }
-        final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
+
         return channel -> nodesRequestBuilder
                 .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
-                            throws Exception {
-                        builder.startObject();
-                        RestActions.buildNodesHeader(builder, channel.request(), response);
-                        builder.field("cluster_name", response.getClusterName().value());
-                        response.toXContent(builder, channel.request());
-                        builder.endObject();
-                        // clear password for the original request
-                        nodesRequest.closePassword();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        throws Exception {
+                        try (XContentParser parser = request.contentParser()) {
+                            final NodesReloadSecureSettingsRequest nodesRequest = PARSER.parse(parser, null);
+                            builder.startObject();
+                            RestActions.buildNodesHeader(builder, channel.request(), response);
+                            builder.field("cluster_name", response.getClusterName().value());
+                            response.toXContent(builder, channel.request());
+                            builder.endObject();
+                            // clear password for the original request
+                            nodesRequest.closePassword();
+                            return new BytesRestResponse(RestStatus.OK, builder);
+                        }
                     }
                 });
+
     }
 
     @Override

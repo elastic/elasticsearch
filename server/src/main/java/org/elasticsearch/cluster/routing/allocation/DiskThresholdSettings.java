@@ -72,7 +72,7 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
-    private static boolean autoReleaseIndexEnabled;
+    private static final boolean autoReleaseIndexEnabled;
     public static final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
 
     static {

@@ -50,11 +50,10 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     public void testMarkFloodStageIndicesReadOnly() {
         Settings settings = Settings.EMPTY;
         ClusterState clusterState = bootstrapCluster();
-        ClusterState finalState = clusterState;
         AtomicBoolean reroute = new AtomicBoolean(false);
         AtomicReference<Set<String>> indices = new AtomicReference<>();
         AtomicLong currentTime = new AtomicLong();
-        DiskThresholdMonitor monitor = new DiskThresholdMonitor(settings, () -> finalState,
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(settings, () -> clusterState,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null, currentTime::get, (reason, listener) -> {
             assertTrue(reroute.compareAndSet(false, true));
             listener.onResponse(null);
@@ -62,6 +61,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
+                assertTrue(readOnly);
                 listener.onResponse(null);
             }
         };
@@ -102,6 +102,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             @Override
             protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
                 assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
+                assertTrue(readOnly);
                 listener.onResponse(null);
             }
         };

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.Client;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
@@ -77,6 +78,9 @@ public class DiskThresholdMonitor {
         this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
+        if(diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
+            deprecationLogger.deprecated("[{}] will be removed in version {}", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+        }
     }
 
     /**
@@ -142,7 +146,6 @@ public class DiskThresholdMonitor {
         final Set<String> indicesToMarkReadOnly = new HashSet<>();
         RoutingNodes routingNodes = state.getRoutingNodes();
         Set<String> indicesToMarkIneligibleForAutoRelease = new HashSet<>();
-        //Ensure we release indices on nodes that have a usage response from node stats
         markNodesMissingUsageIneligibleForRelease(routingNodes, usages, indicesToMarkIneligibleForAutoRelease);
 
         for (final ObjectObjectCursor<String, DiskUsage> entry : usages) {
@@ -210,20 +213,20 @@ public class DiskThresholdMonitor {
         } else {
             listener.onResponse(null);
         }
-        // Get set of indices that are eligible to be automatically unblocked
-        // Only collect indices that are currently blocked
-        final String[] indices = state.routingTable().indicesRouting().keys().toArray(String.class);
-        Set<String> indicesToAutoRelease = Arrays.stream(indices)
+        Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
+            .spliterator(), false)
+            .map(c -> c.key)
             .filter(index -> indicesToMarkIneligibleForAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-            .collect(Collectors.toCollection(HashSet::new));
+            .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
             if (diskThresholdSettings.isAutoReleaseIndexEnabled()) {
-                logger.info("Releasing read-only allow delete block on indices: [{}]", indicesToAutoRelease);
+                logger.info("releasing read-only allow delete block on indices: [{}]", indicesToAutoRelease);
                 updateIndicesReadOnly(indicesToAutoRelease, listener, false);
             } else {
-                deprecationLogger.deprecated("[{}] will be removed in 8.0.0", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY);
+                deprecationLogger.deprecated("[{}] will be removed in version {}", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+                logger.debug("[{}] disabled, not releasing read-only allow delete block on indices: [{}]", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
                 listener.onResponse(null);
             }
         } else {
@@ -263,17 +266,18 @@ public class DiskThresholdMonitor {
 
     protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
         // set read-only block but don't block on the response
-        String value = readOnly ? Boolean.TRUE.toString() : null;
         ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
             setLastRunTimeMillis();
             listener.onResponse(r);
         }, e -> {
-            logger.debug("marking indices read-only [{}] failed", readOnly,  e);
+            logger.debug("marking indices read-only [{}] failed", readOnly, e);
             setLastRunTimeMillis();
             listener.onFailure(e);
         });
-        client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY)).
-            setSettings(Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, value).build()).
-            execute(ActionListener.map(wrappedListener, r -> null));
+        Settings readOnlySettings = readOnly ? Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
+            Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build();
+        client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
+            .setSettings(readOnlySettings)
+            .execute(ActionListener.map(wrappedListener, r -> null));
     }
 }

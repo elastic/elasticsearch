@@ -21,7 +21,7 @@ GET /twitter/_mapping
 [[indices-get-mapping-request]]
 === {api-request-title}
 
-`GET /<index>/_mapping`
+`GET /{index}/_mapping`
 
 [float]
 [[indices-get-mapping-desc]]
@@ -39,7 +39,7 @@ details, please see <<removal-of-types>>.
 [[indices-get-mapping-path-params]]
 === {api-path-parms-title}
 
-`<index>` (Optional)::
+`{index}` (Optional)::
 +
 --
 (string) Comma-separated list or wildcard expression of index names for which to

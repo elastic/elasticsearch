@@ -250,8 +250,6 @@ public abstract class Publication {
                 } catch (Exception e) {
                     setFailed(e);
                     onPossibleCommitFailure();
-                } finally {
-                    assert publicationCompletedIffAllTargetsInactiveOrCancelled();
                 }
             }
         }

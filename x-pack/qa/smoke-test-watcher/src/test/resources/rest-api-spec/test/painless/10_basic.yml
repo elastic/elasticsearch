@@ -123,6 +123,10 @@
 
 ---
 "Test execute watch api with rest_total_hits_as_int":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/43889"
+
   - do:
       cluster.health:
         wait_for_status: green

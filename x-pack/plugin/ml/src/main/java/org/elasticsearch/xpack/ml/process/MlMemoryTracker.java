@@ -424,6 +424,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }, e -> {
             if (e instanceof ResourceNotFoundException) {
                 // TODO: does this also happen if the .ml-config index exists but is unavailable?
+                // However, note that we wait for the .ml-config index to be available earlier on in the
+                // job assignment process, so that scenario should be very rare, i.e. somebody has closed
+                // the .ml-config index (which would be unexpected and unsupported for an internal index)
+                // during the memory refresh.
                 logger.trace("[{}] anomaly detector job deleted during ML memory update", jobId);
             } else {
                 logger.error("[" + jobId + "] failed to get anomaly detector job during ML memory update", e);

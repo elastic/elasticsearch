@@ -35,6 +35,9 @@ import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
@@ -50,6 +53,10 @@ public class TestFixturesPlugin implements Plugin<Project> {
             "testFixtures", TestFixtureExtension.class, project
         );
 
+        ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+        File testfixturesDir = project.file("testfixtures_shared");
+        ext.set("testFixturesDir", testfixturesDir);
+
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
             // convenience boilerplate with build plugin
             // Can't reference tasks that are implemented in Groovy, use reflection  instead
@@ -63,6 +70,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
             Task buildFixture = project.getTasks().create("buildFixture");
             Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
+            preProcessFixture.doFirst((task) -> {
+                try {
+                    Files.createDirectories(testfixturesDir.toPath());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            preProcessFixture.getOutputs().dir(testfixturesDir);
             buildFixture.dependsOn(preProcessFixture);
             pullFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
@@ -90,6 +105,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 pullFixture.dependsOn(tasks.getByName("composePull"));
                 tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
                 tasks.getByName("composePull").mustRunAfter(preProcessFixture);
+                tasks.getByName("composeDown").doLast((task) -> {
+                    project.delete(testfixturesDir);
+                });
 
                 configureServiceInfoForTask(
                     postProcessFixture,

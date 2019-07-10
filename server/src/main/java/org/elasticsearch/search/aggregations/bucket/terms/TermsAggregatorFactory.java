@@ -189,7 +189,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field()
-                + "]. It can only be applied to numeric or string fields.");
+            + "]. It can only be applied to numeric or string fields.");
     }
 
     // return the SubAggCollectionMode that this aggregation should use based on the expected size

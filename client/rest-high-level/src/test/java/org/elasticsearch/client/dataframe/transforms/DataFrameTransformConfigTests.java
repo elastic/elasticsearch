@@ -23,6 +23,7 @@ import org.elasticsearch.client.dataframe.DataFrameNamedXContentProvider;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
@@ -43,6 +44,7 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
             randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1000, 1000000)),
             randomBoolean() ? null : randomSyncConfig(), 
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100),

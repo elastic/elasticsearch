@@ -60,7 +60,7 @@ class RestIntegTestTask extends DefaultTask {
     Boolean includePackaged = false
 
     RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", Test.class)
+        runner = project.tasks.create("${name}Runner", RestTestRunnerTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
@@ -77,10 +77,6 @@ class RestIntegTestTask extends DefaultTask {
             }
             runner.useCluster project.testClusters."$name"
         }
-
-        // disable the build cache for rest test tasks
-        // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
-        runner.getOutputs().doNotCacheIf("Caching is disabled for REST integration tests", Specs.SATISFIES_ALL)
 
         // override/add more for rest tests
         runner.maxParallelForks = 1

@@ -41,6 +41,41 @@ of {es}.
 
 // tag::notable-highlights[]
 [float]
+==== New `flattened` field type
+
+A new <<flattened,`flattened`>> field type has been added, which can index
+arbitrary `json` objects into a single field. This helps avoid hitting issues
+due to many fields in mappings, at the cost of more limited search
+functionality.
+
+NOTE: The <<flattened,`flattened`>> field type is only available with the
+default distribution of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Functions on vector fields
+
+Painless now support computing the <<vector-functions,cosine similarity>> and
+the <<vector-functions,dot product>> of a query vector and either values of a
+<<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field.
+
+NOTE: These functions are only available with the default distribution of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Prefix and wildcard support for intervals
+
+<<query-dsl-intervals-query,Intervals>> now support querying by
+<<intervals-prefix,prefix>> or <<intervals-wildcard,wildcard>>.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
 ==== Rare terms aggregation
 
 A new

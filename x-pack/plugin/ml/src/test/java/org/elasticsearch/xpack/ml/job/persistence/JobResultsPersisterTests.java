@@ -238,7 +238,7 @@ public class JobResultsPersisterTests extends ESTestCase {
                 // Take the listener passed to client::index as 2nd argument
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
                 // Handle the response on the listener
-                listener.onResponse(new IndexResponse());
+                listener.onResponse(new IndexResponse(null, null, null, 0, 0, 0, false));
                 return null;
             })
             .when(client).index(any(), any(ActionListener.class));

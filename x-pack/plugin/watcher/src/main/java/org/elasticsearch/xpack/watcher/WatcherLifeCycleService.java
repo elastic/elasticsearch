@@ -104,18 +104,20 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         if (isWatcherStoppedManually) {
             if (this.state.get() == WatcherState.STARTED) {
                 clearAllocationIds();
-                this.state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING);
-                //waiting to set state to stopped until after all currently running watches are finished
-                watcherService.stop("watcher manually marked to shutdown by cluster state update", () -> {
-                    //only transition from stopping -> stopped (which may not be the case if restarted quickly)
-                    boolean stopped = state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
-                    if (stopped) {
-                        logger.info("watcher has stopped");
-                    } else {
-                        logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
-                    }
+                boolean stopping = this.state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING);
+                if (stopping) {
+                    //waiting to set state to stopped until after all currently running watches are finished
+                    watcherService.stop("watcher manually marked to shutdown by cluster state update", () -> {
+                        //only transition from stopping -> stopped (which may not be the case if restarted quickly)
+                        boolean stopped = state.compareAndSet(WatcherState.STOPPING, WatcherState.STOPPED);
+                        if (stopped) {
+                            logger.info("watcher has stopped");
+                        } else {
+                            logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
+                        }
 
-                });
+                    });
+                }
             }
             return;
         }

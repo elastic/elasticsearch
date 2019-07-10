@@ -1237,7 +1237,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             not(hasItem(chosenNode.getId())));
         assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastAcceptedConfiguration().getNodeIds(),
             not(hasItem(chosenNode.getId())));
-
     }
 
     public void testDoesNotPerformElectionWhenRestartingNonMasterNode() {

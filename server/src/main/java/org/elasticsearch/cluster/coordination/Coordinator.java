@@ -853,7 +853,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(DiscoveryNode::isMasterNode).filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+            .filter(DiscoveryNode::isMasterNode).filter(coordinationState.get()::containsJoinVoteFor).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes, Stream.concat(
             clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId),
             StreamSupport.stream(clusterState.nodes().spliterator(), false)
@@ -896,9 +896,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // for tests
-    boolean hasJoinVoteFrom(DiscoveryNode node) {
-        return coordinationState.get().containsJoinVoteFor(node);
+    // exposed for tests
+    boolean missingJoinVoteFrom(DiscoveryNode node) {
+        return node.isMasterNode() && coordinationState.get().containsJoinVoteFor(node) == false;
     }
 
     private void handleJoin(Join join) {
@@ -1352,7 +1352,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
 
         private void handleAssociatedJoin(Join join) {
-            if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getSourceNode())) {
                 logger.trace("handling {}", join);
                 handleJoin(join);
             }
@@ -1390,7 +1390,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // The remote node did not include a join vote in its publish response. We do not persist joins, so it could be that the remote
             // node voted for us and then rebooted, or it could be that it voted for a different node in this term. If we don't have a copy
             // of a join from this node then we assume the latter and bump our term to obtain a vote from this node.
-            if (hasJoinVoteFrom(discoveryNode) == false) {
+            if (missingJoinVoteFrom(discoveryNode)) {
                 final long term = publishRequest.getAcceptedState().term();
                 logger.debug("onMissingJoin: no join vote from {}, bumping term to exceed {}", discoveryNode, term);
                 updateMaxTermSeen(term + 1);

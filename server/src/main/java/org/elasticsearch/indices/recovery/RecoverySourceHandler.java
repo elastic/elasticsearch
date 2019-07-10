@@ -38,7 +38,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
@@ -46,12 +45,10 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -71,18 +68,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
-
-import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -676,130 +669,53 @@ public class RecoverySourceHandler {
                 '}';
     }
 
-    /**
-     * File chunks are read/sent sequentially by at most one thread at any time. The sender, however, won't wait for the acknowledgement
-     * before reading/sending the next chunk to increase the recovery speed especially on secure/compressed or high latency communication.
-     * <p>
-     * The sender can send up to {@code maxConcurrentFileChunks} file chunks without waiting for acknowledgments. Since the recovery target
-     * can receive file chunks out of order, it has to buffer those file chunks in memory and only flush to disk when there's no gap.
-     * To ensure the recover target never buffers more than {@code maxConcurrentFileChunks} file chunks, we allow the sender to send only up
-     * to {@code maxConcurrentFileChunks} file chunks from the last flushed (and acknowledged) file chunk. We leverage the local checkpoint
-     * tracker for this purpose. We generate a new sequence number and assign it to each file chunk before sending; then mark that sequence
-     * number as processed when we receive an acknowledgement for the corresponding file chunk request. With the local checkpoint tracker,
-     * we know the last acknowledged-flushed file-chunk is a file chunk whose {@code requestSeqId} equals to the local checkpoint because
-     * the recover target can flush all file chunks up to the local checkpoint.
-     * <p>
-     * When the number of un-replied file chunk requests reaches the limit (i.e. the gap between the max_seq_no and the local checkpoint is
-     * greater than {@code maxConcurrentFileChunks}), the sending thread will abort its execution. The sending process will be resumed by
-     * one of the networking threads which receive/handle the acknowledgments of the current pending file chunk requests. This process will
-     * continue until all chunks are sent and acknowledged.
-     */
-    private class MultiFileSender extends AsyncIOProcessor<FileChunkResponse> implements Closeable {
+    private class MultiFileSender extends MultiFileTransfer<FileChunk, Void> implements Closeable {
         private final Store store;
         private final IntSupplier translogOps;
-        private final AtomicBoolean done = new AtomicBoolean(false);
-        private final ActionListener<Void> listener;
-        private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
-        private final Iterator<StoreFileMetaData> remainingFiles;
-        private StoreFileMetaData currentFile;
         private InputStreamIndexInput currentInput = null;
-        private long currentChunkPosition = 0;
-        private final FileChunkResponse INITIAL_RESPONSE = new FileChunkResponse(SequenceNumbers.UNASSIGNED_SEQ_NO, null, null);
         private final byte[] buffer = new byte[chunkSizeInBytes];
 
         MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
-            super(logger, maxConcurrentFileChunks * 2, shard.getThreadPool().getThreadContext());
+            super(logger, shard.getThreadPool().getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files));
             this.store = store;
             this.translogOps = translogOps;
-            this.remainingFiles = Arrays.asList(files).iterator();
-            this.listener = ActionListener.wrap(
-                r -> {
-                    if (done.compareAndSet(false, true)) {
-                        listener.onResponse(r);
-                    }
-                },
-                e -> {
-                    if (done.compareAndSet(false, true)) {
-                        listener.onFailure(e);
-                    }
-                });
-        }
-
-        void start() {
-            put(INITIAL_RESPONSE, e -> {});
         }
 
         @Override
-        protected void write(List<Tuple<FileChunkResponse, Consumer<Exception>>> responses) {
-            assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[send file chunks]");
-            if (done.get()) {
-                return;
+        protected FileChunk prepareNextChunkRequest(StoreFileMetaData md, long offset) throws Exception {
+            assert Transports.assertNotTransportThread("read file chunk");
+            cancellableThreads.checkForCancel();
+            if (currentInput == null) {
+                assert offset == 0 : md + " offset=" + offset;
+                final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                currentInput = new InputStreamIndexInput(indexInput, md.length()) {
+                    @Override
+                    public void close() throws IOException {
+                        indexInput.close(); // InputStreamIndexInput's close is a noop
+                    }
+                };
             }
-            try {
-                for (Tuple<FileChunkResponse, Consumer<Exception>> response : responses) {
-                    if (response.v1() == INITIAL_RESPONSE) {
-                        continue; // not an actual response, a marker to initialize the sending process.
-                    }
-                    requestSeqIdTracker.markSeqNoAsProcessed(response.v1().seqNo);
-                    if (response.v1().failure != null) {
-                        handleErrorOnSendFiles(store, response.v1().failure, new StoreFileMetaData[]{response.v1().chunk.md});
-                        throw response.v1().failure;
-                    }
-                }
-                while (requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentFileChunks) {
-                    cancellableThreads.checkForCancel();
-                    final FileChunk chunk = readNextChunk();
-                    if (chunk == null) {
-                        if (requestSeqIdTracker.getProcessedCheckpoint() == requestSeqIdTracker.getMaxSeqNo()) {
-                            listener.onResponse(null);
-                        }
-                        return;
-                    }
-                    final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                    cancellableThreads.execute(() -> recoveryTarget.writeFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk,
-                        translogOps.getAsInt(), ActionListener.wrap(
-                            r -> this.put(new FileChunkResponse(requestSeqId, chunk, null), ignored -> {}),
-                            e -> this.put(new FileChunkResponse(requestSeqId, chunk, e), ignored -> {})
-                        )));
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
+            final int bytesRead = currentInput.read(buffer);
+            if (bytesRead == -1) {
+                throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
             }
+            final boolean lastChunk = offset + bytesRead == md.length();
+            final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk);
+            if (lastChunk) {
+                IOUtils.close(currentInput, () -> currentInput = null);
+            }
+            return chunk;
         }
 
-        private FileChunk readNextChunk() throws Exception {
-            try {
-                if (currentInput == null) {
-                    if (remainingFiles.hasNext() == false) {
-                        return null;
-                    }
-                    currentChunkPosition = 0;
-                    currentFile = remainingFiles.next();
-                    final IndexInput indexInput = store.directory().openInput(currentFile.name(), IOContext.READONCE);
-                    currentInput = new InputStreamIndexInput(indexInput, currentFile.length()) {
-                        @Override
-                        public void close() throws IOException {
-                            indexInput.close(); //InputStreamIndexInput's close is noop
-                        }
-                    };
-                }
-                final int bytesRead = currentInput.read(buffer);
-                if (bytesRead == -1) {
-                    throw new CorruptIndexException("file truncated; " +
-                        "length=" + currentFile.length() + " position=" + currentChunkPosition, currentFile.name());
-                }
-                final long chunkPosition = currentChunkPosition;
-                currentChunkPosition += bytesRead;
-                final boolean lastChunk = currentChunkPosition == currentFile.length();
-                final FileChunk chunk = new FileChunk(currentFile, new BytesArray(buffer, 0, bytesRead), chunkPosition, lastChunk);
-                if (lastChunk) {
-                    IOUtils.close(currentInput, () -> currentInput = null);
-                }
-                return chunk;
-            } catch (IOException e) {
-                handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{currentFile});
-                throw e;
-            }
+        @Override
+        protected void sendChunkRequest(FileChunk fileChunk, ActionListener<Void> listener) {
+            cancellableThreads.execute(() -> recoveryTarget.writeFileChunk(
+                fileChunk.md, fileChunk.position, fileChunk.content, fileChunk.lastChunk, translogOps.getAsInt(), listener));
+        }
+
+        @Override
+        protected void handleError(StoreFileMetaData md, Exception e) throws Exception {
+            handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{md});
         }
 
         @Override
@@ -808,13 +724,14 @@ public class RecoverySourceHandler {
         }
     }
 
-    private static class FileChunk {
+    private static class FileChunk extends MultiFileTransfer.ChunkRequest {
         final StoreFileMetaData md;
         final BytesReference content;
         final long position;
         final boolean lastChunk;
 
         FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+            super(content.length());
             this.md = md;
             this.content = content;
             this.position = position;
@@ -822,22 +739,10 @@ public class RecoverySourceHandler {
         }
     }
 
-    private static class FileChunkResponse {
-        final long seqNo;
-        final FileChunk chunk;
-        final Exception failure;
-
-        FileChunkResponse(long seqNo, FileChunk chunk, Exception failure) {
-            this.seqNo = seqNo;
-            this.chunk = chunk;
-            this.failure = failure;
-        }
-    }
-
     void sendFiles(Store store, StoreFileMetaData[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
-        StepListener<Void> wrappedListener = new StepListener<>();
-        MultiFileSender multiFileSender = new MultiFileSender(store, translogOps, files, wrappedListener);
+        final StepListener<Void> wrappedListener = new StepListener<>();
+        final MultiFileSender multiFileSender = new MultiFileSender(store, translogOps, files, wrappedListener);
         wrappedListener.whenComplete(r -> {
             multiFileSender.close();
             listener.onResponse(null);

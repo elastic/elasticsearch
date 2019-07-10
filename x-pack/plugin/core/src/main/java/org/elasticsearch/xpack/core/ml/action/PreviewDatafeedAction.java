@@ -127,7 +127,6 @@ public class PreviewDatafeedAction extends StreamableResponseActionType<PreviewD
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBytesReference(preview);
         }
 

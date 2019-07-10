@@ -214,6 +214,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, null);
         String config = "{ \"dest\": {\"index\":\"" + transformDest + "\"},"
             + " \"source\": {\"index\":\"" + transformSrc + "\"},"
+            + " \"frequency\": \"1s\","
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"1s\"}},"
             + " \"pivot\": {"
             + "   \"group_by\": {"

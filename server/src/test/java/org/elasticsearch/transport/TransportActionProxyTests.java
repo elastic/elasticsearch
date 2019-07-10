@@ -241,7 +241,6 @@ public class TransportActionProxyTests extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(targetNode);
         }
     }

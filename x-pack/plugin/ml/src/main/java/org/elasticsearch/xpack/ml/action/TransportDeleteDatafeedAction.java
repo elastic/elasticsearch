@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.io.IOException;
 
@@ -144,10 +145,26 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             return;
         }
 
-        datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
-                listener::onFailure
-        ));
+        String datafeedId = request.getDatafeedId();
+
+        datafeedConfigProvider.getDatafeedConfig(
+            datafeedId,
+            ActionListener.wrap(
+                datafeedConfigBuilder -> {
+                    String jobId = datafeedConfigBuilder.build().getJobId();
+                    JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                    jobDataDeleter.deleteDatafeedTimingStats(
+                        ActionListener.wrap(
+                            unused1 -> {
+                                datafeedConfigProvider.deleteDatafeedConfig(
+                                    datafeedId,
+                                    ActionListener.wrap(
+                                        unused2 -> listener.onResponse(new AcknowledgedResponse(true)),
+                                        listener::onFailure));
+                            },
+                            listener::onFailure));
+                },
+                listener::onFailure));
     }
 
     @Override

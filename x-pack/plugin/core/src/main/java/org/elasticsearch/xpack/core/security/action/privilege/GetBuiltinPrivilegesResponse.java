@@ -54,7 +54,6 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeStringArray(clusterPrivileges);
         out.writeStringArray(indexPrivileges);
     }

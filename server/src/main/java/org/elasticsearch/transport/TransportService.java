@@ -500,7 +500,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
             Version.writeVersion(version, out);

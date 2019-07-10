@@ -174,7 +174,7 @@ public class TransportStartReindexJobAction
         }
 
         private boolean isDone(ReindexJobState state) {
-            return (state.getReindexResponse() != null || state.getJobException() != null);
+            return state != null && (state.getReindexResponse() != null || state.getJobException() != null);
         }
     }
 }

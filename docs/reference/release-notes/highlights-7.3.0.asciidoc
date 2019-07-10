@@ -18,8 +18,36 @@ allows nodes to participate in elections even though they are not eligible.
 The benefit is that these nodes still help with high availability while
 requiring less CPU and heap than master nodes.
 
-IMPORTANT: The `node.voting-only` role is only available with the default
-distribution of Elasticsearch.
+NOTE: The `node.voting-only` role is only available with the default
+distribution of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Reloading of search-time synonyms
+
+A new <<indices-reload-analyzers,Analyzer reload API>> allows to reload the
+definition of search-time analyzers and their associated resources. A common
+use-case for this API is the reloading of search-time synonyms. In earlier
+versions of Elasticsearch, users could force synonyms to be reloaded by closing
+the index and then opening it again. With this new API, synonyms can be updated
+without closing the index.
+
+NOTE: The Analyzer reload API is only available with the default distribution
+of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Rare terms aggregation
+
+A new
+<<search-aggregations-bucket-rare-terms-aggregation,Rare Terms aggregation>>
+allows to find the least frequent values in a field. It is intended to replace
+the `"order" : { "_count" : "asc" }` option of the
+<<search-aggregations-bucket-terms-aggregation,terms aggregations>>.
 
 // end::notable-highlights[]
 
@@ -30,6 +58,15 @@ distribution of Elasticsearch.
 Read aliases are now replicated via <<ccr-put-follow,{ccr}>>. Note that write
 aliases are still not replicated since they only make sense for indices that
 are being written to while follower indices do not receive direct writes.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== SQL supports frozen indices
+
+{es-sql} now supports querying <<frozen-indices, frozen indices>> via the new
+<<sql-index-frozen,`FROZEN`>> keyword.
 
 // end::notable-highlights[]
 

@@ -1,0 +1,45 @@
+[[release-highlights-7.3.0]]
+== 7.3.0 release highlights
+++++
+<titleabbrev>7.3.0</titleabbrev>
+++++
+
+coming[7.3.0]
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+[discrete]
+==== Voting-only master nodes
+
+A new <<voting-only-node,`node.voting-only`>> role has been introduced that
+allows nodes to participate in elections even though they are not eligible.
+The benefit is that these nodes still help with high availability while
+requiring less CPU and heap than master nodes.
+
+IMPORTANT: The `node.voting-only` role is only available with the default
+distribution of Elasticsearch.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Aliases are replicated via {ccr}
+
+Read aliases are now replicated via <<ccr-put-follow,{ccr}>>. Note that write
+aliases are still not replicated since they only make since for indices that
+are being written to while follower indices do not receive direct writes.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Memory leaks when using templates in document-level security
+
+{xpack-ref}/document-level-security.html[Document-level security] was using an
+unbounded cache for the set of visible documents. This could lead to memory
+leaks when using templated queries as a role query. The cache has been fixed to
+evict based on memorory usage and has a limit of 50MB.
+
+// end::notable-highlights[]

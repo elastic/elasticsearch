@@ -58,7 +58,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
         } else {
             this.version = Version.V_7_2_0;
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             this.frequency = in.readOptionalTimeValue();
         } else {
             this.frequency = null;
@@ -81,7 +81,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             Version.writeVersion(version, out);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalTimeValue(frequency);
         }
     }

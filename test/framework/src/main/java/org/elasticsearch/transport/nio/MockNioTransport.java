@@ -242,7 +242,7 @@ public class MockNioTransport extends TcpTransport {
                     while ((acceptedChannel = MockTcpChannelFactory.this.acceptNioChannel(this, selectorSupplier)) != null) {
                         acceptChannel(acceptedChannel);
                         ++acceptCount;
-                        if (acceptCount > 0 && acceptCount % 100 == 0) {
+                        if (acceptCount % 100 == 0) {
                             logger.warn("Accepted [{}] connections in a single select loop iteration on [{}]", acceptCount, channel);
                         }
                     }

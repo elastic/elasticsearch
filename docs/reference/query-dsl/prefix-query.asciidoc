@@ -43,8 +43,8 @@ information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
 [[prefix-query-short-ex]]
 ===== Short request example
-You can shorten `prefix` searches by combining the `<field>` and `value`
-parameters. For example:
+You can simplify the `prefix` query syntax by combining the `<field>` and
+`value` parameters. For example:
 
 [source,js]
 ----
@@ -56,3 +56,10 @@ GET /_search
 }
 ----
 // CONSOLE
+
+[[prefix-query-index-prefixes]]
+===== Speed up prefix queries
+You can speed up prefix queries using the <<index-prefixes,`index_prefixes`>>
+mapping parameter. If enabled, {es} indexes prefixes between 2 and 5
+characters in a separate field. This lets {es} run prefix queries more
+efficiently at the cost of a larger index.

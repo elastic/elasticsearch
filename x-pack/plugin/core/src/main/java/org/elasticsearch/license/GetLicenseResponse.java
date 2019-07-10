@@ -36,7 +36,6 @@ public class GetLicenseResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         if (license == null) {
             out.writeBoolean(false);
         } else {

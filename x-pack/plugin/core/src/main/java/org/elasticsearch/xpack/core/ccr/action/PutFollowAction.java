@@ -247,7 +247,6 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(followIndexCreated);
             out.writeBoolean(followIndexShardsAcked);
             out.writeBoolean(indexFollowingStarted);

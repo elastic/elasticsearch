@@ -52,7 +52,6 @@ public class GetUsersResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(users == null ? -1 : users.length);
         if (users != null) {
             for (User user : users) {

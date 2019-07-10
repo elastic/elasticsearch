@@ -30,7 +30,6 @@ public class XPackUsageResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(usages.size());
         for (XPackFeatureSet.Usage usage : usages) {
             out.writeNamedWriteable(usage);

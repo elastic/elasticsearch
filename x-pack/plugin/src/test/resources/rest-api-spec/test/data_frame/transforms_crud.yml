@@ -43,6 +43,40 @@ setup:
         transform_id: "missing transform"
 
 ---
+"Test put transform with frequency too low":
+  - do:
+      catch: /minimum permitted \[frequency\] is \[1s\]/
+      data_frame.put_data_frame_transform:
+        transform_id: "frequency-too-low"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest" },
+            "frequency": "999ms",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+---
+"Test put transform with frequency too high":
+  - do:
+      catch: /highest permitted \[frequency\] is \[1h\]/
+      data_frame.put_data_frame_transform:
+        transform_id: "frequency-too-low"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest" },
+            "frequency": "3600001ms",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+---
 "Test put transform with invalid source index":
   - do:
       catch: /Source index \[missing-index\] does not exist/

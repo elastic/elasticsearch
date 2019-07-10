@@ -443,7 +443,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(shardActive);
             node.writeTo(out);
         }

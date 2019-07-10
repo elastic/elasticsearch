@@ -938,11 +938,10 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 
 `nameid_format`::
 The NameID format that should be requested when asking the IdP to authenticate
-the current user. Defaults to requesting _transient_ names 
-(`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`). 
+the current user. The default is to not  include the `nameid_format` attribute.
 
 `nameid.allow_create`:: The value of the `AllowCreate` attribute of the 
-`NameIdPolicy` element in an authentication request. Defaults to `false`. 
+`NameIdPolicy` element in an authentication request. The default value is false.
 
 `nameid.sp_qualifier`:: The value of the `SPNameQualifier` attribute of the 
 `NameIdPolicy` element in an authentication request. The default is to not 

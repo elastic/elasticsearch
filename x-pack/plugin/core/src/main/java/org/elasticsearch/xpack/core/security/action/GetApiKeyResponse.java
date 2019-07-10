@@ -64,7 +64,6 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeArray(foundApiKeysInfo);
     }
 

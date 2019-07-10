@@ -152,7 +152,6 @@ public class PutJobAction extends StreamableResponseActionType<PutJobAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             job.writeTo(out);
         }
 

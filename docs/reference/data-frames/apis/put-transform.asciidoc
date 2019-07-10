@@ -40,28 +40,28 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 [[put-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>` (Required)::
-  (string) Identifier for the {dataframe-transform}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+`<data_frame_transform_id>`::
+  (string) Required. Identifier for the {dataframe-transform}. This identifier
+  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
 
 [[put-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
-`description` (Optional)::
-  (string) Free text description of the {dataframe-transform}.
+`description`::
+  (string) Optional. Free text description of the {dataframe-transform}.
 
-`dest` (Required)::
-  (object) The destination configuration, which consists of `index` and
-  optionally a `pipeline` id. See <<data-frame-transform-dest>>.
+`dest`::
+  (object) Required. The destination configuration, which consists of `index`
+  and optionally a `pipeline` id. See <<data-frame-transform-dest>>.
 
-`pivot` (Optional)::
-  (object) Defines the pivot function `group by` fields and the aggregation to
-  reduce the data. See <<data-frame-transform-pivot>>.
+`pivot`::
+  (object) Required. Defines the pivot function `group by` fields and the 
+  aggregation to reduce the data. See <<data-frame-transform-pivot>>.
 
-`source` (Required)::
-  (object) The source configuration, which consists of `index` and optionally
-  a `query`. See <<data-frame-transform-source>>.
+`source`::
+  (object) Required. The source configuration, which consists of `index` and 
+  optionally a `query`. See <<data-frame-transform-source>>.
 
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}

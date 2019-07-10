@@ -39,12 +39,12 @@ on all the current data in the source index.
 [[preview-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
-`source` (Required)::
-  (object) The source index or index pattern.
+`source`::
+  (object) Required. The source index or index pattern.
 
-`pivot` (Required)::
-  (object) Defines the pivot function `group by` fields and the aggregation to
-  reduce the data. See <<data-frame-transform-pivot>>.
+`pivot`::
+  (object) Required. Defines the pivot function `group by` fields and the
+  aggregation to reduce the data. See <<data-frame-transform-pivot>>.
   
 [[preview-data-frame-transform-response]]
 ==== {api-response-body-title}

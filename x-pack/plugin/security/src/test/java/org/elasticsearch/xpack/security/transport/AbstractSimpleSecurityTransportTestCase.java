@@ -20,7 +20,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
@@ -28,7 +27,6 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
@@ -46,7 +44,6 @@ import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
@@ -117,6 +114,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(IOException.class));
         }
+
     }
 
     @Override

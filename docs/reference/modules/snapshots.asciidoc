@@ -11,12 +11,16 @@ Snapshots are taken incrementally. This means that when it creates a snapshot of
 an index, Elasticsearch avoids copying any data that is already stored in the
 repository as part of an earlier snapshot of the same index. Therefore it can be
 efficient to take snapshots of your cluster quite frequently.
+// end::snapshot-intro[]
 
+// tag::restore-intro[]
 You can restore snapshots into a running cluster via the
 <<restore-snapshot,restore API>>. When you restore an index, you can alter the
 name of the restored index as well as some of its settings. There is a great
 deal of flexibility in how the snapshot and restore functionality can be used.
+// end::restore-intro[]
 
+// tag::backup-warning[]
 WARNING: You cannot back up an Elasticsearch cluster by simply taking a copy of
 the data directories of all of its nodes. Elasticsearch may be making changes to
 the contents of its data directories while it is running; copying its data
@@ -26,7 +30,7 @@ corruption and/or missing files. Alternatively, it may appear to have succeeded
 though it silently lost some of its data. The only reliable way to back up a
 cluster is by using the snapshot and restore functionality.
 
-// end::snapshot-intro[]
+// end::backup-warning[]
 
 [float]
 === Version compatibility

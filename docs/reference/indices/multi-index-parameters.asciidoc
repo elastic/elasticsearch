@@ -1,11 +1,11 @@
-`allow_no_indices` (Optional)::
-(boolean) Indicates whether the operation is skipped if a wildcard expression
-matches no indices. Defaults to `false`.
+`allow_no_indices`::
+(boolean) Optional. Indicates whether the operation is skipped if a wildcard
+expression matches no indices. Defaults to `false`.
 
-`expand_wildcards` (Optional)::
+`expand_wildcards`::
 +
 --
-(string) Indicates whether wildcard expressions should expand to
+(string) Optional. Indicates whether wildcard expressions should expand to
 <<indices-open-close, open or closed indices>>. Possible values are:
 
 * `open` (Default)
@@ -14,6 +14,6 @@ matches no indices. Defaults to `false`.
 * `all`
 --
 
-`ignore_unavailable` (Optional)::
-(boolean) Indicates whether unavailable indices are skipped. Defaults to
-`false`.
+`ignore_unavailable`::
+(boolean) Optional. Indicates whether unavailable indices are skipped. Defaults
+to `false`.

@@ -39,11 +39,11 @@ details, please see <<removal-of-types>>.
 [[indices-get-mapping-path-params]]
 === {api-path-parms-title}
 
-`{index}` (Optional)::
+`{index}`::
 +
 --
-(string) Comma-separated list or wildcard expression of index names for which to
-retrieve mapping definitions.
+(string) Optional. Comma-separated list or wildcard expression of index names
+for which to retrieve mapping definitions.
 
 You can use a value of `_all` or `*` to retrieve mapping definitions for all
 indices.
@@ -57,13 +57,13 @@ If no value is provided, the API retrieves mapping definitions for all indices.
 
 include::multi-index-parameters.asciidoc[]
 
-`include_type_name` (Optional)::
-(boolean) Indicates whether the type name is included in the response. Defaults
-to `false`.
+`include_type_name`::
+(boolean) Optional. Indicates whether the type name is included in the response.
+Defaults to `false`.
 
-`local` (Optional)::
-(boolean) Indicates whether only local node information is included in the
-response. Defaults to `false`. If `true`, state information is not retrieved
+`local`::
+(boolean) Optional. Indicates whether only local node information is included in
+the response. Defaults to `false`. If `true`, state information is not retrieved
 from the master node.
 
 include::{docdir}/rest-api/timeoutparms.asciidoc[tag=master_timeout]

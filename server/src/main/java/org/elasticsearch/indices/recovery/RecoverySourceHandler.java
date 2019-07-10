@@ -67,16 +67,13 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -707,8 +704,8 @@ public class RecoverySourceHandler {
         private StoreFileMetaData currentFile;
         private InputStreamIndexInput currentInput = null;
         private long currentChunkPosition = 0;
-        private final Deque<byte[]> recycledBuffers = new ArrayDeque<>();
         private final FileChunkResponse INITIAL_RESPONSE = new FileChunkResponse(SequenceNumbers.UNASSIGNED_SEQ_NO, null, null);
+        private final byte[] buffer = new byte[chunkSizeInBytes];
 
         MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
             super(logger, maxConcurrentFileChunks * 2, shard.getThreadPool().getThreadContext());
@@ -744,7 +741,6 @@ public class RecoverySourceHandler {
                         continue; // not an actual response, a marker to initialize the sending process.
                     }
                     requestSeqIdTracker.markSeqNoAsProcessed(response.v1().seqNo);
-                    response.v1().chunk.close();
                     if (response.v1().failure != null) {
                         handleErrorOnSendFiles(store, response.v1().failure, new StoreFileMetaData[]{response.v1().chunk.md});
                         throw response.v1().failure;
@@ -787,7 +783,6 @@ public class RecoverySourceHandler {
                         }
                     };
                 }
-                final byte[] buffer = Objects.requireNonNullElseGet(recycledBuffers.pollFirst(), () -> new byte[chunkSizeInBytes]);
                 final int bytesRead = currentInput.read(buffer);
                 if (bytesRead == -1) {
                     throw new CorruptIndexException("file truncated; " +
@@ -796,8 +791,7 @@ public class RecoverySourceHandler {
                 final long chunkPosition = currentChunkPosition;
                 currentChunkPosition += bytesRead;
                 final boolean lastChunk = currentChunkPosition == currentFile.length();
-                final FileChunk chunk = new FileChunk(currentFile, new BytesArray(buffer, 0, bytesRead), chunkPosition, lastChunk,
-                    () -> recycledBuffers.addFirst(buffer));
+                final FileChunk chunk = new FileChunk(currentFile, new BytesArray(buffer, 0, bytesRead), chunkPosition, lastChunk);
                 if (lastChunk) {
                     IOUtils.close(currentInput, () -> currentInput = null);
                 }
@@ -810,28 +804,21 @@ public class RecoverySourceHandler {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(recycledBuffers::clear, currentInput, () -> currentInput = null);
+            IOUtils.close(currentInput, () -> currentInput = null);
         }
     }
 
-    private static class FileChunk implements Releasable {
+    private static class FileChunk {
         final StoreFileMetaData md;
         final BytesReference content;
         final long position;
         final boolean lastChunk;
-        final Releasable onClose;
 
-        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk, Releasable onClose) {
+        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
             this.md = md;
             this.content = content;
             this.position = position;
             this.lastChunk = lastChunk;
-            this.onClose = onClose;
-        }
-
-        @Override
-        public void close() {
-            onClose.close();
         }
     }
 

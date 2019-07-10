@@ -35,6 +35,7 @@ import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCl
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -107,19 +108,18 @@ public class MetaDataIndexStateService {
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
-    private final TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction;
+    private final NodeClient client;
     private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public MetaDataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                                     IndicesService indicesService, ThreadPool threadPool,
-                                     TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction) {
+                                     IndicesService indicesService, ThreadPool threadPool, NodeClient client) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.threadPool = threadPool;
-        this.transportVerifyShardBeforeCloseAction = transportVerifyShardBeforeCloseAction;
+        this.client = client;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
@@ -401,7 +401,7 @@ public class MetaDataIndexStateService {
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            transportVerifyShardBeforeCloseAction.execute(shardRequest, new ActionListener<>() {
+            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(ReplicationResponse replicationResponse) {
                     final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
@@ -409,7 +409,7 @@ public class MetaDataIndexStateService {
                     if (request.ackTimeout() != null) {
                         shardRequest.timeout(request.ackTimeout());
                     }
-                    transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);
+                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, listener);
                 }
 
                 @Override

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.tasks.Task;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -129,7 +130,18 @@ public final class ThreadContext implements Closeable, Writeable {
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        threadLocal.set(null);
+        /**
+         * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+         * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * Otherwise when context is stash, it should be empty.
+         */
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+            ThreadContextStruct threadContextStruct =
+                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+            threadLocal.set(threadContextStruct);
+        } else {
+            threadLocal.set(null);
+        }
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
@@ -402,7 +414,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Returns <code>true</code> if the context is closed, otherwise <code>true</code>
      */
-    boolean isClosed() {
+    public boolean isClosed() {
         return threadLocal.closed.get();
     }
 

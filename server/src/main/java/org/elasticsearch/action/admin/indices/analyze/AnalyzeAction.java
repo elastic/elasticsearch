@@ -346,7 +346,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             if (tokens != null) {
                 out.writeVInt(tokens.size());
                 for (AnalyzeToken token : tokens) {

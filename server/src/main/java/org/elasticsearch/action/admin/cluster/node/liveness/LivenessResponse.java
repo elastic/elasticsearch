@@ -53,7 +53,6 @@ public final class LivenessResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         clusterName.writeTo(out);
         out.writeOptionalWriteable(node);
     }

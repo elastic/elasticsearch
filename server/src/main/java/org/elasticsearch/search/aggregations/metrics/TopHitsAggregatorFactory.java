@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactory> {
+class TopHitsAggregatorFactory extends AggregatorFactory {
 
     private final int from;
     private final int size;
@@ -56,7 +56,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactor
     TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean seqNoAndPrimaryTerm,
             boolean trackScores, Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
             List<FieldAndFormat> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.from = from;

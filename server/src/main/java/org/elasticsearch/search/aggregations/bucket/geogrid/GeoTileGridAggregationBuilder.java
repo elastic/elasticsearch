@@ -58,9 +58,9 @@ public class GeoTileGridAggregationBuilder extends GeoGridAggregationBuilder {
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> createFactory(
+    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
         String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
-        SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+        SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
         Map<String, Object> metaData
     ) throws IOException {
         return new GeoTileGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,

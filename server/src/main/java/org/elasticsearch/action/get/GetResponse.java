@@ -210,7 +210,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         getResult.writeTo(out);
     }
 

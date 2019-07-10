@@ -87,8 +87,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 }
                 Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
                 Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
-                assertSame(external.reader(), internal.reader());
-                assertThat(external.reader(), instanceOf(DirectoryReader.class));
+                assertSame(external.getIndexReader(), internal.getIndexReader());
+                assertThat(external.getIndexReader(), instanceOf(DirectoryReader.class));
                 DirectoryReader dirReader = external.getDirectoryReader();
                 ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(dirReader);
                 IndexReader.CacheHelper helper = esReader.getReaderCacheHelper();

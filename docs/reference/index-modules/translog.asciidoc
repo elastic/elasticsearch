@@ -26,8 +26,9 @@ although this is rarely needed.
 === Translog settings
 
 The data in the translog is only persisted to disk when the translog is
-++fsync++ed and committed.  In the event of hardware failure, any data written
-since the previous translog commit will be lost.
+++fsync++ed and committed.  In the event of a hardware failure or an operating
+system crash or a JVM crash or a shard failure, any data written since the
+previous translog commit will be lost.
 
 By default, `index.translog.durability` is set to `request` meaning that Elasticsearch will only report success of an index, delete,
 update, or bulk request to the client after the translog has been successfully
@@ -59,7 +60,7 @@ update, or bulk request.  This setting accepts the following parameters:
 `async`::
 
     `fsync` and commit in the background every `sync_interval`. In
-    the event of hardware failure, all acknowledged writes since the last
+    the event of a failure, all acknowledged writes since the last
     automatic commit will be discarded.
 --
 

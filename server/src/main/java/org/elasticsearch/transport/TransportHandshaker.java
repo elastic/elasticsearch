@@ -224,7 +224,6 @@ final class TransportHandshaker {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             assert responseVersion != null;
             Version.writeVersion(responseVersion, out);
         }

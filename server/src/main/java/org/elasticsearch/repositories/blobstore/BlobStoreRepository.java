@@ -59,6 +59,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -101,6 +102,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -135,17 +137,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String INDEX_LATEST_BLOB = "index.latest";
 
-    private static final String INCOMPATIBLE_SNAPSHOTS_BLOB = "incompatible-snapshots";
-
     private static final String TESTS_FILE = "tests-";
 
-    private static final String METADATA_NAME_FORMAT = "meta-%s.dat";
+    private static final String METADATA_PREFIX = "meta-";
+
+    public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
 
     private static final String METADATA_CODEC = "metadata";
 
     private static final String INDEX_METADATA_CODEC = "index-metadata";
 
-    private static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
+    public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
 
     private static final String SNAPSHOT_INDEX_PREFIX = "index-";
 
@@ -393,8 +395,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData;
             final Map<String, BlobContainer> foundIndices;
+            final Set<String> rootBlobs;
             try {
-                final RepositoryData repositoryData = getRepositoryData();
+                rootBlobs = blobContainer().listBlobs().keySet();
+                final RepositoryData repositoryData = getRepositoryData(latestGeneration(rootBlobs));
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
                 // delete an index that was created by another master node after writing this index-N blob.
@@ -405,9 +409,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
+            final List<String> snapMetaFilesToDelete =
+                Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
             try {
-                blobContainer().deleteBlobsIgnoringIfNotExists(
-                    Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
+                blobContainer().deleteBlobsIgnoringIfNotExists(snapMetaFilesToDelete);
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
             }
@@ -420,9 +425,53 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotId,
                 ActionListener.map(listener, v -> {
                     cleanupStaleIndices(foundIndices, survivingIndices);
+                    cleanupStaleRootFiles(Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)), updatedRepositoryData);
                     return null;
                 })
             );
+        }
+    }
+
+    private void cleanupStaleRootFiles(Set<String> rootBlobNames, RepositoryData repositoryData) {
+        final Set<String> allSnapshotIds =
+            repositoryData.getAllSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+        final List<String> blobsToDelete = rootBlobNames.stream().filter(
+            blob -> {
+                if (FsBlobContainer.isTempBlobName(blob)) {
+                    return true;
+                }
+                if (blob.endsWith(".dat")) {
+                    final String foundUUID;
+                    if (blob.startsWith(SNAPSHOT_PREFIX)) {
+                        foundUUID = blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length());
+                        assert snapshotFormat.blobName(foundUUID).equals(blob);
+                    } else if (blob.startsWith(METADATA_PREFIX)) {
+                        foundUUID = blob.substring(METADATA_PREFIX.length(), blob.length() - ".dat".length());
+                        assert globalMetaDataFormat.blobName(foundUUID).equals(blob);
+                    } else {
+                        return false;
+                    }
+                    return allSnapshotIds.contains(foundUUID) == false;
+                }
+                return false;
+            }
+        ).collect(Collectors.toList());
+        if (blobsToDelete.isEmpty()) {
+            return;
+        }
+        try {
+            logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToDelete);
+            blobContainer().deleteBlobsIgnoringIfNotExists(blobsToDelete);
+        } catch (IOException e) {
+            logger.warn(() -> new ParameterizedMessage(
+                "[{}] The following blobs are no longer part of any snapshot [{}] but failed to remove them",
+                metadata.name(), blobsToDelete), e);
+        } catch (Exception e) {
+            // TODO: We shouldn't be blanket catching and suppressing all exceptions here and instead handle them safely upstream.
+            //       Currently this catch exists as a stop gap solution to tackle unexpected runtime exceptions from implementations
+            //       bubbling up and breaking the snapshot functionality.
+            assert false : e;
+            logger.warn(new ParameterizedMessage("[{}] Exception during cleanup of root level blobs", metadata.name()), e);
         }
     }
 
@@ -510,7 +559,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final Map<String, Object> userMetadata) {
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
             indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-            startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
+            startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
             includeGlobalState, userMetadata);
         try {
             final RepositoryData updatedRepositoryData = getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), indices);
@@ -640,7 +689,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoryData getRepositoryData() {
         try {
-            final long indexGen = latestIndexBlobId();
+            return getRepositoryData(latestIndexBlobId());
+        } catch (NoSuchFileException ex) {
+            // repository doesn't have an index blob, its a new blank repo
+            return RepositoryData.EMPTY;
+        } catch (IOException ioe) {
+            throw new RepositoryException(metadata.name(), "Could not determine repository generation from root blobs", ioe);
+        }
+    }
+
+    private RepositoryData getRepositoryData(long indexGen) {
+        if (indexGen == RepositoryData.EMPTY_REPO_GEN) {
+            return RepositoryData.EMPTY;
+        }
+        try {
             final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
 
             RepositoryData repositoryData;
@@ -649,25 +711,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                  XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, blob)) {
                 repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
-            }
-
-            // now load the incompatible snapshot ids, if they exist
-            try (InputStream blob = blobContainer().readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB);
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, blob)) {
-                repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
-            } catch (NoSuchFileException e) {
-                if (isReadOnly()) {
-                    logger.debug("[{}] Incompatible snapshots blob [{}] does not exist, the likely " +
-                            "reason is that there are no incompatible snapshots in the repository",
-                        metadata.name(), INCOMPATIBLE_SNAPSHOTS_BLOB);
-                } else {
-                    // write an empty incompatible-snapshots blob - we do this so that there
-                    // is a blob present, which helps speed up some cloud-based repositories
-                    // (e.g. S3), which retry if a blob is missing with exponential backoff,
-                    // delaying the read of repository data and sometimes causing a timeout
-                    writeIncompatibleSnapshots(RepositoryData.EMPTY);
-                }
             }
             return repositoryData;
         } catch (NoSuchFileException ex) {
@@ -687,14 +730,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return readOnly;
     }
 
-    protected void writeIndexGen(final RepositoryData repositoryData, final long repositoryStateId) throws IOException {
+    protected void writeIndexGen(final RepositoryData repositoryData, final long expectedGen) throws IOException {
         assert isReadOnly() == false; // can not write to a read only repository
-        final long currentGen = latestIndexBlobId();
-        if (currentGen != repositoryStateId) {
+        final long currentGen = repositoryData.getGenId();
+        if (currentGen != expectedGen) {
             // the index file was updated by a concurrent operation, so we were operating on stale
             // repository data
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
-                                              repositoryStateId + "], actual current generation [" + currentGen +
+                                              expectedGen + "], actual current generation [" + currentGen +
                                               "] - possibly due to simultaneous snapshot deletion requests");
         }
         final long newGen = currentGen + 1;
@@ -719,18 +762,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn("Failed to clean up old index blob [{}]", oldSnapshotIndexFile);
             }
         }
-    }
-
-    /**
-     * Writes the incompatible snapshot ids list to the `incompatible-snapshots` blob in the repository.
-     *
-     * Package private for testing.
-     */
-    void writeIncompatibleSnapshots(RepositoryData repositoryData) throws IOException {
-        assert isReadOnly() == false; // can not write to a read only repository
-        // write the incompatible snapshots blob
-        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB,
-            BytesReference.bytes(repositoryData.incompatibleSnapshotsToXContent(XContentFactory.jsonBuilder())), false);
     }
 
     /**
@@ -772,14 +803,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private long listBlobsToGetLatestIndexId() throws IOException {
-        Map<String, BlobMetaData> blobs = blobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX);
+        return latestGeneration(blobContainer().listBlobsByPrefix(INDEX_FILE_PREFIX).keySet());
+    }
+
+    private long latestGeneration(Collection<String> rootBlobs) {
         long latest = RepositoryData.EMPTY_REPO_GEN;
-        if (blobs.isEmpty()) {
-            // no snapshot index blobs have been written yet
-            return latest;
-        }
-        for (final BlobMetaData blobMetaData : blobs.values()) {
-            final String blobName = blobMetaData.name();
+        for (String blobName : rootBlobs) {
+            if (blobName.startsWith(INDEX_FILE_PREFIX) == false) {
+                continue;
+            }
             try {
                 final long curr = Long.parseLong(blobName.substring(INDEX_FILE_PREFIX.length()));
                 latest = Math.max(latest, curr);
@@ -802,7 +834,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         final ShardId shardId = store.shardId();
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.absoluteTimeInMillis();
         try {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
 
@@ -814,9 +846,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
             }
 
-            Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
-            int fileListGeneration = tuple.v2();
+            long fileListGeneration = tuple.v2();
 
             if (snapshots.snapshots().stream().anyMatch(sf -> sf.snapshot().equals(snapshotId.getName()))) {
                 throw new IndexShardSnapshotFailedException(shardId,
@@ -900,14 +932,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 lastSnapshotStatus.getIndexVersion(),
                 indexCommitPointFiles,
                 lastSnapshotStatus.getStartTime(),
-                // snapshotStatus.startTime() is assigned on the same machine,
-                // so it's safe to use the relative time in millis
-                threadPool.relativeTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
                 lastSnapshotStatus.getIncrementalFileCount(),
                 lastSnapshotStatus.getIncrementalSize()
             );
 
-            //TODO: The time stored in snapshot doesn't include cleanup time.
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
             try {
                 indexShardSnapshotFormat.write(snapshot, shardContainer, snapshotId.getUUID());
@@ -925,9 +954,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
             finalizeShard(newSnapshotsList, fileListGeneration, blobs, "snapshot creation [" + snapshotId + "]", shardContainer,
                 shardId, snapshotId);
-            snapshotStatus.moveToDone(threadPool.relativeTimeInMillis());
+            snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
         } catch (Exception e) {
-            snapshotStatus.moveToFailed(threadPool.relativeTimeInMillis(), ExceptionsHelper.detailedMessage(e));
+            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {
@@ -1021,9 +1050,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
         }
 
-        Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+        Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
-        int fileListGeneration = tuple.v2();
+        long fileListGeneration = tuple.v2();
 
         try {
             indexShardSnapshotFormat.delete(shardContainer, snapshotId.getUUID());
@@ -1066,9 +1095,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param blobs              list of blobs in the container
      * @param reason             a reason explaining why the shard index file is written
      */
-    private void finalizeShard(List<SnapshotFiles> snapshots, int fileListGeneration, Map<String, BlobMetaData> blobs,
+    private void finalizeShard(List<SnapshotFiles> snapshots, long fileListGeneration, Map<String, BlobMetaData> blobs,
                                String reason, BlobContainer shardContainer, ShardId shardId, SnapshotId snapshotId) {
-        final String indexGeneration = Integer.toString(fileListGeneration + 1);
+        final String indexGeneration = Long.toString(fileListGeneration + 1);
         try {
             final List<String> blobsToDelete;
             if (snapshots.isEmpty()) {
@@ -1102,26 +1131,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param blobs list of blobs in repository
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
-    private Tuple<BlobStoreIndexShardSnapshots, Integer> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs,
+    private Tuple<BlobStoreIndexShardSnapshots, Long> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs,
                                                                                            BlobContainer shardContainer) {
-        int latest = -1;
         Set<String> blobKeys = blobs.keySet();
-        for (String name : blobKeys) {
-            if (name.startsWith(SNAPSHOT_INDEX_PREFIX)) {
-                try {
-                    int gen = Integer.parseInt(name.substring(SNAPSHOT_INDEX_PREFIX.length()));
-                    if (gen > latest) {
-                        latest = gen;
-                    }
-                } catch (NumberFormatException ex) {
-                    logger.warn("failed to parse index file name [{}]", name);
-                }
-            }
-        }
+        long latest = latestGeneration(blobKeys);
         if (latest >= 0) {
             try {
                 final BlobStoreIndexShardSnapshots shardSnapshots =
-                    indexShardSnapshotsFormat.read(shardContainer, Integer.toString(latest));
+                    indexShardSnapshotsFormat.read(shardContainer, Long.toString(latest));
                 return new Tuple<>(shardSnapshots, latest);
             } catch (IOException e) {
                 final String file = SNAPSHOT_INDEX_PREFIX + latest;

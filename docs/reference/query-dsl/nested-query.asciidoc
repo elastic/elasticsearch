@@ -107,7 +107,7 @@ Add together the relevance scores of all matching child objects.
 (boolean) Indicates whether to ignore an unmapped `path` and not return any
 documents instead of an error. Defaults to `false`.
 
-If `true`, {es} returns an error if the `path` is not a mapped field.
+If `false`, {es} returns an error if the `path` is an unmapped field.
 
 You can use this parameter to query multiple indices that may not contain the
 field `path`.

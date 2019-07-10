@@ -143,6 +143,7 @@ The API returns the following results:
       "dest" : {
         "index" : "kibana_sample_data_ecommerce_transform"
       },
+      "frequency": "1m",
       "pivot" : {
         "group_by" : {
           "customer_id" : {

@@ -119,24 +119,6 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
     }
 
-    public void testBindUnavailableAddress() {
-        // this is on a lower level since it needs access to the TransportService before it's started
-        int port = serviceA.boundAddress().publishAddress().getPort();
-        Settings settings = Settings.builder()
-            .put(TransportSettings.PORT.getKey(), port)
-            .build();
-        BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService = buildService("TS_C", Version.CURRENT, settings);
-            try {
-                transportService.start();
-            } finally {
-                transportService.stop();
-                transportService.close();
-            }
-        });
-        assertEquals("Failed to bind to [" + port + "]", bindTransportException.getMessage());
-    }
-
     @Override
     public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);

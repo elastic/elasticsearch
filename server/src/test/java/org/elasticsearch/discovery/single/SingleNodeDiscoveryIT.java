@@ -66,6 +66,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     public void testSingleNodesDoNotDiscoverEachOther() throws IOException, InterruptedException {
         final TransportService service = internalCluster().getInstance(TransportService.class);
         final int port = service.boundAddress().publishAddress().getPort();
+        final int upperPortRangeBound = port + 5 - 1;
+        assumeTrue("port must be in range", upperPortRangeBound <= 65535);
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -77,7 +79,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
-                        .put("transport.port", port + "-" + (port + 5 - 1))
+                        .put("transport.port", port + "-" + upperPortRangeBound)
                         .build();
             }
 

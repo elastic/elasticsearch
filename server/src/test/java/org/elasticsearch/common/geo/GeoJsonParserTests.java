@@ -39,6 +39,7 @@ import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.geo.utils.GeographyValidator;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -618,7 +619,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(geometryExpected, geometryCollectionGeoJson);
     }
 
-    public void testThatParserExtractsCorrectTypeAndCoordinatesFromArbitraryJson() throws IOException {
+    public void testThatParserExtractsCorrectTypeAndCoordinatesFromArbitraryJson() throws IOException, ParseException {
         XContentBuilder pointGeoJson = XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("crs")

@@ -187,6 +187,12 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
+    protected boolean allowDocumentFailureForIndexingOnPrimary(Index index) {
+        // following shard does not own the history - it must never generate noops.
+        return false;
+    }
+
+    @Override
     public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         // the value of the global checkpoint is not verified when the following engine is closed,
         // allowing it to be closed even in the case where all operations have not been fetched and

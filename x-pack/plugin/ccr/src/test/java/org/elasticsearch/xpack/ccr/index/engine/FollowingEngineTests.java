@@ -10,6 +10,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -714,7 +715,7 @@ public class FollowingEngineTests extends ESTestCase {
         }
     }
 
-    public void testNeverGenerateNoopOnFollower() throws Exception {
+    public void testHandleDocumentFailure() throws Exception {
         final Settings settings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -737,14 +738,8 @@ public class FollowingEngineTests extends ESTestCase {
                     primaryTerm.get(), randomNonNegativeLong(), versionType, origin,
                     System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean(),
                     SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-                final Engine.IndexResult result = engine.index(index);
-                assertFalse(result.isCreated());
-                assertNull(result.getTranslogLocation());
-                assertNotNull(result.getFailure());
-                try (Translog.Snapshot snapshot = engine.readHistoryOperations("test", EngineTestCase.createMapperService("test"), 0)) {
-                    assertThat(snapshot.totalOperations(), equalTo(0));
-                    assertNull(snapshot.next());
-                }
+                expectThrows(IOException.class, () -> engine.index(index));
+                expectThrows(AlreadyClosedException.class, () -> engine.refresh("test"));
             }
         }
     }

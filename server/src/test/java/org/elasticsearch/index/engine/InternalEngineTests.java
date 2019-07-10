@@ -5903,7 +5903,7 @@ public class InternalEngineTests extends EngineTestCase {
             .collect(Collectors.toMap(e -> e.getKey(), e -> (DeleteVersionValue) e.getValue()));
     }
 
-    public void testGenerateNoopsOnlyForFailedIndexingOnPrimary() throws Exception {
+    public void testHandleDocumentFailureOnReplica() throws Exception {
         AtomicReference<IOException> addDocException = new AtomicReference<>();
         IndexWriterFactory indexWriterFactory = (dir, iwc) -> new IndexWriter(dir, iwc) {
             @Override
@@ -5917,39 +5917,14 @@ public class InternalEngineTests extends EngineTestCase {
         };
         try (Store store = createStore();
              InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
-            // generate noop for primary indexing operations
-            {
-                final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
-                Engine.Index index = new Engine.Index(newUid(doc), doc, UNASSIGNED_SEQ_NO, primaryTerm.get(), randomNonNegativeLong(),
-                    VersionType.EXTERNAL, PRIMARY, System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
-                addDocException.set(new IOException("simulated"));
-                final Engine.IndexResult result = engine.index(index);
-                assertFalse(result.isCreated());
-                assertNotNull(result.getTranslogLocation());
-                assertNotNull(result.getFailure());
-                try (Translog.Snapshot snapshot = engine.readHistoryOperations("test", createMapperService("test"), 0)) {
-                    assertThat(snapshot.totalOperations(), equalTo(1));
-                    assertThat(snapshot.next(), instanceOf(Translog.NoOp.class));
-                    assertNull(snapshot.next());
-                }
-            }
-            // do not generate noops for non-primary indexing operations
-            {
-                final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
-                Engine.Index index = new Engine.Index(newUid(doc), doc, randomNonNegativeLong(), primaryTerm.get(),
-                    randomNonNegativeLong(), null, randomValueOtherThan(PRIMARY, () -> randomFrom(Engine.Operation.Origin.values())),
-                    System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
-                addDocException.set(new IOException("simulated"));
-                final Engine.IndexResult result = engine.index(index);
-                assertFalse(result.isCreated());
-                assertNotNull(result.getFailure());
-                assertNull(result.getTranslogLocation());
-                try (Translog.Snapshot snapshot = engine.readHistoryOperations("test", createMapperService("test"), 0)) {
-                    assertThat(snapshot.totalOperations(), equalTo(1));
-                    assertThat(snapshot.next(), instanceOf(Translog.NoOp.class));
-                    assertNull(snapshot.next());
-                }
-            }
+            final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+            Engine.Index index = new Engine.Index(newUid(doc), doc, randomNonNegativeLong(), primaryTerm.get(),
+                randomNonNegativeLong(), null, randomValueOtherThan(PRIMARY, () -> randomFrom(Engine.Operation.Origin.values())),
+                System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+            addDocException.set(new IOException("simulated"));
+            expectThrows(IOException.class, () -> engine.index(index));
+            assertTrue(engine.isClosed.get());
+            assertNotNull(engine.failedEngine.get());
         }
     }
 }

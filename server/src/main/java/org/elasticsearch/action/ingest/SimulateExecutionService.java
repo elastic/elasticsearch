@@ -55,8 +55,8 @@ class SimulateExecutionService {
             }
         } else {
             try {
-                pipeline.execute(ingestDocument);
-                return new SimulateDocumentBaseResult(ingestDocument);
+                IngestDocument result = pipeline.execute(ingestDocument);
+                return new SimulateDocumentBaseResult(result);
             } catch (Exception e) {
                 return new SimulateDocumentBaseResult(e);
             }
@@ -64,7 +64,7 @@ class SimulateExecutionService {
     }
 
     public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
-        threadPool.executor(THREAD_POOL_NAME).execute(new ActionRunnable<SimulatePipelineResponse>(listener) {
+        threadPool.executor(THREAD_POOL_NAME).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() throws Exception {
                 List<SimulateDocumentResult> responses = new ArrayList<>();

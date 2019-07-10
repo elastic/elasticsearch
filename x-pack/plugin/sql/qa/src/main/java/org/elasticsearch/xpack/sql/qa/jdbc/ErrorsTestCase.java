@@ -27,8 +27,8 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
     @Override
     public void testSelectFromMissingIndex() throws SQLException {
         try (Connection c = esJdbc()) {
-            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM \"te\"\"st\"").executeQuery());
-            assertEquals("Found 1 problem(s)\nline 1:15: Unknown index [te\"st]", e.getMessage());
+            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
+            assertEquals("Found 1 problem(s)\nline 1:15: Unknown index [test]", e.getMessage());
         }
     }
 

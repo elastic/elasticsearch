@@ -122,7 +122,6 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(indexToSettings.size());
         for (ObjectObjectCursor<String, Settings> cursor : indexToSettings) {
             out.writeString(cursor.key);

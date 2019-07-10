@@ -146,7 +146,6 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeStringCollection(scriptContextNames);
             out.writeOptionalWriteable(painlessContextInfo);
         }

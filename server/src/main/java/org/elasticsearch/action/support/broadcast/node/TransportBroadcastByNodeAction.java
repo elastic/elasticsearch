@@ -549,7 +549,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(nodeId);
             out.writeVInt(totalShards);
             out.writeVInt(results.size());

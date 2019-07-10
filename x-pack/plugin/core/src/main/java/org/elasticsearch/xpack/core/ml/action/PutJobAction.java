@@ -157,7 +157,6 @@ public class PutJobAction extends StreamableResponseActionType<PutJobAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             if (out.getVersion().before(Version.V_6_3_0)) {
                 //the acknowledged flag is no longer supported
                 out.writeBoolean(true);

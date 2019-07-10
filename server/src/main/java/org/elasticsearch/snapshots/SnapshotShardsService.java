@@ -609,7 +609,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     static class UpdateIndexShardSnapshotStatusResponse extends ActionResponse {
-
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     private class UpdateSnapshotStatusAction

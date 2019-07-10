@@ -22,9 +22,7 @@ import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.precommit.JarHellTask;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
-import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -58,12 +56,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         ext.set("testFixturesDir", testfixturesDir);
 
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
-            // convenience boilerplate with build plugin
-            // Can't reference tasks that are implemented in Groovy, use reflection  instead
-            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
-            disableTaskByType(tasks, ThirdPartyAuditTask.class);
-            disableTaskByType(tasks, JarHellTask.class);
-
             // the project that defined a test fixture can also use it
             extension.fixtures.add(project);
 
@@ -116,6 +108,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
                         .getByType(ExtraPropertiesExtension.class).set(name, port)
                 );
             }
+        } else {
+            project.afterEvaluate(spec -> {
+                if (extension.fixtures.isEmpty()) {
+                    // if only one fixture is used, that's this one, but without a compose file that's not a valid configuration
+                    throw new IllegalStateException("No " + DOCKER_COMPOSE_YML + " found for " + project.getPath() +
+                        " nor does it use other fixtures.");
+                }
+            });
         }
 
         extension.fixtures

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -437,5 +438,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
         private TestResponse() {}
         private TestResponse(StreamInput in) {}
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

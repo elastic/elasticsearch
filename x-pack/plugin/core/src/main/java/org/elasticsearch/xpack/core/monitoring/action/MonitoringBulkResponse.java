@@ -89,7 +89,6 @@ public class MonitoringBulkResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeOptionalWriteable(error);
 

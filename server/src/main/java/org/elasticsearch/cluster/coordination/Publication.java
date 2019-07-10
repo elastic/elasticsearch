@@ -244,7 +244,8 @@ public abstract class Publication {
                         assert applyCommitRequest.isPresent() == false;
                         applyCommitRequest = Optional.of(applyCommit);
                         ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
-                        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
+                        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum)
+                            .forEach(PublicationTarget::sendApplyCommit);
                     });
                 } catch (Exception e) {
                     setFailed(e);

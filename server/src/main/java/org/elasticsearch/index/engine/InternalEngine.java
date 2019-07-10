@@ -1086,7 +1086,7 @@ public class InternalEngine extends Engine {
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
     private boolean allowDocumentFailure(Index index) {
-        return index.origin() == Operation.Origin.REPLICA;
+        return index.origin() != Operation.Origin.REPLICA;
     }
 
     /**

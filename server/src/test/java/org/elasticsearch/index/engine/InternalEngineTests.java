@@ -5919,8 +5919,7 @@ public class InternalEngineTests extends EngineTestCase {
              InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
             Engine.Index index = new Engine.Index(newUid(doc), doc, randomNonNegativeLong(), primaryTerm.get(),
-                randomNonNegativeLong(), null, randomValueOtherThan(PRIMARY, () -> randomFrom(Engine.Operation.Origin.values())),
-                System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+                randomNonNegativeLong(), null, REPLICA, System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
             addDocException.set(new IOException("simulated"));
             expectThrows(IOException.class, () -> engine.index(index));
             assertTrue(engine.isClosed.get());

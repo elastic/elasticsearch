@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -58,7 +59,7 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
     }
 
     @Override
-    protected void masterOperation(FollowInfoAction.Request request,
+    protected void masterOperation(Task task, FollowInfoAction.Request request,
                                    ClusterState state,
                                    ActionListener<FollowInfoAction.Response> listener) throws Exception {
 

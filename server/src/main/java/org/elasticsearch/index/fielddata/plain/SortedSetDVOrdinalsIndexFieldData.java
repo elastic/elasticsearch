@@ -146,4 +146,9 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     public OrdinalMap getOrdinalMap() {
         return null;
     }
+
+    @Override
+    public boolean supportsGlobalOrdinalsMapping() {
+        return true;
+    }
 }

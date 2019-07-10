@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,12 +19,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,6 +51,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
     public static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
     public static final ParseField HEADERS = new ParseField("headers");
+    public static final ParseField CREATE_TIME = new ParseField("create_time");
+    public static final ParseField VERSION = new ParseField("version");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -69,6 +75,18 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
             // (For config, headers are explicitly transferred from the auth headers by code in the put data frame actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
+            // Creation time is set automatically during PUT, so create_time supplied in the _body_ of a REST request will be rejected.
+            parser.declareField(Builder::setCreateTime,
+                p -> TimeUtils.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
+                CREATE_TIME,
+                ObjectParser.ValueType.VALUE);
+            // Version is set automatically during PUT, so version supplied in the _body_ of a REST request will be rejected.
+            parser.declareField(Builder::setVersion, p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return Version.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, VERSION, ObjectParser.ValueType.STRING);
         }
         return parser;
     }
@@ -96,10 +114,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
      */
     private final ByteSizeValue modelMemoryLimit;
     private final Map<String, String> headers;
+    private final Instant createTime;
+    private final Version version;
 
     public DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
-                                    FetchSourceContext analyzedFields) {
+                                    FetchSourceContext analyzedFields, Instant createTime, Version version) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
         this.dest = ExceptionsHelper.requireNonNull(dest, DEST);
@@ -107,16 +127,25 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.analyzedFields = analyzedFields;
         this.modelMemoryLimit = modelMemoryLimit;
         this.headers = Collections.unmodifiableMap(headers);
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());;
+        this.version = version;
     }
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
-        id = in.readString();
-        source = new DataFrameAnalyticsSource(in);
-        dest = new DataFrameAnalyticsDest(in);
-        analysis = in.readNamedWriteable(DataFrameAnalysis.class);
+        this.id = in.readString();
+        this.source = new DataFrameAnalyticsSource(in);
+        this.dest = new DataFrameAnalyticsDest(in);
+        this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
         this.analyzedFields = in.readOptionalWriteable(FetchSourceContext::new);
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            createTime = in.readOptionalInstant();
+            version = in.readBoolean() ? Version.readVersion(in) : null;
+        } else {
+            createTime = null;
+            version = null;
+        }
     }
 
     public String getId() {
@@ -147,6 +176,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return headers;
     }
 
+    public Instant getCreateTime() {
+        return createTime;
+    }
+
+    public Version getVersion() {
+        return version;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -168,6 +205,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
+        if (createTime != null) {
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+        }
+        if (version != null) {
+            builder.field(VERSION.getPreferredName(), version);
+        }
         builder.endObject();
         return builder;
     }
@@ -181,6 +224,15 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeOptionalWriteable(analyzedFields);
         out.writeOptionalWriteable(modelMemoryLimit);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeOptionalInstant(createTime);
+            if (version != null) {
+                out.writeBoolean(true);
+                Version.writeVersion(version, out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -195,12 +247,19 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(analysis, other.analysis)
             && Objects.equals(headers, other.headers)
             && Objects.equals(getModelMemoryLimit(), other.getModelMemoryLimit())
-            && Objects.equals(analyzedFields, other.analyzedFields);
+            && Objects.equals(analyzedFields, other.analyzedFields)
+            && Objects.equals(createTime, other.createTime)
+            && Objects.equals(version, other.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields);
+        return Objects.hash(id, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields, createTime, version);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public static String documentId(String id) {
@@ -217,6 +276,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private ByteSizeValue modelMemoryLimit;
         private ByteSizeValue maxModelMemoryLimit;
         private Map<String, String> headers = Collections.emptyMap();
+        private Instant createTime;
+        private Version version;
 
         public Builder() {}
 
@@ -243,6 +304,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             if (config.analyzedFields != null) {
                 this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
+            this.createTime = config.createTime;
+            this.version = config.version;
         }
 
         public String getId() {
@@ -304,9 +367,19 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             }
         }
 
+        public Builder setCreateTime(Instant createTime) {
+            this.createTime = createTime;
+            return this;
+        }
+
+        public Builder setVersion(Version version) {
+            this.version = version;
+            return this;
+        }
+
         public DataFrameAnalyticsConfig build() {
             applyMaxModelMemoryLimit();
-            return new DataFrameAnalyticsConfig(id, source, dest, analysis, headers, modelMemoryLimit, analyzedFields);
+            return new DataFrameAnalyticsConfig(id, source, dest, analysis, headers, modelMemoryLimit, analyzedFields, createTime, version);
         }
     }
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -86,9 +87,9 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
 
     @Override
     protected void masterOperation(
-            final UnfollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<AcknowledgedResponse> listener) {
+        Task task, final UnfollowAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("unfollow_action", new ClusterStateUpdateTask() {
 
             @Override

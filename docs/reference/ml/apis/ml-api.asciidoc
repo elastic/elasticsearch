@@ -7,7 +7,21 @@ You can use the following APIs to perform {ml} activities.
 See <<ml-api-definitions, Definitions>> for the resource definitions used by the
 machine learning APIs and in advanced job configuration options in Kibana.
 
-[float]
+[discrete]
+[[ml-api-anomaly-job-endpoint]]
+=== {anomaly-jobs-cap}
+//* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
+* <<ml-put-job,Create>> or <<ml-delete-job,delete {anomaly-jobs}>>
+* <<ml-put-calendar-job,Add>> or <<ml-delete-calendar-job,delete a {anomaly-job} from a calendar>>
+* <<ml-open-job,Open>> or <<ml-close-job,close {anomaly-jobs}>>
+* <<ml-get-job,Get {anomaly-jobs} info>> or <<ml-get-job-stats,statistics>>
+* <<ml-flush-job,Flush {anomaly-jobs}>>
+* <<ml-post-data,Post data to {anomaly-jobs}>>
+* <<ml-update-job,Update {anomaly-jobs}>>
+* <<ml-forecast,Create>> or <<ml-delete-forecast,delete forecasts>>
+
+
+[discrete]
 [[ml-api-calendar-endpoint]]
 === Calendars
 
@@ -16,7 +30,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-post-calendar-event,Add scheduled events to calendar>>, <<ml-delete-calendar-event,Delete scheduled events from calendar>>
 * <<ml-get-calendar,Get calendars>>, <<ml-get-calendar-event,Get scheduled events>>
 
-[float]
+[discrete]
 [[ml-api-filter-endpoint]]
 === Filters
 
@@ -24,7 +38,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-update-filter,Update filters>>
 * <<ml-get-filter,Get filters>>
 
-[float]
+[discrete]
 [[ml-api-datafeed-endpoint]]
 === {dfeeds-cap}
 
@@ -34,23 +48,25 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-preview-datafeed,Preview {dfeed}>>
 * <<ml-update-datafeed,Update {dfeed}>>
 
+[discrete]
+[[ml-api-dfanalytics-endpoint]]
+=== {dfanalytics-cap} APIs
+
+* <<put-dfanalytics,Create>> or 
+<<delete-dfanalytics,delete {dfanalytics-jobs}>>
+* <<get-dfanalytics,Get {dfanalytics-jobs} info>> or
+<<get-dfanalytics-stats,statistics>>
+* <<start-dfanalytics,Start>> or <<stop-dfanalytics,stop {dfanalytics-jobs}>>
+* <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
 
 
-[float]
+[discrete]
 [[ml-api-job-endpoint]]
 === Jobs
 
-//* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
-* <<ml-put-job,Create job>>, <<ml-delete-job,Delete job>>
-* <<ml-put-calendar-job,Add job to calendar>>, <<ml-delete-calendar-job,Delete job from calendar>>
-* <<ml-open-job,Open job>>, <<ml-close-job,Close job>>
-* <<ml-get-job,Get job info>>, <<ml-get-job-stats,Get job statistics>>
-* <<ml-flush-job,Flush job>>
-* <<ml-post-data,Post data to job>>
-* <<ml-update-job,Update job>>
-* <<ml-forecast,Forecast job behavior>>, <<ml-delete-forecast,Delete forecasts>>
+See <<ml-api-anomaly-job-endpoint>> and <<ml-api-dfanalytics-endpoint>>.
 
-[float]
+[discrete]
 [[ml-api-snapshot-endpoint]]
 === Model Snapshots
 
@@ -60,7 +76,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-update-snapshot,Update model snapshot>>
 
 
-[float]
+[discrete]
 [[ml-api-result-endpoint]]
 === Results
 
@@ -70,25 +86,25 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-get-influencer,Get influencers>>
 * <<ml-get-record,Get records>>
 
-[float]
+[discrete]
 [[ml-api-file-structure-endpoint]]
 === File structure
 
 * <<ml-find-file-structure,Find file structure>>
 
-[float]
+[discrete]
 [[ml-api-ml-info-endpoint]]
 === Info
 
 * <<get-ml-info,Machine learning info>>
 
-[float]
+[discrete]
 [[ml-api-delete-expired-data-endpoint]]
 === Delete expired data
 
 * <<ml-delete-expired-data,Delete expired data>>
 
-[float]
+[discrete]
 [[ml-set-upgrade-mode-endpoint]]
 === Set upgrade mode
 
@@ -100,10 +116,11 @@ include::put-calendar-job.asciidoc[]
 //CLOSE
 include::close-job.asciidoc[]
 //CREATE
+include::put-job.asciidoc[]
 include::put-calendar.asciidoc[]
 include::put-datafeed.asciidoc[]
 include::put-filter.asciidoc[]
-include::put-job.asciidoc[]
+include::put-dfanalytics.asciidoc[]
 //DELETE
 include::delete-calendar.asciidoc[]
 include::delete-datafeed.asciidoc[]
@@ -114,6 +131,9 @@ include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
 include::delete-expired-data.asciidoc[]
+include::delete-dfanalytics.asciidoc[]
+//EVALUATE
+include::evaluate-dfanalytics.asciidoc[]
 //FIND
 include::find-file-structure.asciidoc[]
 //FLUSH
@@ -135,6 +155,8 @@ include::get-snapshot.asciidoc[]
 include::get-calendar-event.asciidoc[]
 include::get-filter.asciidoc[]
 include::get-record.asciidoc[]
+include::get-dfanalytics.asciidoc[]
+include::get-dfanalytics-stats.asciidoc[]
 //OPEN
 include::open-job.asciidoc[]
 //POST
@@ -146,7 +168,9 @@ include::revert-snapshot.asciidoc[]
 //SET/START/STOP
 include::set-upgrade-mode.asciidoc[]
 include::start-datafeed.asciidoc[]
+include::start-dfanalytics.asciidoc[]
 include::stop-datafeed.asciidoc[]
+include::stop-dfanalytics.asciidoc[]
 //UPDATE
 include::update-datafeed.asciidoc[]
 include::update-filter.asciidoc[]

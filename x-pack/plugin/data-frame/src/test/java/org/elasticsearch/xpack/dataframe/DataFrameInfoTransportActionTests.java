@@ -118,7 +118,7 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
         var usageAction = new DataFrameUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, settings.build(), licenseState, mock(Client.class));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, mock(ClusterState.class), future);
+        usageAction.masterOperation(null, null, mock(ClusterState.class), future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
 
         assertFalse(usage.enabled());

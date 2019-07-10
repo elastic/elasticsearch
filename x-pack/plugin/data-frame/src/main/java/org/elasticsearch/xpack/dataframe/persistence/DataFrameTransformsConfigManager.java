@@ -199,6 +199,7 @@ public class DataFrameTransformsConfigManager {
      */
     public void expandTransformIds(String transformIdsExpression,
                                    PageParams pageParams,
+                                   boolean allowNoMatch,
                                    ActionListener<Tuple<Long, List<String>>> foundIdsListener) {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
         QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, DataFrameTransformConfig.NAME);
@@ -213,7 +214,7 @@ public class DataFrameTransformsConfigManager {
             .setFetchSource(DataFrameField.ID.getPreferredName(), "")
             .request();
 
-        final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, true);
+        final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, allowNoMatch);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request,
             ActionListener.<SearchResponse>wrap(
@@ -340,6 +341,7 @@ public class DataFrameTransformsConfigManager {
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
                 .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
                 .setQuery(builder)
+                .setSize(Math.min(transformIds.size(), 10_000))
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, searchRequest,

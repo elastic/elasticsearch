@@ -40,20 +40,20 @@ public class ScoreScriptUtilsTests extends ESTestCase {
 
         // test dotProduct
         double result = dotProduct(queryVector, dvs);
-        assertEquals("dotProduct result is not equal to the expected value!", 65425.62, result, 0.1);
+        assertEquals("dotProduct result is not equal to the expected value!", 65425.626, result, 0.001);
 
         // test cosineSimilarity
         CosineSimilarity cosineSimilarity = new CosineSimilarity(queryVector);
         double result2 = cosineSimilarity.cosineSimilarity(dvs);
-        assertEquals("cosineSimilarity result is not equal to the expected value!", 0.78, result2, 0.1);
+        assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, result2, 0.001);
 
         // test l1Norm
         double result3 = l1norm(queryVector, dvs);
-        assertEquals("l1norm result is not equal to the expected value!", 485.18, result3, 0.1);
+        assertEquals("l1norm result is not equal to the expected value!", 485.184, result3, 0.001);
 
         // test l2norm
         double result4 = l2norm(queryVector, dvs);
-        assertEquals("l2norm result is not equal to the expected value!", 301.36, result4, 0.1);
+        assertEquals("l2norm result is not equal to the expected value!", 301.361, result4, 0.001);
 
         // test dotProduct fails when queryVector has wrong number of dims
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
@@ -91,28 +91,28 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         // test dotProduct
         DotProductSparse docProductSparse = new DotProductSparse(queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
-        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.62, result, 0.1);
+        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse(dvs);
-        assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.78, result2, 0.1);
+        assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.790, result2, 0.001);
 
         // test l1norm
         L1NormSparse l1Norm = new L1NormSparse(queryVector);
         double result3 = l1Norm.l1normSparse(dvs);
-        assertEquals("l1normSparse result is not equal to the expected value!", 485.18, result3, 0.1);
+        assertEquals("l1normSparse result is not equal to the expected value!", 485.184, result3, 0.001);
 
         // test l2norm
         L2NormSparse l2Norm = new L2NormSparse(queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
-        assertEquals("l2normSparse result is not equal to the expected value!", 301.36, result4, 0.1);
+        assertEquals("l2normSparse result is not equal to the expected value!", 301.361, result4, 0.001);
     }
 
-    public void testSparseVectorFunctionsSpecialCases() {
-        // Query and document vector have missing dimensions that are present in one, and absent in another
-        int[] docVectorDims = {2, 10, 11, 50, 113, 4545};
-        float[] docVectorValues = {230.0f, 300.33f, 11.5f, -34.8988f, 15.555f, -200.0f};
+    public void testSparseVectorMissingDimensions1() {
+        // Document vector's biggest dimension > query vector's biggest dimension
+        int[] docVectorDims = {2, 10, 50, 113, 4545, 4546};
+        float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f};
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
@@ -128,21 +128,58 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         // test dotProduct
         DotProductSparse docProductSparse = new DotProductSparse(queryVector);
         double result = docProductSparse.dotProductSparse(dvs);
-        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.62, result, 0.1);
+        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
 
         // test cosineSimilarity
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse(dvs);
-        assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.78, result2, 0.1);
+        assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.786, result2, 0.001);
 
         // test l1norm
         L1NormSparse l1Norm = new L1NormSparse(queryVector);
         double result3 = l1Norm.l1normSparse(dvs);
-        assertEquals("l1normSparse result is not equal to the expected value!", 517.18, result3, 0.1);
+        assertEquals("l1normSparse result is not equal to the expected value!", 517.184, result3, 0.001);
 
         // test l2norm
         L2NormSparse l2Norm = new L2NormSparse(queryVector);
         double result4 = l2Norm.l2normSparse(dvs);
-        assertEquals("l2normSparse result is not equal to the expected value!", 302.28, result4, 0.1);
+        assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
+    }
+
+    public void testSparseVectorMissingDimensions2() {
+        // Document vector's biggest dimension < query vector's biggest dimension
+        int[] docVectorDims = {2, 10, 50, 113, 4545, 4546};
+        float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f};
+        BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(docVectorDims, docVectorValues, docVectorDims.length);
+        VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
+        when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
+        Map<String, Number> queryVector = new HashMap<String, Number>() {{
+            put("2", 0.5);
+            put("10", 111.3);
+            put("50", -13.0);
+            put("113", 14.8);
+            put("4545", -156.0);
+            put("4548", -20.5);
+        }};
+
+        // test dotProduct
+        DotProductSparse docProductSparse = new DotProductSparse(queryVector);
+        double result = docProductSparse.dotProductSparse(dvs);
+        assertEquals("dotProductSparse result is not equal to the expected value!", 65425.626, result, 0.001);
+
+        // test cosineSimilarity
+        CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
+        double result2 = cosineSimilaritySparse.cosineSimilaritySparse(dvs);
+        assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.786, result2, 0.001);
+
+        // test l1norm
+        L1NormSparse l1Norm = new L1NormSparse(queryVector);
+        double result3 = l1Norm.l1normSparse(dvs);
+        assertEquals("l1normSparse result is not equal to the expected value!", 517.184, result3, 0.001);
+
+        // test l2norm
+        L2NormSparse l2Norm = new L2NormSparse(queryVector);
+        double result4 = l2Norm.l2normSparse(dvs);
+        assertEquals("l2normSparse result is not equal to the expected value!", 302.277, result4, 0.001);
     }
 }

@@ -64,8 +64,8 @@ setup:
   - lte: {hits.hits.0._score: 485.19}
 
   - match: {hits.hits.1._id: "2"}
-  - gte: {hits.hits.1._score: 12.25}
-  - lte: {hits.hits.1._score: 12.35}
+  - gte: {hits.hits.1._score: 12.29}
+  - lte: {hits.hits.1._score: 12.30}
 
   - match: {hits.hits.2._id: "3"}
   - gte: {hits.hits.2._score: 0.00}

@@ -123,7 +123,6 @@ public class PutDatafeedAction extends StreamableResponseActionType<PutDatafeedA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             datafeed.writeTo(out);
         }
 

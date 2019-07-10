@@ -770,23 +770,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
         for (ClusterNode cn : cluster.clusterNodes) {
             assertThat(value(cn.getLastAppliedClusterState()), is(finalValue));
-            if (cn == leader) {
-                // leader does not update publish stats as it's not using the serialized state
-                assertEquals(cn.toString(), prePublishStats.get(cn).getFullClusterStateReceivedCount(),
-                    postPublishStats.get(cn).getFullClusterStateReceivedCount());
-                assertEquals(cn.toString(), prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount(),
-                    postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
-                assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
-                    postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
-            } else {
-                // followers receive a diff
-                assertEquals(cn.toString(), prePublishStats.get(cn).getFullClusterStateReceivedCount(),
-                    postPublishStats.get(cn).getFullClusterStateReceivedCount());
-                assertEquals(cn.toString(), prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
-                    postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
-                assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
-                    postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
-            }
+            assertEquals(cn.toString(), prePublishStats.get(cn).getFullClusterStateReceivedCount(),
+                postPublishStats.get(cn).getFullClusterStateReceivedCount());
+            assertEquals(cn.toString(), prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
+            assertEquals(cn.toString(), prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
+                postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
         }
     }
 

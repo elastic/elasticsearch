@@ -37,7 +37,7 @@ import java.util.Map;
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
  * field type.
  */
-public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, HistogramAggregatorFactory> {
+public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
     private final double interval, offset;
     private final BucketOrder order;
@@ -56,7 +56,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
 
     public HistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double interval, double offset,
                                       BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                                      SearchContext context, AggregatorFactory<?> parent,
+                                      SearchContext context, AggregatorFactory parent,
                                       AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.interval = interval;

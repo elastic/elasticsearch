@@ -143,7 +143,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(index);
         out.writeString(type);
         out.writeString(id);

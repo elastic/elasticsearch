@@ -981,7 +981,6 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
         }

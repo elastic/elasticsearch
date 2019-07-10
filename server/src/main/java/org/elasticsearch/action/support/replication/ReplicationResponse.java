@@ -64,7 +64,6 @@ public class ReplicationResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardInfo.writeTo(out);
     }
 

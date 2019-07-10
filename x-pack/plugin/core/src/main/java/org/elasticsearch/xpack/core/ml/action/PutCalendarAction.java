@@ -152,7 +152,6 @@ public class PutCalendarAction extends StreamableResponseActionType<PutCalendarA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             calendar.writeTo(out);
         }
 

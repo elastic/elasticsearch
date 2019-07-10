@@ -112,7 +112,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         static class Response extends ActionResponse {
-
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {}
         }
 
         @Override

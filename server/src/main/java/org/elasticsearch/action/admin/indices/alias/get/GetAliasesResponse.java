@@ -66,7 +66,6 @@ public class GetAliasesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(aliases.size());
         for (ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
             out.writeString(entry.key);

@@ -239,12 +239,19 @@ public abstract class Publication {
             if (applyCommitRequest.isPresent()) {
                 sendApplyCommit();
             } else {
-                Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
-                    assert applyCommitRequest.isPresent() == false;
-                    applyCommitRequest = Optional.of(applyCommit);
-                    ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
-                    publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
-                });
+                try {
+                    Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
+                        assert applyCommitRequest.isPresent() == false;
+                        applyCommitRequest = Optional.of(applyCommit);
+                        ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
+                        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
+                    });
+                } catch (Exception e) {
+                    setFailed(e);
+                    onPossibleCommitFailure();
+                } finally {
+                    assert publicationCompletedIffAllTargetsInactiveOrCancelled();
+                }
             }
         }
 
@@ -333,15 +340,9 @@ public abstract class Publication {
 
                 assert state == PublicationTargetState.SENT_PUBLISH_REQUEST : state + " -> " + PublicationTargetState.WAITING_FOR_QUORUM;
                 state = PublicationTargetState.WAITING_FOR_QUORUM;
+                handlePublishResponse(response.getPublishResponse());
 
-                try {
-                    handlePublishResponse(response.getPublishResponse());
-                } catch (Exception e) {
-                    setFailed(e);
-                    onPossibleCommitFailure();
-                } finally {
-                    assert publicationCompletedIffAllTargetsInactiveOrCancelled();
-                }
+                assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
 
             @Override

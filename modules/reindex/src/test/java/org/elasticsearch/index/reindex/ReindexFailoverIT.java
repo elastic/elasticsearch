@@ -103,12 +103,27 @@ public class ReindexFailoverIT extends ReindexTestCase {
 
         ensureYellow("dest");
 
-        assertBusy(() -> assertEquals(docCount, client().prepareSearch("dest").get().getHits().getTotalHits().value));
+        assertBusy(() -> {
+            try {
+                assertEquals(docCount, client().prepareSearch("dest").get().getHits().getTotalHits().value);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
 
         for (int i = 0; i < docCount; i++) {
-            GetResponse getResponse = client().prepareGet("dest", "_doc", Integer.toString(i)).get();
-            assertTrue("Doc with id [" + i + "] is missing", getResponse.isExists());
+            int docId = i;
+            assertBusy(() -> {
+                try {
+                    GetResponse getResponse = client().prepareGet("dest", "_doc", Integer.toString(docId)).get();
+                    assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
         }
+
+        // TODO: Add mechanism to wait for reindex task to complete
     }
 
     @Override

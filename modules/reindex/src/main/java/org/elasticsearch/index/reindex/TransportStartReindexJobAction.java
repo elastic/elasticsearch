@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -39,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.function.Predicate;
 
 public class TransportStartReindexJobAction
@@ -127,26 +125,8 @@ public class TransportStartReindexJobAction
             new PersistentTasksService.WaitForPersistentTaskListener<ReindexJob>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
-                    String executorNode = task.getExecutorNode();
-                    GetReindexJobTaskAction.Request request = new GetReindexJobTaskAction.Request(executorNode, taskId);
-                    ThreadContext threadContext = threadPool.getThreadContext();
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        threadContext.markAsSystemContext();
-                        client.execute(GetReindexJobTaskAction.INSTANCE, request, new ActionListener<>() {
-                            @Override
-                            public void onResponse(GetReindexJobTaskAction.Responses responses) {
-                                List<GetReindexJobTaskAction.Response> tasks = responses.getTasks();
-                                assert tasks.size() == 1 : "Expected 1 response, found " + tasks.size();
-                                GetReindexJobTaskAction.Response response = tasks.get(0);
-                                listener.onResponse(new StartReindexJobAction.Response(true, response.getTaskId().toString()));
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
-                            }
-                        });
-                    }
+                    ReindexJobState state = (ReindexJobState) task.getState();
+                    listener.onResponse(new StartReindexJobAction.Response(true, state.getTaskId().toString()));
                 }
 
                 @Override
@@ -175,12 +155,26 @@ public class TransportStartReindexJobAction
                 return false;
             }
             PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
-            return assignment != null && assignment.isAssigned() && (waitForDone == false || isDone(persistentTask));
+            if (assignment == null || assignment.isAssigned() == false) {
+                return false;
+            }
+
+            ReindexJobState state = (ReindexJobState) persistentTask.getState();
+
+
+            if (waitForDone == false) {
+                return isStarted(state);
+            } else {
+                return isDone(state);
+            }
         }
 
-        private boolean isDone(PersistentTasksCustomMetaData.PersistentTask<?> task) {
-            ReindexJobState state = (ReindexJobState) task.getState();
-            return state != null && (state.getReindexResponse() != null || state.getJobException() != null);
+        private boolean isStarted(ReindexJobState state) {
+            return state != null;
+        }
+
+        private boolean isDone(ReindexJobState state) {
+            return (state.getReindexResponse() != null || state.getJobException() != null);
         }
     }
 }

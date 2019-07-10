@@ -47,6 +47,7 @@ public class ReindexTask extends AllocatedPersistentTask {
     public static final String NAME = "reindex/job";
 
     private final Client client;
+    private final TaskId taskId;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
@@ -62,7 +63,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, ReindexJob reindexJob, PersistentTaskState state) {
             ReindexTask reindexTask = (ReindexTask) task;
-            reindexTask.doReindex(reindexJob);
+            reindexTask.startTaskAndNotify(reindexJob);
         }
 
         @Override
@@ -78,7 +79,22 @@ public class ReindexTask extends AllocatedPersistentTask {
     private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                         ClusterService clusterService, Client client, ReindexRequest reindexRequest) {
         super(id, type, action, "persistent " + reindexRequest.toString(), parentTask, headers);
-        this.client = new ParentTaskAssigningClient(client, new TaskId(clusterService.localNode().getId(), id));
+        taskId = new TaskId(clusterService.localNode().getId(), id);
+        this.client = new ParentTaskAssigningClient(client, taskId);
+    }
+
+    private void startTaskAndNotify(ReindexJob reindexJob) {
+        updatePersistentTaskState(new ReindexJobState(taskId, null, null), new ActionListener<>() {
+            @Override
+            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                doReindex(reindexJob);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.info("Failed to update reindex persistent task with ephemeral id.", e);
+            }
+        });
     }
 
     private void doReindex(ReindexJob reindexJob) {
@@ -94,7 +110,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(BulkByScrollResponse response) {
-                        updatePersistentTaskState(new ReindexJobState(response, null), new ActionListener<>() {
+                        updatePersistentTaskState(new ReindexJobState(taskId, response, null), new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
                                 taskManager.storeResult(ReindexTask.this, response, new ActionListener<>() {
@@ -121,7 +137,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                     @Override
                     public void onFailure(Exception ex) {
-                        updatePersistentTaskState(new ReindexJobState(null, wrapException(ex)), new ActionListener<>() {
+                        updatePersistentTaskState(new ReindexJobState(taskId, null, wrapException(ex)), new ActionListener<>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
                                 taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));

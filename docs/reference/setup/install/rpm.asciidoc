@@ -40,7 +40,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-Create a file called `elasticsearch.repo` in the `/etc/yum.repos.d/` directory
+Create a file called `elasticsearch.repo` in the `/etc/yum/repos.d/` directory
 for RedHat based distributions, or in the `/etc/zypp/repos.d/` directory for
 OpenSuSE based distributions, containing:
 

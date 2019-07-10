@@ -373,6 +373,8 @@ allprojects {
   task wipeEclipseSettings(type: Delete) {
     delete '.settings'
   }
+  tasks.eclipse.dependsOn copyEclipseSettings
+  tasks.cleanEclipse.dependsOn wipeEclipseSettings
 
 }
 

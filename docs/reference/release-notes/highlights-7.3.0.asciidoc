@@ -28,18 +28,18 @@ distribution of Elasticsearch.
 ==== Aliases are replicated via {ccr}
 
 Read aliases are now replicated via <<ccr-put-follow,{ccr}>>. Note that write
-aliases are still not replicated since they only make since for indices that
+aliases are still not replicated since they only make sense for indices that
 are being written to while follower indices do not receive direct writes.
 
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
 [float]
-==== Memory leak when using templates in document-level security
+==== Fixed memory leak when using templates in document-level seciurity
 
 {xpack-ref}/document-level-security.html[Document-level security] was using an
 unbounded cache for the set of visible documents. This could lead to a memory
-leaks when using a templated query as a role query. The cache has been fixed to
-evict based on memorory usage and has a limit of 50MB.
+leak when using a templated query as a role query. The cache has been fixed to
+evict based on memory usage and has a limit of 50MB.
 
 // end::notable-highlights[]

@@ -90,7 +90,12 @@ The API returns the following results:
           "ml.max_open_jobs": "20"
         }
       },
-      "assignment_explanation": ""
+      "assignment_explanation": "",
+      "timing_stats": {
+        "job_id": "job-total-requests",
+        "search_count": 20,
+        "total_search_time_ms": 120.5
+      }
     }
   ]
 }

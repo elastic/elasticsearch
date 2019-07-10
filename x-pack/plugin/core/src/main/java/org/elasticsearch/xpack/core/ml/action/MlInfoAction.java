@@ -78,7 +78,6 @@ public class MlInfoAction extends StreamableResponseActionType<MlInfoAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(info);
         }
 

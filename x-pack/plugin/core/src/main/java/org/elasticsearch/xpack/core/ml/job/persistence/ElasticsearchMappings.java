@@ -25,7 +25,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -144,6 +149,7 @@ public class ElasticsearchMappings {
 
         addJobConfigFields(builder);
         addDatafeedConfigFields(builder);
+        addDataFrameAnalyticsFields(builder);
 
         builder.endObject()
                .endObject()
@@ -387,6 +393,60 @@ public class ElasticsearchMappings {
     }
 
     /**
+     * {@link DataFrameAnalyticsConfig} mapping.
+     * Does not include mapping for CREATE_TIME as this mapping is added by {@link #addJobConfigFields} method.
+     */
+    public static void addDataFrameAnalyticsFields(XContentBuilder builder) throws IOException {
+        builder.startObject(DataFrameAnalyticsConfig.ID.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.SOURCE.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(DataFrameAnalyticsSource.INDEX.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(DataFrameAnalyticsSource.QUERY.getPreferredName())
+                    .field(ENABLED, false)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.DEST.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(DataFrameAnalyticsDest.INDEX.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName())
+            .field(ENABLED, false)
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.ANALYSIS.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(OutlierDetection.NAME.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(OutlierDetection.N_NEIGHBORS.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(OutlierDetection.METHOD.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject()
+        // re-used: CREATE_TIME
+        .startObject(DataFrameAnalyticsConfig.VERSION.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject();
+    }
+
+    /**
      * Creates a default mapping which has a dynamic template that
      * treats all dynamically added fields as keywords. This is needed
      * so that the per-job term fields will not be automatically added
@@ -451,6 +511,7 @@ public class ElasticsearchMappings {
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
         addTimingStatsExceptBucketCountMapping(builder);
+        addDatafeedTimingStats(builder);
         addModelSnapshotMapping(builder);
 
         addTermFields(builder, extraTermFields);
@@ -864,7 +925,22 @@ public class ElasticsearchMappings {
             .startObject(TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject()
-            .startObject(TimingStats.EXPONENTIAL_AVERAGE_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+            .startObject(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject();
+    }
+
+    /**
+     * {@link DatafeedTimingStats} mapping.
+     *
+     * @throws IOException On builder write error
+     */
+    private static void addDatafeedTimingStats(XContentBuilder builder) throws IOException {
+        builder
+            .startObject(DatafeedTimingStats.SEARCH_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject();
     }

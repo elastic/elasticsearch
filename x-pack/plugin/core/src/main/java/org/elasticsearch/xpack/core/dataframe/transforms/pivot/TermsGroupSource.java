@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
+import java.util.Set;
 
 /*
  * A terms aggregation source for group_by
@@ -46,5 +49,15 @@ public class TermsGroupSource extends SingleGroupSource {
 
     public static TermsGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
+    }
+
+    @Override
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
+        return new TermsQueryBuilder(field, changedBuckets);
+    }
+
+    @Override
+    public boolean supportsIncrementalBucketUpdate() {
+        return true;
     }
 }

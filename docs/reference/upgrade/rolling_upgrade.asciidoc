@@ -10,8 +10,8 @@ running the older version.
 Rolling upgrades are supported:
 
 * Between minor versions
-* {stack-ref-67}/upgrading-elastic-stack.html[From 5.6 to 6.7]
-* {stack-ref-70}/upgrading-elastic-stack.html[From 6.7 to 7.0]
+* {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
+* {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
 * From {prev-major-version} to {version}
 
 Upgrading directly to {version} from 6.6 or earlier requires a

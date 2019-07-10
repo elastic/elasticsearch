@@ -80,7 +80,6 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(indexName);
         out.writeMap(responseMap,
             StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));

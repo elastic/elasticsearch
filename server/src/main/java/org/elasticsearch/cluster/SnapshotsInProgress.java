@@ -315,24 +315,21 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public enum State {
-        INIT((byte) 0, false, false),
-        STARTED((byte) 1, false, false),
-        SUCCESS((byte) 2, true, false),
-        FAILED((byte) 3, true, true),
-        ABORTED((byte) 4, false, true),
-        MISSING((byte) 5, true, true),
-        WAITING((byte) 6, false, false);
+        INIT((byte) 0, false),
+        STARTED((byte) 1, false),
+        SUCCESS((byte) 2, true),
+        FAILED((byte) 3, true),
+        ABORTED((byte) 4, false),
+        MISSING((byte) 5, true),
+        WAITING((byte) 6, false);
 
         private final byte value;
 
         private final boolean completed;
 
-        private final boolean failed;
-
-        State(byte value, boolean completed, boolean failed) {
+        State(byte value, boolean completed) {
             this.value = value;
             this.completed = completed;
-            this.failed = failed;
         }
 
         public byte value() {
@@ -341,10 +338,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public boolean completed() {
             return completed;
-        }
-
-        public boolean failed() {
-            return failed;
         }
 
         public static State fromValue(byte value) {

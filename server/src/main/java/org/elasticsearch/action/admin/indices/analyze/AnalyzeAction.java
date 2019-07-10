@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
@@ -45,7 +45,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class AnalyzeAction extends Action<AnalyzeAction.Response> {
+public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
     public static final String NAME = "indices:admin/analyze";
@@ -57,11 +57,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
     @Override
     public Writeable.Reader<Response> getResponseReader() {
         return Response::new;
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     /**
@@ -351,7 +346,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             if (tokens != null) {
                 out.writeVInt(tokens.size());
                 for (AnalyzeToken token : tokens) {

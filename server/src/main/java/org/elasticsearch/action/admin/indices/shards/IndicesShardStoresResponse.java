@@ -258,12 +258,9 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("node", nodeId());
-            super.innerToXContent(builder, params);
-            builder.endObject();
-            return builder;
+            return super.innerToXContent(builder, params);
         }
     }
 
@@ -331,7 +328,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(storeStatuses.size());
         for (ObjectObjectCursor<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses) {
             out.writeString(indexShards.key);

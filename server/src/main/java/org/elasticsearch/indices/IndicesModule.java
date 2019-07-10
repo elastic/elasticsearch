@@ -56,7 +56,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
@@ -245,7 +244,6 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
-        bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
         bind(TransportResyncReplicationAction.class).asEagerSingleton();
         bind(PrimaryReplicaSyncer.class).asEagerSingleton();
     }

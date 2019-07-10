@@ -739,19 +739,22 @@ public class MetaDataCreateIndexService {
             final ResizeType type,
             final boolean copySettings,
             final IndexScopedSettings indexScopedSettings) {
+
+        // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
+        // once we are allocated.
+        final String initialRecoveryIdFilter = IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id";
+
         final IndexMetaData sourceMetaData = currentState.metaData().index(resizeSourceIndex.getName());
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, resizeSourceIndex.getName(),
                 mappingKeys, resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder
-                // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
-                // once we are allocated.
-                .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
-                    Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+                .put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
                 // we only try once and then give up with a shrink index
                 .put("index.allocation.max_retries", 1);
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+            indexSettingsBuilder.putNull(initialRecoveryIdFilter);
         } else {
             throw new IllegalStateException("unknown resize type is " + type);
         }

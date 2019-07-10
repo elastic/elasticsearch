@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -83,8 +84,14 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
     }
 
     public void testPostOperationGlobalCheckpointSync() throws Exception {
-        // set the sync interval high so it does not execute during this test
-        runGlobalCheckpointSyncTest(TimeValue.timeValueHours(24), client -> {}, client -> {});
+        // set the sync interval high so it does not execute during this test. This only allows the global checkpoint to catch up
+        // on a post-operation background sync if translog durability is set to sync. Async durability relies on a scheduled global
+        // checkpoint sync to allow the information about persisted local checkpoints to be transferred to the primary.
+        runGlobalCheckpointSyncTest(TimeValue.timeValueHours(24),
+            client ->
+                client.admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)).get(),
+            client -> {});
     }
 
     /*
@@ -212,7 +219,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                     assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                 }
             }
-        });
+        }, 30, TimeUnit.SECONDS);
 
         for (final Thread thread : threads) {
             thread.join();

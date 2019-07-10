@@ -143,3 +143,10 @@ update their values:
   `started`::: The {dfeed} is actively receiving data.
   `stopped`::: The {dfeed} is stopped and will not receive data until it is
   re-started.
+
+`timing_stats`::
+  (object) An object that provides statistical information about timing aspect of this datafeed. +
+  `job_id`::: A numerical character string that uniquely identifies the job.
+  `search_count`::: Number of searches performed by this datafeed.
+  `total_search_time_ms`::: Total time the datafeed spent searching in milliseconds.
+

@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -59,8 +60,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
-    // interval the scheduler sends an event
-    private static final int SCHEDULER_NEXT_MILLISECONDS = 10000;
+    // Default interval the scheduler sends an event if the config does not specify a frequency
+    private static final long SCHEDULER_NEXT_MILLISECONDS = 60000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
     // TODO consider moving to dynamic cluster setting
     private static final int MAX_CONTINUOUS_FAILURES = 10;
@@ -363,7 +364,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
-            return now + SCHEDULER_NEXT_MILLISECONDS;
+            TimeValue frequency = transform.getFrequency();
+            return now + (frequency == null ? SCHEDULER_NEXT_MILLISECONDS : frequency.getMillis());
         };
     }
 

@@ -54,7 +54,7 @@ public class MapXContentParser extends AbstractXContentParser {
         if (iterator != null && iterator.currentValue() instanceof Boolean) {
             return (Boolean) iterator.currentValue();
         } else {
-            throw new IllegalStateException("Cannot get numeric value for the current token " + currentToken());
+            throw new IllegalStateException("Cannot get boolean value for the current token " + currentToken());
         }
     }
 

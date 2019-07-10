@@ -442,8 +442,8 @@ public class TransportStartDataFrameAnalyticsAction
 
             List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, AnomalyDetectorsIndex.configIndexName());
             if (unavailableIndices.size() != 0) {
-                String reason = "Not opening job [" + id + "], because not all primary shards are active for the following indices [" +
-                    String.join(",", unavailableIndices) + "]";
+                String reason = "Not opening data frame analytics job [" + id +
+                    "], because not all primary shards are active for the following indices [" + String.join(",", unavailableIndices) + "]";
                 LOGGER.debug(reason);
                 return new PersistentTasksCustomMetaData.Assignment(null, reason);
             }
@@ -452,7 +452,8 @@ public class TransportStartDataFrameAnalyticsAction
             if (isMemoryTrackerRecentlyRefreshed == false) {
                 boolean scheduledRefresh = memoryTracker.asyncRefresh();
                 if (scheduledRefresh) {
-                    String reason = "Not opening job [" + id + "] because job memory requirements are stale - refresh requested";
+                    String reason = "Not opening data frame analytics job [" + id +
+                        "] because job memory requirements are stale - refresh requested";
                     LOGGER.debug(reason);
                     return new PersistentTasksCustomMetaData.Assignment(null, reason);
                 }

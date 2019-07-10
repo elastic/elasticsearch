@@ -90,9 +90,6 @@ script.allowed_types: inline <1>
 <1> This will allow only inline scripts to be executed but not stored scripts
 (or any other types).
 
-Setting `script.allowed_types: null` or `script.allowed_types: inline, stored`
-allows both types of scripts to run.
-
 [[allowed-script-contexts-setting]]
 [float]
 === Allowed script contexts setting

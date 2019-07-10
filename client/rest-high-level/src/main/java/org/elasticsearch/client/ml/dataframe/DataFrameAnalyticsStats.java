@@ -41,6 +41,7 @@ public class DataFrameAnalyticsStats {
 
     static final ParseField ID = new ParseField("id");
     static final ParseField STATE = new ParseField("state");
+    static final ParseField FAILURE_REASON = new ParseField("failure_reason");
     static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
     static final ParseField NODE = new ParseField("node");
     static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
@@ -50,9 +51,10 @@ public class DataFrameAnalyticsStats {
             args -> new DataFrameAnalyticsStats(
                 (String) args[0],
                 (DataFrameAnalyticsState) args[1],
-                (Integer) args[2],
-                (NodeAttributes) args[3],
-                (String) args[4]));
+                (String) args[2],
+                (Integer) args[3],
+                (NodeAttributes) args[4],
+                (String) args[5]));
 
     static {
         PARSER.declareString(constructorArg(), ID);
@@ -62,6 +64,7 @@ public class DataFrameAnalyticsStats {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(optionalConstructorArg(), FAILURE_REASON);
         PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
         PARSER.declareObject(optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
@@ -69,14 +72,17 @@ public class DataFrameAnalyticsStats {
 
     private final String id;
     private final DataFrameAnalyticsState state;
+    private final String failureReason;
     private final Integer progressPercent;
     private final NodeAttributes node;
     private final String assignmentExplanation;
 
-    public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable Integer progressPercent,
-                                   @Nullable NodeAttributes node, @Nullable String assignmentExplanation) {
+    public DataFrameAnalyticsStats(String id, DataFrameAnalyticsState state, @Nullable String failureReason,
+                                   @Nullable Integer progressPercent, @Nullable NodeAttributes node,
+                                   @Nullable String assignmentExplanation) {
         this.id = id;
         this.state = state;
+        this.failureReason = failureReason;
         this.progressPercent = progressPercent;
         this.node = node;
         this.assignmentExplanation = assignmentExplanation;
@@ -88,6 +94,10 @@ public class DataFrameAnalyticsStats {
 
     public DataFrameAnalyticsState getState() {
         return state;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
     }
 
     public Integer getProgressPercent() {
@@ -110,6 +120,7 @@ public class DataFrameAnalyticsStats {
         DataFrameAnalyticsStats other = (DataFrameAnalyticsStats) o;
         return Objects.equals(id, other.id)
             && Objects.equals(state, other.state)
+            && Objects.equals(failureReason, other.failureReason)
             && Objects.equals(progressPercent, other.progressPercent)
             && Objects.equals(node, other.node)
             && Objects.equals(assignmentExplanation, other.assignmentExplanation);
@@ -117,7 +128,7 @@ public class DataFrameAnalyticsStats {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, state, progressPercent, node, assignmentExplanation);
+        return Objects.hash(id, state, failureReason, progressPercent, node, assignmentExplanation);
     }
 
     @Override
@@ -125,6 +136,7 @@ public class DataFrameAnalyticsStats {
         return new ToStringBuilder(getClass())
             .add("id", id)
             .add("state", state)
+            .add("failureReason", failureReason)
             .add("progressPercent", progressPercent)
             .add("node", node)
             .add("assignmentExplanation", assignmentExplanation)

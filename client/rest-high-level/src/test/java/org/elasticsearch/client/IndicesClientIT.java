@@ -73,6 +73,8 @@ import org.elasticsearch.client.indices.IndexTemplateMetaData;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
+import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -190,8 +192,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             = new org.elasticsearch.action.admin.indices.get.GetIndexRequest();
         request.indices(indexName);
 
-        boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync,
-                expectWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE));
+        boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync);
         assertTrue(response);
     }
 
@@ -1876,5 +1877,15 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             client.indices()::unfreezeAsync);
         assertTrue(unfreeze.isShardsAcknowledged());
         assertTrue(unfreeze.isAcknowledged());
+    }
+
+    public void testReloadAnalyzer() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+
+        ReloadAnalyzersResponse reloadResponse = execute(new ReloadAnalyzersRequest("test"), client.indices()::reloadAnalyzers,
+            client.indices()::reloadAnalyzersAsync);
+        assertNotNull(reloadResponse.shards());
+        assertTrue(reloadResponse.getReloadedDetails().containsKey("test"));
     }
 }

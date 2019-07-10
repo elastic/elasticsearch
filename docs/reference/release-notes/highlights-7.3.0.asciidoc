@@ -10,7 +10,7 @@ coming[7.3.0]
 //Installation and Upgrade Guide
 
 // tag::notable-highlights[]
-[discrete]
+[float]
 ==== Voting-only master nodes
 
 A new <<voting-only-node,`node.voting-only`>> role has been introduced that

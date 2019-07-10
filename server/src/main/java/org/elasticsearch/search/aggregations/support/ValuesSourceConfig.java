@@ -24,8 +24,10 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -247,6 +249,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 vs = (VS) ValuesSource.Numeric.EMPTY;
             } else if (valueSourceType() == ValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
+            } else if (valueSourceType() == ValuesSourceType.GEOSHAPE) {
+                vs = (VS) ValuesSource.GeoShape.EMPTY;
             } else if (valueSourceType() == ValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
             } else if (valueSourceType() == ValuesSourceType.ANY) {
@@ -274,8 +278,12 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
         } else if (vs instanceof ValuesSource.GeoPoint) {
             // TODO: also support the structured formats of geo points
-            final GeoPoint missing = new GeoPoint(missing().toString());
+            final MultiGeoValues.GeoPointValue missing = new
+                MultiGeoValues.GeoPointValue(new GeoPoint(missing().toString()));
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
+        } else if (vs instanceof ValuesSource.GeoShape) {
+            final MultiGeoValues.GeoShapeValue missing = new MultiGeoValues.GeoShapeValue(0, 0, 0, 0);
+            return (VS) MissingValues.replaceMissing((ValuesSource.GeoShape) vs, missing);
         } else {
             // Should not happen
             throw new IllegalArgumentException("Can't apply missing values on a " + vs.getClass());
@@ -302,6 +310,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
         if (valueSourceType() == ValuesSourceType.GEOPOINT) {
             return (VS) geoPointField();
+        }
+        if (valueSourceType() == ValuesSourceType.GEOSHAPE) {
+            return (VS) geoShapeField();
         }
         // falling back to bytes values
         return (VS) bytesField();
@@ -351,5 +362,15 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
 
         return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext().indexFieldData());
+    }
+
+    private ValuesSource.GeoShape geoShapeField() {
+
+        if (!(fieldContext().indexFieldData() instanceof IndexGeoShapeFieldData)) {
+            throw new IllegalArgumentException("Expected geo_shape type on field [" + fieldContext().field() +
+                "], but got [" + fieldContext().fieldType().typeName() + "]");
+        }
+
+        return new ValuesSource.GeoShape.Fielddata((IndexGeoShapeFieldData) fieldContext().indexFieldData());
     }
 }

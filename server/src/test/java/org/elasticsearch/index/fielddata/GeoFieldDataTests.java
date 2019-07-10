@@ -160,7 +160,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoValues();
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -176,7 +176,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoValues();
             assertValues(fieldValues, 0);
             assertMissing(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -192,7 +192,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoValues();
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -208,7 +208,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoValues fieldValues = ((AbstractAtomicGeoPointFieldData)fieldData).getGeoValues();
 
             assertValues(fieldValues, 0);
             assertMissing(fieldValues, 1);

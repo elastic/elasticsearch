@@ -260,11 +260,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
 
-        private final MultiGeoPointValues in;
+        private final MultiGeoValues in;
         private GeoPoint[] values = new GeoPoint[0];
         private int count;
 
-        public GeoPoints(MultiGeoPointValues in) {
+        public GeoPoints(MultiGeoValues in) {
             this.in = in;
         }
 
@@ -273,7 +273,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    GeoPoint point = in.nextValue();
+                    MultiGeoValues.GeoValue point = in.nextValue();
                     values[i] = new GeoPoint(point.lat(), point.lon());
                 }
             } else {

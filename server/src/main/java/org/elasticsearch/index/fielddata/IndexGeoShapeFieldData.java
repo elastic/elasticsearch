@@ -19,32 +19,9 @@
 
 package org.elasticsearch.index.fielddata;
 
-import java.io.IOException;
 
-final class SingletonMultiGeoPointValues extends MultiGeoValues {
-
-    private final MultiGeoValues in;
-
-    SingletonMultiGeoPointValues(MultiGeoValues in) {
-        this.in = in;
-    }
-
-    @Override
-    public boolean advanceExact(int doc) throws IOException {
-        return in.advanceExact(doc);
-    }
-
-    @Override
-    public int docValueCount() {
-        return 1;
-    }
-
-    @Override
-    public GeoValue nextValue() throws IOException {
-        return in.nextValue();
-    }
-
-    MultiGeoValues getGeoValues() {
-        return in;
-    }
+/**
+ * Specialization of {@link IndexFieldData} for geo points.
+ */
+public interface IndexGeoShapeFieldData extends IndexFieldData<AtomicGeoFieldData> {
 }

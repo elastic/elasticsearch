@@ -25,7 +25,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -108,7 +108,7 @@ public class GeoDistanceRangeAggregatorFactory
 
         @Override
         public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
-            final MultiGeoPointValues geoValues = source.geoPointValues(ctx);
+            final MultiGeoValues geoValues = source.geoValues(ctx);
             return GeoUtils.distanceValues(distanceType, units, geoValues, origin);
         }
 

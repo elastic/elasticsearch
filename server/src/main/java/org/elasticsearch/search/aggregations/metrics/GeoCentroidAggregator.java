@@ -25,7 +25,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -67,7 +67,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+        final MultiGeoValues values = valuesSource.geoValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -90,14 +90,14 @@ final class GeoCentroidAggregator extends MetricsAggregator {
 
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
-                        GeoPoint value = values.nextValue();
+                        MultiGeoValues.GeoValue value = values.nextValue();
                         //latitude
-                        double correctedLat = value.getLat() - compensationLat;
+                        double correctedLat = value.lat() - compensationLat;
                         double newSumLat = sumLat + correctedLat;
                         compensationLat = (newSumLat - sumLat) - correctedLat;
                         sumLat = newSumLat;
                         //longitude
-                        double correctedLon = value.getLon() - compensationLon;
+                        double correctedLon = value.lon() - compensationLon;
                         double newSumLon = sumLon + correctedLon;
                         compensationLon = (newSumLon - sumLon) - correctedLon;
                         sumLon = newSumLon;

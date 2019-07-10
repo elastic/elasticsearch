@@ -21,11 +21,10 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -81,7 +80,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+        final MultiGeoValues values = valuesSource.geoValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -105,7 +104,8 @@ final class GeoBoundsAggregator extends MetricsAggregator {
                     final int valuesCount = values.docValueCount();
 
                     for (int i = 0; i < valuesCount; ++i) {
-                        GeoPoint value = values.nextValue();
+                        MultiGeoValues.GeoValue value = values.nextValue();
+
                         double top = tops.get(bucket);
                         if (value.lat() > top) {
                             top = value.lat();

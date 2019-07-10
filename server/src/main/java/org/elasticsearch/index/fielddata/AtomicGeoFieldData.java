@@ -20,13 +20,13 @@ package org.elasticsearch.index.fielddata;
 
 
 /**
- * {@link AtomicFieldData} specialization for geo points.
+ * {@link AtomicFieldData} specialization for geo points and shapes.
  */
-public interface AtomicGeoPointFieldData extends AtomicFieldData {
+public interface AtomicGeoFieldData extends AtomicFieldData {
 
     /**
-     * Return geo-point values.
+     * Return geo values.
      */
-    MultiGeoPointValues getGeoPointValues();
+    MultiGeoValues getGeoValues();
 
 }

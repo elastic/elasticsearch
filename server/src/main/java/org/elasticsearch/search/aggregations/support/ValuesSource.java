@@ -35,9 +35,10 @@ import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
@@ -485,13 +486,17 @@ public abstract class ValuesSource {
         }
     }
 
-    public abstract static class GeoPoint extends ValuesSource {
+    public interface Geo {
+        MultiGeoValues geoValues(LeafReaderContext context);
+    }
+
+    public abstract static class GeoPoint extends ValuesSource implements Geo {
 
         public static final GeoPoint EMPTY = new GeoPoint() {
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoValues();
             }
 
             @Override
@@ -503,11 +508,9 @@ public abstract class ValuesSource {
 
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            final MultiGeoPointValues geoPoints = geoPointValues(context);
+            final MultiGeoValues geoPoints = geoValues(context);
             return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints);
         }
-
-        public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
 
@@ -522,8 +525,49 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getGeoPointValues();
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getGeoValues();
+            }
+        }
+    }
+
+    public abstract static class GeoShape extends ValuesSource implements Geo {
+
+        public static final GeoShape EMPTY = new GeoShape() {
+
+            @Override
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoValues();
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return org.elasticsearch.index.fielddata.FieldData.emptySortedBinary();
+            }
+
+        };
+
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+            final MultiGeoValues geoShapes = geoValues(context);
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoShapes);
+        }
+
+        public static class Fielddata extends GeoShape {
+
+            protected final IndexGeoShapeFieldData indexFieldData;
+
+            public Fielddata(IndexGeoShapeFieldData indexFieldData) {
+                this.indexFieldData = indexFieldData;
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getBytesValues();
+            }
+
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getGeoValues();
             }
         }
     }

@@ -23,9 +23,18 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
@@ -36,10 +45,15 @@ import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLatLonShapeDVIndexFieldData;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -74,6 +88,11 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
+
+        @Override
+        public boolean defaultDocValues(Version indexCreated) {
+            return Version.V_8_0_0.onOrBefore(indexCreated);
+        }
     }
 
     public static final class GeoShapeFieldType extends BaseGeoShapeFieldType {
@@ -83,6 +102,26 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
             super(ref);
+        }
+
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new AbstractLatLonShapeDVIndexFieldData.Builder();
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: ["
+                + name() + "]");
         }
 
         @Override
@@ -128,7 +167,18 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
 
     private void indexShape(ParseContext context, Object luceneShape) {
         if (luceneShape instanceof Geometry) {
-            ((Geometry) luceneShape).visit(new LuceneGeometryIndexer(context));
+            Geometry geometry = (Geometry) luceneShape;
+            geometry.visit(new LuceneGeometryIndexer(context));
+            if (fieldType().hasDocValues()) {
+                String name = fieldType().name();
+                BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+                if (docValuesField == null) {
+                    docValuesField = new BinaryGeoShapeDocValuesField(name, geometry);
+                    context.doc().addWithKey(name, docValuesField);
+                } else {
+                    docValuesField.add(geometry);
+                }
+            }
         } else {
             throw new IllegalArgumentException("invalid shape type found [" + luceneShape.getClass() + "] while indexing shape");
         }
@@ -223,6 +273,39 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         createFieldNamesField(context, flist);
         for (IndexableField f : flist) {
             context.doc().add(f);
+        }
+    }
+
+    static class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
+
+        private List<Geometry> geometries;
+
+        BinaryGeoShapeDocValuesField(String name, Geometry geometry) {
+            super(name);
+            this.geometries = new ArrayList<>(1);
+            add(geometry);
+        }
+
+        void add(Geometry geometry) {
+            geometries.add(geometry);
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            try {
+                final Geometry geometry;
+                if (geometries.size() > 1) {
+                    geometry = new GeometryCollection(geometries);
+                } else {
+                    geometry = geometries.get(0);
+                }
+                final GeometryTreeWriter writer = new GeometryTreeWriter(geometry);
+                BytesStreamOutput output = new BytesStreamOutput();
+                writer.writeTo(output);
+                return output.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to encode shape", e);
+            }
         }
     }
 }

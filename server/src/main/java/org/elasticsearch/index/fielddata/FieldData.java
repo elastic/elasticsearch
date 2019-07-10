@@ -25,7 +25,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,25 +68,26 @@ public enum FieldData {
         return singleton(emptyNumericDouble());
     }
 
-    public static GeoPointValues emptyGeoPoint() {
-        return new GeoPointValues() {
+    /**
+     * Return a {@link MultiGeoValues} that doesn't contain any value.
+     */
+    public static MultiGeoValues emptyMultiGeoValues() {
+        return new MultiGeoValues() {
             @Override
-            public boolean advanceExact(int doc) throws IOException {
+            public boolean advanceExact(int doc) {
                 return false;
             }
 
             @Override
-            public GeoPoint geoPointValue() {
+            public int docValueCount() {
+                return 0;
+            }
+
+            @Override
+            public GeoValue nextValue() {
                 throw new UnsupportedOperationException();
             }
         };
-    }
-
-    /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
-     */
-    public static MultiGeoPointValues emptyMultiGeoPoints() {
-        return singleton(emptyGeoPoint());
     }
 
     /**
@@ -119,7 +119,7 @@ public enum FieldData {
      * Returns a {@link DocValueBits} representing all documents from <code>pointValues</code> that have
      * a value.
      */
-    public static DocValueBits docsWithValue(final MultiGeoPointValues pointValues) {
+    public static DocValueBits docsWithValue(final MultiGeoValues pointValues) {
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -246,20 +246,13 @@ public enum FieldData {
     }
 
     /**
-     * Returns a multi-valued view over the provided {@link GeoPointValues}.
-     */
-    public static MultiGeoPointValues singleton(GeoPointValues values) {
-        return new SingletonMultiGeoPointValues(values);
-    }
-
-    /**
-     * Returns a single-valued view of the {@link MultiGeoPointValues},
-     * if it was previously wrapped with {@link #singleton(GeoPointValues)},
+     * Returns a single-valued view of the {@link MultiGeoValues},
+     * if it was previously wrapped {@link SingletonMultiGeoPointValues},
      * or null.
      */
-    public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
+    public static MultiGeoValues unwrapSingleton(MultiGeoValues values) {
         if (values instanceof SingletonMultiGeoPointValues) {
-            return ((SingletonMultiGeoPointValues) values).getGeoPointValues();
+            return ((SingletonMultiGeoPointValues) values).getGeoValues();
         }
         return null;
     }
@@ -375,7 +368,7 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
-    public static SortedBinaryDocValues toString(final MultiGeoPointValues values) {
+    public static SortedBinaryDocValues toString(final MultiGeoValues values) {
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {

@@ -29,14 +29,14 @@ import java.util.Arrays;
 
 public class ScriptDocValuesGeoPointsTests extends ESTestCase {
 
-    private static MultiGeoPointValues wrap(GeoPoint[][] points) {
-        return new MultiGeoPointValues() {
+    private static MultiGeoValues wrap(GeoPoint[][] points) {
+        return new MultiGeoValues() {
             GeoPoint[] current;
             int i;
 
             @Override
-            public GeoPoint nextValue() {
-                return current[i++];
+            public GeoValue nextValue() {
+                return new GeoPointValue(current[i++]);
             }
 
             @Override
@@ -72,7 +72,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         final double lon2 = randomLon();
 
         GeoPoint[][] points = {{new GeoPoint(lat1, lon1), new GeoPoint(lat2, lon2)}};
-        final MultiGeoPointValues values = wrap(points);
+        final MultiGeoValues values = wrap(points);
         final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
 
         script.setNextDocId(1);
@@ -90,7 +90,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         final double lat = randomLat();
         final double lon = randomLon();
         GeoPoint[][] points = {{new GeoPoint(lat, lon)}};
-        final MultiGeoPointValues values = wrap(points);
+        final MultiGeoValues values = wrap(points);
         final ScriptDocValues.GeoPoints script = new ScriptDocValues.GeoPoints(values);
         script.setNextDocId(0);
 

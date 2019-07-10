@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import java.io.IOException;
 
 /**
- * Wrapper class to help convert {@link MultiGeoPointValues}
+ * Wrapper class to help convert {@link MultiGeoValues}
  * to numeric long values for bucketing.
  */
 class CellIdSource extends ValuesSource.Numeric {
@@ -55,7 +55,7 @@ class CellIdSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return new CellValues(valuesSource.geoPointValues(ctx), precision, encoder);
+        return new CellValues(valuesSource.geoValues(ctx), precision, encoder);
     }
 
     @Override
@@ -78,11 +78,11 @@ class CellIdSource extends ValuesSource.Numeric {
     }
 
     private static class CellValues extends AbstractSortingNumericDocValues {
-        private MultiGeoPointValues geoValues;
+        private MultiGeoValues geoValues;
         private int precision;
         private GeoPointLongEncoder encoder;
 
-        protected CellValues(MultiGeoPointValues geoValues, int precision, GeoPointLongEncoder encoder) {
+        protected CellValues(MultiGeoValues geoValues, int precision, GeoPointLongEncoder encoder) {
             this.geoValues = geoValues;
             this.precision = precision;
             this.encoder = encoder;
@@ -93,8 +93,8 @@ class CellIdSource extends ValuesSource.Numeric {
             if (geoValues.advanceExact(docId)) {
                 resize(geoValues.docValueCount());
                 for (int i = 0; i < docValueCount(); ++i) {
-                    org.elasticsearch.common.geo.GeoPoint target = geoValues.nextValue();
-                    values[i] = encoder.encode(target.getLon(), target.getLat(), precision);
+                    MultiGeoValues.GeoValue target = geoValues.nextValue();
+                    values[i] = encoder.encode(target.lon(), target.lat(), precision);
                 }
                 sort();
                 return true;

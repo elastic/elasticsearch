@@ -29,7 +29,7 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
@@ -346,20 +346,20 @@ public class MissingValuesTests extends ESTestCase {
 
     public void testMissingGeoPoints() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);
-        final GeoPoint[][] values = new GeoPoint[numDocs][];
+        final MultiGeoValues.GeoPointValue[][] values = new MultiGeoValues.GeoPointValue[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
-            values[i] = new GeoPoint[random().nextInt(4)];
+            values[i] = new MultiGeoValues.GeoPointValue[random().nextInt(4)];
             for (int j = 0; j < values[i].length; ++j) {
-                values[i][j] = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
+                values[i][j] = new MultiGeoValues.GeoPointValue(new GeoPoint(randomDouble() * 90, randomDouble() * 180));
             }
         }
-        MultiGeoPointValues asGeoValues = new MultiGeoPointValues() {
+        MultiGeoValues asGeoValues = new MultiGeoValues() {
 
             int doc = -1;
             int i;
 
             @Override
-            public GeoPoint nextValue() {
+            public GeoValue nextValue() {
                 return values[doc][i++];
             }
 
@@ -375,8 +375,9 @@ public class MissingValuesTests extends ESTestCase {
                 return values[doc].length;
             }
         };
-        final GeoPoint missing = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
-        MultiGeoPointValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
+        final MultiGeoValues.GeoPointValue missing = new MultiGeoValues.GeoPointValue(
+            new GeoPoint(randomDouble() * 90, randomDouble() * 180));
+        MultiGeoValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
         for (int i = 0; i < numDocs; ++i) {
             assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {

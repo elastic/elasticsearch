@@ -23,10 +23,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
@@ -356,7 +355,8 @@ public enum MissingValues {
         }
     }
 
-    public static ValuesSource.GeoPoint replaceMissing(final ValuesSource.GeoPoint valuesSource, final GeoPoint missing) {
+    public static ValuesSource.GeoPoint replaceMissing(final ValuesSource.GeoPoint valuesSource,
+                                                       final MultiGeoValues.GeoPointValue missing) {
         return new ValuesSource.GeoPoint() {
 
             @Override
@@ -365,15 +365,15 @@ public enum MissingValues {
             }
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                final MultiGeoPointValues values = valuesSource.geoPointValues(context);
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                final MultiGeoValues values = valuesSource.geoValues(context);
                 return replaceMissing(values, missing);
             }
         };
     }
 
-    static MultiGeoPointValues replaceMissing(final MultiGeoPointValues values, final GeoPoint missing) {
-        return new MultiGeoPointValues() {
+    static MultiGeoValues replaceMissing(final MultiGeoValues values, final MultiGeoValues.GeoValue missing) {
+        return new MultiGeoValues() {
 
             private int count;
 
@@ -395,12 +395,29 @@ public enum MissingValues {
             }
 
             @Override
-            public GeoPoint nextValue() throws IOException {
+            public GeoValue nextValue() throws IOException {
                 if (count > 0) {
                     return values.nextValue();
                 } else {
                     return missing;
                 }
+            }
+        };
+    }
+
+    public static ValuesSource.GeoShape replaceMissing(final ValuesSource.GeoShape valuesSource,
+                                                       final MultiGeoValues.GeoShapeValue missing) {
+        return new ValuesSource.GeoShape() {
+
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return replaceMissing(valuesSource.bytesValues(context), new BytesRef(missing.toString()));
+            }
+
+            @Override
+            public MultiGeoValues geoValues(LeafReaderContext context) {
+                final MultiGeoValues values = valuesSource.geoValues(context);
+                return replaceMissing(values, missing);
             }
         };
     }

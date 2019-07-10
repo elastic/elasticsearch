@@ -7,6 +7,17 @@
 Returns mapping definitions for an index.
 
 [float]
+[[indices-get-mapping-example]]
+=== {api-example-title}
+
+[source,js]
+----
+GET /twitter/_mapping
+----
+// CONSOLE
+// TEST[setup:twitter]
+
+[float]
 [[indices-get-mapping-request]]
 === {api-request-title}
 
@@ -77,14 +88,3 @@ response. Defaults to `false`. If `true`, state information is not retrieved
 from the master node.
 
 include::{docdir}/rest-api/timeoutparms.asciidoc[tag=master_timeout]
-
-[float]
-[[indices-get-mapping-example]]
-=== {api-example-title}
-
-[source,js]
-----
-GET /twitter/_mapping
-----
-// CONSOLE
-// TEST[setup:twitter]

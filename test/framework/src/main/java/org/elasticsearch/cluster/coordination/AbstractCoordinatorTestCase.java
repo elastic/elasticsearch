@@ -100,6 +100,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.CoordinationStateTestCluster.clusterState;
@@ -725,18 +726,55 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
                         outStream.setVersion(Version.CURRENT);
-                        final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
-                        final ClusterState clusterState;
-                        if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
-                            clusterState = ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build();
+
+                        final long persistedCurrentTerm;
+
+                        if ((oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
+                            && (oldState.getLastAcceptedState().term() > 0L || oldState.getLastAcceptedState().version() > 0L)
+                            && randomBoolean()) {
+
+                            // master-ineligible nodes do not reliably persist the cluster state, so emulate a rollback
+
+                            persistedCurrentTerm = randomLongBetween(0L, oldState.getCurrentTerm());
+                            final long lastAcceptedTerm = oldState.getLastAcceptedState().term();
+                            final long lastAcceptedVersion = oldState.getLastAcceptedState().version();
+
+                            final long newLastAcceptedTerm;
+                            final long newLastAcceptedVersion;
+
+                            if (lastAcceptedVersion == 0L) {
+                                newLastAcceptedTerm = randomLongBetween(0L, Math.min(persistedCurrentTerm, lastAcceptedTerm - 1));
+                                newLastAcceptedVersion = randomNonNegativeLong();
+                            } else {
+                                newLastAcceptedTerm = randomLongBetween(0L, Math.min(persistedCurrentTerm, lastAcceptedTerm));
+                                newLastAcceptedVersion = randomLongBetween(0L,
+                                    newLastAcceptedTerm == lastAcceptedTerm ? lastAcceptedVersion - 1 : Long.MAX_VALUE);
+                            }
+                            final VotingConfiguration newVotingConfiguration = new VotingConfiguration(singleton(randomAlphaOfLength(10)));
+                            final long newValue = randomLong();
+
+                            logger.trace("rolling back persisted cluster state on master-ineligible node [{}]: " +
+                                "previously currentTerm={}, lastAcceptedTerm={}, lastAcceptedVersion={} " +
+                                "but now currentTerm={}, lastAcceptedTerm={}, lastAcceptedVersion={}", newLocalNode,
+                                oldState.getCurrentTerm(), lastAcceptedTerm, lastAcceptedVersion,
+                                persistedCurrentTerm, newLastAcceptedTerm, newLastAcceptedVersion);
+
+                            clusterState(newLastAcceptedTerm, newLastAcceptedVersion, newLocalNode, newVotingConfiguration,
+                                newVotingConfiguration, newValue).writeTo(outStream);
                         } else {
-                            clusterState = oldState.getLastAcceptedState();
+                            persistedCurrentTerm = oldState.getCurrentTerm();
+                            final MetaData updatedMetaData = adaptGlobalMetaData.apply(oldState.getLastAcceptedState().metaData());
+                            if (updatedMetaData != oldState.getLastAcceptedState().metaData()) {
+                                ClusterState.builder(oldState.getLastAcceptedState()).metaData(updatedMetaData).build().writeTo(outStream);
+                            } else {
+                                oldState.getLastAcceptedState().writeTo(outStream);
+                            }
                         }
-                        clusterState.writeTo(outStream);
+
                         StreamInput inStream = new NamedWriteableAwareStreamInput(outStream.bytes().streamInput(),
                             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
                         // adapt cluster state to new localNode instance and add blocks
-                        delegate = new InMemoryPersistedState(adaptCurrentTerm.apply(oldState.getCurrentTerm()),
+                        delegate = new InMemoryPersistedState(adaptCurrentTerm.apply(persistedCurrentTerm),
                             ClusterStateUpdaters.addStateNotRecoveredBlock(ClusterState.readFrom(inStream, newLocalNode)));
                     }
                 } catch (IOException e) {

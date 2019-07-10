@@ -4,7 +4,7 @@
 <titleabbrev>Get mapping</titleabbrev>
 ++++
 
-Returns field mapping information for an index.
+Returns mapping definitions for an index.
 
 [float]
 [[indices-get-mapping-request]]
@@ -16,7 +16,7 @@ Returns field mapping information for an index.
 [[indices-get-mapping-desc]]
 === {api-description-title}
 
-You can use the get mapping API to retrieve field mapping information for one or
+You can use the get mapping API to retrieve mapping definitions for one or
 more indices.
 
 [float]
@@ -27,12 +27,12 @@ more indices.
 +
 --
 (string) Comma-separated list or wildcard expression of index names for which to
-retrieve field mapping information.
+retrieve mapping definitions.
 
-You can use a value of `_all` or `*` to retrieve mapping information for all
+You can use a value of `_all` or `*` to retrieve mapping definitions for all
 indices.
 
-If no value is provided, the API retrieves mapping information for all indices.
+If no value is provided, the API retrieves mapping definitions for all indices.
 --
 
 [float]

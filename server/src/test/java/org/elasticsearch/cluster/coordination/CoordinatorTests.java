@@ -1219,6 +1219,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastAcceptedConfiguration().getNodeIds(),
             hasItem(chosenNode.getId()));
 
+        final boolean chosenNodeIsLeader = chosenNode == cluster.getAnyLeader();
+        final long termBeforeRestart = cluster.getAnyNode().coordinator.getCurrentTerm();
+
         logger.info("--> restarting [{}] as a master-ineligible node", chosenNode);
 
         chosenNode.close();
@@ -1226,11 +1229,31 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()) : cn);
         cluster.stabilise();
 
+        if (chosenNodeIsLeader == false) {
+            assertThat("term did not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(termBeforeRestart));
+        }
+
         assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds(),
             not(hasItem(chosenNode.getId())));
         assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastAcceptedConfiguration().getNodeIds(),
             not(hasItem(chosenNode.getId())));
 
+    }
+
+    public void testDoesNotPerformElectionWhenRestartingNonMasterNode() {
+        final Cluster cluster = new Cluster(randomIntBetween(2, 5), false, Settings.EMPTY);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final long expectedTerm = cluster.getAnyNode().coordinator.getCurrentTerm();
+
+        cluster.getAllNodesExcept().stream().filter(n -> n.getLocalNode().isMasterNode() == false).forEach(chosenNode -> {
+            chosenNode.close();
+            cluster.clusterNodes
+                .replaceAll(cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), Settings.EMPTY) : cn);
+            cluster.stabilise();
+            assertThat("term should not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(expectedTerm));
+        });
     }
 
 }

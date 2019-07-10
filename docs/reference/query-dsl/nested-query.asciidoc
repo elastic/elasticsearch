@@ -94,7 +94,8 @@ Uses the highest relevance score of all matching child objects.
 Uses the lowest relevance score of all matching child objects.
 
 `none`::
-Do not use the relevance scores of matching child objects.
+Do not use the relevance scores of matching child objects. The query assigns
+parent documents a score of `0`.
 
 `sum`::
 Add together the relevance scores of all matching child objects.

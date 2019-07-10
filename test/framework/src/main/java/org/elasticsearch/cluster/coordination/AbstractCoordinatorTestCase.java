@@ -882,7 +882,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-                    DiscoveryNode.getRolesFromSettings(nodeSettings), Version.CURRENT);
+                    localNode.isMasterNode() && Node.NODE_MASTER_SETTING.get(nodeSettings)
+                        ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
                     node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetaData, adaptCurrentTerm), nodeSettings);
             }

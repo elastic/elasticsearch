@@ -27,7 +27,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(EnrichPlugin.class);
+        return List.of(LocalStateEnrich.class);
     }
 
     public void testUpdatePolicyOnly() {

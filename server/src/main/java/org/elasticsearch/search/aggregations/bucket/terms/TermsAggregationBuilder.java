@@ -333,8 +333,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new TermsAggregatorFactory(name, config, order, includeExclude, executionHint, collectMode,
                 bucketCountThresholds, showTermDocCountError, context, parent, subFactoriesBuilder, metaData);
     }

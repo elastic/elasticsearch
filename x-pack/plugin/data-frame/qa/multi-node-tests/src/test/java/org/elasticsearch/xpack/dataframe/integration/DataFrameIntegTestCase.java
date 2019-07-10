@@ -210,6 +210,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .setId(id)
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
+            .setFrequency(TimeValue.timeValueSeconds(10))
             .setPivotConfig(createPivotConfig(groups, aggregations))
             .setDescription("Test data frame transform config id: " + id);
     }

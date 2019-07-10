@@ -137,7 +137,6 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);

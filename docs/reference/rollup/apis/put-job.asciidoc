@@ -32,35 +32,35 @@ Jobs are created in a `STOPPED` state. You can start them with the
 [[sample-api-path-params]]
 ==== {api-path-parms-title}
 
-`job_id` (Required)::
-  (string) Identifier for the {rollup-job}.
+`job_id`::
+  (string) Required. Identifier for the {rollup-job}.
 
 [[sample-api-request-body]]
 ==== {api-request-body-title}
 
-`cron` (Required)::
-  (string) A cron string which defines when the {rollup-job} should be executed.
+`cron`::
+  (string) Required. A cron string which defines when the {rollup-job} should be executed.
 
-`groups` (Required)::
-  (object) Defines the grouping fields that are defined for this {rollup-job}.
-  See <<rollup-job-config,{rollup-job} config>>.
+`groups`::
+  (object) Required. Defines the grouping fields that are defined for this
+  {rollup-job}. See <<rollup-job-config,{rollup-job} config>>.
 
-`index_pattern` (Required)::
-  (string) The index or index pattern to roll up. Supports wildcard-style
-  patterns (`logstash-*`).
+`index_pattern`::
+  (string) Required. The index or index pattern to roll up. Supports
+  wildcard-style patterns (`logstash-*`).
 
-`metrics` (Optional)::
-  (object) Defines the metrics to collect for each grouping tuple. See
+`metrics`::
+  (object) Optional. Defines the metrics to collect for each grouping tuple. See
   <<rollup-job-config,{rollup-job} config>>.
 
-`page_size` (Required)::
-  (integer) The number of bucket results that are processed on each iteration of
-  the rollup indexer. A larger value tends to execute faster, but requires more
-  memory during processing.
+`page_size`::
+  (integer) Required. The number of bucket results that are processed on each
+  iteration of the rollup indexer. A larger value tends to execute faster, but
+  requires more memory during processing.
 
-`rollup_index` (Required)::
-  (string) The index that contains the rollup results. The index can be shared
-  with other {rollup-jobs}.
+`rollup_index`::
+  (string) Required. The index that contains the rollup results. The index can
+  be shared with other {rollup-jobs}.
 
 For more details about the job configuration, see <<rollup-job-config>>.
 

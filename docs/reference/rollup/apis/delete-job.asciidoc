@@ -61,8 +61,8 @@ POST my_rollup_index/_delete_by_query
 [[rollup-delete-job-path-params]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job.
+`<job_id>`::
+  (string) Required. Identifier for the job.
 
 [[rollup-delete-job-response-codes]]
 ==== {api-response-codes-title}

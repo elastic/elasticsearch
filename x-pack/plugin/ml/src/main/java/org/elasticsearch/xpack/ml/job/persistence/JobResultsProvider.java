@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -116,6 +118,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -428,18 +431,101 @@ public class JobResultsProvider {
         searchSingleResult(
             jobId,
             TimingStats.TYPE.getPreferredName(),
-            createTimingStatsSearch(indexName, jobId),
+            createLatestTimingStatsSearch(indexName, jobId),
             TimingStats.PARSER,
             result -> handler.accept(result.result),
             errorHandler,
             () -> new TimingStats(jobId));
     }
 
-    private SearchRequestBuilder createTimingStatsSearch(String indexName, String jobId) {
+    private SearchRequestBuilder createLatestTimingStatsSearch(String indexName, String jobId) {
         return client.prepareSearch(indexName)
             .setSize(1)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId)));
+            .setQuery(QueryBuilders.idsQuery().addIds(TimingStats.documentId(jobId)))
+            .addSort(SortBuilders.fieldSort(TimingStats.BUCKET_COUNT.getPreferredName()).order(SortOrder.DESC));
+    }
+
+    public void datafeedTimingStats(List<String> jobIds, Consumer<Map<String, DatafeedTimingStats>> handler,
+                                    Consumer<Exception> errorHandler) {
+        if (jobIds.isEmpty()) {
+            handler.accept(Collections.emptyMap());
+            return;
+        }
+        MultiSearchRequestBuilder msearchRequestBuilder = client.prepareMultiSearch();
+        for (String jobId : jobIds) {
+            String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+            msearchRequestBuilder.add(createLatestDatafeedTimingStatsSearch(indexName, jobId));
+        }
+        MultiSearchRequest msearchRequest = msearchRequestBuilder.request();
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            msearchRequest,
+            ActionListener.<MultiSearchResponse>wrap(
+                msearchResponse -> {
+                    Map<String, DatafeedTimingStats> timingStatsByJobId = new HashMap<>();
+                    for (int i = 0; i < msearchResponse.getResponses().length; i++) {
+                        String jobId = jobIds.get(i);
+                        MultiSearchResponse.Item itemResponse = msearchResponse.getResponses()[i];
+                        if (itemResponse.isFailure()) {
+                            errorHandler.accept(itemResponse.getFailure());
+                        } else {
+                            SearchResponse searchResponse = itemResponse.getResponse();
+                            ShardSearchFailure[] shardFailures = searchResponse.getShardFailures();
+                            int unavailableShards = searchResponse.getTotalShards() - searchResponse.getSuccessfulShards();
+                            if (shardFailures != null && shardFailures.length > 0) {
+                                LOGGER.error("[{}] Search request returned shard failures: {}", jobId, Arrays.toString(shardFailures));
+                                errorHandler.accept(
+                                    new ElasticsearchException(ExceptionsHelper.shardFailuresToErrorMsg(jobId, shardFailures)));
+                            } else if (unavailableShards > 0) {
+                                errorHandler.accept(
+                                    new ElasticsearchException(
+                                        "[" + jobId + "] Search request encountered [" + unavailableShards + "] unavailable shards"));
+                            } else {
+                                SearchHits hits = searchResponse.getHits();
+                                long hitsCount = hits.getHits().length;
+                                if (hitsCount == 0) {
+                                    SearchRequest searchRequest = msearchRequest.requests().get(i);
+                                    LOGGER.debug("Found 0 hits for [{}]", new Object[]{searchRequest.indices()});
+                                } else if (hitsCount > 1) {
+                                    SearchRequest searchRequest = msearchRequest.requests().get(i);
+                                    LOGGER.debug("Found multiple hits for [{}]", new Object[]{searchRequest.indices()});
+                                } else {
+                                    assert hitsCount == 1;
+                                    SearchHit hit = hits.getHits()[0];
+                                    DatafeedTimingStats timingStats = parseSearchHit(hit, DatafeedTimingStats.PARSER, errorHandler);
+                                    timingStatsByJobId.put(jobId, timingStats);
+                                }
+                            }
+                        }
+                    }
+                    handler.accept(timingStatsByJobId);
+                },
+                errorHandler
+            ),
+            client::multiSearch);
+    }
+
+    public void datafeedTimingStats(String jobId, Consumer<DatafeedTimingStats> handler, Consumer<Exception> errorHandler) {
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        searchSingleResult(
+            jobId,
+            DatafeedTimingStats.TYPE.getPreferredName(),
+            createLatestDatafeedTimingStatsSearch(indexName, jobId),
+            DatafeedTimingStats.PARSER,
+            result -> handler.accept(result.result),
+            errorHandler,
+            () -> new DatafeedTimingStats(jobId));
+    }
+
+    private SearchRequestBuilder createLatestDatafeedTimingStatsSearch(String indexName, String jobId) {
+        return client.prepareSearch(indexName)
+            .setSize(1)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)))
+            .addSort(SortBuilders.fieldSort(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName()).order(SortOrder.DESC));
     }
 
     public void getAutodetectParams(Job job, Consumer<AutodetectParams> consumer, Consumer<Exception> errorHandler) {
@@ -468,7 +554,7 @@ public class JobResultsProvider {
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
                 .add(createLatestModelSizeStatsSearch(resultsIndex))
-                .add(createTimingStatsSearch(resultsIndex, jobId))
+                .add(createLatestTimingStatsSearch(resultsIndex, jobId))
                 // These next two document IDs never need to be the legacy ones due to the rule
                 // that you cannot open a 5.4 job in a subsequent version of the product
                 .add(createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, job.getModelSnapshotId())))
@@ -525,7 +611,7 @@ public class JobResultsProvider {
                 .setRouting(id);
     }
 
-    private void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
+    private static void parseAutodetectParamSearchHit(String jobId, AutodetectParams.Builder paramsBuilder, SearchHit hit,
                                                Consumer<Exception> errorHandler) {
         String hitId = hit.getId();
         if (DataCounts.documentId(jobId).equals(hitId)) {
@@ -547,7 +633,7 @@ public class JobResultsProvider {
         }
     }
 
-    private <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser,
+    private static <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser,
                                     Consumer<Exception> errorHandler) {
         BytesReference source = hit.getSourceRef();
         try (InputStream stream = source.streamInput();

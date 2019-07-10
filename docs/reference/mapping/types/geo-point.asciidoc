@@ -56,7 +56,7 @@ PUT my_index/_doc/4
 PUT my_index/_doc/5
 {
   "text": "Geo-point as a WKT POINT primitive",
-  "location" : "POINT (-77.03653 38.897676)" <5>
+  "location" : "POINT (-71.34 41.12)" <5>
 }
 
 GET my_index/_search

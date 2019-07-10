@@ -19,6 +19,7 @@
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -76,16 +77,10 @@ public class GeoWKTParser {
     public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType,
                                                  final BaseGeoShapeFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
-        String text = parser.text();
-        boolean ignoreZValue = ((shapeMapper == null) ? BaseGeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE :
-            shapeMapper.ignoreZValue()).value();
-        boolean coerce = ((shapeMapper == null) ? BaseGeoShapeFieldMapper.Defaults.COERCE : shapeMapper.coerce()).value();
-        return parseExpectedType(text, shapeType, ignoreZValue, coerce);
-    }
-
-    public static ShapeBuilder parseExpectedType(String text, GeoShapeType shapeType,
-                                                 boolean ignoreZValue, boolean coerce) throws IOException {
-        try (StringReader reader = new StringReader(text)) {
+        try (StringReader reader = new StringReader(parser.text())) {
+            Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? BaseGeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE :
+                shapeMapper.ignoreZValue();
+            Explicit<Boolean> coerce = (shapeMapper == null) ? BaseGeoShapeFieldMapper.Defaults.COERCE : shapeMapper.coerce();
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);
             tokenizer.resetSyntax();
@@ -98,7 +93,7 @@ public class GeoWKTParser {
             tokenizer.wordChars('.', '.');
             tokenizer.whitespaceChars(0, ' ');
             tokenizer.commentChar('#');
-            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue, coerce);
+            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue.value(), coerce.value());
             checkEOF(tokenizer);
             return builder;
         }
@@ -116,7 +111,7 @@ public class GeoWKTParser {
         }
         switch (type) {
             case POINT:
-                return parsePoint(stream, ignoreZValue);
+                return parsePoint(stream, ignoreZValue, coerce);
             case MULTIPOINT:
                 return parseMultiPoint(stream, ignoreZValue, coerce);
             case LINESTRING:
@@ -151,7 +146,7 @@ public class GeoWKTParser {
         return new EnvelopeBuilder(new Coordinate(minLon, maxLat), new Coordinate(maxLon, minLat));
     }
 
-    private static PointBuilder parsePoint(StreamTokenizer stream, final boolean ignoreZValue)
+    private static PointBuilder parsePoint(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;

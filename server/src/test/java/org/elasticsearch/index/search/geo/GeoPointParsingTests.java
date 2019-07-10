@@ -60,6 +60,21 @@ public class GeoPointParsingTests  extends ESTestCase {
         assertPointsEqual(point.resetFromString("POINT(" + lon + " " + lat + ")"), point2.reset(lat, lon));
     }
 
+    public void testParseWktInvalid() {
+        GeoPoint point = new GeoPoint(0, 0);
+        Exception e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> point.resetFromString("NOT A POINT(1 2)")
+        );
+        assertEquals("Invalid WKT format", e.getMessage());
+
+        Exception e2 = expectThrows(
+            ElasticsearchParseException.class,
+            () -> point.resetFromString("MULTIPOINT(1 2, 3 4)")
+        );
+        assertEquals("[geo_point] supports only POINT among WKT primitives, but found MULTIPOINT", e2.getMessage());
+    }
+
     public void testEqualsHashCodeContract() {
         // GeoPoint doesn't care about coordinate system bounds, this simply validates equality and hashCode.
         final DoubleSupplier randomDelta = () -> randomValueOtherThan(0.0, () -> randomDoubleBetween(-1000000, 1000000, true));

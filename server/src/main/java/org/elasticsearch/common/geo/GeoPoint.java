@@ -25,15 +25,19 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 
@@ -85,10 +89,10 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public GeoPoint resetFromString(String value, final boolean ignoreZValue) {
-        if (value.contains(",")) {
-            return resetFromCoordinates(value, ignoreZValue);
-        } else if (value.contains("POINT")) {
+        if (value.toLowerCase(Locale.ROOT).contains("point")) {
             return resetFromWKT(value, ignoreZValue);
+        } else if (value.contains(",")) {
+            return resetFromCoordinates(value, ignoreZValue);
         }
         return resetFromGeoHash(value);
     }
@@ -119,12 +123,19 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     private GeoPoint resetFromWKT(String value, boolean ignoreZValue) {
+        Geometry geometry;
         try {
-            PointBuilder point = (PointBuilder)GeoWKTParser.parseExpectedType(value, GeoShapeType.POINT, ignoreZValue, false);
-            return reset(point.latitude(), point.longitude());
-        } catch (IOException e) {
-            throw  new ElasticsearchParseException("Invalid WKT format", e);
+            geometry = new WellKnownText(false, new GeographyValidator(ignoreZValue))
+                .fromWKT(value);
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("Invalid WKT format", e);
         }
+        if (geometry.type() != ShapeType.POINT) {
+            throw new ElasticsearchParseException("[geo_point] supports only POINT among WKT primitives, " +
+                "but found " + geometry.type());
+        }
+        Point point = (Point) geometry;
+        return reset(point.getLat(), point.getLon());
     }
 
     public GeoPoint resetFromIndexHash(long hash) {

@@ -1,4 +1,3 @@
-[role="xpack"]
 [[configuring-tls-docker]]
 === Encrypting communications in an {es} Docker Container
 

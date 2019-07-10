@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.ccr.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -47,7 +45,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -711,35 +708,6 @@ public class FollowingEngineTests extends ESTestCase {
                 indexing.join();
                 rollTranslog.join();
                 EngineTestCase.assertMaxSeqNoInCommitUserData(engine);
-            }
-        }
-    }
-
-    public void testHandleDocumentFailure() throws Exception {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .put("index.soft_deletes.enabled", true)
-            .build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
-        final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-        try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
-            try (FollowingEngine engine = createEngine(store, engineConfig)) {
-                final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc("1", null);
-                StringReader reader = new StringReader("");
-                reader.close(); // make indexing hit the document-level exception
-                parsedDocument.rootDoc().add(new TextField("aborted-doc", reader));
-                final Engine.Operation.Origin origin = randomFrom(Engine.Operation.Origin.values());
-                final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? VersionType.EXTERNAL : null;
-                final Engine.Index index = new Engine.Index(EngineTestCase.newUid(parsedDocument), parsedDocument, randomNonNegativeLong(),
-                    primaryTerm.get(), randomNonNegativeLong(), versionType, origin,
-                    System.currentTimeMillis(), IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, randomBoolean(),
-                    SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-                expectThrows(IOException.class, () -> engine.index(index));
-                expectThrows(AlreadyClosedException.class, () -> engine.refresh("test"));
             }
         }
     }

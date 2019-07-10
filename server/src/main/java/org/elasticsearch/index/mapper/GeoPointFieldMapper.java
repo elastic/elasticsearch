@@ -314,16 +314,10 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                         parse(context, sparse.reset(lat, lon));
                     } else {
                         while (token != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                parseGeoPointStringIgnoringMalformed(context, sparse);
-                            } else {
-                                parseGeoPointIgnoringMalformed(context, sparse);
-                            }
+                            parseGeoPointIgnoringMalformed(context, sparse);
                             token = context.parser().nextToken();
                         }
                     }
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    parseGeoPointStringIgnoringMalformed(context, sparse);
                 } else if (token == XContentParser.Token.VALUE_NULL) {
                     if (fieldType.nullValue() != null) {
                         parse(context, (GeoPoint) fieldType.nullValue());
@@ -345,20 +339,6 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
     private void parseGeoPointIgnoringMalformed(ParseContext context, GeoPoint sparse) throws IOException {
         try {
             parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse, ignoreZValue.value()));
-        } catch (ElasticsearchParseException e) {
-            if (ignoreMalformed.value() == false) {
-                throw e;
-            }
-            context.addIgnoredField(fieldType.name());
-        }
-    }
-
-    /**
-     * Parses geopoint represented as a string and ignores malformed geopoints if needed
-     */
-    private void parseGeoPointStringIgnoringMalformed(ParseContext context, GeoPoint sparse) throws IOException {
-        try {
-            parse(context, sparse.resetFromString(context.parser().text(), ignoreZValue.value()));
         } catch (ElasticsearchParseException e) {
             if (ignoreMalformed.value() == false) {
                 throw e;

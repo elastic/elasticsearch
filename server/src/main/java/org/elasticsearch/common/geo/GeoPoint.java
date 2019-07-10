@@ -25,11 +25,13 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoUtils.EffectivePoint;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.geo.geometry.ShapeType;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.Geohash;
@@ -85,16 +87,16 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public GeoPoint resetFromString(String value) {
-        return resetFromString(value, false);
+        return resetFromString(value, false, EffectivePoint.BOTTOM_LEFT);
     }
 
-    public GeoPoint resetFromString(String value, final boolean ignoreZValue) {
+    public GeoPoint resetFromString(String value, final boolean ignoreZValue, EffectivePoint effectivePoint) {
         if (value.toLowerCase(Locale.ROOT).contains("point")) {
             return resetFromWKT(value, ignoreZValue);
         } else if (value.contains(",")) {
             return resetFromCoordinates(value, ignoreZValue);
         }
-        return resetFromGeoHash(value);
+        return parseGeoHash(value, effectivePoint);
     }
 
 
@@ -136,6 +138,24 @@ public final class GeoPoint implements ToXContentFragment {
         }
         Point point = (Point) geometry;
         return reset(point.getLat(), point.getLon());
+    }
+
+    GeoPoint parseGeoHash(String geohash, EffectivePoint effectivePoint) {
+        if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
+            return resetFromGeoHash(geohash);
+        } else {
+            Rectangle rectangle = Geohash.toBoundingBox(geohash);
+            switch (effectivePoint) {
+                case TOP_LEFT:
+                    return reset(rectangle.getMaxLat(), rectangle.getMinLon());
+                case TOP_RIGHT:
+                    return reset(rectangle.getMaxLat(), rectangle.getMaxLon());
+                case BOTTOM_RIGHT:
+                    return reset(rectangle.getMinLat(), rectangle.getMaxLon());
+                default:
+                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
+            }
+        }
     }
 
     public GeoPoint resetFromIndexHash(long hash) {

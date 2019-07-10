@@ -184,8 +184,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
         }
         Transport transport = build(updatedSettings, version, clusterSettings, doHandshake);
-        MockTransportService service = MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings,
-            Collections.emptySet());
+        MockTransportService service = MockTransportService.createNewService(updatedSettings, transport, version, threadPool,
+            clusterSettings, Collections.emptySet());
         service.start();
         if (acceptRequests) {
             service.acceptIncomingRequests();

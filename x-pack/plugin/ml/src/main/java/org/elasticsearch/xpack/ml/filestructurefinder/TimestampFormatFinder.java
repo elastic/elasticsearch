@@ -279,9 +279,10 @@ public final class TimestampFormatFinder {
                         }
                         throw new IllegalArgumentException(msg);
                     }
-                    // No need to append to the Grok pattern as %{SECOND} already allows for an optional
-                    // fraction, but we need to remove the separator that's included in %{SECOND}
-                    grokPatternBuilder.deleteCharAt(grokPatternBuilder.length() - 1);
+                    // No need to append to the Grok pattern as %{SECOND} already allows for an optional fraction,
+                    // but we need to remove the separator that's included in %{SECOND} (and that might be escaped)
+                    int numCharsToDelete = (PUNCTUATION_THAT_NEEDS_ESCAPING_IN_REGEX.indexOf(prevChar) >= 0) ? 2 : 1;
+                    grokPatternBuilder.delete(grokPatternBuilder.length() - numCharsToDelete, grokPatternBuilder.length());
                     regexBuilder.append("\\d{").append(endPos - startPos).append('}');
                 } else {
                     grokPatternBuilder.append(grokPatternAndRegexForGroup.v1());

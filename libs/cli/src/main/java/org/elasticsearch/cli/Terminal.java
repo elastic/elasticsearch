@@ -149,6 +149,8 @@ public abstract class Terminal {
 
         private static final PrintWriter WRITER = newWriter();
 
+        private BufferedReader reader;
+
         SystemTerminal() {
             super(System.lineSeparator());
         }
@@ -156,6 +158,13 @@ public abstract class Terminal {
         @SuppressForbidden(reason = "Writer for System.out")
         private static PrintWriter newWriter() {
             return new PrintWriter(System.out);
+        }
+
+        private BufferedReader getReader() {
+            if (reader == null) {
+                reader = new BufferedReader(new InputStreamReader(System.in));
+            }
+            return reader;
         }
 
         @Override
@@ -166,9 +175,8 @@ public abstract class Terminal {
         @Override
         public String readText(String text) {
             getWriter().print(text);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
-                final String line = reader.readLine();
+                final String line = getReader().readLine();
                 if (line == null) {
                     throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
                 }

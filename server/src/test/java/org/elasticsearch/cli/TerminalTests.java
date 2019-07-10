@@ -21,6 +21,9 @@ package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+
 public class TerminalTests extends ESTestCase {
     public void testVerbosity() throws Exception {
         MockTerminal terminal = new MockTerminal();
@@ -73,6 +76,19 @@ public class TerminalTests extends ESTestCase {
         assertFalse(terminal.promptYesNo("Answer?", true));
         terminal.addTextInput("n");
         assertFalse(terminal.promptYesNo("Answer?", true));
+    }
+
+    public void testReadTwiceFromSystemTerminal() {
+        InputStream sysIn = System.in;      // save for cleanup
+
+        InputStream in = new ByteArrayInputStream("foo\nbar\n".getBytes());
+        System.setIn(in);
+        Terminal terminal = Terminal.DEFAULT;
+        assertEquals(terminal.readText("say foo"), "foo");
+        assertEquals(terminal.readText("say bar"), "bar");
+
+        // cleanup
+        System.setIn(sysIn);
     }
 
     private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {

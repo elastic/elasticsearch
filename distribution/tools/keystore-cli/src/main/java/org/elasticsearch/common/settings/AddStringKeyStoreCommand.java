@@ -68,8 +68,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         final char[] value;
         if (options.has(stdinOption)) {
-            BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
-            value = stdinReader.readLine().toCharArray();
+            value = terminal.readSecret("");
         } else {
             value = terminal.readSecret("Enter value for " + setting + ": ");
         }

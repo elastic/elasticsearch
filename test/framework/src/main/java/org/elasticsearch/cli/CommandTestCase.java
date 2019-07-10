@@ -49,8 +49,12 @@ public abstract class CommandTestCase extends ESTestCase {
      * The command created can be found in {@link #command}.
      */
     public String execute(String... args) throws Exception {
+        execute(this.terminal, args);
+        return terminal.getOutput();
+    }
+
+    public void execute(Terminal terminal, String... args) throws Exception {
         command = newCommand();
         command.mainWithoutErrorHandling(args, terminal);
-        return terminal.getOutput();
     }
 }

@@ -44,7 +44,8 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler {
-    static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER = new ObjectParser<>("reload_secure_settings", NodesReloadSecureSettingsRequest::new);
+    static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER =
+        new ObjectParser<>("reload_secure_settings", NodesReloadSecureSettingsRequest::new);
 
     static {
         PARSER.declareString((request, value) -> request.setSecureStorePassword(new SecureString(value.toCharArray())),

@@ -112,11 +112,10 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotStates.put(snapshotId.getUUID(), randomFrom(SnapshotState.values()));
         }
         RepositoryData repositoryData = new RepositoryData(EMPTY_REPO_GEN, snapshotIds,
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList());
+            Collections.emptyMap(), Collections.emptyMap());
         // test that initializing indices works
         Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
-        RepositoryData newRepoData =  new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, indices,
-            new ArrayList<>(repositoryData.getIncompatibleSnapshotIds()));
+        RepositoryData newRepoData =  new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, indices);
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
         Collections.sort(expected);
         List<SnapshotId> actual = new ArrayList<>(newRepoData.getSnapshotIds());
@@ -193,7 +192,7 @@ public class RepositoryDataTests extends ESTestCase {
         assertNotNull(corruptedIndexId);
 
         RepositoryData corruptedRepositoryData = new RepositoryData(parsedRepositoryData.getGenId(), snapshotIds, snapshotStates,
-            indexSnapshots, new ArrayList<>(parsedRepositoryData.getIncompatibleSnapshotIds()));
+            indexSnapshots);
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
         corruptedRepositoryData.snapshotsToXContent(corruptedBuilder);

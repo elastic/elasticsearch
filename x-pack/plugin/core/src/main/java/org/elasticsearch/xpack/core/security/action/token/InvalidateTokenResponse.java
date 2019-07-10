@@ -35,7 +35,6 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         result.writeTo(out);
     }
 

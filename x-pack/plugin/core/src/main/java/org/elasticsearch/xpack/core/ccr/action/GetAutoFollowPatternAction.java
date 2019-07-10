@@ -99,7 +99,6 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(autoFollowPatterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 

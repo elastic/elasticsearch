@@ -30,7 +30,6 @@ public class XPackInfoFeatureResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         info.writeTo(out);
     }
 

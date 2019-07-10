@@ -852,13 +852,23 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
+        // exclude any nodes whose ID is in the voting config exclusions list ...
+        final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
+        // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
+        // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
+        // the logging much harder to follow.
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+            .filter(n -> n.isMasterNode() == false
+                && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
+                || clusterState.getLastCommittedConfiguration().getNodeIds().contains(n.getId())))
+            .map(DiscoveryNode::getId);
+
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(DiscoveryNode::isMasterNode).filter(coordinationState.get()::containsJoinVoteFor).collect(Collectors.toSet());
-        final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes, Stream.concat(
-            clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId),
-            StreamSupport.stream(clusterState.nodes().spliterator(), false)
-                .filter(Predicate.not(DiscoveryNode::isMasterNode)).map(DiscoveryNode::getId)).collect(Collectors.toSet()),
+        final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
+            Stream.concat(masterIneligibleNodeIdsInVotingConfig, excludedNodeIds).collect(Collectors.toSet()),
             getLocalNode(), clusterState.getLastAcceptedConfiguration());
+
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
             return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())

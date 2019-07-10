@@ -67,6 +67,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -228,12 +229,25 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
             MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
-            ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
-                exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioServerChannel, null, selector, null,
+                exceptionHandler) {
+                @Override
+                public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
+                    int acceptCount = 0;
+                    NioSocketChannel acceptedChannel;
+                    while ((acceptedChannel = MockTcpChannelFactory.this.acceptNioChannel(this, selectorSupplier)) != null) {
+                        acceptChannel(acceptedChannel);
+                        ++acceptCount;
+                        if (acceptCount % 100 == 0) {
+                            logger.warn("Accepted [{}] connections in a single select loop iteration on [{}]", acceptCount, channel);
+                        }
+                    }
+                }
+            };
             nioServerChannel.setContext(context);
             return nioServerChannel;
         }

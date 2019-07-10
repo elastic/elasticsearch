@@ -78,7 +78,7 @@ public class DiskThresholdMonitor {
         this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
-        if(diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
+        if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
             deprecationLogger.deprecated("[{}] will be removed in version {}", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
         }
     }
@@ -145,21 +145,18 @@ public class DiskThresholdMonitor {
         final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToMarkReadOnly = new HashSet<>();
         RoutingNodes routingNodes = state.getRoutingNodes();
-        Set<String> indicesToMarkIneligibleForAutoRelease = new HashSet<>();
-        markNodesMissingUsageIneligibleForRelease(routingNodes, usages, indicesToMarkIneligibleForAutoRelease);
+        Set<String> indicesNotToAutoRelease = new HashSet<>();
+        markNodesMissingUsageIneligibleForRelease(routingNodes, usages, indicesNotToAutoRelease);
 
         for (final ObjectObjectCursor<String, DiskUsage> entry : usages) {
             final String node = entry.key;
             final DiskUsage usage = entry.value;
             warnAboutDiskIfNeeded(usage);
             RoutingNode routingNode = routingNodes.node(node);
-            // Only unblock index if all nodes that contain shards of it are below the high disk watermark
-            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
-                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-                markIneligiblityForAutoRelease(routingNode, indicesToMarkIneligibleForAutoRelease);
-            }
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
+                // Only unblock index if all nodes that contain shards of it are below the high disk watermark
+                markIneligiblityForAutoRelease(routingNode, indicesNotToAutoRelease);
                 if (routingNode != null) { // this might happen if we haven't got the full cluster-state yet?!
                     for (ShardRouting routing : routingNode) {
                         indicesToMarkReadOnly.add(routing.index().getName());
@@ -167,6 +164,8 @@ public class DiskThresholdMonitor {
                 }
             } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+                // Only unblock index if all nodes that contain shards of it are below the high disk watermark
+                markIneligiblityForAutoRelease(routingNode, indicesNotToAutoRelease);
                 if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                     reroute = true;
                     explanation = "high disk watermark exceeded on one or more nodes";
@@ -216,17 +215,17 @@ public class DiskThresholdMonitor {
         Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
             .spliterator(), false)
             .map(c -> c.key)
-            .filter(index -> indicesToMarkIneligibleForAutoRelease.contains(index) == false)
+            .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
             if (diskThresholdSettings.isAutoReleaseIndexEnabled()) {
-                logger.info("releasing read-only allow delete block on indices: [{}]", indicesToAutoRelease);
+                logger.info("releasing read-only-allow-delete block on indices: [{}]", indicesToAutoRelease);
                 updateIndicesReadOnly(indicesToAutoRelease, listener, false);
             } else {
                 deprecationLogger.deprecated("[{}] will be removed in version {}", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
-                logger.debug("[{}] disabled, not releasing read-only allow delete block on indices: [{}]", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
+                logger.debug("[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]", DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
                 listener.onResponse(null);
             }
         } else {

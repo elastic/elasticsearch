@@ -682,7 +682,7 @@ public class RecoverySourceHandler {
         }
 
         @Override
-        protected FileChunk prepareNextChunkRequest(StoreFileMetaData md, long offset) throws Exception {
+        protected FileChunk nextChunkRequest(StoreFileMetaData md, long offset) throws Exception {
             assert Transports.assertNotTransportThread("read file chunk");
             cancellableThreads.checkForCancel();
             if (currentInput == null) {

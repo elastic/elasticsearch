@@ -120,7 +120,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                 }
                 final Request request;
                 try {
-                    request = prepareNextChunkRequest(currentFile, fileOffset);
+                    request = nextChunkRequest(currentFile, fileOffset);
                 } catch (Exception e) {
                     handleError(currentFile, e);
                     throw e;
@@ -142,7 +142,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
         }
     }
 
-    protected abstract Request prepareNextChunkRequest(StoreFileMetaData md, long offset) throws Exception;
+    protected abstract Request nextChunkRequest(StoreFileMetaData md, long offset) throws Exception;
 
     protected abstract void sendChunkRequest(Request request, ActionListener<Response> listener);
 
@@ -153,6 +153,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
         final StoreFileMetaData md;
         final Resp response;
         final Exception failure;
+
         FileChunkResponseItem(long requestSeqId, StoreFileMetaData md, Resp response, Exception failure) {
             this.requestSeqId = requestSeqId;
             this.md = md;
@@ -163,6 +164,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
 
     protected static abstract class ChunkRequest {
         final long length;
+
         protected ChunkRequest(long length) {
             this.length = length;
         }

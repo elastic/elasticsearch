@@ -35,11 +35,11 @@ are being written to while follower indices do not receive direct writes.
 
 // tag::notable-highlights[]
 [float]
-==== Memory leaks when using templates in document-level security
+==== Memory leak when using templates in document-level security
 
 {xpack-ref}/document-level-security.html[Document-level security] was using an
-unbounded cache for the set of visible documents. This could lead to memory
-leaks when using templated queries as a role query. The cache has been fixed to
+unbounded cache for the set of visible documents. This could lead to a memory
+leaks when using a templated query as a role query. The cache has been fixed to
 evict based on memorory usage and has a limit of 50MB.
 
 // end::notable-highlights[]

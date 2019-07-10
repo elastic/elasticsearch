@@ -1207,7 +1207,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testReconfiguresToExcludeMasterIneligibleVotingNodes() {
+    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
         cluster.stabilise();

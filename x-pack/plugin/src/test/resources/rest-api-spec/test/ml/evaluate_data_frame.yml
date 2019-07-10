@@ -125,7 +125,7 @@ setup:
       indices.refresh: {}
 
 ---
-"Test binary_soft_classifition auc_roc":
+"Test binary_soft_classification auc_roc":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -145,7 +145,7 @@ setup:
   - is_false: binary_soft_classification.auc_roc.curve
 
 ---
-"Test binary_soft_classifition auc_roc given actual_field is int":
+"Test binary_soft_classification auc_roc given actual_field is int":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -165,7 +165,7 @@ setup:
   - is_false: binary_soft_classification.auc_roc.curve
 
 ---
-"Test binary_soft_classifition auc_roc include curve":
+"Test binary_soft_classification auc_roc include curve":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -185,7 +185,7 @@ setup:
   - is_true: binary_soft_classification.auc_roc.curve
 
 ---
-"Test binary_soft_classifition auc_roc given actual_field is always true":
+"Test binary_soft_classification auc_roc given actual_field is always true":
   - do:
       catch: /\[auc_roc\] requires at least one actual_field to have a different value than \[true\]/
       ml.evaluate_data_frame:
@@ -204,7 +204,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classifition auc_roc given actual_field is always false":
+"Test binary_soft_classification auc_roc given actual_field is always false":
   - do:
       catch: /\[auc_roc\] requires at least one actual_field to have the value \[true\]/
       ml.evaluate_data_frame:
@@ -223,7 +223,7 @@ setup:
           }
 
 ---
-"Test binary_soft_classifition precision":
+"Test binary_soft_classification precision":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -246,7 +246,7 @@ setup:
           '0.5': 1.0
 
 ---
-"Test binary_soft_classifition recall":
+"Test binary_soft_classification recall":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -270,7 +270,7 @@ setup:
           '0.5': 0.6
 
 ---
-"Test binary_soft_classifition confusion_matrix":
+"Test binary_soft_classification confusion_matrix":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -306,7 +306,7 @@ setup:
             fn: 2
 
 ---
-"Test binary_soft_classifition default metrics":
+"Test binary_soft_classification default metrics":
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -535,7 +535,7 @@ setup:
             }
           }
 ---
-"Test regression given empty metrics":
+"Test regression given evaluation with empty metrics":
   - do:
       catch: /\[regression\] must have one or more metrics/
       ml.evaluate_data_frame:

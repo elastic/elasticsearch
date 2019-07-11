@@ -328,7 +328,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(storeStatuses.size());
         for (ObjectObjectCursor<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses) {
             out.writeString(indexShards.key);

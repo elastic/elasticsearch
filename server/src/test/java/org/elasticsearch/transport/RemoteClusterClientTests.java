@@ -55,7 +55,10 @@ public class RemoteClusterClientTests extends ESTestCase {
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
+                // following two log lines added to investigate #41745, can be removed once issue is closed
+                logger.info("Start accepting incoming requests on local transport service");
                 service.acceptIncomingRequests();
+                logger.info("now accepting incoming requests on local transport");
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
                 assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
                 Client client = remoteClusterService.getRemoteClusterClient(threadPool, "test");

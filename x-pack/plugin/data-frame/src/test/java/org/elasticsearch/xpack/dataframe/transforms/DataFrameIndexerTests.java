@@ -186,6 +186,7 @@ public class DataFrameIndexerTests extends ESTestCase {
             randomDestConfig(),
             null,
             null,
+            null,
             new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);

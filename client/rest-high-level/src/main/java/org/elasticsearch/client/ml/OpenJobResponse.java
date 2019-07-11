@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,7 +30,7 @@ import java.util.Objects;
 /**
  * Response indicating if the Machine Learning Job is now opened or not
  */
-public class OpenJobResponse extends ActionResponse implements ToXContentObject {
+public class OpenJobResponse implements ToXContentObject {
 
     private static final ParseField OPENED = new ParseField("opened");
 

@@ -266,6 +266,14 @@ additional names that can be used:
     mechanism that will cause an error if you attempt to map from a `NameID`
     that does not have a persistent value.
 
+NOTE: Identity Providers can be either statically configured to release a `NameID`
+with a specific format, or they can be configured to try to conform with the
+requirements of the SP. The SP declares its requirements as part of the
+Authentication Request, using an element which is called the `NameIDPolicy`. If
+this is needed, you can set the relevant <<saml-settings, settings>> named
+`nameid_format` in order to request that the IdP releases a `NameID` with a
+specific format.
+
 _friendlyName_::
     A SAML attribute may have a _friendlyName_ in addition to its URI based name.
     For example the attribute with a name of `urn:oid:0.9.2342.19200300.100.1.1`

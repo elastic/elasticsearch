@@ -74,10 +74,12 @@ include::indices/split-index.asciidoc[]
 
 include::indices/rollover-index.asciidoc[]
 
+:leveloffset: -1
 include::indices/apis/freeze.asciidoc[]
 
 include::indices/apis/unfreeze.asciidoc[]
 
+:leveloffset: +1
 include::indices/put-mapping.asciidoc[]
 
 include::indices/get-mapping.asciidoc[]

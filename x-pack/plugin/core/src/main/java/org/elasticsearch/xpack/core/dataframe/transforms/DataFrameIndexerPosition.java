@@ -30,8 +30,8 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
     public static final ParseField INDEXER_POSITION = new ParseField("indexer_position");
     public static final ParseField CHANGES_POSITION = new ParseField("changes_position");
 
-    private Map<String, Object> indexerPosition;
-    private Map<String, Object> changesPosition;
+    private final Map<String, Object> indexerPosition;
+    private final Map<String, Object> changesPosition;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -59,16 +59,8 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
         return indexerPosition;
     }
 
-    public void setIndexerPosition(Map<String, Object> indexerPosition) {
-        this.indexerPosition = indexerPosition;
-    }
-
     public Map<String, Object> getChangesPosition() {
         return changesPosition;
-    }
-
-    public void setChangesPosition(Map<String, Object> changesPosition) {
-        this.changesPosition = changesPosition;
     }
 
     @Override

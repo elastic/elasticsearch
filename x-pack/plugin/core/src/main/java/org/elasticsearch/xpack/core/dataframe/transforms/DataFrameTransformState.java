@@ -37,7 +37,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     private final long checkpoint;
 
     @Nullable
-    private final DataFrameIndexerPosition currentPosition;
+    private final DataFrameIndexerPosition nextPosition;
     @Nullable
     private final String reason;
     @Nullable
@@ -46,7 +46,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public static final ParseField TASK_STATE = new ParseField("task_state");
     public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
 
-    // 7.3 BWC, replaced by next_position
+    // 7.3 BWC: current_position only exists in 7.2.  In 7.3+ it is replaced by next_position.
     public static final ParseField CURRENT_POSITION = new ParseField("current_position");
     public static final ParseField NEXT_POSITION = new ParseField("next_position");
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
@@ -61,9 +61,13 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                 DataFrameTransformTaskState taskState = (DataFrameTransformTaskState) args[0];
                 IndexerState indexerState = (IndexerState) args[1];
                 Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
-                // TODO: handle BWC
+                DataFrameIndexerPosition dataFrameIndexerPosition = (DataFrameIndexerPosition) args[3];
 
-                DataFrameIndexerPosition dataFrameIndexerPosition= (DataFrameIndexerPosition) args[3];
+                // BWC handling, translate current_position to next_position iff next_position isn't set
+                if (bwcCurrentPosition != null && dataFrameIndexerPosition == null) {
+                    dataFrameIndexerPosition = new DataFrameIndexerPosition(bwcCurrentPosition, null);
+                }
+
                 long checkpoint = (long) args[4];
                 String reason = (String) args[5];
                 DataFrameTransformProgress progress = (DataFrameTransformProgress) args[6];
@@ -92,7 +96,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                                    @Nullable NodeAttributes node) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.currentPosition = position;
+        this.nextPosition = position;
         this.checkpoint = checkpoint;
         this.reason = reason;
         this.progress = progress;
@@ -112,10 +116,10 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         taskState = DataFrameTransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
         if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            currentPosition = in.readOptionalWriteable(DataFrameIndexerPosition::new);
+            nextPosition = in.readOptionalWriteable(DataFrameIndexerPosition::new);
         } else {
             Map<String, Object> position = in.readMap();
-            currentPosition = new DataFrameIndexerPosition(position, null);
+            nextPosition = new DataFrameIndexerPosition(position, null);
         }
         checkpoint = in.readLong();
         reason = in.readOptionalString();
@@ -136,7 +140,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     }
 
     public DataFrameIndexerPosition getPosition() {
-        return currentPosition;
+        return nextPosition;
     }
 
     public long getCheckpoint() {
@@ -182,8 +186,8 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         builder.startObject();
         builder.field(TASK_STATE.getPreferredName(), taskState.value());
         builder.field(INDEXER_STATE.getPreferredName(), indexerState.value());
-        if (currentPosition != null) {
-            builder.field(NEXT_POSITION.getPreferredName(), currentPosition);
+        if (nextPosition != null) {
+            builder.field(NEXT_POSITION.getPreferredName(), nextPosition);
         }
         builder.field(CHECKPOINT.getPreferredName(), checkpoint);
         if (reason != null) {
@@ -209,9 +213,9 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         taskState.writeTo(out);
         indexerState.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalWriteable(currentPosition);
+            out.writeOptionalWriteable(nextPosition);
         } else {
-            out.writeMap(currentPosition != null ? currentPosition.getIndexerPosition() : null);
+            out.writeMap(nextPosition != null ? nextPosition.getIndexerPosition() : null);
         }
         out.writeLong(checkpoint);
         out.writeOptionalString(reason);
@@ -235,7 +239,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
         return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&
-            Objects.equals(this.currentPosition, that.currentPosition) &&
+            Objects.equals(this.nextPosition, that.nextPosition) &&
             this.checkpoint == that.checkpoint &&
             Objects.equals(this.reason, that.reason) &&
             Objects.equals(this.progress, that.progress) &&
@@ -244,7 +248,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason, progress, node);
+        return Objects.hash(taskState, indexerState, nextPosition, checkpoint, reason, progress, node);
     }
 
     @Override

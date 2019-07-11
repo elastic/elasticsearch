@@ -155,10 +155,15 @@ public class RemoteFailure {
             } else {
                 switch (fieldName) {
                 case "error":
-                    if (token != JsonToken.START_OBJECT) {
-                        throw new IOException("Expected [error] to be an object but was [" + token + "][" + parser.getText() + "]");
+                    if (token != JsonToken.START_OBJECT && token != JsonToken.VALUE_STRING) {
+                        throw new IOException("Expected [error] to be an object or string but was [" + token + "]["
+                                + parser.getText() + "]");
                     }
-                    exception = parseFailure(parser);
+                    if (token == JsonToken.VALUE_STRING) {
+                        exception = new RemoteFailure(StringUtils.EMPTY, parser.getText(), null, null, null, null);
+                    } else {
+                        exception = parseFailure(parser);
+                    }
                     continue;
                 case "status":
                     if (token != JsonToken.VALUE_NUMBER_INT) {

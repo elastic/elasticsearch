@@ -28,7 +28,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -494,8 +493,6 @@ public class Node implements Closeable {
                 clusterModule.getIndexNameExpressionResolver(), repositoryService, threadPool);
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, snapshotsService, threadPool,
                 transportService, indicesService, actionModule.getActionFilters(), clusterModule.getIndexNameExpressionResolver());
-            TransportNodesSnapshotsStatus nodesSnapshotsStatus = new TransportNodesSnapshotsStatus(threadPool, clusterService,
-                transportService, snapshotShardsService, actionModule.getActionFilters());
             RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
                 metaDataCreateIndexService, metaDataIndexUpgradeService, clusterService.getClusterSettings());
 
@@ -581,7 +578,6 @@ public class Node implements Closeable {
                     b.bind(RepositoriesService.class).toInstance(repositoryService);
                     b.bind(SnapshotsService.class).toInstance(snapshotsService);
                     b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
-                    b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
                     b.bind(RestoreService.class).toInstance(restoreService);
                     b.bind(RerouteService.class).toInstance(rerouteService);
                 }

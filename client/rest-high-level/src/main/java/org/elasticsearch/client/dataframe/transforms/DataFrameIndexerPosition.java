@@ -56,8 +56,8 @@ public class DataFrameIndexerPosition {
     }
 
     public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketsPosition) {
-        this.indexerPosition = Collections.unmodifiableMap(indexerPosition);
-        this.bucketsPosition = Collections.unmodifiableMap(bucketsPosition);
+        this.indexerPosition = indexerPosition == null ? null : Collections.unmodifiableMap(indexerPosition);
+        this.bucketsPosition = bucketsPosition == null ? null : Collections.unmodifiableMap(bucketsPosition);
     }
 
     public Map<String, Object> getIndexerPosition() {

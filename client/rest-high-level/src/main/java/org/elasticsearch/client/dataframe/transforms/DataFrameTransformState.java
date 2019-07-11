@@ -65,7 +65,8 @@ public class DataFrameTransformState {
                         DataFrameTransformProgress progress = (DataFrameTransformProgress) args[6];
                         NodeAttributes node = (NodeAttributes) args[7];
 
-                        return new DataFrameTransformState(taskState, indexerState, dataFrameIndexerPosition, checkpoint, reason, progress, node);
+                        return new DataFrameTransformState(taskState, indexerState, dataFrameIndexerPosition, checkpoint, reason, progress,
+                                node);
                     });
 
     static {

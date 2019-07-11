@@ -44,8 +44,8 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
     }
 
     public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketsPosition) {
-        this.indexerPosition = Collections.unmodifiableMap(indexerPosition);
-        this.bucketsPosition = Collections.unmodifiableMap(bucketsPosition);
+        this.indexerPosition = indexerPosition == null ? null : Collections.unmodifiableMap(indexerPosition);
+        this.bucketsPosition = bucketsPosition == null ? null : Collections.unmodifiableMap(bucketsPosition);
     }
 
     public DataFrameIndexerPosition(StreamInput in) throws IOException {

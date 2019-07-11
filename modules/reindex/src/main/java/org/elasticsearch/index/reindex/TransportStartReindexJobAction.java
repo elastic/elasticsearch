@@ -76,7 +76,10 @@ public class TransportStartReindexJobAction
                                    ActionListener<StartReindexJobAction.Response> listener) {
         String generatedId = UUIDs.randomBase64UUID();
 
-        ReindexJob job = new ReindexJob(request.getReindexRequest(), threadPool.getThreadContext().getHeaders());
+        ReindexRequest reindexRequest = request.getReindexRequest();
+        // In the current implementation, we only need to store task results if we do not wait for completion
+        boolean storeTaskResult = request.getWaitForCompletion() == false;
+        ReindexJob job = new ReindexJob(reindexRequest, storeTaskResult, threadPool.getThreadContext().getHeaders());
 
         // TODO: Task name
         persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {

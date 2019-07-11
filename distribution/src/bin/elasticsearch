@@ -39,7 +39,7 @@ then
     else
       echo "Reading keystore passphrase from file $ES_KEYSTORE_PASSPHRASE_FILE" 1>&2
     fi
-  read -s KEYSTORE_PASSWORD -u "$ES_KEYSTORE_PASSPHRASE_FILE"
+  read -s KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE"
   else
     # read from standard input
     if ! read -s -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then

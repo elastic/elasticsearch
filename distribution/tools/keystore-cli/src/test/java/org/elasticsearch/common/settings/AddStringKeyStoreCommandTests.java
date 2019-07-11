@@ -21,12 +21,14 @@ package org.elasticsearch.common.settings;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.TestSystemTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
@@ -180,16 +182,12 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testStdinSystemTerminal() throws Exception {
-        InputStream sysin = System.in; // save for later
-
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
-
         String input = password + "\nbar\n";
-        System.setIn(new ByteArrayInputStream(input.getBytes()));
-        execute(Terminal.DEFAULT, "--stdin", "foo");
-
-        System.setIn(sysin);    // cleanup
+        InputStream in = new ByteArrayInputStream(input.getBytes(Charset.defaultCharset()));
+        Terminal term = new TestSystemTerminal(in);
+        execute(term, "--stdin", "foo");
     }
 
     public void testMissingSettingName() throws Exception {

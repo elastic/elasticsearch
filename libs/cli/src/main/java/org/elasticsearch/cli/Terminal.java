@@ -22,6 +22,7 @@ package org.elasticsearch.cli;
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
@@ -57,6 +58,11 @@ public abstract class Terminal {
 
     protected Terminal(String lineSeparator) {
         this.lineSeparator = lineSeparator;
+    }
+
+    /** Visible for testing in subclasses: set an input other than standard input */
+    protected void setInput(InputStream inputStream) throws IOException {
+        throw new AssertionError("unsupported operation");
     }
 
     /** Sets the verbosity of the terminal. */
@@ -162,9 +168,18 @@ public abstract class Terminal {
 
         private BufferedReader getReader() {
             if (reader == null) {
-                reader = new BufferedReader(new InputStreamReader(System.in));
+                reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             }
             return reader;
+        }
+
+        /** Visible for testing the system terminal with custom input */
+        @Override
+        protected void setInput(InputStream inputStream) throws IOException {
+            if (reader != null) {
+                reader.close();
+            }
+            reader = new BufferedReader(new InputStreamReader(inputStream, Charset.defaultCharset()));
         }
 
         @Override

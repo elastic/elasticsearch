@@ -86,7 +86,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
     protected abstract void shardOperation(Request request, ActionListener<Response> listener);
 
-    protected abstract Response newResponse();
+    protected abstract Response newResponse(StreamInput in) throws IOException;
 
     protected ClusterBlockException checkGlobalBlock(ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
@@ -183,9 +183,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
                 @Override
                 public Response read(StreamInput in) throws IOException {
-                    Response response = newResponse();
-                    response.readFrom(in);
-                    return response;
+                    return newResponse(in);
                 }
 
                 @Override

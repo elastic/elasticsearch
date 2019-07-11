@@ -38,9 +38,9 @@ public class DataFrameTransformState {
     private static final ParseField INDEXER_STATE = new ParseField("indexer_state");
     private static final ParseField TASK_STATE = new ParseField("task_state");
 
-    // 7.3 BWC: current_position only exists in 7.2.  In 7.3+ it is replaced by next_position.
+    // 7.3 BWC: current_position only exists in 7.2.  In 7.3+ it is replaced by position.
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
-    private static final ParseField NEXT_POSITION = new ParseField("next_position");
+    private static final ParseField POSITION = new ParseField("position");
     private static final ParseField CHECKPOINT = new ParseField("checkpoint");
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField PROGRESS = new ParseField("progress");
@@ -55,7 +55,7 @@ public class DataFrameTransformState {
                         Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
                         DataFrameIndexerPosition dataFrameIndexerPosition = (DataFrameIndexerPosition) args[3];
 
-                        // BWC handling, translate current_position to next_position iff next_position isn't set
+                        // BWC handling, translate current_position to position iff position isn't set
                         if (bwcCurrentPosition != null && dataFrameIndexerPosition == null) {
                             dataFrameIndexerPosition = new DataFrameIndexerPosition(bwcCurrentPosition, null);
                         }
@@ -72,7 +72,7 @@ public class DataFrameTransformState {
         PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
         PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapOrdered(), CURRENT_POSITION, ValueType.OBJECT);
-        PARSER.declareField(optionalConstructorArg(), DataFrameIndexerPosition::fromXContent, NEXT_POSITION, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), DataFrameIndexerPosition::fromXContent, POSITION, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
         PARSER.declareField(optionalConstructorArg(), DataFrameTransformProgress::fromXContent, PROGRESS, ValueType.OBJECT);
@@ -86,7 +86,7 @@ public class DataFrameTransformState {
     private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
     private final long checkpoint;
-    private final DataFrameIndexerPosition nextPosition;
+    private final DataFrameIndexerPosition position;
     private final String reason;
     private final DataFrameTransformProgress progress;
     private final NodeAttributes node;
@@ -100,7 +100,7 @@ public class DataFrameTransformState {
                                    @Nullable NodeAttributes node) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.nextPosition = position;
+        this.position = position;
         this.checkpoint = checkpoint;
         this.reason = reason;
         this.progress = progress;
@@ -117,7 +117,7 @@ public class DataFrameTransformState {
 
     @Nullable
     public DataFrameIndexerPosition getPosition() {
-        return nextPosition;
+        return position;
     }
 
     public long getCheckpoint() {
@@ -153,7 +153,7 @@ public class DataFrameTransformState {
 
         return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&
-            Objects.equals(this.nextPosition, that.nextPosition) &&
+            Objects.equals(this.position, that.position) &&
             Objects.equals(this.progress, that.progress) &&
             this.checkpoint == that.checkpoint &&
             Objects.equals(this.node, that.node) &&
@@ -162,7 +162,7 @@ public class DataFrameTransformState {
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, nextPosition, checkpoint, reason, progress, node);
+        return Objects.hash(taskState, indexerState, position, checkpoint, reason, progress, node);
     }
 
 }

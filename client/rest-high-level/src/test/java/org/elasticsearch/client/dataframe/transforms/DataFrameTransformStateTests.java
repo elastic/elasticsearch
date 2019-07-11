@@ -36,8 +36,8 @@ public class DataFrameTransformStateTests extends ESTestCase {
                 DataFrameTransformStateTests::toXContent,
                 DataFrameTransformState::fromXContent)
                 .supportsUnknownFields(true)
-                .randomFieldsExcludeFilter(field -> field.equals("next_position.indexer_position") ||
-                        field.equals("next_position.buckets_position") ||
+                .randomFieldsExcludeFilter(field -> field.equals("position.indexer_position") ||
+                        field.equals("position.buckets_position") ||
                         field.equals("node.attributes"))
                 .test();
     }
@@ -57,7 +57,7 @@ public class DataFrameTransformStateTests extends ESTestCase {
         builder.field("task_state", state.getTaskState().value());
         builder.field("indexer_state", state.getIndexerState().value());
         if (state.getPosition() != null) {
-            builder.field("next_position");
+            builder.field("position");
             DataFrameIndexerPositionTests.toXContent(state.getPosition(), builder);
         }
         builder.field("checkpoint", state.getCheckpoint());

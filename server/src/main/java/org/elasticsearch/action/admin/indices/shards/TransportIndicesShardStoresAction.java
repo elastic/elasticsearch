@@ -45,6 +45,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.gateway.AsyncShardFetch;
+import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
@@ -148,8 +149,10 @@ public class TransportIndicesShardStoresAction
             if (shardIds.isEmpty()) {
                 listener.onResponse(new IndicesShardStoresResponse());
             } else {
+                // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+                Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
                 for (ShardId shardId : shardIds) {
-                    InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shardId, this::listStartedShards);
+                    InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shardId, lister);
                     fetch.fetchData(nodes, Collections.<String>emptySet());
                 }
             }

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -157,9 +158,11 @@ public class GatewayAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
+            // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+            Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
             AsyncShardFetch<NodeGatewayStartedShards> fetch =
                 asyncFetchStarted.computeIfAbsent(shard.shardId(),
-                    shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId, this::listStartedShards));
+                            shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId, lister));
             AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
@@ -188,9 +191,10 @@ public class GatewayAllocator {
         @Override
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetaData>
                                                                         fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            AsyncShardFetch<NodeStoreFilesMetaData> fetch =
-                asyncFetchStore.computeIfAbsent(shard.shardId(),
-                    shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), this::listStoreFilesMetaData));
+            // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+            Lister<BaseNodesResponse<NodeStoreFilesMetaData>, NodeStoreFilesMetaData> lister = this::listStoreFilesMetaData;
+            AsyncShardFetch<NodeStoreFilesMetaData> fetch = asyncFetchStore.computeIfAbsent(shard.shardId(),
+                    shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), lister));
             AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData()) {

@@ -12,7 +12,7 @@ Its performance degrades as the number of matching child documents pointing to
 unique parent documents increases. Each `has_child` query in a search can
 increase query time significantly.
 
-If you care about query performance, do not use this query. If need to use the
+If you care about query performance, do not use this query. If you need to use the
 `has_child` query, use it as rarely as possible. 
 ====
 

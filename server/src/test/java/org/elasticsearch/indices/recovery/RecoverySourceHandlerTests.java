@@ -144,9 +144,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     public void testSendFiles() throws Throwable {
-        Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
-            put("indices.recovery.concurrent_small_file_streams", 1).build();
-        final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
+        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Store store = newStore(createTempDir());
         Directory dir = store.directory();

@@ -75,7 +75,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ESIntegTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44164")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ShrinkIndexIT extends ESIntegTestCase {
 
     @Override

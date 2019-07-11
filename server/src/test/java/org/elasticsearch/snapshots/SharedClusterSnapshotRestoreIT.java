@@ -1322,8 +1322,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete the last snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot).get();
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
-                    "plus two because one backup index-N file should remain and incompatible-snapshots");
-        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
+                    "plus one because one backup index-N file should remain");
+        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 1));
     }
 
     public void testDeleteSnapshotWithMissingIndexAndShardMetadata() throws Exception {
@@ -1571,7 +1571,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx", "test-idx-closed");
         ensureGreen();
         logger.info("-->  closing index test-idx-closed");
-        assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
+        assertAcked(client.admin().indices().prepareClose("test-idx-closed").setWaitForActiveShards(ActiveShardCount.ALL));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test-idx-closed").getState(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());

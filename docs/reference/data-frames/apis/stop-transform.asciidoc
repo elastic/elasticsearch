@@ -8,11 +8,10 @@
 <titleabbrev>Stop {dataframe-transforms}</titleabbrev>
 ++++
 
-beta[]
-
 Stops one or more {dataframe-transforms}.
 
-[discrete]
+beta[]
+
 [[stop-data-frame-transform-request]]
 ==== {api-request-title}
 
@@ -22,7 +21,6 @@ Stops one or more {dataframe-transforms}.
 
 `POST _data_frame/transforms/_all/_stop`
 
-[discrete]
 [[stop-data-frame-transform-prereq]]
 ==== {api-prereq-title}
 
@@ -32,7 +30,6 @@ Stops one or more {dataframe-transforms}.
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[stop-data-frame-transform-desc]]
 ==== {api-description-title}
 
@@ -41,21 +38,19 @@ comma-separated list of {dataframe-transforms} or a wildcard expression.
 All {dataframe-transforms} can be stopped by using `_all` or `*` as the
 `<data_frame_transform_id>`.
 
-[discrete]
 [[stop-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>` (Required)::
-  (string) Identifier for the {dataframe-transform}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+`<data_frame_transform_id>`::
+  (string) Required. Identifier for the {dataframe-transform}. This identifier
+  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
 
-[discrete]
 [[stop-data-frame-transform-query-parms]]
 ==== {api-query-parms-title}
 
-`allow_no_match` (Optional)::
-(boolean) Specifies what to do when the request:
+`allow_no_match`::
+(boolean) Optional. Specifies what to do when the request:
 +
 --
 * Contains wildcard expressions and there are no {dataframe-transforms} that match.
@@ -73,20 +68,19 @@ If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.
 --
 
-`timeout` (Optional)::
-  (time value) If `wait_for_completion=true`, the API blocks for (at maximum)
-  the specified duration while waiting for the transform to stop. If more than
-  `timeout` time has passed, the API throws a timeout exception. Even if a
-  timeout exception is thrown, the stop request is still processing and
+`timeout`::
+  (time value) Optional. If `wait_for_completion=true`, the API blocks for (at
+  maximum) the specified duration while waiting for the transform to stop. If
+  more than `timeout` time has passed, the API throws a timeout exception. Even
+  if a timeout exception is thrown, the stop request is still processing and
   eventually moves the transform to `STOPPED`. The timeout simply means the API
   call itself timed out while waiting for the status change. Defaults to `30s`
 
-`wait_for_completion` (Optional)::
-  (boolean) If set to `true`, causes the API to block until the indexer state
-  completely stops. If set to `false`, the API returns immediately and the
+`wait_for_completion`::
+  (boolean) Optional. If set to `true`, causes the API to block until the indexer 
+  state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
-[discrete]
 [[stop-data-frame-transform-response-codes]]
 ==== {api-response-codes-title}
 
@@ -94,7 +88,6 @@ are no matches or only partial matches.
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request. 
 
-[discrete]
 [[stop-data-frame-transform-example]]
 ==== {api-examples-title}
 

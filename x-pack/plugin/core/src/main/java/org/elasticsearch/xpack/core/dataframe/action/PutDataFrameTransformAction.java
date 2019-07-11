@@ -64,6 +64,10 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
             return new Request(DataFrameTransformConfig.fromXContent(parser, id, false));
         }
 
+        /**
+         * More complex validations with how {@link DataFrameTransformConfig#getDestination()} and
+         * {@link DataFrameTransformConfig#getSource()} relate are done in the transport handler.
+         */
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;

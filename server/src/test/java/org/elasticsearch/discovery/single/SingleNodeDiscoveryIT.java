@@ -34,6 +34,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,15 +60,13 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
-                .put("transport.port", "0")
+                .put("transport.port", MockTransportService.getPortRange())
                 .build();
     }
 
     public void testSingleNodesDoNotDiscoverEachOther() throws IOException, InterruptedException {
         final TransportService service = internalCluster().getInstance(TransportService.class);
         final int port = service.boundAddress().publishAddress().getPort();
-        final int upperPortRangeBound = port + 5 - 1;
-        assumeTrue("port must be in range", upperPortRangeBound <= 65535);
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -79,7 +78,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                          * We align the port ranges of the two as then with zen discovery these two
                          * nodes would find each other.
                          */
-                        .put("transport.port", port + "-" + upperPortRangeBound)
+                        .put("transport.port", port + "-" + (port + 5 - 1))
                         .build();
             }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -40,10 +41,13 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasKey;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -84,7 +88,7 @@ public final class BlobStoreTestUtil {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
                 }
                 assertIndexUUIDs(blobContainer, repositoryData);
-                assertSnapshotUUIDs(blobContainer, repositoryData);
+                assertSnapshotUUIDs(repository, repositoryData);
                 listener.onResponse(null);
             }
         });
@@ -107,20 +111,52 @@ public final class BlobStoreTestUtil {
         if (indicesContainer == null) {
             foundIndexUUIDs = Collections.emptyList();
         } else {
+            // Skip Lucene MockFS extraN directory
             foundIndexUUIDs = indicesContainer.children().keySet().stream().filter(
                 s -> s.startsWith("extra") == false).collect(Collectors.toList());
         }
         assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
     }
 
-    private static void assertSnapshotUUIDs(BlobContainer repoRoot, RepositoryData repositoryData) throws IOException {
-        final List<String> expectedSnapshotUUIDs =
-            repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+    private static void assertSnapshotUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
+        final BlobContainer repoRoot = repository.blobContainer();
+        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
         for (String prefix : new String[]{"snap-", "meta-"}) {
                 final Collection<String> foundSnapshotUUIDs = repoRoot.listBlobs().keySet().stream().filter(p -> p.startsWith(prefix))
                     .map(p -> p.replace(prefix, "").replace(".dat", ""))
                     .collect(Collectors.toSet());
                 assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        }
+
+        final BlobContainer indicesContainer = repository.getBlobContainer().children().get("indices");
+        final Map<String, BlobContainer> indices;
+        if (indicesContainer == null) {
+            indices = Collections.emptyMap();
+        } else {
+            indices = indicesContainer.children();
+        }
+        // Assert that for each snapshot, the relevant metadata was written to index and shard folders
+        for (SnapshotId snapshotId: snapshotIds) {
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            for (String index : snapshotInfo.indices()) {
+                final IndexId indexId = repositoryData.resolveIndexId(index);
+                assertThat(indices, hasKey(indexId.getId()));
+                final BlobContainer indexContainer = indices.get(indexId.getId());
+                assertThat(indexContainer.listBlobs(),
+                    hasKey(String.format(Locale.ROOT, BlobStoreRepository.METADATA_NAME_FORMAT, snapshotId.getUUID())));
+                for (Map.Entry<String, BlobContainer> entry : indexContainer.children().entrySet()) {
+                    // Skip Lucene MockFS extraN directory
+                    if (entry.getKey().startsWith("extra")) {
+                        continue;
+                    }
+                    if (snapshotInfo.shardFailures().stream().noneMatch(shardFailure ->
+                        shardFailure.index().equals(index) != false && shardFailure.shardId() == Integer.parseInt(entry.getKey()))) {
+                        assertThat(entry.getValue().listBlobs(),
+                            hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));
+                    }
+                }
+            }
         }
     }
 }

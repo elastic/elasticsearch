@@ -48,7 +48,6 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringCollection);
     }
 

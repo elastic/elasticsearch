@@ -172,7 +172,6 @@ public class EvaluateDataFrameAction extends StreamableResponseActionType<Evalua
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(evaluationName);
             out.writeList(metrics);
         }

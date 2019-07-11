@@ -123,7 +123,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeStringArray(indices);
         }

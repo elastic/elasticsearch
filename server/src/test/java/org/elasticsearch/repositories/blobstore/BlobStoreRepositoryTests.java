@@ -189,50 +189,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
-        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
+        final long startingGeneration = repositoryData.getGenId();
+        repository.writeIndexGen(repositoryData, startingGeneration);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
-        expectThrows(RepositoryException.class, () -> repository.writeIndexGen(repositoryData, repositoryData.getGenId()));
-    }
-
-    public void testReadAndWriteIncompatibleSnapshots() throws Exception {
-        final BlobStoreRepository repository = setupRepo();
-
-        // write to and read from incompatible snapshots file with no entries
-        assertEquals(0, repository.getRepositoryData().getIncompatibleSnapshotIds().size());
-        RepositoryData emptyData = RepositoryData.EMPTY;
-        repository.writeIndexGen(emptyData, emptyData.getGenId());
-        repository.writeIncompatibleSnapshots(emptyData);
-        RepositoryData readData = repository.getRepositoryData();
-        assertEquals(emptyData, readData);
-        assertEquals(0, readData.getIndices().size());
-        assertEquals(0, readData.getSnapshotIds().size());
-
-        // write to and read from incompatible snapshots with some number of entries
-        final int numSnapshots = randomIntBetween(1, 20);
-        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
-        for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
-        }
-        RepositoryData repositoryData = new RepositoryData(readData.getGenId(),
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), snapshotIds);
-        repository.blobContainer().deleteBlob("incompatible-snapshots");
-        repository.writeIncompatibleSnapshots(repositoryData);
-        readData = repository.getRepositoryData();
-        assertEquals(repositoryData.getIncompatibleSnapshotIds(), readData.getIncompatibleSnapshotIds());
-    }
-
-    public void testIncompatibleSnapshotsBlobExists() throws Exception {
-        final BlobStoreRepository repository = setupRepo();
-        RepositoryData emptyData = RepositoryData.EMPTY;
-        repository.writeIndexGen(emptyData, emptyData.getGenId());
-        RepositoryData repoData = repository.getRepositoryData();
-        assertEquals(emptyData, repoData);
-        assertTrue(repository.blobContainer().blobExists("incompatible-snapshots"));
-        repoData = addRandomSnapshotsToRepoData(repository.getRepositoryData(), true);
-        repository.writeIndexGen(repoData, repoData.getGenId());
-        assertEquals(0, repository.getRepositoryData().getIncompatibleSnapshotIds().size());
+        expectThrows(RepositoryException.class, () -> repository.writeIndexGen(
+            repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId()));
     }
 
     public void testBadChunksize() throws Exception {

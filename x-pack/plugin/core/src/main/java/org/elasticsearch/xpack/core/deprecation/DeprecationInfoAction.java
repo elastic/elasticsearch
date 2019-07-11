@@ -128,7 +128,6 @@ public class DeprecationInfoAction extends StreamableResponseActionType<Deprecat
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeList(clusterSettingsIssues);
             out.writeList(nodeSettingsIssues);
             out.writeMapOfLists(indexSettingsIssues, StreamOutput::writeString, (o, v) -> v.writeTo(o));

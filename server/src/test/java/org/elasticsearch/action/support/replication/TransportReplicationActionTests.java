@@ -1228,6 +1228,10 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     static class TestResponse extends ReplicationResponse {
+        TestResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
         TestResponse() {
             setShardInfo(new ShardInfo());
         }
@@ -1251,8 +1255,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestResponse newResponseInstance() {
-            return new TestResponse();
+        protected TestResponse newResponseInstance(StreamInput in) throws IOException {
+            return new TestResponse(in);
         }
 
         @Override

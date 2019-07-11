@@ -46,6 +46,8 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.LineNumberReader;
+
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -61,6 +63,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,6 +85,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
+
     private static final int NODE_UP_TIMEOUT = 2;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int ADDITIONAL_CONFIG_TIMEOUT = 15;
@@ -89,6 +93,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers"
+
+    );
+
+    private static final int TAIL_LOG_MESSAGES_COUNT = 40;
+    private static final List<String> MESSAGES_WE_DONT_CARE_ABOUT = Arrays.asList(
+        "Option UseConcMarkSweepGC was deprecated",
+        "is a pre-release version of Elasticsearch",
+        "max virtual memory areas vm.max_map_count"
     );
 
     private final String path;
@@ -693,14 +705,73 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void logFileContents(String description, Path from) {
-        LOGGER.error("{} `{}`", description, this);
-        try (Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
-            lines
-                .map(line -> "  " + line)
-                .forEach(LOGGER::error);
+        final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
+        LinkedList<String> ring = new LinkedList<>();
+        try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
+            for (String line = reader.readLine(); line != null ; line = reader.readLine()) {
+                final String lineToAdd;
+                if (ring.isEmpty()) {
+                    lineToAdd = line;
+                } else {
+                    if (line.startsWith("[")) {
+                        lineToAdd = line;
+                        // check to see if the previous message (possibly combined from multiple lines) was an error or
+                        // warning as we want to show all of them
+                        String previousMessage = normalizeLogLine(ring.getLast());
+                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(previousMessage::contains) &&
+                            (previousMessage.contains("ERROR") || previousMessage.contains("WARN"))) {
+                            errorsAndWarnings.put(
+                                previousMessage,
+                                errorsAndWarnings.getOrDefault(previousMessage, 0) + 1
+                            );
+                        }
+                    } else {
+                        // We combine multi line log messages to make sure we never break exceptions apart
+                        lineToAdd = ring.removeLast() + "\n" + line;
+                    }
+                }
+                ring.add(lineToAdd);
+                if (ring.size() >= TAIL_LOG_MESSAGES_COUNT) {
+                    ring.removeFirst();
+                }
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to tail log " + this, e);
         }
+
+        if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
+            LOGGER.error("\n=== {} `{}` ===", description, this);
+        }
+        if (errorsAndWarnings.isEmpty() == false) {
+            LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
+            errorsAndWarnings.forEach((message, count) -> {
+                LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
+                if (count > 1) {
+                    LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
+                }
+            });
+        }
+
+        ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
+
+        if (ring.isEmpty() == false) {
+            LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
+            ring.forEach(message -> {
+                if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+                    LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
+                }
+            });
+        }
+    }
+
+    private String normalizeLogLine(String line) {
+        if (line.contains("ERROR")) {
+            return line.substring(line.indexOf("ERROR"));
+        }
+        if (line.contains("WARN")) {
+            return line.substring(line.indexOf("WARN"));
+        }
+        return line;
     }
 
     private void waitForProcessToExit(ProcessHandle processHandle) {

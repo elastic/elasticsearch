@@ -23,6 +23,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -82,6 +83,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ModelSnapshot.TYPE.getPreferredName());
         overridden.add(Quantiles.TYPE.getPreferredName());
         overridden.add(TimingStats.TYPE.getPreferredName());
+        overridden.add(DatafeedTimingStats.TYPE.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);

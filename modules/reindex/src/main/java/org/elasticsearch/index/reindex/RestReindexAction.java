@@ -68,6 +68,16 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(true));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(true));
 
+            /*
+             * Let's try and validate before forking so the user gets some error. The
+             * task can't totally validate until it starts but this is better than
+             * nothing.
+             */
+            ActionRequestValidationException validationException = internal.getReindexRequest().validate();
+            if (validationException != null) {
+                throw validationException;
+            }
+
             return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new ActionListener<>() {
 
                 private BulkIndexByScrollResponseContentListener listener = new BulkIndexByScrollResponseContentListener(channel, params);

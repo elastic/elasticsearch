@@ -67,8 +67,8 @@ returns, the follower index will resume fetching operations from the leader inde
 [[ccr-post-resume-follow-path-parms]]
 ==== {api-path-parms-title}
 
-`<follower_index>` (Required)::
-  (string) The name of the follower index.
+`<follower_index>`::
+  (string) Required. The name of the follower index.
 
 [[ccr-post-resume-follow-request-body]]
 ==== {api-request-body-title}

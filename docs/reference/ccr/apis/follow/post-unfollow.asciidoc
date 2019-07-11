@@ -60,8 +60,8 @@ irreversible operation.
 [[ccr-post-unfollow-path-parms]]
 ==== {api-path-parms-title}
 
-`<follower_index>` (Required)::
-  (string) The name of the follower index.
+`<follower_index>`::
+  (string) Required. The name of the follower index.
 
 [[ccr-post-unfollow-examples]]
 ==== {api-examples-title}

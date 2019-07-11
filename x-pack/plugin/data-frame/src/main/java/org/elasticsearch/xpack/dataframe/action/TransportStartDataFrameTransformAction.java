@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskS
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
+import org.elasticsearch.xpack.dataframe.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -184,6 +185,8 @@ public class TransportStartDataFrameTransformAction extends
                     ));
                     return;
                 }
+                // Validate source and destination indices
+                SourceDestValidator.check(config, clusterService.state(), indexNameExpressionResolver);
 
                 transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion(), config.getFrequency()));
                 final String destinationIndex = config.getDestination().getIndex();

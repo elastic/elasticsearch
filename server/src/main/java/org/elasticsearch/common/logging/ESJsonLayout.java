@@ -36,6 +36,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Formats log events as strings in a json format.
@@ -96,8 +98,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         for (String key : esMessageFields) {
             map.put(key, inQuotes("%ESMessageField{" + key + "}"));
         }
-
-        return createPattern(map, Set.of(esMessageFields));
+        return createPattern(map, Stream.of(esMessageFields).collect(Collectors.toSet()));
     }
 
 

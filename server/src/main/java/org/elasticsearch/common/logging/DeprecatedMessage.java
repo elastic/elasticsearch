@@ -20,6 +20,7 @@
 package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 
 import java.util.Collections;
 import java.util.Map;
@@ -39,6 +40,6 @@ public class DeprecatedMessage extends ESLogMessage {
             return Collections.emptyMap();
         }
 
-        return Map.of("x-opaque-id", xOpaqueId);
+        return MapBuilder.<String,Object>newMapBuilder().put("x-opaque-id", xOpaqueId).immutableMap();
     }
 }

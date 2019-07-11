@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -138,7 +139,9 @@ public final class ThreadContext implements Closeable, Writeable {
          */
         if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
             ThreadContextStruct threadContextStruct =
-                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+                DEFAULT_CONTEXT.putHeaders(MapBuilder.<String, String>newMapBuilder()
+                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
+                    .immutableMap());
             threadLocal.set(threadContextStruct);
         } else {
             threadLocal.set(null);

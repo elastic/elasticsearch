@@ -55,6 +55,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ESLoggerUsageChecker {
     public static final Type LOGGER_CLASS = Type.getType(Logger.class);
@@ -70,10 +72,10 @@ public class ESLoggerUsageChecker {
     public static final String IGNORE_CHECKS_ANNOTATION = "org.elasticsearch.common.SuppressLoggerChecks";
     // types which are subject to checking when used in logger. <code>TestMessage<code> is also declared here to
     // make sure this functionality works
-    public static final Set<Type> DEPRECATED_TYPES = Set.of(
+    public static final Set<Type> DEPRECATED_TYPES = Stream.of(
         Type.getObjectType("org/elasticsearch/common/logging/DeprecatedMessage"),
         Type.getObjectType("org/elasticsearch/test/loggerusage/TestMessage")
-    );
+    ).collect(Collectors.toSet());
 
     public static final Type PARAMETERIZED_MESSAGE_CLASS = Type.getType(ParameterizedMessage.class);
 

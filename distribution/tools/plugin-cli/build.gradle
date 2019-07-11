@@ -24,8 +24,8 @@ archivesBaseName = 'elasticsearch-plugin-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
-  compile "org.bouncycastle:bcpg-jdk15on:${versions.bouncycastle}"
-  compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  compile "org.bouncycastle:bcpg-fips:1.0.3"
+  compile "org.bouncycastle:bc-fips:1.0.1"
   testCompile project(":test:framework")
   testCompile 'com.google.jimfs:jimfs:1.1'
   testCompile 'com.google.guava:guava:18.0'

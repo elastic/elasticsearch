@@ -29,7 +29,7 @@ buildScan {
     if (scmInfo && scmInfo.change && scmInfo.branch) {
         value 'Git Commit ID', scmInfo.change
         // Don't tag the branch if we are in a detached head state
-        if (scmInfo.branch.startsWith(scmInfo.change) == false) {
+        if (scmInfo.branch ==~ /[0-9a-f]{5,40}/ == false) {
             value 'Git Branch', scmInfo.branch
             tag scmInfo.branch
         }

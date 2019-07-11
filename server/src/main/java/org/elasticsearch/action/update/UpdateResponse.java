@@ -39,7 +39,11 @@ public class UpdateResponse extends DocWriteResponse {
 
     private GetResult getResult;
 
-    public UpdateResponse() {
+    public UpdateResponse(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            getResult = GetResult.readGetResult(in);
+        }
     }
 
     /**
@@ -67,14 +71,6 @@ public class UpdateResponse extends DocWriteResponse {
     @Override
     public RestStatus status() {
         return this.result == Result.CREATED ? RestStatus.CREATED : super.status();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            getResult = GetResult.readGetResult(in);
-        }
     }
 
     @Override

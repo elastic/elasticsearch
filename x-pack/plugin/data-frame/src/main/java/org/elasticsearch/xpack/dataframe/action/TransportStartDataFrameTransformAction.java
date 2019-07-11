@@ -186,7 +186,7 @@ public class TransportStartDataFrameTransformAction extends
                     return;
                 }
 
-                transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion()));
+                transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion(), config.getFrequency()));
                 final String destinationIndex = config.getDestination().getIndex();
                 String[] dest = indexNameExpressionResolver.concreteIndexNames(state,
                     IndicesOptions.lenientExpandOpen(),
@@ -255,8 +255,8 @@ public class TransportStartDataFrameTransformAction extends
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static DataFrameTransform createDataFrameTransform(String transformId, Version transformVersion) {
-        return new DataFrameTransform(transformId, transformVersion);
+    private static DataFrameTransform createDataFrameTransform(String transformId, Version transformVersion, TimeValue frequency) {
+        return new DataFrameTransform(transformId, transformVersion, frequency);
     }
 
     @SuppressWarnings("unchecked")

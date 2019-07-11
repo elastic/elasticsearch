@@ -135,25 +135,6 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(responseQueue.isEmpty());
     }
 
-    private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
-        return new RejectAwareActionListener<>() {
-            @Override
-            public void onRejection(Exception e) {
-                throw new AssertionError(e);
-            }
-
-            @Override
-            public void onResponse(T t) {
-                consumer.accept(t);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
-    }
-
     public void testLookupRemoteVersion() throws Exception {
         assertLookupRemoteVersion(Version.fromString("0.20.5"), "main/0_20_5.json");
         assertLookupRemoteVersion(Version.fromString("0.90.13"), "main/0_90_13.json");
@@ -608,6 +589,13 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 responseQueue::add, RemoteScrollableHitSourceTests.this::failRequest,
                 client, new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);
         }
+    }
+
+    private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
+        Consumer<Exception> throwing = e -> {
+            throw new AssertionError(e);
+        };
+        return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
     }
 
     @SuppressWarnings("unchecked")

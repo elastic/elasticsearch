@@ -124,7 +124,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         X509AuthenticationToken token = new X509AuthenticationToken(certificates);
         // the following block of code maintains BWC:
         // When constructing the token object we only return it if the Subject DN of the certificate can be parsed by at least one PKI
-        // realm. We then consider the parsed Subject DN as the "principal" even though it is generally incorrect because when several
+        // realm. We then consider the parsed Subject DN as the "principal" even though it is potentially incorrect because when several
         // realms are installed the one that first parses the principal might not be the one that finally authenticates (does trusted chain
         // validation). In this case the principal should be set by the realm that completes the authentication. But in the common case,
         // where a single PKI realm is configured, there is no risk of eagerly parsing the principal before authentication and it also
@@ -161,6 +161,9 @@ public class PkiRealm extends Realm implements CachingRealm {
                 // we do it for BWC purposes. Changing this is a breaking change.
                 final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
                 if (principal == null) {
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                            "the extracted principal after cert chain validation, from DN [{}], using pattern [{}] is null", token.dn(),
+                            principalPattern.toString()));
                     listener.onResponse(AuthenticationResult.unsuccessful("Could not parse principal from Subject DN " + token.dn(), null));
                 } else {
                     final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
@@ -171,6 +174,11 @@ public class PkiRealm extends Realm implements CachingRealm {
                         }
                         listener.onResponse(result);
                     }, listener::onFailure);
+                    if (false == principal.equals(token.principal())) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                                "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
+                                token.principal(), principal, token.dn()));
+                    }
                     if (delegatedRealms.hasDelegation()) {
                         delegatedRealms.resolve(principal, cachingListener);
                     } else {

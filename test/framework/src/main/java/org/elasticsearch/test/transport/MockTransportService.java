@@ -105,14 +105,32 @@ public final class MockTransportService extends TransportService {
         return createNewService(settings, mockTransport, version, threadPool, clusterSettings, Collections.emptySet());
     }
 
+    /**
+     * Some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
+     * concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
+     * be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
+     * a different default port range per JVM unless the incoming settings override it
+     * use a non-default base port otherwise some cluster in this JVM might reuse a port
+     */
+    private static int getBasePort() {
+        final int basePort = 10300 + (ESTestCase.TEST_WORKER_VM * 100);
+        if (basePort < 10300 || basePort >= 65000) {
+            // to ensure we don't get illegal ports above 65536 in the getPortRange method
+            throw new AssertionError("Expected basePort to be between 10300 and 65000 but was " + basePort);
+        }
+        return basePort;
+    }
+
+    /**
+     * Returns a unique port range for this JVM starting from the computed base port (see {@link #getBasePort()})
+     */
+    public static String getPortRange() {
+        int basePort = getBasePort();
+        return basePort + "-" + (basePort + 99); // upper bound is inclusive
+    }
+
     public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
-        // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
-        // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
-        // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
-        // a different default port range per JVM unless the incoming settings override it
-        // use a non-default base port otherwise some cluster in this JVM might reuse a port
-        int basePort = 10300 + (ESTestCase.TEST_WORKER_VM * 100);
-        settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());

@@ -79,7 +79,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
     }

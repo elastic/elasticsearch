@@ -103,7 +103,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), null);
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver());
     }
 
     @Override
@@ -213,10 +213,9 @@ public class BroadcastReplicationTests extends ESTestCase {
             ConcurrentCollections.newConcurrentSet();
 
         TestBroadcastReplicationAction(ClusterService clusterService, TransportService transportService,
-                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> action) {
+                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver, action);
+                    null, actionFilters, indexNameExpressionResolver, null);
         }
 
         @Override

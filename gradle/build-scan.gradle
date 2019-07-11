@@ -11,7 +11,7 @@ buildScan {
     if (System.getenv('JENKINS_URL')) {
         tag 'CI'
         tag System.getenv('JOB_NAME')
-        link 'Jenkins Build', System.getenv('JOB_URL')
+        link 'Jenkins Build', System.getenv('BUILD_URL')
 
         // Capture changes included in this CI build
         if (System.getenv('GIT_COMMIT')) {

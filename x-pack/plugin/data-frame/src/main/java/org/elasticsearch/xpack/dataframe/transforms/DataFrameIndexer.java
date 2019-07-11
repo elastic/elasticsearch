@@ -55,14 +55,15 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
      * which query filters to run and which index requests to send
      */
     private enum RunState {
-        // do a complete query/index
+        // do a complete query/index, this is used for batch data frames and for bootstraping (1st run)
         FULL_RUN,
 
-        // query for changed buckets
-        FETCH_CHANGED_BUCKETS_FOR_PARTIAL_UPDATE,
+        // Partial run modes in 2 stages:
+        // identify buckets that have changed
+        PARTIAL_RUN_IDENTIFY_CHANGES,
 
-        // query/index filter by changed buckets
-        RUN_PARTIAL_UPDATE
+        // recalculate buckets based on the update list
+        PARTIAL_RUN_APPLY_CHANGES
     }
 
     public static final int MINIMUM_PAGE_SIZE = 10;
@@ -79,9 +80,12 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     private int pageSize = 0;
     protected volatile DataFrameTransformCheckpoint lastCheckpoint;
     protected volatile DataFrameTransformCheckpoint nextCheckpoint;
+
+    private volatile RunState runState;
+
+    // hold information for continuous mode (partial updates)
     private volatile Map<String, Set<String>> changedBuckets;
     private volatile Map<String, Object> changedBucketsAfterKey;
-    private volatile RunState runState;
 
     public DataFrameIndexer(Executor executor,
                             DataFrameAuditor auditor,
@@ -98,7 +102,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
         this.progress = transformProgress;
-        // TODO: we need both the last and next checkpoint
         this.lastCheckpoint = lastCheckpoint;
         this.nextCheckpoint = nextCheckpoint;
     }
@@ -166,9 +169,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         switch (runState) {
         case FULL_RUN:
             return processBuckets(agg);
-        case RUN_PARTIAL_UPDATE:
+        case PARTIAL_RUN_APPLY_CHANGES:
             return processPartialBucketUpdates(agg);
-        case FETCH_CHANGED_BUCKETS_FOR_PARTIAL_UPDATE:
+        case PARTIAL_RUN_IDENTIFY_CHANGES:
             return processChangedBuckets(agg);
 
         default:
@@ -206,7 +209,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             changedBuckets = null;
 
             // reset the runState to fetch changed buckets
-            runState = RunState.FETCH_CHANGED_BUCKETS_FOR_PARTIAL_UPDATE;
+            runState = RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
             // advance the cursor for changed bucket detection
             return new IterationResult<>(Collections.emptyList(),
                     new DataFrameIndexerPosition(null, changedBucketsAfterKey), false);
@@ -243,7 +246,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         changedBucketsAfterKey = agg.afterKey();
 
         // reset the runState to fetch the partial updates next
-        runState = RunState.RUN_PARTIAL_UPDATE;
+        runState = RunState.PARTIAL_RUN_APPLY_CHANGES;
 
         return new IterationResult<>(Collections.emptyList(), getPosition(), false);
     }
@@ -325,10 +328,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         case FULL_RUN:
             buildFullRunQuery(sourceBuilder);
             break;
-        case FETCH_CHANGED_BUCKETS_FOR_PARTIAL_UPDATE:
+        case PARTIAL_RUN_IDENTIFY_CHANGES:
             buildChangedBucketsQuery(sourceBuilder);
             break;
-        case RUN_PARTIAL_UPDATE:
+        case PARTIAL_RUN_APPLY_CHANGES:
             buildPartialUpdateQuery(sourceBuilder);
             break;
         default:
@@ -452,85 +455,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return true;
     }
 
-    /*
-    protected void getChangedBuckets(DataFrameTransformCheckpoint oldCheckpoint,
-                                     DataFrameTransformCheckpoint newCheckpoint,
-                                     ActionListener<Map<String, Set<String>>> listener) {
-
-        ActionListener<Map<String, Set<String>>> wrappedListener = ActionListener.wrap(
-            r -> {
-                this.nextCheckpoint = newCheckpoint;
-                this.changedBuckets = r;
-                listener.onResponse(r);
-            },
-            listener::onFailure
-        );
-        // initialize the map of changed buckets, the map might be empty if source do not require/implement
-        // changed bucket detection
-        Map<String, Set<String>> keys = pivot.initialIncrementalBucketUpdateMap();
-        if (keys.isEmpty()) {
-            logger.trace("This data frame does not implement changed bucket detection, returning");
-            wrappedListener.onResponse(null);
-            return;
-        }
-
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-
-        // we do not need the sub-aggs
-        CompositeAggregationBuilder changesAgg = pivot.buildIncrementalBucketUpdateAggregation(pageSize);
-        sourceBuilder.aggregation(changesAgg);
-        sourceBuilder.size(0);
-
-        QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
-
-        DataFrameTransformConfig config = getConfig();
-        if (config.getSyncConfig() != null) {
-            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().
-                    filter(pivotQueryBuilder).
-                    filter(config.getSyncConfig().getRangeQuery(oldCheckpoint, newCheckpoint));
-
-            logger.trace("Gathering changes using query {}", filteredQuery);
-            sourceBuilder.query(filteredQuery);
-        } else {
-            logger.trace("No sync configured");
-            wrappedListener.onResponse(null);
-            return;
-        }
-
-        searchRequest.source(sourceBuilder);
-        searchRequest.allowPartialSearchResults(false);
-
-        collectChangedBuckets(searchRequest, changesAgg, keys, ActionListener.wrap(wrappedListener::onResponse, e -> {
-            // fall back if bucket collection failed
-            logger.error("Failed to retrieve changed buckets, fall back to complete retrieval", e);
-            wrappedListener.onResponse(null);
-        }));
-    }*/
-/*
-    void collectChangedBuckets(SearchRequest searchRequest, CompositeAggregationBuilder changesAgg, Map<String, Set<String>> keys,
-            ActionListener<Map<String, Set<String>>> finalListener) {
-
-        // re-using the existing search hook
-        doNextSearch(searchRequest, ActionListener.wrap(searchResponse -> {
-            final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-
-            agg.getBuckets().stream().forEach(bucket -> {
-                bucket.getKey().forEach((k, v) -> {
-                    keys.get(k).add(v.toString());
-                });
-            });
-
-            if (agg.getBuckets().isEmpty()) {
-                finalListener.onResponse(keys);
-            } else {
-                // adjust the after key
-                changesAgg.aggregateAfter(agg.afterKey());
-                collectChangedBuckets(searchRequest, changesAgg, keys, finalListener);
-            }
-        }, finalListener::onFailure));
-    }
-*/
     private RunState determineRunStateAtStart() {
         // either 1st run or not a continuous data frame
         if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
@@ -540,7 +464,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         // TODO: if incremental update is not supported (histogram only), do a full run
 
         // continuous mode: we need to get the changed buckets first
-        return RunState.FETCH_CHANGED_BUCKETS_FOR_PARTIAL_UPDATE;
+        return RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
     }
 
     /**

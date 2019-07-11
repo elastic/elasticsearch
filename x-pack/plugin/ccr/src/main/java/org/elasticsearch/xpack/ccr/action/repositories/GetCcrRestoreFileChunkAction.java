@@ -60,7 +60,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         @Override
         protected void doExecute(Task task, GetCcrRestoreFileChunkRequest request,
                                  ActionListener<GetCcrRestoreFileChunkResponse> listener) {
-            int bytesRequested = request.getSize();
+            int bytesRequested = Math.toIntExact(request.sizeInBytes());
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();
             String sessionUUID = request.getSessionUUID();

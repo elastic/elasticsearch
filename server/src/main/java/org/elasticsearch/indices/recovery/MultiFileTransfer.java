@@ -106,6 +106,12 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                     handleError(resp.md, resp.failure);
                     throw resp.failure;
                 }
+                try {
+                    handleResponse(resp.md, resp.response);
+                } catch (Exception e) {
+                    handleError(resp.md, e);
+                    throw e;
+                }
             }
             while (requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentFileChunks) {
                 if (currentFile == null) {
@@ -146,6 +152,8 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
 
     protected abstract void sendChunkRequest(Request request, ActionListener<Response> listener);
 
+    protected abstract void handleResponse(StoreFileMetaData md, Response resp) throws Exception;
+
     protected abstract void handleError(StoreFileMetaData md, Exception e) throws Exception;
 
     private static class FileChunkResponseItem<Resp> {
@@ -162,7 +170,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
         }
     }
 
-    protected interface ChunkRequest {
+    public interface ChunkRequest {
         /**
          * @return the number of bytes of the file chunk request
          */

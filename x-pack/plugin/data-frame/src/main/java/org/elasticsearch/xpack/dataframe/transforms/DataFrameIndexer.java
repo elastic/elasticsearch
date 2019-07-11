@@ -362,7 +362,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             sourceBuilder.query(pivotQueryBuilder);
         }
 
-        logger.trace("running full run query: {}", sourceBuilder.query());
+        logger.trace("running full run query: {}", sourceBuilder);
 
         return sourceBuilder;
     }
@@ -385,7 +385,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
         sourceBuilder.query(filteredQuery);
 
-        logger.trace("running changes query {}", sourceBuilder.query());
+        logger.trace("running changes query {}", sourceBuilder);
         return sourceBuilder;
     }
 
@@ -413,7 +413,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         }
 
         sourceBuilder.query(filteredQuery);
-        logger.trace("running partial update query: {}", sourceBuilder.query());
+        logger.trace("running partial update query: {}", sourceBuilder);
 
         return sourceBuilder;
     }

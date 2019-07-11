@@ -252,6 +252,94 @@ public class RestTableTests extends ESTestCase {
         assertEquals(Arrays.asList(1,0,2), rowOrder);
     }
 
+    public void testPagination() {
+        List<Integer> rowOrder = Arrays.asList(0, 1, 2, 3, 4, 5);
+
+        List<Integer> paginatedRowOrder = RestTable.getPaginatedRowOrder(rowOrder, restRequest);
+        assertEquals(Arrays.asList(0,1,2,3,4,5), paginatedRowOrder);
+
+        restRequest.params().put("limit", "-1");
+        restRequest.params().put("from", "-1");
+        paginatedRowOrder = RestTable.getPaginatedRowOrder(rowOrder, restRequest);
+        assertEquals(Arrays.asList(0,1,2,3,4,5), paginatedRowOrder);
+
+        restRequest.params().put("limit", "3"); // from=-1
+        paginatedRowOrder = RestTable.getPaginatedRowOrder(rowOrder, restRequest);
+        assertEquals(Arrays.asList(0,1,2), paginatedRowOrder);
+
+        restRequest.params().put("from", "2"); // limit=3
+        paginatedRowOrder = RestTable.getPaginatedRowOrder(rowOrder, restRequest);
+        assertEquals(Arrays.asList(2,3,4), paginatedRowOrder);
+
+        restRequest.params().put("from", "100"); // limit=3
+        paginatedRowOrder = RestTable.getPaginatedRowOrder(rowOrder, restRequest);
+        assertEquals(Arrays.asList(), paginatedRowOrder);
+
+        restRequest.params().put("from", "-100"); // limit=3
+        Exception e = expectThrows(IllegalArgumentException.class, () -> RestTable.getPaginatedRowOrder(rowOrder, restRequest));
+        assertEquals("[from] parameter cannot be negative, found [-100]", e.getMessage());
+
+        restRequest.params().put("from", "1");
+        restRequest.params().put("limit", "-5");
+        e = expectThrows(IllegalArgumentException.class, () -> RestTable.getPaginatedRowOrder(rowOrder, restRequest));
+        assertEquals("[limit] parameter cannot be negative, found [-5]", e.getMessage());
+
+        restRequest.params().put("from", "3");
+        restRequest.params().put("limit", "100");
+        paginatedRowOrder = RestTable.getPaginatedRowOrder(rowOrder, restRequest);
+        assertEquals(Arrays.asList(3,4,5), paginatedRowOrder);
+    }
+
+    public void testPaginationSort() {
+        restRequest.params().put("limit", "3");
+        restRequest.params().put("from", "2");
+        List<Integer> rowOrder = Arrays.asList(3, 1, 4, 2, 0, 5);
+        List<Integer> paginatedRowOrder = RestTable.getPaginatedRowOrder(rowOrder, restRequest);
+        assertEquals(Arrays.asList(4,2,0), paginatedRowOrder);
+    }
+
+    public void testXTotalCountHeader() throws Exception {
+        FakeRestRequest request = new FakeRestRequest
+            .Builder(xContentRegistry())
+            .withHeaders(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)))
+            .withParams(Collections.singletonMap("limit", "1"))
+            .build();
+
+        table.startRow();
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.endRow();
+
+        table.startRow();
+        table.addCell("bar");
+        table.addCell("bar");
+        table.addCell("bar");
+        table.addCell("bar");
+        table.addCell("bar");
+        table.addCell("bar");
+        table.addCell("bar");
+        table.addCell("bar");
+        table.endRow();
+
+        RestResponse response = buildResponse(table, new AbstractRestChannel(request, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+            }
+        });
+
+        Map<String, List<String>> headers = response.getHeaders();
+
+        assertThat(response.contentType(), equalTo(APPLICATION_JSON));
+        assertThat(response.content().utf8ToString(), equalTo(JSON_TABLE_BODY));
+        assertEquals(response.getHeaders().get("X-Total-Count"), Arrays.asList("2"));
+    }
+
     private RestResponse assertResponseContentType(Map<String, List<String>> headers, String mediaType) throws Exception {
         FakeRestRequest requestWithAcceptHeader = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).build();
         table.startRow();

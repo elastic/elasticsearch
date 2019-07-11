@@ -65,7 +65,8 @@ public class RestTable {
 
         builder.startArray();
         List<Integer> rowOrder = getRowOrder(table, request);
-        for (Integer row : rowOrder) {
+        List<Integer> paginatedRowOrder = getPaginatedRowOrder(rowOrder, request);
+        for (Integer row : paginatedRowOrder) {
             builder.startObject();
             for (DisplayHeader header : displayHeaders) {
                 builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
@@ -73,7 +74,9 @@ public class RestTable {
             builder.endObject();
         }
         builder.endArray();
-        return new BytesRestResponse(RestStatus.OK, builder);
+        RestResponse restResponse = new BytesRestResponse(RestStatus.OK, builder);
+        restResponse.addHeader("X-Total-Count", Integer.toString(rowOrder.size()));
+        return restResponse;
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
@@ -99,8 +102,9 @@ public class RestTable {
         }
 
         List<Integer> rowOrder = getRowOrder(table, request);
+        List<Integer> paginatedRowOrder = getPaginatedRowOrder(rowOrder, request);
 
-        for (Integer row: rowOrder) {
+        for (Integer row: paginatedRowOrder) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
                 boolean isLastColumn = col == lastHeader;
@@ -112,7 +116,9 @@ public class RestTable {
             out.append("\n");
         }
         out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        RestResponse restResponse = new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        restResponse.addHeader("X-Total-Count", Integer.toString(rowOrder.size()));
+        return restResponse;
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {
@@ -145,6 +151,32 @@ public class RestTable {
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
         }
         return rowOrder;
+    }
+
+    static List<Integer> getPaginatedRowOrder(List<Integer> rowOrder, RestRequest request) {
+        int from = request.paramAsInt("from", -1);
+        int limit = request.paramAsInt("limit", -1);
+
+        if (limit < -1) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "[limit] parameter cannot be negative, found [%s]", limit));
+        }
+
+        if (from < -1) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "[from] parameter cannot be negative, found [%s]", from));
+        }
+
+        if (limit == -1) {
+            limit = rowOrder.size();
+        }
+
+        if (from == -1) {
+            from = 0;
+        }
+
+        int calculatedFrom = Math.min(from, rowOrder.size());
+        int calculatedLimit = Math.min(limit + calculatedFrom, rowOrder.size());
+
+        return rowOrder.subList(calculatedFrom, calculatedLimit);
     }
 
     static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {

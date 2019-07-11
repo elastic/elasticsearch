@@ -551,7 +551,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         ));
                 }, listener::onFailure));
             } else {
-                logger.info("on start");
                 super.onStart(now, listener);
             }
         }

@@ -43,9 +43,9 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, BUCKET_POSITION, ValueType.OBJECT);
     }
 
-    public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketsPosition) {
+    public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketPosition) {
         this.indexerPosition = indexerPosition == null ? null : Collections.unmodifiableMap(indexerPosition);
-        this.bucketPosition = bucketsPosition == null ? null : Collections.unmodifiableMap(bucketsPosition);
+        this.bucketPosition = bucketPosition == null ? null : Collections.unmodifiableMap(bucketPosition);
     }
 
     public DataFrameIndexerPosition(StreamInput in) throws IOException {

@@ -231,7 +231,8 @@ task s3FixtureProperties {
       "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
       "s3Fixture.temporary_session_token": s3TemporarySessionToken,
       "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
-      "s3Fixture.ecs_bucket_name"        : s3ECSBucket
+      "s3Fixture.ecs_bucket_name"        : s3ECSBucket,
+      "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
   ]
 
   doLast {

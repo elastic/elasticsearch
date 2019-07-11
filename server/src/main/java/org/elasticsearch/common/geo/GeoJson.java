@@ -228,8 +228,12 @@ public final class GeoJson {
 
     private static Geometry createGeometry(String type, List<Geometry> geometries, CoordinateNode coordinates, Boolean orientation,
                                            boolean defaultOrientation, boolean coerce, DistanceUnit.Distance radius) {
-
-        ShapeType shapeType = ShapeType.forName(type);
+        ShapeType shapeType;
+        if ("bbox".equals(type.toLowerCase(Locale.ROOT))) {
+            shapeType = ShapeType.ENVELOPE;
+        } else {
+            shapeType = ShapeType.forName(type);
+        }
         if (shapeType == ShapeType.GEOMETRYCOLLECTION) {
             if (geometries == null) {
                 throw new ElasticsearchParseException("geometries not included");

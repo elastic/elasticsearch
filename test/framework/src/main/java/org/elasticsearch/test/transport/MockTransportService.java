@@ -116,11 +116,11 @@ public final class MockTransportService extends TransportService {
         // We rely on Gradle implementation details here, the worker IDs are long values incremented by one  for the
         // lifespan of the daemon this means that they can get larger than the allowed port range.
         // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
-        // This is safe as long as we have fewer than 327 Gradle workers running in parallel
+        // This is safe as long as we have fewer than 224 Gradle workers running in parallel
         // See also: https://github.com/elastic/elasticsearch/issues/44134
         final int startAt = Math.round(
             RandomizedTest.systemPropertyAsLong(ESTestCase.TEST_WORKER_VM_ID, 0)
-            % 327L
+            % 223L
         );
         int basePort = 10300 + (startAt * 100);
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();

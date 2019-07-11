@@ -10,11 +10,15 @@ directly to configure and access {es} features.
 We are working on including more {es} APIs in this section. Some content might
 not be included yet.
 
+* <<docs>>
+* <<search>>
+* <<indices>>
+* <<cat>>
+* <<cluster>>
 * <<info-api,Info API>>
 * <<ccr-apis,{ccr-cap} APIs>>
 * <<data-frame-apis,{dataframe-cap} APIs>>
 * <<graph-explore-api,Graph Explore API>>
-* <<index-apis>>
 * <<indices-reload-analyzers,Reload Search Analyzers API>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
@@ -26,14 +30,21 @@ not be included yet.
 * <<migration-api,Migration APIs>>
 --
 
+:leveloffset: +1
+include::{es-repo-dir}/api-conventions.asciidoc[]
+include::{es-repo-dir}/docs.asciidoc[]
+include::{es-repo-dir}/search.asciidoc[]
+include::{es-repo-dir}/indices.asciidoc[]
+include::{es-repo-dir}/cat.asciidoc[]
+include::{es-repo-dir}/cluster.asciidoc[]
 
+:leveloffset: -1
 include::info.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
 include::{es-repo-dir}/ilm/apis/slm-api.asciidoc[]
-include::{es-repo-dir}/indices/apis/index.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/ml/apis/ml-api.asciidoc[]

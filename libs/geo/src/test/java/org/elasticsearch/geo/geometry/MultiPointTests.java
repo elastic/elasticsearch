@@ -20,6 +20,7 @@
 package org.elasticsearch.geo.geometry;
 
 import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -60,5 +61,13 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
 
         assertEquals("multipoint EMPTY", wkt.toWKT(MultiPoint.EMPTY));
         assertEquals(MultiPoint.EMPTY, wkt.fromWKT("multipoint EMPTY)"));
+    }
+
+    public void testValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new MultiPoint(Collections.singletonList(new Point(1, 2 ,3)))));
+        assertEquals("found Z value [3.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new MultiPoint(Collections.singletonList(new Point(1, 2 ,3))));
     }
 }

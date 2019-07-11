@@ -176,7 +176,6 @@ public class RevertModelSnapshotAction extends StreamableResponseActionType<Reve
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             model.writeTo(out);
         }
 

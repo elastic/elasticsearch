@@ -43,7 +43,6 @@ public class GetRolesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(roles.length);
         for (RoleDescriptor role : roles) {
             role.writeTo(out);

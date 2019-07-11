@@ -458,15 +458,11 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
         byte type = in.readByte();
         if (type == 0) {
-            response = new IndexResponse();
-            response.readFrom(in);
+            response = new IndexResponse(in);
         } else if (type == 1) {
-            response = new DeleteResponse();
-            response.readFrom(in);
-
+            response = new DeleteResponse(in);
         } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
-            response = new UpdateResponse();
-            response.readFrom(in);
+            response = new UpdateResponse(in);
         }
 
         if (in.readBoolean()) {

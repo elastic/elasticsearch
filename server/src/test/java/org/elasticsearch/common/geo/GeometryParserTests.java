@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geo.geometry.Line;
 import org.elasticsearch.geo.geometry.LinearRing;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
@@ -113,6 +114,20 @@ public class GeometryParserTests extends ESTestCase {
             format.toXContent(new Point(10, 100), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
             assertEquals("{\"val\":\"point (100.0 10.0)\"}", Strings.toString(newGeoJson));
+        }
+
+        // Make sure we can parse values outside the normal lat lon boundaries
+        XContentBuilder lineGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("foo", "LINESTRING (100 0, 200 10)")
+            .endObject();
+
+        try (XContentParser parser = createParser(lineGeoJson)) {
+            parser.nextToken(); // Start object
+            parser.nextToken(); // Field Name
+            parser.nextToken(); // Field Value
+            assertEquals(new Line(new double[]{0, 10}, new double[]{100, 200} ),
+                new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
         }
     }
 

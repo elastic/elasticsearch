@@ -125,7 +125,7 @@ public final class MockTransportService extends TransportService {
             RandomizedTest.systemPropertyAsLong(ESTestCase.TEST_WORKER_VM_ID, 0)
                 % 223L
         );
-        assert startAt > 0 : "Unexpected test worker Id, resulting port range would be negative";
+        assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         int basePort = 10300 + (startAt * 100);
         return basePort + "-" + (basePort + 99); // upper bound is inclusive
     }

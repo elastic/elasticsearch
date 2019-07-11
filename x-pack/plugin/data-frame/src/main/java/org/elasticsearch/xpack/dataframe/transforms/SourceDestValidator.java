@@ -20,10 +20,21 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * This class contains more complex validations in regards to how {@link DataFrameTransformConfig#getSource()} and
+ * {@link DataFrameTransformConfig#getDestination()} relate to each other.
+ */
 public final class SourceDestValidator {
+
+    private SourceDestValidator() {}
 
     /**
      * Validates the DataFrameTransformConfiguration source and destination indices.
+     *
+     * A simple name validation is done on {@link DataFrameTransformConfig#getDestination()} inside
+     * {@link org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction}
+     *
+     * So, no need to do the name checks here.
      *
      * @param config DataFrameTransformConfig to validate
      * @param clusterState The current ClusterState

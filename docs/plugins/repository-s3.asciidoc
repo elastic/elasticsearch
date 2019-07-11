@@ -160,11 +160,15 @@ path style access pattern. If your deployment requires the path style access
 pattern then you should set this setting to `true` when upgrading.
 
 `disable_chunked_encoding`::
-    Whether chunked encoding should be disabled or not. If `true`, the
-    chunked encoding will be disabled. If `false`, the chunked encoding will
-    be automatically determined by the AWS Java SDK (See
-    https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#withChunkedEncodingDisabled-java.lang.Boolean-[AWS
-    documentation] for details). Defaults to `false`.
+
+    Whether chunked encoding should be disabled or not. If `false`, chunked
+    encoding is enabled and will be used where appropriate. If `true`, chunked
+    encoding is disabled and will not be used, which may mean that snapshot
+    operations consume more resources and take longer to complete. It should
+    only be set to `true` if you are using a storage service that does not
+    support chunked encoding. See the
+    https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#disableChunkedEncoding--[AWS
+    Java SDK documentation] for details. Defaults to `false`.
 
 [float]
 [[repository-s3-compatible-services]]

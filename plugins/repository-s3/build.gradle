@@ -101,6 +101,8 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
+boolean s3DisableChunkedEncoding = (new Random()).nextBoolean()
+
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
@@ -257,7 +259,8 @@ processTestResources {
           'ec2_bucket': s3EC2Bucket,
           'ec2_base_path': s3EC2BasePath,
           'ecs_bucket': s3ECSBucket,
-          'ecs_base_path': s3ECSBasePath
+          'ecs_base_path': s3ECSBasePath,
+          'disable_chunked_encoding': s3DisableChunkedEncoding,
   ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)

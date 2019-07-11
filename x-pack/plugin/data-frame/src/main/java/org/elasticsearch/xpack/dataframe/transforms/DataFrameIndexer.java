@@ -217,7 +217,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
 
     private IterationResult<DataFrameIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
-
         // initialize the map of changed buckets, the map might be empty if source do not require/implement
         // changed bucket detection
 
@@ -292,13 +291,12 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     }
 
     protected QueryBuilder buildFilterQuery() {
+        assert nextCheckpoint != null;
+
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         DataFrameTransformConfig config = getConfig();
-        if (config.getSyncConfig() != null) {
-            if (nextCheckpoint == null) {
-                throw new RuntimeException("in progress checkpoint not found");
-            }
+        if (this.isContinuous()) {
 
             BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
                 .filter(pivotQueryBuilder);
@@ -308,12 +306,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             } else {
                 filteredQuery.filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
             }
-
-            logger.trace("running filtered query: {}", filteredQuery);
             return filteredQuery;
-        } else {
-            return pivotQueryBuilder;
         }
+
+        return pivotQueryBuilder;
     }
 
     @Override

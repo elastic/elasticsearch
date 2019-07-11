@@ -1066,7 +1066,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotShardId, snapshotId);
 
         try {
-            indexShardSnapshotFormat.delete(shardContainer, snapshotId.getUUID());
+            shardContainer.deleteBlobIgnoringIfNotExists(indexShardSnapshotFormat.blobName(snapshotId.getUUID()));
         } catch (IOException e) {
             logger.warn(new ParameterizedMessage("[{}] [{}] failed to delete shard snapshot file", snapshotShardId, snapshotId), e);
         }

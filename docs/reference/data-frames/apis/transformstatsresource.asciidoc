@@ -1,0 +1,21 @@
+[role="xpack"]
+[testenv="basic"]
+[[data-frame-transform-stats-resource]]
+=== {dataframe-transform-cap} statistics
+
+The <<get-data-frame-transform-stats,get {dataframe-transform} statistics API>>
+provides information about the operational progress of a {dataframe-transform}.
+
+[discrete]
+[[data-frame-transform-stats-properties]]
+==== {api-definitions-title}
+
+`checkpointing`:: TBD
+
+`id`::
+  (string) A unique identifier for the {dataframe-transform}.
+
+`state`:: TBD
+
+`stats`:: TBD
+

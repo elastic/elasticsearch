@@ -146,7 +146,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
 
     /**
      * This method is called when starting sending/requesting a new file. Subclasses should override
-     * this method to reset the file offset of close the previous file and open a new file if needed.
+     * this method to reset the file offset or close the previous file and open a new file if needed.
      */
     protected abstract void onNewFile(StoreFileMetaData md) throws IOException;
 

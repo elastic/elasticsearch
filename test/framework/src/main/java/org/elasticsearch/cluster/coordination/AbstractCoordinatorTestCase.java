@@ -729,11 +729,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                         final long persistedCurrentTerm;
 
-                        if ((oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
+                        if ( // node is master-ineligible either before or after the restart ...
+                            (oldState.getLastAcceptedState().nodes().getLocalNode().isMasterNode() && newLocalNode.isMasterNode()) == false
+                                // ... and it's accepted some non-initial state so we can roll back ...
                             && (oldState.getLastAcceptedState().term() > 0L || oldState.getLastAcceptedState().version() > 0L)
+                                // ... and we're feeling lucky ...
                             && randomBoolean()) {
 
-                            // master-ineligible nodes do not reliably persist the cluster state, so emulate a rollback
+                            // ... then we might not have reliably persisted the cluster state, so emulate a rollback
 
                             persistedCurrentTerm = randomLongBetween(0L, oldState.getCurrentTerm());
                             final long lastAcceptedTerm = oldState.getLastAcceptedState().term();
@@ -750,7 +753,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 newLastAcceptedVersion = randomLongBetween(0L,
                                     newLastAcceptedTerm == lastAcceptedTerm ? lastAcceptedVersion - 1 : Long.MAX_VALUE);
                             }
-                            final VotingConfiguration newVotingConfiguration = new VotingConfiguration(singleton(randomAlphaOfLength(10)));
+                            final VotingConfiguration newVotingConfiguration
+                                = new VotingConfiguration(randomBoolean() ? emptySet() : singleton(randomAlphaOfLength(10)));
                             final long newValue = randomLong();
 
                             logger.trace("rolling back persisted cluster state on master-ineligible node [{}]: " +

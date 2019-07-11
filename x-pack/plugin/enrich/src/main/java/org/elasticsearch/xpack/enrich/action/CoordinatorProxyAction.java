@@ -172,15 +172,17 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
                 final AtomicInteger counter = new AtomicInteger(0);
                 final ConcurrentMap<String, Tuple<MultiSearchResponse, Exception>> shardResponses = new ConcurrentHashMap<>();
                 for (Map.Entry<String, List<Tuple<Integer, SearchRequest>>> entry : itemsPerIndex.entrySet()) {
+                    final String enrichIndexName = entry.getKey();
+                    final List<Tuple<Integer, SearchRequest>> enrichIndexRequestsAndSlots = entry.getValue();
                     ActionListener<MultiSearchResponse> listener = ActionListener.wrap(
                         response -> {
-                            shardResponses.put(entry.getKey(), new Tuple<>(response, null));
+                            shardResponses.put(enrichIndexName, new Tuple<>(response, null));
                             if (counter.incrementAndGet() == itemsPerIndex.size()) {
                                 consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
                             }
                         },
                         e -> {
-                            shardResponses.put(entry.getKey(), new Tuple<>(null, e));
+                            shardResponses.put(enrichIndexName, new Tuple<>(null, e));
                             if (counter.incrementAndGet() == itemsPerIndex.size()) {
                                 consumer.accept(reduce(request.requests().size(), itemsPerIndex, shardResponses), null);
                             }
@@ -188,7 +190,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
                     );
 
                     MultiSearchRequest mrequest = new MultiSearchRequest();
-                    entry.getValue().forEach(item -> mrequest.add(item.v2()));
+                    enrichIndexRequestsAndSlots.forEach(item -> mrequest.add(item.v2()));
                     client.execute(ShardMultiSearchAction.INSTANCE, new ShardMultiSearchAction.Request(mrequest), listener);
                 }
             };

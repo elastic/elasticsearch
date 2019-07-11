@@ -38,7 +38,7 @@ public class ReindexJob implements PersistentTaskParams {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ReindexJob, Void> PARSER
-        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((ReindexRequest) a[0], (Boolean) a[1], (Map<String, String>) a[1]));
+        = new ConstructingObjectParser<>(NAME, a -> new ReindexJob((ReindexRequest) a[0], (Boolean) a[1], (Map<String, String>) a[2]));
 
     private static String REINDEX_REQUEST = "reindex_request";
     private static String STORE_RESULT = "store_result";

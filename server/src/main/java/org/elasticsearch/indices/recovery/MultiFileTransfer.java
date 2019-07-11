@@ -131,7 +131,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                     r -> processor.put(new FileChunkResponseItem<>(requestSeqId, md, r, null), ignored -> {}),
                     e -> processor.put(new FileChunkResponseItem<>(requestSeqId, md, null, e), ignored -> {})
                 ));
-                fileOffset += request.length;
+                fileOffset += request.sizeInBytes();
                 if (fileOffset == this.currentFile.length()) {
                     fileOffset = 0;
                     this.currentFile = null;
@@ -162,11 +162,10 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
         }
     }
 
-    protected static abstract class ChunkRequest {
-        final long length;
-
-        protected ChunkRequest(long length) {
-            this.length = length;
-        }
+    protected interface ChunkRequest {
+        /**
+         * @return the number of bytes of the file chunk request
+         */
+        long sizeInBytes();
     }
 }

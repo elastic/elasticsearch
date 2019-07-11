@@ -724,18 +724,22 @@ public class RecoverySourceHandler {
         }
     }
 
-    private static class FileChunk extends MultiFileTransfer.ChunkRequest {
+    private static class FileChunk implements MultiFileTransfer.ChunkRequest {
         final StoreFileMetaData md;
         final BytesReference content;
         final long position;
         final boolean lastChunk;
 
         FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
-            super(content.length());
             this.md = md;
             this.content = content;
             this.position = position;
             this.lastChunk = lastChunk;
+        }
+
+        @Override
+        public long sizeInBytes() {
+            return content.length();
         }
     }
 

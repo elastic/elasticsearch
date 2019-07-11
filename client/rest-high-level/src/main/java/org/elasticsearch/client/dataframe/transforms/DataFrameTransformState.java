@@ -27,8 +27,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,7 +37,10 @@ public class DataFrameTransformState {
 
     private static final ParseField INDEXER_STATE = new ParseField("indexer_state");
     private static final ParseField TASK_STATE = new ParseField("task_state");
+
+    // 7.3 BWC: current_position only exists in 7.2.  In 7.3+ it is replaced by next_position.
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
+    private static final ParseField NEXT_POSITION = new ParseField("next_position");
     private static final ParseField CHECKPOINT = new ParseField("checkpoint");
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField PROGRESS = new ParseField("progress");
@@ -48,18 +49,30 @@ public class DataFrameTransformState {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER =
             new ConstructingObjectParser<>("data_frame_transform_state", true,
-                    args -> new DataFrameTransformState((DataFrameTransformTaskState) args[0],
-                        (IndexerState) args[1],
-                        (Map<String, Object>) args[2],
-                        (long) args[3],
-                        (String) args[4],
-                        (DataFrameTransformProgress) args[5],
-                        (NodeAttributes) args[6]));
+                    args -> {
+                        DataFrameTransformTaskState taskState = (DataFrameTransformTaskState) args[0];
+                        IndexerState indexerState = (IndexerState) args[1];
+                        Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
+                        DataFrameIndexerPosition dataFrameIndexerPosition = (DataFrameIndexerPosition) args[3];
+
+                        // BWC handling, translate current_position to next_position iff next_position isn't set
+                        if (bwcCurrentPosition != null && dataFrameIndexerPosition == null) {
+                            dataFrameIndexerPosition = new DataFrameIndexerPosition(bwcCurrentPosition, null);
+                        }
+
+                        long checkpoint = (long) args[4];
+                        String reason = (String) args[5];
+                        DataFrameTransformProgress progress = (DataFrameTransformProgress) args[6];
+                        NodeAttributes node = (NodeAttributes) args[7];
+
+                        return new DataFrameTransformState(taskState, indexerState, dataFrameIndexerPosition, checkpoint, reason, progress, node);
+                    });
 
     static {
         PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
         PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapOrdered(), CURRENT_POSITION, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), DataFrameIndexerPosition::fromXContent, NEXT_POSITION, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
         PARSER.declareField(optionalConstructorArg(), DataFrameTransformProgress::fromXContent, PROGRESS, ValueType.OBJECT);
@@ -73,21 +86,21 @@ public class DataFrameTransformState {
     private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
     private final long checkpoint;
-    private final Map<String, Object> currentPosition;
+    private final DataFrameIndexerPosition nextPosition;
     private final String reason;
     private final DataFrameTransformProgress progress;
     private final NodeAttributes node;
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
-                                   @Nullable Map<String, Object> position,
+                                   @Nullable DataFrameIndexerPosition position,
                                    long checkpoint,
                                    @Nullable String reason,
                                    @Nullable DataFrameTransformProgress progress,
                                    @Nullable NodeAttributes node) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.currentPosition = position == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(position));
+        this.nextPosition = position;
         this.checkpoint = checkpoint;
         this.reason = reason;
         this.progress = progress;
@@ -103,8 +116,8 @@ public class DataFrameTransformState {
     }
 
     @Nullable
-    public Map<String, Object> getPosition() {
-        return currentPosition;
+    public DataFrameIndexerPosition getPosition() {
+        return nextPosition;
     }
 
     public long getCheckpoint() {
@@ -140,7 +153,7 @@ public class DataFrameTransformState {
 
         return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&
-            Objects.equals(this.currentPosition, that.currentPosition) &&
+            Objects.equals(this.nextPosition, that.nextPosition) &&
             Objects.equals(this.progress, that.progress) &&
             this.checkpoint == that.checkpoint &&
             Objects.equals(this.node, that.node) &&
@@ -149,7 +162,7 @@ public class DataFrameTransformState {
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason, progress, node);
+        return Objects.hash(taskState, indexerState, nextPosition, checkpoint, reason, progress, node);
     }
 
 }

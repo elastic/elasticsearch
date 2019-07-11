@@ -1,6 +1,7 @@
 [[modules-snapshots]]
 == Snapshot and Restore
 
+// tag::snapshot-intro[]
 A snapshot is a backup taken from a running Elasticsearch cluster. You can take
 a snapshot of individual indices or of the entire cluster and store it in a
 repository on a shared filesystem, and there are plugins that support remote
@@ -24,6 +25,8 @@ consistent picture of their contents. Attempts to restore a cluster from such a
 backup may fail, reporting corruption and/or missing files, or may appear to
 have succeeded having silently lost some of its data. The only reliable way to
 back up a cluster is by using the snapshot and restore functionality.
+
+// end::snapshot-intro[]
 
 [float]
 === Version compatibility
@@ -498,6 +501,7 @@ When a repository is unregistered, Elasticsearch only removes the reference to t
 the snapshots. The snapshots themselves are left untouched and in place.
 
 [float]
+[[restore-snapshot]]
 === Restore
 
 A snapshot can be restored using the following command:

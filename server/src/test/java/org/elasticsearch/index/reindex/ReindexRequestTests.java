@@ -51,7 +51,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
 
     private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
-    private boolean serializeParams = false;
+    private boolean serializeParams = randomBoolean();
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
@@ -126,13 +126,15 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             reindexRequest.setRefresh(randomBoolean());
         }
 
+        String[] suffixes = {"d", "h", "ms", "s", "m"};
+
         // Scroll is only propagated if params are serialized
         if (randomBoolean() && serializeParams) {
-            reindexRequest.setScroll(TimeValue.parseTimeValue(randomPositiveTimeValue(), "scroll"));
+            reindexRequest.setScroll(TimeValue.parseTimeValue(randomTimeValue(1, 1000, suffixes), "scroll"));
         }
 
         if (randomBoolean()) {
-            reindexRequest.setTimeout((TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout")));
+            reindexRequest.setTimeout((TimeValue.parseTimeValue(randomTimeValue(1, 1000, suffixes), "timeout")));
         }
 
         if (randomBoolean()) {

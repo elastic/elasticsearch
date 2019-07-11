@@ -1,0 +1,35 @@
+[[backup-cluster-data]]
+=== Back up a cluster's data
+++++
+<titleabbrev>Back up the data</titleabbrev>
+++++
+
+As with any software that stores data, it is important to routinely back up your
+data. {es} replicas provide high availability during runtime; they enable you to
+tolerate sporadic node loss without an interruption of service.
+
+Replicas do not provide protection from catastrophic failure, however. For that,
+you need a real backup of your cluster—a complete copy in case something goes
+wrong.
+
+To back up your cluster's data, you can use the <<modules-snapshots,snapshot API>>.
+
+include::{es-repo-dir}/modules/snapshots.asciidoc[tag=snapshot-intro]
+
+[TIP]
+====
+If your cluster has {es} {security-features} enabled, when you back up your data
+the snapshot API call must be authorized.
+
+The `snapshot_user` role is a reserved role that can be assigned to the user
+who is calling the snapshot endpoint. This is the only role necessary if all the user
+does is periodic snapshots as part of the backup procedure. This role includes
+the privileges to list all the existing snapshots (of any repository) as
+well as list and view settings of all indices, including the `.security` index.
+It does *not* grant privileges to create repositories, restore snapshots, or
+search within indices. Hence, the user can view and snapshot all indices, but cannot
+access or modify any data.
+
+For more information, see {stack-ov}/security-privileges.html[Security privileges]
+and {stack-ov}/built-in-roles.html[Built-in roles].
+====

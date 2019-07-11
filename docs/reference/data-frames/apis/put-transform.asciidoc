@@ -8,17 +8,15 @@
 <titleabbrev>Create {dataframe-transforms}</titleabbrev>
 ++++
 
-beta[]
-
 Instantiates a {dataframe-transform}.
 
-[discrete]
+beta[]
+
 [[put-data-frame-transform-request]]
 ==== {api-request-title}
 
 `PUT _data_frame/transforms/<data_frame_transform_id>`
 
-[discrete]
 [[put-data-frame-transform-prereqs]]
 ==== {api-prereq-title}
 
@@ -30,7 +28,6 @@ have `read` and `view_index_metadata` privileges on the source index and `read`,
 information, see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[put-data-frame-transform-desc]]
 ==== {api-description-title}
 
@@ -40,35 +37,37 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
             If {es} {security-features} are enabled, do not give users any
             privileges on `.data-frame-internal*` indices.
 
-[discrete]
 [[put-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>` (Required)::
-  (string) Identifier for the {dataframe-transform}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+`<data_frame_transform_id>`::
+  (string) Required. Identifier for the {dataframe-transform}. This identifier
+  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
 
-[discrete]
 [[put-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
-`description` (Optional)::
-  (string) Free text description of the {dataframe-transform}.
+`description`::
+  (string) Optional. Free text description of the {dataframe-transform}.
 
-`dest` (Required)::
-  (object) The destination configuration, which consists of `index` and
-  optionally a `pipeline` id. See <<data-frame-transform-dest>>.
+`dest`::
+  (object) Required. The destination configuration, which consists of `index`
+  and optionally a `pipeline` id. See <<data-frame-transform-dest>>.
 
-`pivot` (Optional)::
-  (object) Defines the pivot function `group by` fields and the aggregation to
+`frequency`::
+  (time units) Optional. The interval between checks for changes in the source indices
+  when the {dataframe-transform} is running continuously. Defaults to `1m`.
+  The lowest permitted value is `1s`; the highest `1h`.
+
+`pivot`::
+  (object) Required. Defines the pivot function `group by` fields and the aggregation to
   reduce the data. See <<data-frame-transform-pivot>>.
 
-`source` (Required)::
-  (object) The source configuration, which consists of `index` and optionally
-  a `query`. See <<data-frame-transform-source>>.
+`source`::
+  (object) Required. The source configuration, which consists of `index` and 
+  optionally a `query`. See <<data-frame-transform-source>>.
 
-[discrete]
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}
 
@@ -90,6 +89,7 @@ PUT _data_frame/transforms/ecommerce_transform
     "index": "kibana_sample_data_ecommerce_transform",
     "pipeline": "add_timestamp_pipeline"
   },
+  "frequency": "5m",
   "pivot": {
     "group_by": {
       "customer_id": {

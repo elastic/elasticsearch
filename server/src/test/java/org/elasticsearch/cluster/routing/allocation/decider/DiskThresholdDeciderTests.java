@@ -100,12 +100,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
-        ClusterInfoService cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo;
-            }
+        ClusterInfoService cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo;
         };
         AllocationService strategy = new AllocationService(deciders,
                 new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), cis);
@@ -278,12 +275,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
-        ClusterInfoService cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo;
-            }
+        ClusterInfoService cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo;
         };
 
         AllocationService strategy = new AllocationService(deciders, new TestGatewayAllocator(),
@@ -328,12 +322,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usagesBuilder.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", "/dev/null", 100, 35)); // 65% used
         usages = usagesBuilder.build();
         final ClusterInfo clusterInfo2 = new DevNullClusterInfo(usages, usages, shardSizes);
-        cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo2;
-            }
+        cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo2;
         };
         strategy = new AllocationService(deciders, new TestGatewayAllocator(),
                 new BalancedShardsAllocator(Settings.EMPTY), cis);
@@ -516,12 +507,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         ),
                         makeDecider(diskSettings))));
 
-        ClusterInfoService cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo;
-            }
+        ClusterInfoService cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo;
         };
 
         AllocationService strategy = new AllocationService(deciders, new TestGatewayAllocator(),
@@ -580,12 +568,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         ),
                         makeDecider(diskSettings))));
 
-        ClusterInfoService cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo;
-            }
+        ClusterInfoService cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo;
         };
 
         AllocationService strategy = new AllocationService(deciders, new TestGatewayAllocator(),
@@ -677,12 +662,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                     Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 ), decider)));
 
-        ClusterInfoService cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo;
-            }
+        ClusterInfoService cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo;
         };
 
         AllocationService strategy = new AllocationService(deciders, new TestGatewayAllocator(),
@@ -856,12 +838,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         }
 
         // Creating AllocationService instance and the services it depends on...
-        ClusterInfoService cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo;
-            }
+        ClusterInfoService cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo;
         };
         AllocationDeciders deciders = new AllocationDeciders(new HashSet<>(Arrays.asList(
                 new SameShardAllocationDecider(
@@ -948,13 +927,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         // Two shards should start happily
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(((Decision.Single) decision).getExplanation(), containsString("there is only a single data node present"));
-        ClusterInfoService cis = new ClusterInfoService() {
-            @Override
-            public ClusterInfo getClusterInfo() {
-                logger.info("--> calling fake getClusterInfo");
-                return clusterInfo;
-            }
+        assertThat(decision.getExplanation(), containsString("there is only a single data node present"));
+        ClusterInfoService cis = () -> {
+            logger.info("--> calling fake getClusterInfo");
+            return clusterInfo;
         };
 
         AllocationDeciders deciders = new AllocationDeciders(new HashSet<>(Arrays.asList(

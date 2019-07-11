@@ -92,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.transport.MockTransportService.getPortRange;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,7 +117,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
+    protected abstract Transport build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
 
     protected int channelsPerNodeConnection() {
         // This is a customized profile for this test case.
@@ -175,13 +176,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private MockTransportService buildService(final String name, final Version version, @Nullable ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
         Settings updatedSettings = Settings.builder()
+            .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
             .build();
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
         }
-        MockTransportService service = build(updatedSettings, version, clusterSettings, doHandshake);
+        Transport transport = build(updatedSettings, version, clusterSettings, doHandshake);
+        MockTransportService service = MockTransportService.createNewService(updatedSettings, transport, version, threadPool,
+            clusterSettings, Collections.emptySet());
+        service.start();
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
@@ -1992,7 +1997,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+        try (MockTransportService service = buildService("TS_BAD", Version.CURRENT, Settings.EMPTY)) {
             service.addMessageListener(new TransportMessageListener() {
                 @Override
                 public void onRequestReceived(long requestId, String action) {
@@ -2652,6 +2657,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertEquals(2, profileSettings.size());
         assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
             .toSet()));
+    }
+
+    public void testBindUnavailableAddress() {
+        int port = serviceA.boundAddress().publishAddress().getPort();
+        Settings settings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
+            .put(TransportSettings.PORT.getKey(), port)
+            .build();
+        BindTransportException bindTransportException = expectThrows(BindTransportException.class,
+            () -> buildService("test", Version.CURRENT, settings));
+        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
     }
 
     public void testChannelCloseWhileConnecting() {

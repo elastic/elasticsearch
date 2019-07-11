@@ -1066,9 +1066,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             actions.put(IndicesShardStoresAction.INSTANCE,
                 new TransportIndicesShardStoresAction(
                     transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                    new TransportNodesListGatewayStartedShards(settings,
-                        threadPool, clusterService, transportService, actionFilters, nodeEnv, indicesService, namedXContentRegistry))
-            );
+                    client));
+            actions.put(TransportNodesListGatewayStartedShards.TYPE, new TransportNodesListGatewayStartedShards(settings,
+                threadPool, clusterService, transportService, actionFilters, nodeEnv, indicesService, namedXContentRegistry));
             actions.put(DeleteSnapshotAction.INSTANCE,
                 new TransportDeleteSnapshotAction(
                     transportService, clusterService, threadPool,

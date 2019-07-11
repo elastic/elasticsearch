@@ -82,7 +82,8 @@ GET my_index/_search
 <2> Geo-point expressed as a string with the format: `"lat,lon"`.
 <3> Geo-point expressed as a geohash.
 <4> Geo-point expressed as an array with the format: [ `lon`, `lat`]
-<5> Geo-point expressed as a Well-known text POINT with the format: `"POINT(lon lat)"`
+<5> Geo-point expressed as a http://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text]
+POINT with the format: `"POINT(lon lat)"`
 <6> A geo-bounding box query which finds all geo-points that fall inside the box.
 
 [IMPORTANT]

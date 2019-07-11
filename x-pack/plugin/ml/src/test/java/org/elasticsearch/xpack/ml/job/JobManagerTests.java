@@ -323,6 +323,7 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testNotifyFilterChanged() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");

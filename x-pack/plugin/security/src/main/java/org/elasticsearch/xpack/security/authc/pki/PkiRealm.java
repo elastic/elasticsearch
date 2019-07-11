@@ -157,6 +157,9 @@ public class PkiRealm extends Realm implements CachingRealm {
                 // we do it for BWC purposes. Changing this is a breaking change.
                 final String principal = getPrincipalFromSubjectDN(principalPattern, token, logger);
                 if (principal == null) {
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                            "the extracted principal after cert chain validation, from DN [{}], using pattern [{}] is null", token.dn(),
+                            principalPattern.toString()));
                     listener.onResponse(AuthenticationResult.unsuccessful("Could not parse principal from Subject DN " + token.dn(), null));
                 } else {
                     final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
@@ -167,6 +170,11 @@ public class PkiRealm extends Realm implements CachingRealm {
                         }
                         listener.onResponse(result);
                     }, listener::onFailure);
+                    if (false == principal.equals(token.principal())) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                                "the extracted principal before [{}] and after [{}] cert chain validation, for DN [{}], are different",
+                                token.principal(), principal, token.dn()));
+                    }
                     if (delegatedRealms.hasDelegation()) {
                         delegatedRealms.resolve(principal, cachingListener);
                     } else {

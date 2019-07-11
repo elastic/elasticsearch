@@ -79,7 +79,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             final BytesReference bytesRef = in.readOptionalBytesReference();
             if (bytesRef != null) {
                 byte[] bytes = BytesReference.toBytes(bytesRef);
@@ -97,7 +97,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             if (this.secureSettingsPassword == null) {
                 out.writeOptionalBytesReference(null);
             } else {

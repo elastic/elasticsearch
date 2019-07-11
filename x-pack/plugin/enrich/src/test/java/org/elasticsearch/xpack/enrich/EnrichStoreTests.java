@@ -41,6 +41,22 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         assertThat(result, nullValue());
     }
 
+    public void testImmutability() throws Exception {
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        String name = "my-policy";
+
+        AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
+        assertThat(error.get(), nullValue());
+
+        error = saveEnrichPolicy(name, policy, clusterService);
+        assertTrue(error.get().getMessage().contains("policy [my-policy] already exists"));;
+
+        deleteEnrichPolicy(name, clusterService);
+        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        assertThat(result, nullValue());
+    }
+
     public void testPutValidation() throws Exception {
         EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);

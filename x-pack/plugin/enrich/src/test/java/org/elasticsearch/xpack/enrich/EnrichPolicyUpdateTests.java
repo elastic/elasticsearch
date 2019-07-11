@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -21,7 +22,6 @@ import java.util.Collections;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
@@ -49,11 +49,8 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
 
         EnrichPolicy instance2 = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("index"),
             "key2", Collections.singletonList("field2"));
-        putPolicyRequest = new PutEnrichPolicyAction.Request("my_policy", instance2);
-        assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
-        assertThat(enrichProcessorFactory.policies.get("my_policy"), equalTo(instance2));
-
-        Pipeline pipelineInstance2 = ingestService.getPipeline("1");
-        assertThat(pipelineInstance2, sameInstance(pipelineInstance1));
+        ResourceAlreadyExistsException exc = expectThrows(ResourceAlreadyExistsException.class, () ->
+            client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2)).actionGet());
+        assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));
     }
 }

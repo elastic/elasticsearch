@@ -66,9 +66,6 @@ privileges to use this API. For more information, see
 [[ml-get-snapshot-example]]
 ==== {api-examples-title}
 
-The following example gets model snapshot information for the
-`it_ops_new_logs` job:
-
 [source,js]
 --------------------------------------------------
 GET _ml/anomaly_detectors/farequote/model_snapshots

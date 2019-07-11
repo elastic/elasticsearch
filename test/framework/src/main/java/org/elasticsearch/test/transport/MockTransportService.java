@@ -106,7 +106,10 @@ public final class MockTransportService extends TransportService {
         return createNewService(settings, mockTransport, version, threadPool, clusterSettings, Collections.emptySet());
     }
 
-    public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+    /**
+     * Returns a unique port range for this JVM starting from the computed base port
+     */
+    public static String getPortRange() {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -120,10 +123,15 @@ public final class MockTransportService extends TransportService {
         // See also: https://github.com/elastic/elasticsearch/issues/44134
         final int startAt = Math.round(
             RandomizedTest.systemPropertyAsLong(ESTestCase.TEST_WORKER_VM_ID, 0)
-            % 223L
+                % 223L
         );
         int basePort = 10300 + (startAt * 100);
-        settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
+        return basePort + "-" + (basePort + 99); // upper bound is inclusive
+    }
+
+    public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), getPortRange()).put(settings).build();
+
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());

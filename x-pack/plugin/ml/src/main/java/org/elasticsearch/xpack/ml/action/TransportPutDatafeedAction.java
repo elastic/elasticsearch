@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -65,6 +67,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     private final JobConfigProvider jobConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
 
+    private volatile ClusterState clusterState;
+
     @Inject
     public TransportPutDatafeedAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, Client client,
@@ -80,6 +84,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
+        clusterState = clusterService.state();
+        clusterService.addListener(event -> clusterState = event.state());
     }
 
     @Override
@@ -181,11 +187,23 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         }
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
 
-        CheckedConsumer<Boolean, Exception> validationOk = ok -> {
-            datafeedConfigProvider.putDatafeedConfig(request.getDatafeed(), headers, ActionListener.wrap(
+        CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> {
+            datafeedConfigProvider.putDatafeedConfig(
+                request.getDatafeed(),
+                headers,
+                ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
                     listener::onFailure
             ));
+        };
+
+        CheckedConsumer<Boolean, Exception> validationOk = ok -> {
+            ElasticsearchMappings.addDocMappingIfMissing(
+                AnomalyDetectorsIndex.configIndexName(),
+                ElasticsearchMappings::configMapping,
+                client,
+                clusterState,
+                ActionListener.wrap(mappingsUpdated, listener::onFailure));
         };
 
         CheckedConsumer<Boolean, Exception> jobOk = ok ->

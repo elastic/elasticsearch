@@ -7,9 +7,11 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -29,6 +31,8 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -43,6 +47,7 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -58,6 +63,7 @@ public class TransportPutDataFrameAnalyticsAction
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
+    private volatile ClusterState clusterState;
 
     @Inject
     public TransportPutDataFrameAnalyticsAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
@@ -78,6 +84,8 @@ public class TransportPutDataFrameAnalyticsAction
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+        clusterState = clusterService.state();
+        clusterService.addListener(event -> clusterState = event.state());
     }
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
@@ -97,6 +105,7 @@ public class TransportPutDataFrameAnalyticsAction
                 .setCreateTime(Instant.now())
                 .setVersion(Version.CURRENT)
                 .build();
+
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
@@ -120,9 +129,12 @@ public class TransportPutDataFrameAnalyticsAction
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else {
-            configProvider.put(memoryCappedConfig, threadPool.getThreadContext().getHeaders(), ActionListener.wrap(
-                indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
-                listener::onFailure
+            updateDocMappingAndPutConfig(
+                memoryCappedConfig,
+                threadPool.getThreadContext().getHeaders(),
+                ActionListener.wrap(
+                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    listener::onFailure
             ));
         }
     }
@@ -131,9 +143,12 @@ public class TransportPutDataFrameAnalyticsAction
                                      HasPrivilegesResponse response,
                                      ActionListener<PutDataFrameAnalyticsAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            configProvider.put(memoryCappedConfig, threadPool.getThreadContext().getHeaders(), ActionListener.wrap(
-                indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
-                listener::onFailure
+            updateDocMappingAndPutConfig(
+                memoryCappedConfig,
+                threadPool.getThreadContext().getHeaders(),
+                ActionListener.wrap(
+                    indexResponse -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
+                    listener::onFailure
             ));
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -148,6 +163,19 @@ public class TransportPutDataFrameAnalyticsAction
                     " because user {} lacks permissions on the indices: {}",
                     memoryCappedConfig.getId(), username, Strings.toString(builder)));
         }
+    }
+
+    private void updateDocMappingAndPutConfig(DataFrameAnalyticsConfig config,
+                                             Map<String, String> headers,
+                                             ActionListener<IndexResponse> listener) {
+        ElasticsearchMappings.addDocMappingIfMissing(
+            AnomalyDetectorsIndex.configIndexName(),
+            ElasticsearchMappings::configMapping,
+            client,
+            clusterState,
+            ActionListener.wrap(
+                unused -> configProvider.put(config, headers, listener),
+                listener::onFailure));
     }
 
     private void validateConfig(DataFrameAnalyticsConfig config) {

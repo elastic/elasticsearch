@@ -45,6 +45,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -97,6 +99,7 @@ public class JobManager {
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
+    private volatile ClusterState clusterState;
 
     /**
      * Create a JobManager
@@ -118,6 +121,8 @@ public class JobManager {
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+        clusterState = clusterService.state();
+        clusterService.addListener(event -> clusterState = event.state());
     }
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
@@ -256,7 +261,7 @@ public class JobManager {
 
         ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
             @Override
-            public void onResponse(Boolean indicesCreated) {
+            public void onResponse(Boolean mappingsUpdated) {
 
                 jobConfigProvider.putJob(job, ActionListener.wrap(
                         response -> {
@@ -283,10 +288,18 @@ public class JobManager {
             }
         };
 
+        ActionListener<Boolean> addDocMappingsListener = ActionListener.wrap(
+            indicesCreated -> {
+                ElasticsearchMappings.addDocMappingIfMissing(
+                    AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings::configMapping, client, clusterState, putJobListener);
+            },
+            actionListener::onFailure
+        );
+
         ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(
                 matchedIds -> {
                     if (matchedIds.isEmpty()) {
-                        jobResultsProvider.createJobResultIndex(job, state, putJobListener);
+                        jobResultsProvider.createJobResultIndex(job, state, addDocMappingsListener);
                     } else {
                         // A job has the same Id as one of the group names
                         // error with the first in the list

@@ -80,7 +80,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                         ClusterService clusterService, Client client, ReindexRequest reindexRequest) {
         super(id, type, action, "persistent " + reindexRequest.toString(), parentTask, headers);
         taskId = new TaskId(clusterService.localNode().getId(), id);
-        this.client = new ParentTaskAssigningClient(client, taskId);
+        this.client = new ParentTaskAssigningClient(client, new TaskId(clusterService.localNode().getId(), id));
     }
 
     private void startTaskAndNotify(ReindexJob reindexJob) {

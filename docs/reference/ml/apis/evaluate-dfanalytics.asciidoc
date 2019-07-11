@@ -33,13 +33,13 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`index` (Required)::
-  (object) Defines the `index` in which the evaluation will be performed.
+`index`::
+  (object) Required. Defines the `index` in which the evaluation will be
+  performed.
   
-`evaluation` (Required)::
-  (object) Defines the type of evaluation you want to perform. For example: 
-  `binary_soft_classification`.
-  See Evaluate API resources.
+`evaluation`::
+  (object) Required. Defines the type of evaluation you want to perform. For
+  example: `binary_soft_classification`. See Evaluate API resources.
 
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}

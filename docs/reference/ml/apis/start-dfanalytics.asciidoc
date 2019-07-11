@@ -8,9 +8,9 @@
 <titleabbrev>Start {dfanalytics-jobs}</titleabbrev>
 ++++
 
-experimental[]
-
 Starts a {dfanalytics-job}.
+
+experimental[]
 
 [[ml-start-dfanalytics-request]]
 ==== {api-request-title}
@@ -29,17 +29,17 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
 [[ml-start-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
-`<data_frame_analytics_id>` (Required)::
-  (string) Identifier for the {dfanalytics-job}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+`<data_frame_analytics_id>`::
+  (string) Required. Identifier for the {dfanalytics-job}. This identifier can
+  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
 
 [[ml-start-dfanalytics-query-params]]
 ==== {api-query-parms-title}
-  
-`timeout` (Optional)::
-  (time) Controls the amount of time to wait until the {dfanalytics-job} starts. 
-  The default value is 20 seconds.
+
+`timeout`::
+  (time) Optional. Controls the amount of time to wait until the
+  {dfanalytics-job} starts. The default value is 20 seconds.
 
 [[ml-start-dfanalytics-example]]
 ==== {api-examples-title}

@@ -31,17 +31,17 @@ You can get a single filter or all filters. For more information, see
 [[ml-get-filter-path-parms]]
 ==== {api-path-parms-title}
 
-`<filter_id>` (Optional)::
-  (string) Identifier for the filter.
+`<filter_id>`::
+  (string) Optional. Identifier for the filter.
 
 [[ml-get-filter-query-parms]]
 ==== {api-query-parms-title}
 
-`from` (Optional):::
-    (integer) Skips the specified number of filters.
+`from`:::
+    (integer) Optional. Skips the specified number of filters.
 
-`size` (Optional):::
-    (integer) Specifies the maximum number of filters to obtain.
+`size`:::
+    (integer) Optional. Specifies the maximum number of filters to obtain.
 
 [[ml-get-filter-results]]
 ==== {api-response-body-title}

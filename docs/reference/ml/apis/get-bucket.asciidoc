@@ -35,45 +35,45 @@ bucket.
 [[ml-get-bucket-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job
+`<job_id>`::
+  (string) Required. Identifier for the job
 
-`<timestamp>` (Optional)::
-  (string) The timestamp of a single bucket result.
-  If you do not specify this parameter, the API returns information
-  about all buckets.
+`<timestamp>`::
+  (string) Optional. The timestamp of a single bucket result. If you do not
+  specify this parameter, the API returns information about all buckets.
 
 [[ml-get-bucket-request-body]]
 ==== {api-request-body-title}
 
-`anomaly_score` (Optional)::
-  (double) Returns buckets with anomaly scores greater or equal than this value.
+`anomaly_score`::
+  (double) Optional. Returns buckets with anomaly scores greater or equal than
+  this value.
 
-`desc` (Optional)::
-  (boolean) If true, the buckets are sorted in descending order.
+`desc`::
+  (boolean) Optional. If true, the buckets are sorted in descending order.
 
-`end` (Optional)::
-  (string) Returns buckets with timestamps earlier than this time.
+`end`::
+  (string) Optional. Returns buckets with timestamps earlier than this time.
 
-`exclude_interim` (Optional)::
-  (boolean) If true, the output excludes interim results.
-  By default, interim results are included.
+`exclude_interim`::
+  (boolean) Optional. If true, the output excludes interim results. By default,
+  interim results are included.
 
-`expand` (Optional)::
-  (boolean) If true, the output includes anomaly records.
+`expand`::
+  (boolean) Optional. If true, the output includes anomaly records.
 
-`page` (Optional)::
+`page`::
 `from`:::
-  (integer) Skips the specified number of buckets.
+  (integer) Optional. Skips the specified number of buckets.
 `size`:::
-  (integer) Specifies the maximum number of buckets to obtain.
+  (integer) Optional. Specifies the maximum number of buckets to obtain.
 
-`sort` (Optional)::
-  (string) Specifies the sort field for the requested buckets.
-  By default, the buckets are sorted by the `timestamp` field.
+`sort`::
+  (string) Optional. Specifies the sort field for the requested buckets. By
+  default, the buckets are sorted by the `timestamp` field.
 
-`start` (Optional)::
-  (string) Returns buckets with timestamps after this time.
+`start`::
+  (string) Optional. Returns buckets with timestamps after this time.
 
 [[ml-get-bucket-results]]
 ==== {api-response-body-title}

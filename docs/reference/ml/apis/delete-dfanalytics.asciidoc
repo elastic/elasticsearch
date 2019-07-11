@@ -7,9 +7,9 @@
 <titleabbrev>Delete {dfanalytics-jobs}</titleabbrev>
 ++++
 
-experimental[]
-
 Deletes an existing {dfanalytics-job}.
+
+experimental[]
 
 [[ml-delete-dfanalytics-request]]
 ==== {api-request-title}
@@ -26,8 +26,8 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[ml-delete-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
-`<data_frame_analytics_id>` (Required)::
-  (string) Identifier for the {dfanalytics-job} you want to delete.
+`<data_frame_analytics_id>`::
+  (string) Required. Identifier for the {dfanalytics-job} you want to delete.
 
 [[ml-delete-dfanalytics-example]]
 ==== {api-examples-title}

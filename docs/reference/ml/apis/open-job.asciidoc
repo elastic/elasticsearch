@@ -34,15 +34,15 @@ data is received.
 [[ml-open-job-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job
+`<job_id>`::
+  (string) Required. Identifier for the job
 
 [[ml-open-job-request-body]]
 ==== {api-request-body-title}
 
-`timeout` (Optional)::
-  (time) Controls the time to wait until a job has opened.
-  The default value is 30 minutes.
+`timeout`::
+  (time) Optional. Controls the time to wait until a job has opened. The default
+  value is 30 minutes.
 
 [[ml-open-job-example]]
 ==== {api-examples-title}

@@ -29,14 +29,14 @@ For more information, see
 [[ml-put-calendar-path-parms]]
 ==== {api-path-parms-title}
 
-`<calendar_id>` (Required)::
-  (string) Identifier for the calendar.
+`<calendar_id>`::
+  (string) Required. Identifier for the calendar.
 
 [[ml-put-calendar-request-body]]
 ==== {api-request-body-title}
 
-`description` (Optional)::
-  (string) A description of the calendar.
+`description`::
+  (string) Optional. A description of the calendar.
 
 [[ml-put-calendar-example]]
 ==== {api-examples-title}

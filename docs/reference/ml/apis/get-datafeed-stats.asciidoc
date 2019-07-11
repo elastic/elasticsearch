@@ -44,9 +44,9 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 [[ml-get-datafeed-stats-path-parms]]
 ==== {api-path-parms-title}
 
-`<feed_id>` (Optional)::
-  (string) Identifier for the {dfeed}. It can be a {dfeed} identifier or a
-  wildcard expression. If you do not specify one of these options, the API
+`<feed_id>`::
+  (string) Optional. Identifier for the {dfeed}. It can be a {dfeed} identifier
+  or a wildcard expression. If you do not specify one of these options, the API
   returns statistics for all {dfeeds}.
 
 [[ml-get-datafeed-stats-results]]

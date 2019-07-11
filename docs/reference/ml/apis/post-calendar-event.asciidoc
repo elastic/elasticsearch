@@ -29,16 +29,16 @@ of which must have a start time, end time, and description.
 [[ml-post-calendar-event-path-parms]]
 ==== {api-path-parms-title}
 
-`<calendar_id>` (Required)::
-		(string) Identifier for the calendar.
+`<calendar_id>`::
+		(string) Required. Identifier for the calendar.
 
 [[ml-post-calendar-event-request-body]]
 ==== {api-request-body-title}
 
-`events` (Required)::
-  (array) A list of one of more scheduled events. The event's start and end
-	times may be specified as integer milliseconds since the epoch or as a string
-	in ISO 8601 format. See <<ml-event-resource>>.
+`events`::
+  (array) Required. A list of one of more scheduled events. The event's start
+	and end times may be specified as integer milliseconds since the epoch or as a
+	string in ISO 8601 format. See <<ml-event-resource>>.
 
 [[ml-post-calendar-event-example]]
 ==== {api-examples-title}

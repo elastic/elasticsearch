@@ -24,8 +24,8 @@ Updates certain properties of a job.
 [[ml-update-job-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job.
+`<job_id>`::
+  (string) Required. Identifier for the job.
 
 [[ml-update-job-request-body]]
 ==== {api-request-body-title}

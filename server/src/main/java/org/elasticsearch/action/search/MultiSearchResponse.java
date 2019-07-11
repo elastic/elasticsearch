@@ -165,7 +165,6 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(items.length);
         for (Item item : items) {
             item.writeTo(out);

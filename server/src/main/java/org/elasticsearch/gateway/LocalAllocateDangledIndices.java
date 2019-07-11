@@ -260,7 +260,6 @@ public class LocalAllocateDangledIndices {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(ack);
         }
     }

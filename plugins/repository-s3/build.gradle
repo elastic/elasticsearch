@@ -1,7 +1,8 @@
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.RestIntegTestTask
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -168,6 +169,13 @@ if (useFixture) {
 
   File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
 
+  normalization {
+    runtimeClasspath {
+      // ignore generated address file for the purposes of build avoidance
+      ignore 's3Fixture.address'
+    }
+  }
+
   thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
     outputs.file(minioAddressFile)
@@ -195,7 +203,7 @@ if (useFixture) {
   testClusters.integTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-    setting 's3.client.integration_test_permanent.endpoint', minioAddress
+    setting 's3.client.integration_test_permanent.endpoint', minioAddress, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
   }
 
@@ -275,12 +283,12 @@ testClusters.integTest {
   keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
   if (useFixture) {
-    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
@@ -302,9 +310,9 @@ if (useFixture) {
   check.dependsOn(integTestECS)
 
   testClusters.integTestECS {
-    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
-    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }
+    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }, IGNORE_VALUE
   }
 }
 
@@ -323,7 +331,16 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency 
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)

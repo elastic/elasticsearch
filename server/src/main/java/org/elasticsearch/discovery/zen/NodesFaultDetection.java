@@ -366,5 +366,8 @@ public class NodesFaultDetection extends FaultDetection {
         public PingResponse(StreamInput in) throws IOException {
             super(in);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

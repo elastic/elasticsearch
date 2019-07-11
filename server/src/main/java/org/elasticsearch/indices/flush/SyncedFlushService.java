@@ -618,7 +618,6 @@ public class SyncedFlushService implements IndexEventListener {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             commitId.writeTo(out);
             if (includeNumDocs(out.getVersion())) {
                 out.writeInt(numDocs);
@@ -707,7 +706,6 @@ public class SyncedFlushService implements IndexEventListener {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeOptionalString(failureReason);
         }
 
@@ -793,7 +791,6 @@ public class SyncedFlushService implements IndexEventListener {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeVInt(opCount);
         }
 

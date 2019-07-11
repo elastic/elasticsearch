@@ -204,7 +204,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeStringArray(indices);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {

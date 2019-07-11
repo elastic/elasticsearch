@@ -126,8 +126,6 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-
         if (source == null) {
             out.writeBoolean(false);
         } else {

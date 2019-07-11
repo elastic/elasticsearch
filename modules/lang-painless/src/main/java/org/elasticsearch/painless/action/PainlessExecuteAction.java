@@ -406,7 +406,6 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeGenericValue(result);
         }
 

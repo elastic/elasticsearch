@@ -24,6 +24,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 apply plugin: 'elasticsearch.test.fixtures'
 
 esplugin {
@@ -66,7 +68,14 @@ dependencies {
   hdfsFixture project(':test:fixtures:hdfs-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
-  testRuntime fileTree(dir: project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab").parent, include: ['*.keytab'])
+  testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab").parent)
+}
+
+normalization {
+    runtimeClasspath {
+        // ignore generated keytab files for the purposes of build avoidance
+        ignore '*.keytab'
+    }
 }
 
 dependencyLicenses {
@@ -154,7 +163,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(
               "repository-hdfs/krb5.keytab",
-              file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}")
+              file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
       )
     }
   }

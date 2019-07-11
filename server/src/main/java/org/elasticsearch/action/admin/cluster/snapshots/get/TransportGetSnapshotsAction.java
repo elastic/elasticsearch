@@ -130,10 +130,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
             final List<SnapshotInfo> snapshotInfos;
             if (request.verbose()) {
-                final Set<SnapshotId> incompatibleSnapshots = repositoryData != null ?
-                    new HashSet<>(repositoryData.getIncompatibleSnapshotIds()) : Collections.emptySet();
-                snapshotInfos = snapshotsService.snapshots(repository, new ArrayList<>(toResolve),
-                    incompatibleSnapshots, request.ignoreUnavailable());
+                snapshotInfos = snapshotsService.snapshots(repository, new ArrayList<>(toResolve), request.ignoreUnavailable());
             } else {
                 if (repositoryData != null) {
                     // want non-current snapshots as well, which are found in the repository data

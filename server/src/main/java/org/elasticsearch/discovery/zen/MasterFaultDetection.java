@@ -440,5 +440,8 @@ public class MasterFaultDetection extends FaultDetection {
         public MasterPingResponseResponse(StreamInput in) throws IOException {
             super(in);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

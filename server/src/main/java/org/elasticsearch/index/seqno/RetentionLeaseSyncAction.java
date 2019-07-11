@@ -195,6 +195,12 @@ public class RetentionLeaseSyncAction extends
 
     public static final class Response extends ReplicationResponse implements WriteResponse {
 
+        public Response() {}
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public void setForcedRefresh(final boolean forcedRefresh) {
             // ignore
@@ -203,8 +209,8 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected Response newResponseInstance() {
-        return new Response();
+    protected Response newResponseInstance(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
 }

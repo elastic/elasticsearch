@@ -80,7 +80,6 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             autoFollowStats.writeTo(out);
             followStats.writeTo(out);
         }

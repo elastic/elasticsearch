@@ -92,7 +92,6 @@ public class ClusterStateResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         clusterName.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalWriteable(clusterState);

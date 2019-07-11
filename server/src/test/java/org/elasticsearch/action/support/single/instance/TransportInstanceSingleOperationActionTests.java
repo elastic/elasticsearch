@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -51,6 +53,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -82,6 +85,9 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     public static class Response extends ActionResponse {
         public Response() {
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     class TestTransportInstanceSingleOperationAction extends TransportInstanceSingleOperationAction<Request, Response> {
@@ -109,7 +115,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected Response newResponse() {
+        protected Response newResponse(StreamInput in) throws IOException {
             return new Response();
         }
 

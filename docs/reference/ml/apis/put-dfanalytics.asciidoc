@@ -56,14 +56,6 @@ and mappings.
 
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
-
-`source` (Required)::
-  (object) The source configuration, consisting of `index` and optionally a 
-  `query`.
-  
-`dest` (Required)::
-  (object) The destination configuration, consisting of `index` and optionally 
-  `results_field` (`ml` by default).
   
 `analysis` (Required)::
   (object) Defines the type of {dfanalytics} you want to perform on your source 
@@ -74,6 +66,14 @@ and mappings.
   (object) You can specify both `includes` and/or `excludes` patterns. If 
   `analyzed_fields` is not set, only the relevant fileds will be included. For 
   example all the numeric fields for {oldetection}.
+  
+`dest` (Required)::
+  (object) The destination configuration, consisting of `index` and optionally 
+  `results_field` (`ml` by default).
+  
+`source` (Required)::
+  (object) The source configuration, consisting of `index` and optionally a 
+  `query`.
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
@@ -98,31 +98,33 @@ PUT _ml/data_frame/analytics/loganalytics
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:setup:setup_logdata]
+// TEST[setup:setup_logdata]
 
 The API returns the following result:
 
 [source,js]
 ----
 {
-    "id": "loganalytics",
-    "source": {
-        "index": ["logdata"],
-        "query": {
-            "match_all": {}
-        }
-    },
-    "dest": {
-        "index": "logdata_out",
-        "results_field": "ml"
-    },
-    "analysis": {
-        "outlier_detection": {}
-    },
-    "model_memory_limit": "1gb",
-    "create_time" : 1562265491319,
-    "version" : "8.0.0"
+  "id" : "loganalytics",
+  "source" : {
+    "index" : [
+      "logdata"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : {
+    "index" : "logdata_out",
+    "results_field" : "ml"
+  },
+  "analysis" : {
+    "outlier_detection" : { }
+  },
+  "model_memory_limit" : "1gb",
+  "create_time" : 1562351429434,
+  "version" : "7.3.0"
 }
 ----
-// TESTRESPONSE[s/1562265491319/$body.$_path/]
-// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+// TESTRESPONSE[s/1562351429434/$body.$_path/]
+// TESTRESPONSE[s/"version" : "7.3.0"/"version" : $body.version/]

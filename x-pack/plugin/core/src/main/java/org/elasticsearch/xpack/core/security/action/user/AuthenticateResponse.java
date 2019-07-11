@@ -30,7 +30,6 @@ public class AuthenticateResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         if (out.getVersion().before(Version.V_6_6_0)) {
             User.writeTo(authentication.getUser(), out);
         } else {

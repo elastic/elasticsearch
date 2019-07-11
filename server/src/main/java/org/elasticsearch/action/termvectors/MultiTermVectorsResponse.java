@@ -166,7 +166,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(responses.length);
         for (MultiTermVectorsItemResponse response : responses) {
             response.writeTo(out);

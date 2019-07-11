@@ -91,13 +91,14 @@ public class TransportStopDataFrameTransformAction extends
                 new PageParams(0, 10_000),
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
-                    if (request.isForce() == false) {
-                        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                    PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                    if (request.isForce() == false && tasks != null) {
                         List<String> failedTasks = new ArrayList<>();
                         List<String> failedReasons = new ArrayList<>();
                         for (String transformId : hitsAndIds.v2()) {
                             PersistentTasksCustomMetaData.PersistentTask<?> dfTask = tasks.getTask(transformId);
-                            if (dfTask.getState() instanceof DataFrameTransformState
+                            if (dfTask != null
+                                && dfTask.getState() instanceof DataFrameTransformState
                                 && ((DataFrameTransformState) dfTask.getState()).getTaskState() == DataFrameTransformTaskState.FAILED) {
                                 failedTasks.add(transformId);
                                 failedReasons.add(((DataFrameTransformState) dfTask.getState()).getReason());

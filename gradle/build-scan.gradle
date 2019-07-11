@@ -1,0 +1,35 @@
+import nebula.plugin.info.scm.ScmInfoExtension
+
+buildScan {
+    // Accept Gradle ToS when project property org.elasticsearch.acceptScanTOS=true
+    if (Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
+        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+        termsOfServiceAgree = 'yes'
+    }
+
+    // Jenkins-specific build scan metadata
+    if (System.getenv('JENKINS_URL')) {
+        tag 'CI'
+        tag System.getenv('JOB_NAME')
+        link 'Jenkins Build', System.getenv('JOB_URL')
+
+        // Capture changes included in this CI build
+        if (System.getenv('GIT_COMMIT')) {
+            background {
+                def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
+                value 'Git Changes', changes
+            }
+        }
+    } else {
+        tag 'LOCAL'
+    }
+
+    // Add SCM information
+    def scmInfo = project.extensions.findByType(ScmInfoExtension)
+    if (scmInfo && scmInfo.change && scmInfo.branch) {
+        value 'Git Commit ID', scmInfo.change
+        value 'Git Branch', scmInfo.branch
+        tag scmInfo.branch
+        link 'Source', "https://github.com/elastic/elasticsearch/commit/${scmInfo.change}"
+    }
+}

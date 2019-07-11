@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -135,8 +136,9 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected boolean serializeTargetValueType() {
-        return true;
+    protected boolean serializeTargetValueType(Version version) {
+        // TODO: Update version number after backport
+        return version.onOrAfter(Version.V_8_0_0);
     }
 
     @Override

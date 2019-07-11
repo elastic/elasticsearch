@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,7 +62,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
         /**
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-         * {@link #serializeTargetValueType()} to return true.
+         * {@link #serializeTargetValueType(Version)} to return true.
          */
         protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
             super(in, valuesSourceType);
@@ -108,24 +109,31 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     /**
-     * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+     * Read an aggregation from a stream that has a sensible default for TargetValueType. This should be used by most subclasses.
+     * Subclasses needing to maintain backward compatibility to a version that did not serialize TargetValueType should use this
+     * constructor, providing the old, constant value for TargetValueType and override {@link #serializeTargetValueType(Version)} to return
+     * true only for versions that support the serialization.
      */
     protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
+        if (serializeTargetValueType(in.getVersion())) {
+            this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
+        } else {
+            this.targetValueType = targetValueType;
+        }
         read(in);
     }
 
     /**
      * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-     * {@link #serializeTargetValueType()} to return true.
+     * {@link #serializeTargetValueType(Version)} to return true.
      */
     protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
         super(in);
-        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
+        // TODO: Can we get rid of this constructor and always use the three value version? Does this assert provide any value?
+        assert serializeTargetValueType(in.getVersion()) : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         read(in);
@@ -149,7 +157,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
+        if (serializeTargetValueType(out.getVersion())) {
             out.writeOptionalWriteable(targetValueType);
         }
         out.writeOptionalString(field);
@@ -177,8 +185,9 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three
      * argument read constructor rather than the four argument version.
+     * @param version For backwards compatibility, subclasses can change behavior based on the version
      */
-    protected boolean serializeTargetValueType() {
+    protected boolean serializeTargetValueType(Version version) {
         return false;
     }
 

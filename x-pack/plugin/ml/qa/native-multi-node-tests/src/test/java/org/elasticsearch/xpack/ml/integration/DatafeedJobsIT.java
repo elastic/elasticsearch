@@ -116,7 +116,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         registerJob(job);
         putJob(job);
 
-        CheckedRunnable<Exception> process = () -> {
+        CheckedRunnable<Exception> openAndRunJob = () -> {
             openJob(job.getId());
             assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
             registerDatafeed(datafeedConfig);
@@ -133,8 +133,8 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             waitUntilJobIsClosed(job.getId());
         };
 
-        process.run();
-        process.run();
+        openAndRunJob.run();
+        openAndRunJob.run();
     }
 
     public void testDatafeedTimingStats_DatafeedJobIdUpdated() throws Exception {
@@ -157,11 +157,10 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
-        CheckedConsumer<Job.Builder, Exception> process = job -> {
+        CheckedConsumer<Job.Builder, Exception> openAndRunJob = job -> {
             openJob(job.getId());
             assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
             // Bind datafeedId to the current job on the list, timing stats are wiped out.
-            updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(job.getId()).build());
             // Datafeed did not do anything yet, hence search_count is equal to 0.
             assertDatafeedStats(datafeedId, DatafeedState.STOPPED, job.getId(), equalTo(0L));
             startDatafeed(datafeedId, 0L, now.toEpochMilli());
@@ -173,9 +172,11 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             waitUntilJobIsClosed(job.getId());
         };
 
-        process.accept(jobA);
-        process.accept(jobB);
-        process.accept(jobA);
+        openAndRunJob.accept(jobA);
+        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(jobB.getId()).build());  // wipes out timing stats
+        openAndRunJob.accept(jobB);
+        updateDatafeed(new DatafeedUpdate.Builder(datafeedId).setJobId(jobA.getId()).build());  // wipes out timing stats
+        openAndRunJob.accept(jobA);
     }
 
     public void testDatafeedTimingStats_QueryDelayUpdated_TimingStatsNotReset() throws Exception {

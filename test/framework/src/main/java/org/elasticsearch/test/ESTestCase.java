@@ -188,7 +188,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     // Allows distinguishing between parallel test processes
     public static final String TEST_WORKER_VM_ID;
 
-    protected static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
+    public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 

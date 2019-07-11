@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -110,6 +109,10 @@ public final class MockTransportService extends TransportService {
      * Returns a unique port range for this JVM starting from the computed base port
      */
     public static String getPortRange() {
+        return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
+    }
+
+    protected static int getBasePort() {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -121,13 +124,10 @@ public final class MockTransportService extends TransportService {
         // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
         // This is safe as long as we have fewer than 224 Gradle workers running in parallel
         // See also: https://github.com/elastic/elasticsearch/issues/44134
-        final int startAt = Math.round(
-            RandomizedTest.systemPropertyAsLong(ESTestCase.TEST_WORKER_VM_ID, 0)
-                % 223L
-        );
+        final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        int basePort = 10300 + (startAt * 100);
-        return basePort + "-" + (basePort + 99); // upper bound is inclusive
+        return 10300 + (startAt * 100);
     }
 
     public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {

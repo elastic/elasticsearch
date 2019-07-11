@@ -61,6 +61,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.translog.TestTranslog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -264,13 +265,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
             .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
-            .put("index.routing.allocation.exclude._name", node2)
-        ));
+            .put("index.routing.allocation.exclude._name", node2)));
         ensureYellow();
 
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-            .put("index.routing.allocation.exclude._name", (String)null)
-        ));
+            .putNull("index.routing.allocation.exclude._name")));
         ensureGreen();
 
         // Index some documents
@@ -292,7 +291,6 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
-        Path translogDirs = getPathToShardData(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
 
         RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         MockTerminal terminal = new MockTerminal();
@@ -312,58 +310,64 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         // shut down the replica node to be tested later
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
 
-        // Corrupt the translog file(s)
-        logger.info("--> corrupting translog");
-        corruptRandomTranslogFiles(indexName);
+        final Path translogDir = getPathToShardData(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
+        final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
 
         // Restart the single node
         logger.info("--> restarting node");
-        internalCluster().restartRandomDataNode();
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                logger.info("--> corrupting translog on node {}", nodeName);
+                TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir);
+                return super.onNodeStopped(nodeName);
+            }
+        });
 
         // all shards should be failed due to a corrupted translog
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(0).setPrimary(true)
-                    .get().getExplanation();
-
-            final UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+            final UnassignedInfo unassignedInfo = client().admin().cluster().prepareAllocationExplain()
+                .setIndex(indexName).setShard(0).setPrimary(true).get().getExplanation().getUnassignedInfo();
             assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            Throwable throwable = unassignedInfo.getFailure();
+            while (throwable != null) {
+                if (throwable instanceof TranslogCorruptedException) {
+                    return;
+                }
+                throwable = throwable.getCause();
+            }
+            throw new AssertionError("no TranslogCorruptedException thrown", unassignedInfo.getFailure());
         });
 
         // have to shut down primary node - otherwise node lock is present
-        final InternalTestCluster.RestartCallback callback =
-            new InternalTestCluster.RestartCallback() {
-                @Override
-                public Settings onNodeStopped(String nodeName) throws Exception {
-                    // and we can actually truncate the translog
-                    final Path idxLocation = translogDirs.getParent().resolve(ShardPath.INDEX_FOLDER_NAME);
-                    assertBusy(() -> {
-                        logger.info("--> checking that lock has been released for {}", idxLocation);
-                        try (Directory dir = FSDirectory.open(idxLocation, NativeFSLockFactory.INSTANCE);
-                             Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-                            // Great, do nothing, we just wanted to obtain the lock
-                        } catch (LockObtainFailedException lofe) {
-                            logger.info("--> failed acquiring lock for {}", idxLocation);
-                            fail("still waiting for lock release at [" + idxLocation + "]");
-                        } catch (IOException ioe) {
-                            fail("Got an IOException: " + ioe);
-                        }
-                    });
+        internalCluster().restartNode(node1, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                assertBusy(() -> {
+                    logger.info("--> checking that lock has been released for {}", indexDir);
+                    //noinspection EmptyTryBlock since we're just trying to obtain the lock
+                    try (Directory dir = FSDirectory.open(indexDir, NativeFSLockFactory.INSTANCE);
+                         Lock ignored = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                    } catch (LockObtainFailedException lofe) {
+                        logger.info("--> failed acquiring lock for {}", indexDir);
+                        throw new AssertionError("still waiting for lock release at [" + indexDir + "]", lofe);
+                    } catch (IOException ioe) {
+                        throw new AssertionError("unexpected IOException [" + indexDir + "]", ioe);
+                    }
+                });
 
-                    final Environment environment = TestEnvironment.newEnvironment(
-                        Settings.builder().put(internalCluster().getDefaultSettings()).put(node1PathSettings).build());
+                final Environment environment = TestEnvironment.newEnvironment(
+                    Settings.builder().put(internalCluster().getDefaultSettings()).put(node1PathSettings).build());
 
-                    terminal.addTextInput("y");
-                    OptionSet options = parser.parse("-d", translogDirs.toAbsolutePath().toString());
-                    logger.info("--> running command for [{}]", translogDirs.toAbsolutePath());
-                    command.execute(terminal, options, environment);
-                    logger.info("--> output:\n{}", terminal.getOutput());
+                terminal.addTextInput("y");
+                OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
+                logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
+                command.execute(terminal, options, environment);
+                logger.info("--> output:\n{}", terminal.getOutput());
 
-                    return super.onNodeStopped(nodeName);
-                }
-            };
-        internalCluster().restartNode(node1, callback);
+                return super.onNodeStopped(nodeName);
+            }
+        });
 
         String primaryNodeId = null;
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -604,10 +608,6 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             .collect(Collectors.toSet());
         assertThat(paths, hasSize(1));
         return paths.iterator().next();
-    }
-
-    private void corruptRandomTranslogFiles(String indexName) throws IOException {
-        TestTranslog.corruptRandomTranslogFile(logger, random(), getPathToShardData(indexName, ShardPath.TRANSLOG_FOLDER_NAME));
     }
 
     /** Disables translog flushing for the specified index */

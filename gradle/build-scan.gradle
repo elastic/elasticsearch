@@ -13,8 +13,8 @@ buildScan {
         tag System.getenv('JOB_NAME')
         link 'Jenkins Build', System.getenv('BUILD_URL')
 
-        // Capture changes included in this CI build
-        if (System.getenv('GIT_COMMIT')) {
+        // Capture changes included in this CI build except for pull request builds
+        if (System.getenv('GIT_COMMIT') && System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') == null) {
             background {
                 def changes = "git diff --name-only ${System.getenv('GIT_PREVIOUS_COMMIT')}..${System.getenv('GIT_COMMIT')}".execute().text.trim()
                 value 'Git Changes', changes
@@ -28,8 +28,11 @@ buildScan {
     def scmInfo = project.extensions.findByType(ScmInfoExtension)
     if (scmInfo && scmInfo.change && scmInfo.branch) {
         value 'Git Commit ID', scmInfo.change
-        value 'Git Branch', scmInfo.branch
-        tag scmInfo.branch
+        // Don't tag the branch if we are in a detached head state
+        if (scmInfo.branch.startsWith(scmInfo.change) == false) {
+            value 'Git Branch', ? '' : scmInfo.branch
+            tag scmInfo.branch
+        }
         link 'Source', "https://github.com/elastic/elasticsearch/commit/${scmInfo.change}"
     }
 }

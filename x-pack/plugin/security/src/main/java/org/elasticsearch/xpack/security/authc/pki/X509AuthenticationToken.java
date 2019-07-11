@@ -24,8 +24,8 @@ public class X509AuthenticationToken implements AuthenticationToken {
     public X509AuthenticationToken(X509Certificate[] certificates, boolean isDelegated) {
         this.credentials = Objects.requireNonNull(certificates);
         this.dn = certificates.length == 0 ? "" : certificates[0].getSubjectX500Principal().toString();
-        this.isDelegated = isDelegated;
         this.principal = this.dn;
+        this.isDelegated = isDelegated;
     }
 
     @Override

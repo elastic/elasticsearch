@@ -58,7 +58,7 @@ following tasks associated with each shard for the specified indices.
 ==== {api-path-parms-title}
 
 `<index>`::
-  (string) Required. A comma-delimited list of index patterns.
+  (Required, string) A comma-delimited list of index patterns.
 
 [[ccr-get-follow-stats-response-body]]
 ==== {api-response-body-title}

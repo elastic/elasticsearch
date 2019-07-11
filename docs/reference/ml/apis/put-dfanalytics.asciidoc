@@ -49,7 +49,7 @@ and mappings.
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (string) Required. A numerical character string that uniquely identifies the 
+  (Required, string) A numerical character string that uniquely identifies the 
   {dfanalytics-job}. This identifier can contain lowercase alphanumeric
   characters (a-z and 0-9), hyphens, and underscores. It must start and end with
   alphanumeric characters.
@@ -58,21 +58,21 @@ and mappings.
 ==== {api-request-body-title}
 
 `analysis`::
-  (object) Required. Defines the type of {dfanalytics} you want to perform on
+  (Required, object) Defines the type of {dfanalytics} you want to perform on
   your source index. For example: `outlier_detection`.  See {oldetection}
   resources.
   
 `analyzed_fields`::
-  (object) Optional. You can specify both `includes` and/or `excludes` patterns.
+  (Optional, object) You can specify both `includes` and/or `excludes` patterns.
   If `analyzed_fields` is not set, only the relevant fileds will be included.
   For example all the numeric fields for {oldetection}.
   
 `dest`::
-  (object) Required. The destination configuration, consisting of `index` and
+  (Required, object) The destination configuration, consisting of `index` and
   optionally `results_field` (`ml` by default).
   
 `source`::
-  (object) Required. The source configuration, consisting of `index` and
+  (Required, object) The source configuration, consisting of `index` and
   optionally a `query`.
 
 [[ml-put-dfanalytics-example]]

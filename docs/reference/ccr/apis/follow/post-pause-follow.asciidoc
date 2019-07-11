@@ -54,7 +54,7 @@ following task.
 ==== {api-path-parms-title}
 
 `<follower_index>`::
-  (string) Required. The name of the follower index.
+  (Required, string) The name of the follower index.
 
 [[ccr-post-pause-follow-examples]]
 ==== {api-examples-title}

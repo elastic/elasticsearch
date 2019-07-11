@@ -36,7 +36,7 @@ using those same roles.
 ==== {api-path-parms-title}
 
 `<feed_id>`::
-  (string) Required. Identifier for the {dfeed}.
+  (Required, string) Identifier for the {dfeed}.
 
 [[ml-update-datafeed-request-body]]
 ==== {api-request-body-title}
@@ -44,52 +44,52 @@ using those same roles.
 The following properties can be updated after the {dfeed} is created:
 
 `aggregations`::
-  (object) Optional. If set, the {dfeed} performs aggregation searches. For more
+  (Optional, object) If set, the {dfeed} performs aggregation searches. For more
   information, see <<ml-datafeed-resource>>.
 
 `chunking_config`::
-  (object) Optional. Specifies how data searches are split into time chunks. See
+  (Optional, object) Specifies how data searches are split into time chunks. See
   <<ml-datafeed-chunking-config>>.
   
 `delayed_data_check_config`::
-  (object) Optional. Specifies whether the data feed checks for missing data and 
+  (Optional, object) Specifies whether the data feed checks for missing data and 
   the size of the window. See <<ml-datafeed-delayed-data-check-config>>.  
 
 `frequency`::
-  (time units) Optional. The interval at which scheduled queries are made while
+  (Optional, time units) The interval at which scheduled queries are made while
   the {dfeed} runs in real time. The default value is either the bucket span for
   short bucket spans, or, for longer bucket spans, a sensible fraction of the
   bucket span. For example: `150s`.
 
 `indices`::
-  (array) Optional. An array of index names. Wildcards are supported. For
+  (Optional, array) An array of index names. Wildcards are supported. For
   example: `["it_ops_metrics", "server*"]`.
 
 `job_id`::
- (string) Optional. A numerical character string that uniquely identifies the
+ (Optional, string) A numerical character string that uniquely identifies the
  job.
 
 `query`::
-  (object) Optional. The {es} query domain-specific language (DSL). This value
+  (Optional, object) The {es} query domain-specific language (DSL). This value
   corresponds to the query object in an {es} search POST body. All the options
   that are supported by {es} can be used, as this object is passed verbatim to
   {es}. By default, this property has the following value:
   `{"match_all": {"boost": 1}}`.
 
 `query_delay`::
-  (time units) Optional. The number of seconds behind real-time that data is
+  (Optional, time units) The number of seconds behind real-time that data is
   queried. For example, if data from 10:04 a.m. might not be searchable in {es}
   until 10:06 a.m., set this property to 120 seconds. The default value is `60s`.
 
 `script_fields`::
-  (object) Optional. Specifies scripts that evaluate custom expressions and
+  (Optional, object) Specifies scripts that evaluate custom expressions and
   returns script fields to the {dfeed}. The
   <<ml-detectorconfig,detector configuration objects>> in a job can contain
   functions that use these script fields. For more information, see
   <<search-request-script-fields,Script fields>>.
 
 `scroll_size`::
-  (unsigned integer) Optional. The `size` parameter that is used in {es}
+  (Optional, unsigned integer) The `size` parameter that is used in {es}
   searches. The default value is `1000`.
 
 For more information about these properties,

@@ -26,33 +26,33 @@ Retrieves information about model snapshots.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Identifier for the job.
 
 `<snapshot_id>`::
-  (string) Optional. Identifier for the model snapshot. If you do not specify
+  (Optional, string) Identifier for the model snapshot. If you do not specify
   this optional parameter, the API returns information about all model snapshots.
 
 [[ml-get-snapshot-request-body]]
 ==== {api-request-body-title}
 
 `desc`::
-  (boolean) Optional. If true, the results are sorted in descending order.
+  (Optional, boolean) If true, the results are sorted in descending order.
 
 `end`::
-  (date) Optional. Returns snapshots with timestamps earlier than this time.
+  (Optional, date) Returns snapshots with timestamps earlier than this time.
 
 `from`::
-  (integer) Optional. Skips the specified number of snapshots.
+  (Optional, integer) Skips the specified number of snapshots.
 
 `size`::
-  (integer) Optional. Specifies the maximum number of snapshots to obtain.
+  (Optional, integer) Specifies the maximum number of snapshots to obtain.
 
 `sort`::
-  (string) Optional. Specifies the sort field for the requested snapshots. By
+  (Optional, string) Specifies the sort field for the requested snapshots. By
   default, the snapshots are sorted by their timestamp.
 
 `start`::
-  (string) Optional. Returns snapshots with timestamps after this time.
+  (Optional, string) Returns snapshots with timestamps after this time.
 
 [[ml-get-snapshot-results]]
 ==== {api-response-body-title}

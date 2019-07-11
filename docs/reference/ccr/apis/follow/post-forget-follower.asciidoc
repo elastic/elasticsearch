@@ -102,22 +102,22 @@ the <<ccr-post-unfollow,unfollow API>> is invoked.
 ==== {api-path-parms-title}
 
 `<leader_index>`::
-  (string) Required. The name of the leader index.
+  (Required, string) The name of the leader index.
 
 [[ccr-post-forget-follower-request-body]]
 ==== {api-request-body-title}
 
 `follower_cluster`::
-  (string) Required. The name of the cluster containing the follower index.
+  (Required, string) The name of the cluster containing the follower index.
 
 `follower_index`::
-  (string) Required. The name of the follower index.
+  (Required, string) The name of the follower index.
 
 `follower_index_uuid`::
-  (string) Required. The UUID of the follower index.
+  (Required, string) The UUID of the follower index.
 
 `leader_remote_cluster`::
-  (string) Required. The alias (from the perspective of the cluster containing
+  (Required, string) The alias (from the perspective of the cluster containing
   the follower index) of the <<modules-remote-clusters,remote cluster>>
   containing the leader index.
 

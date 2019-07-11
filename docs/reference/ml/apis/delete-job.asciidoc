@@ -41,17 +41,17 @@ separated list.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Identifier for the job.
 
 [[ml-delete-job-query-parms]]
 ==== {api-query-parms-title}
 
 `force`::
-  (boolean) Optional. Use to forcefully delete an opened job; this method is
+  (Optional, boolean) Use to forcefully delete an opened job; this method is
   quicker than closing and deleting the job.
 
 `wait_for_completion`::
-  (boolean) Optional. Specifies whether the request should return immediately or
+  (Optional, boolean) Specifies whether the request should return immediately or
   wait until the job deletion completes. Defaults to `true`.
 
 [[ml-delete-job-example]]

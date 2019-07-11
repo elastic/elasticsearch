@@ -27,37 +27,37 @@ privileges. See {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Identifier for the job.
 
 [[ml-get-influencer-request-body]]
 ==== {api-request-body-title}
 
 `desc`::
-  (boolean) Optional. If true, the results are sorted in descending order.
+  (Optional, boolean) If true, the results are sorted in descending order.
 
 `end`::
-  (string) Optional. Returns influencers with timestamps earlier than this time.
+  (Optional, string) Returns influencers with timestamps earlier than this time.
 
 `exclude_interim`::
-  (boolean) Optional. If true, the output excludes interim results. By default,
+  (Optional, boolean) If true, the output excludes interim results. By default,
   interim results are included.
 
 `influencer_score`::
-  (double) Optional. Returns influencers with anomaly scores greater or equal
-  than this value.
+  (Optional, double) Returns influencers with anomaly scores greater than or
+  equal to this value.
 
 `page`::
 `from`:::
-    (integer) Optional. Skips the specified number of influencers.
+    (Optional, integer) Skips the specified number of influencers.
 `size`:::
-  (integer) Optional. Specifies the maximum number of influencers to obtain.
+  (Optional, integer) Specifies the maximum number of influencers to obtain.
 
 `sort`::
-  (string) Optional. Specifies the sort field for the requested influencers. By
+  (Optional, string) Specifies the sort field for the requested influencers. By
   default, the influencers are sorted by the `influencer_score` value.
 
 `start`::
-  (string) Optional. Returns influencers with timestamps after this time.
+  (Optional, string) Returns influencers with timestamps after this time.
 
 [[ml-get-influencer-results]]
 ==== {api-response-body-title}

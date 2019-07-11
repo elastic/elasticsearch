@@ -57,38 +57,38 @@ overall buckets with a span equal to the largest job's `bucket_span`.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job. It can be a job identifier, a group
+  (Required, string) Identifier for the job. It can be a job identifier, a group
   name, a comma-separated list of jobs or groups, or a wildcard expression.
 
 [[ml-get-overall-buckets-request-body]]
 ==== {api-request-body-title}
 
 `allow_no_jobs`::
-  (boolean) Optional. If `false` and the `job_id` does not match any job, an
+  (Optional, boolean) If `false` and the `job_id` does not match any job, an
   error occurs. The default value is `true`.
 
 `bucket_span`::
-  (string) Optional. The span of the overall buckets. Must be greater or equal
+  (Optional, string) The span of the overall buckets. Must be greater or equal
   to the largest job's `bucket_span`. Defaults to the largest job's `bucket_span`.
 
 `end`::
-  (string) Optional. Returns overall buckets with timestamps earlier than this
+  (Optional, string) Returns overall buckets with timestamps earlier than this
   time.
 
 `exclude_interim`::
-  (boolean) Optional. If `true`, the output excludes interim overall buckets.
+  (Optional, boolean) If `true`, the output excludes interim overall buckets.
   Overall buckets are interim if any of the job buckets within the overall
   bucket interval are interim. By default, interim results are included.
 
 `overall_score`::
-  (double) Optional. Returns overall buckets with overall scores greater or
+  (Optional, double) Returns overall buckets with overall scores greater or
   equal than this value.
 
 `start`::
-  (string) Optional. Returns overall buckets with timestamps after this time.
+  (Optional, string) Returns overall buckets with timestamps after this time.
 
 `top_n`::
-  (integer) Optional. The number of top job bucket scores to be used in the
+  (Optional, integer) The number of top job bucket scores to be used in the
   `overall_score` calculation. The default value is `1`.
 
 [[ml-get-overall-buckets-results]]

@@ -31,10 +31,10 @@ the `model_snapshot_id` in the results from the get jobs API.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Identifier for the job.
 
 `<snapshot_id>`::
-  (string) Required. Identifier for the model snapshot.
+  (Required, string) Identifier for the model snapshot.
 
 [[ml-delete-snapshot-example]]
 ==== {api-examples-title}

@@ -27,37 +27,37 @@ privileges. See {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Identifier for the job.
 
 [[ml-get-record-request-body]]
 ==== {api-request-body-title}
 
 `desc`::
-  (boolean) Optional. If true, the results are sorted in descending order.
+  (Optional, boolean) If true, the results are sorted in descending order.
 
 `end`::
-  (string) Optional. Returns records with timestamps earlier than this time.
+  (Optional, string) Returns records with timestamps earlier than this time.
 
 `exclude_interim`::
-  (boolean) Optional. If true, the output excludes interim results. By default,
+  (Optional, boolean) If true, the output excludes interim results. By default,
   interim results are included.
 
 `page`::
 `from`:::
-  (integer) Optional. Skips the specified number of records.
+  (Optional, integer) Skips the specified number of records.
 `size`:::
-  (integer) Optional. Specifies the maximum number of records to obtain.
+  (Optional, integer) Specifies the maximum number of records to obtain.
 
 `record_score`::
-  (double) Optional. Returns records with anomaly scores greater or equal than
+  (Optional, double) Returns records with anomaly scores greater or equal than
   this value.
 
 `sort`::
-  (string) Optional. Specifies the sort field for the requested records. By
+  (Optional, string) Specifies the sort field for the requested records. By
   default, the records are sorted by the `anomaly_score` value.
 
 `start`::
-  (string) Optional. Returns records with timestamps after this time.
+  (Optional, string) Returns records with timestamps after this time.
 
 [[ml-get-record-results]]
 ==== {api-response-body-title}

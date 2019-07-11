@@ -8,15 +8,11 @@
 <titleabbrev>Evaluate {dfanalytics}</titleabbrev>
 ++++
 
-experimental[]
-
 Evaluates the executed analysis on an index that is already annotated with a 
 field that contains the results of the analytics (the `ground truth`) for each 
-{dataframe} row. Evaluation is typically done via calculating a set of metrics 
-that capture various aspects of the quality of the results over the data for 
-which we have the `ground truth`. For different types of analyses different 
-metrics are suitable. This API packages together commonly used metrics for 
-various analyses.
+{dataframe} row.
+
+experimental[]
 
 [[ml-evaluate-dfanalytics-request]]
 ==== {api-request-title}
@@ -30,15 +26,25 @@ various analyses.
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
+
+[[ml-evaluate-dfanalytics-desc]]
+==== {api-description-title}
+
+Evaluation is typically done via calculating a set of metrics 
+that capture various aspects of the quality of the results over the data for 
+which we have the `ground truth`. For different types of analyses different 
+metrics are suitable. This API packages together commonly used metrics for 
+various analyses.
+
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 `index`::
-  (object) Required. Defines the `index` in which the evaluation will be
+  (Required, object) Defines the `index` in which the evaluation will be
   performed.
   
 `evaluation`::
-  (object) Required. Defines the type of evaluation you want to perform. For
+  (Required, object) Defines the type of evaluation you want to perform. For
   example: `binary_soft_classification`. See Evaluate API resources.
 
 [[ml-evaluate-dfanalytics-example]]

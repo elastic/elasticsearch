@@ -41,7 +41,7 @@ it to ensure it is returning the expected data.
 ==== {api-path-parms-title}
 
 `<datafeed_id>`::
-  (string) Required. Identifier for the {dfeed}.
+  (Required, string) Identifier for the {dfeed}.
 
 [[ml-preview-datafeed-example]]
 ==== {api-examples-title}

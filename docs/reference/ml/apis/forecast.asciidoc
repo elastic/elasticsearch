@@ -37,19 +37,19 @@ forecast. For more information about this property, see <<ml-job-resource>>.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Identifier for the job.
 
 [[ml-forecast-request-body]]
 ==== {api-request-body-title}
 
 `duration`::
-  (time units) Optional. A period of time that indicates how far into the future
+  (Optional, time units) A period of time that indicates how far into the future
   to forecast. For example, `30d` corresponds to 30 days. The default value is 1
   day. The forecast starts at the last record that was processed. For more
   information about time units, see <<time-units>>.
 
 `expires_in`::
-  (time units) Optional. The period of time that forecast results are retained.
+  (Optional, time units) The period of time that forecast results are retained.
   After a forecast expires, the results are deleted. The default value is 14 days.
   If set to a value of `0`, the forecast is never automatically deleted.
   For more information about time units, see <<time-units>>.

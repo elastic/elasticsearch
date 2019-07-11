@@ -31,7 +31,7 @@ limitation might be removed in the future.
 ==== {api-path-parms-title}
 
 `<index>`::
-(string) Required. Identifier for the index.
+  (Required, string) Identifier for the index.
 
 [[unfreeze-index-api-examples]]
 ==== {api-examples-title}

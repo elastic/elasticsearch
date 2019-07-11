@@ -31,16 +31,16 @@ the `custom_rules` property of <<ml-detectorconfig,detector configuration object
 ==== {api-path-parms-title}
 
 `<filter_id>`::
-  (string) Required. Identifier for the filter.
+  (Required, string) Identifier for the filter.
 
 [[ml-put-filter-request-body]]
 ==== {api-request-body-title}
 
 `description`::
-  (string) Optional. A description of the filter.
+  (Optional, string) A description of the filter.
   
 `items`::
-  (array of strings) Required. The items of the filter. A wildcard `*` can be
+  (Required, array of strings) The items of the filter. A wildcard `*` can be
   used at the beginning or the end of an item. Up to 10000 items are allowed in
   each filter.
 

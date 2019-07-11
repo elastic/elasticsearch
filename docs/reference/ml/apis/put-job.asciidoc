@@ -34,7 +34,7 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job. This identifier can contain
+  (Required, string) Identifier for the job. This identifier can contain
   lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
   must start and end with alphanumeric characters.
 
@@ -42,55 +42,55 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 ==== {api-request-body-title}
 
 `analysis_config`::
-  (object) Required. The analysis configuration, which specifies how to analyze
+  (Required, object) The analysis configuration, which specifies how to analyze
   the data. See <<ml-analysisconfig, analysis configuration objects>>.
 
 `analysis_limits`::
-  (object) Optional. Specifies runtime limits for the job. See
+  (Optional, object) Specifies runtime limits for the job. See
   <<ml-apilimits,analysis limits>>.
 
 `background_persist_interval`::
-  (time units) Optional. Advanced configuration option. The time between each
+  (Optional, time units) Advanced configuration option. The time between each
   periodic persistence of the model. See <<ml-job-resource>>.
 
 `custom_settings`::
-  (object) Optional. Advanced configuration option. Contains custom meta data
+  (Optional, object) Advanced configuration option. Contains custom meta data
   about the job. See <<ml-job-resource>>.
 
 `data_description`::
-  (object) Required. Describes the format of the input data. This object is
+  (Required, object) Describes the format of the input data. This object is
   required, but it can be empty (`{}`). See
     <<ml-datadescription,data description objects>>.
 
 `description`::
-  (string) Optional. A description of the job.
+  (Optional, string) A description of the job.
 
 `groups`::
-  (array of strings) Optional. A list of job groups. See <<ml-job-resource>>.
+  (Optional, array of strings) A list of job groups. See <<ml-job-resource>>.
 
 `model_plot_config`::
-  (object) Optional. Advanced configuration option. Specifies to store model 
+  (Optional, object) Advanced configuration option. Specifies to store model 
   information along with the results. This adds overhead to the performance of
   the system and is not feasible for jobs with many entities, see
   <<ml-apimodelplotconfig>>.
 
 `model_snapshot_retention_days`::
-  (long) Optional. The time in days that model snapshots are retained for the
+  (Optional, long) The time in days that model snapshots are retained for the
   job. Older snapshots are deleted. The default value is `1`, which means
   snapshots are retained for one day (twenty-four hours). 
 
 `renormalization_window_days`::
-  (long) Optional. Advanced configuration option. The period over which
+  (Optional, long) Advanced configuration option. The period over which
   adjustments to the score are applied, as new data is seen. See
   <<ml-job-resource>>.
 
 `results_index_name`::
-  (string) Optional. A text string that affects the name of the {ml} results
+  (Optional, string) A text string that affects the name of the {ml} results
   index. The default value is `shared`, which generates an index named
   `.ml-anomalies-shared`. 
 
 `results_retention_days`::
-  (long) Optional. Advanced configuration option. The number of days for which
+  (Optional, long) Advanced configuration option. The number of days for which
   job results are retained. See <<ml-job-resource>>.
 
 [[ml-put-job-example]]

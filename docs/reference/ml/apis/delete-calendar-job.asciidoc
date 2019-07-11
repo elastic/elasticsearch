@@ -24,10 +24,10 @@ Deletes jobs from a calendar.
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (string) Required. Identifier for the calendar.
+  (Required, string) Identifier for the calendar.
 
 `<job_id>`::
-  (string) Required. An identifier for the job. It can be a job identifier, a
+  (Required, string) An identifier for the job. It can be a job identifier, a
   group name, or a comma-separated list of jobs or groups.
 
 [[ml-delete-calendar-job-example]]

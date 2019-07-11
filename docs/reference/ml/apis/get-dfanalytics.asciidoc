@@ -42,7 +42,7 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (string) Optional. Identifier for the {dfanalytics-job}. If you do not specify
+  (Optional, string) Identifier for the {dfanalytics-job}. If you do not specify
   one of these options, the API returns information for the first hundred
   {dfanalytics-jobs}.
 
@@ -50,16 +50,16 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-  (boolean) Optional. If `false` and the `data_frame_analytics_id` does not
+  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
   match any {dfanalytics-job} an error will be returned. The default value is
   `true`.
 
 `from`::
-  (integer) Optional. Skips the specified number of {dfanalytics-jobs}. The
+  (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The
   default value is `0`.
 
 `size`::
-  (integer) Optional. Specifies the maximum number of {dfanalytics-jobs} to
+  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to
   obtain. The default value is `100`.
 
 [[ml-get-dfanalytics-example]]

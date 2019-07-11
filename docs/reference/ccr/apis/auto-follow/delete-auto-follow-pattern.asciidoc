@@ -55,7 +55,7 @@ This API deletes a configured collection of
 ==== {api-path-parms-title}
 
 `<auto_follow_pattern_name>`::
-  (string) Required. Specifies the auto-follow pattern collection to delete.
+  (Required, string) Specifies the auto-follow pattern collection to delete.
 
 
 [[ccr-delete-auto-follow-pattern-examples]]

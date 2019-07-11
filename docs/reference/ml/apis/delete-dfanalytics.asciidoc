@@ -27,7 +27,7 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (string) Required. Identifier for the {dfanalytics-job} you want to delete.
+  (Required, string) Identifier for the {dfanalytics-job} you want to delete.
 
 [[ml-delete-dfanalytics-example]]
 ==== {api-examples-title}

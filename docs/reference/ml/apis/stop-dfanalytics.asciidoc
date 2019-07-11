@@ -43,7 +43,7 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-  (string) Required. Identifier for the {dfanalytics-job}. This identifier can
+  (Required, string) Identifier for the {dfanalytics-job}. This identifier can
   contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
   
@@ -51,15 +51,15 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 ==== {api-query-parms-title}  
   
 `allow_no_match`::
-  (boolean) Optional. If `false` and the `data_frame_analytics_id` does not
+  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
   match any {dfanalytics-job} an error will be returned. The default value is
   `true`.
 
 `force`::
-  (boolean) Optional. If true, the {dfanalytics-job} is stopped forcefully.
+  (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
   
 `timeout`::
-  (time) Optional. Controls the amount of time to wait until the
+  (Optional, time) Controls the amount of time to wait until the
   {dfanalytics-job} stops. The default value is 20 seconds.
 
 

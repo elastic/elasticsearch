@@ -35,10 +35,10 @@ For more information about categories, see
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Identifier for the job.
 
 `<category_id>`::
-  (long) Optional. Identifier for the category. If you do not specify this
+  (Optional, long) Identifier for the category. If you do not specify this
   parameter, the API returns information about all categories in the job.
 
 [[ml-get-category-request-body]]
@@ -46,9 +46,9 @@ For more information about categories, see
 
 `page`::
 `from`:::
-  (integer) Optional. Skips the specified number of categories.
+  (Optional, integer) Skips the specified number of categories.
 `size`:::
-  (integer) Optional. Specifies the maximum number of categories to obtain.
+  (Optional, integer) Specifies the maximum number of categories to obtain.
 
 [[ml-get-category-results]]
 ==== {api-response-body-title}

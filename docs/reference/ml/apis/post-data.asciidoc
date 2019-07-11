@@ -53,16 +53,16 @@ or a comma-separated list.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-		(string) Required. Identifier for the job.
+		(Required, string) Identifier for the job.
 
 [[ml-post-data-query-parms]]
 ==== {api-query-parms-title}
 
 `reset_start`::
-		(string) Optional. Specifies the start of the bucket resetting range.
+		(Optional, string) Specifies the start of the bucket resetting range.
 
 `reset_end`::
-		(string) Optional. Specifies the end of the bucket resetting range.
+		(Optional, string) Specifies the end of the bucket resetting range.
 
 [[ml-post-data-request-body]]
 ==== {api-request-body-title}

@@ -24,17 +24,14 @@ Adds a job to a calendar.
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (string) Required. Identifier for the calendar.
+  (Required, string) Identifier for the calendar.
 
 `<job_id>`::
-  (string) Required. An identifier for the job. It can be a job identifier, a
+  (Required, string) An identifier for the job. It can be a job identifier, a
   group name, or a comma-separated list of jobs or groups.
 
 [[ml-put-calendar-job-example]]
 ==== {api-examples-title}
-
-The following example associates the `planned-outages` calendar with the
-`total-requests` job:
 
 [source,js]
 --------------------------------------------------

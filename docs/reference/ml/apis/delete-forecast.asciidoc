@@ -41,24 +41,24 @@ For more information, see
 ==== {api-path-parms-title}
 
 `<forecast_id>`::
-  (string) Optional. A comma-separated list of forecast identifiers. 
+  (Optional, string) A comma-separated list of forecast identifiers. 
   If you do not specify this optional parameter or if you specify `_all`, the 
   API deletes all forecasts from the job. 
   
 `<job_id>`::
-  (string) Required. Identifier for the job.
+  (Required, string) Required. Identifier for the job.
 
 [[ml-delete-forecast-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_forecasts`::
-  (boolean) Optional. Specifies whether an error occurs when there are no
+  (Optional, boolean) Specifies whether an error occurs when there are no
   forecasts. In particular, if this parameter is set to `false` and there are no 
   forecasts associated with the job, attempts to delete all forecasts return an
   error. The default value is `true`.
 
 `timeout`::
-  (time units) Optional. Specifies the period of time to wait for the completion
+  (Optional, time units) Specifies the period of time to wait for the completion
   of the delete operation. When this period of time elapses, the API fails and
   returns an error. The default value is `30s`. For more information about time
   units, see <<time-units>>.

@@ -30,7 +30,7 @@ calendar.
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (string) Required. Identifier for the calendar.
+  (Required, string) Identifier for the calendar.
 
 [[ml-delete-calendar-example]]
 ==== {api-examples-title}

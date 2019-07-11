@@ -32,23 +32,23 @@ calendars by using `_all`.
 ==== {api-path-parms-title}
 
 `<calendar_id>`::
-  (string) Required. Identifier for the calendar.
+  (Required, string) Identifier for the calendar.
 
 [[ml-get-calendar-event-request-body]]
 ==== {api-request-body-title}
 
 `end`::
-    (string) Optional. Specifies to get events with timestamps earlier than this
+    (Optional, string) Specifies to get events with timestamps earlier than this
     time.
 
 `from`::
-    (integer) Optional. Skips the specified number of events.
+    (Optional, integer) Skips the specified number of events.
 
 `size`::
-    (integer) Optional. Specifies the maximum number of events to obtain.
+    (Optional, integer) Specifies the maximum number of events to obtain.
 
 `start`::
-    (string) Optional. Specifies to get events with timestamps after this time.
+    (Optional, string) Specifies to get events with timestamps after this time.
 
 [[ml-get-calendar-event-results]]
 ==== {api-response-body-title}

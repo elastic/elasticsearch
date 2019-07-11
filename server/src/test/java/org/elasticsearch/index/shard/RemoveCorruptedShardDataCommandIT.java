@@ -29,7 +29,6 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -64,7 +63,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -82,9 +80,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -156,8 +155,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
                     containsString("is Elasticsearch still running ?")));
         }
 
-        final Set<Path> indexDirs = getDirs(indexName, ShardPath.INDEX_FOLDER_NAME);
-        assertThat(indexDirs, hasSize(1));
+        final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
 
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
             @Override
@@ -170,7 +168,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
                     assertThat(e.getMessage(), startsWith("Shard does not seem to be corrupted at"));
                 }
 
-                CorruptionUtils.corruptIndex(random(), indexDirs.iterator().next(), false);
+                CorruptionUtils.corruptIndex(random(), indexDir, false);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -294,7 +292,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
         }
         indexRandom(false, false, false, Arrays.asList(builders));
-        Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
+        Path translogDirs = getPathToShardData(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
 
         RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         MockTerminal terminal = new MockTerminal();
@@ -339,30 +337,28 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
                 @Override
                 public Settings onNodeStopped(String nodeName) throws Exception {
                     // and we can actually truncate the translog
-                    for (Path translogDir : translogDirs) {
-                        final Path idxLocation = translogDir.getParent().resolve(ShardPath.INDEX_FOLDER_NAME);
-                        assertBusy(() -> {
-                            logger.info("--> checking that lock has been released for {}", idxLocation);
-                            try (Directory dir = FSDirectory.open(idxLocation, NativeFSLockFactory.INSTANCE);
-                                 Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-                                // Great, do nothing, we just wanted to obtain the lock
-                            } catch (LockObtainFailedException lofe) {
-                                logger.info("--> failed acquiring lock for {}", idxLocation);
-                                fail("still waiting for lock release at [" + idxLocation + "]");
-                            } catch (IOException ioe) {
-                                fail("Got an IOException: " + ioe);
-                            }
-                        });
+                    final Path idxLocation = translogDirs.getParent().resolve(ShardPath.INDEX_FOLDER_NAME);
+                    assertBusy(() -> {
+                        logger.info("--> checking that lock has been released for {}", idxLocation);
+                        try (Directory dir = FSDirectory.open(idxLocation, NativeFSLockFactory.INSTANCE);
+                             Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                            // Great, do nothing, we just wanted to obtain the lock
+                        } catch (LockObtainFailedException lofe) {
+                            logger.info("--> failed acquiring lock for {}", idxLocation);
+                            fail("still waiting for lock release at [" + idxLocation + "]");
+                        } catch (IOException ioe) {
+                            fail("Got an IOException: " + ioe);
+                        }
+                    });
 
-                        final Environment environment = TestEnvironment.newEnvironment(
-                            Settings.builder().put(internalCluster().getDefaultSettings()).put(node1PathSettings).build());
+                    final Environment environment = TestEnvironment.newEnvironment(
+                        Settings.builder().put(internalCluster().getDefaultSettings()).put(node1PathSettings).build());
 
-                        terminal.addTextInput("y");
-                        OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
-                        logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-                        command.execute(terminal, options, environment);
-                        logger.info("--> output:\n{}", terminal.getOutput());
-                    }
+                    terminal.addTextInput("y");
+                    OptionSet options = parser.parse("-d", translogDirs.toAbsolutePath().toString());
+                    logger.info("--> running command for [{}]", translogDirs.toAbsolutePath());
+                    command.execute(terminal, options, environment);
+                    logger.info("--> output:\n{}", terminal.getOutput());
 
                     return super.onNodeStopped(nodeName);
                 }
@@ -477,7 +473,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // sample the replica node translog dirs
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
-        final Set<Path> translogDirs = getDirs(node2, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
+        final Path translogDir = getPathToShardData(node2, shardId, ShardPath.TRANSLOG_FOLDER_NAME);
 
         final Settings node1PathSettings = internalCluster().dataPathSettings(node1);
         final Settings node2PathSettings = internalCluster().dataPathSettings(node2);
@@ -488,7 +484,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // Corrupt the translog file(s) on the replica
         logger.info("--> corrupting translog");
-        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDirs);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir);
 
         // Start the node with the non-corrupted data path
         logger.info("--> starting node");
@@ -504,15 +500,13 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final MockTerminal terminal = new MockTerminal();
         final OptionParser parser = command.getParser();
 
-        for (Path translogDir : translogDirs) {
-            final Environment environment = TestEnvironment.newEnvironment(
-                Settings.builder().put(internalCluster().getDefaultSettings()).put(node2PathSettings).build());
-            terminal.addTextInput("y");
-            OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
-            logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-            command.execute(terminal, options, environment);
-            logger.info("--> output:\n{}", terminal.getOutput());
-        }
+        final Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(node2PathSettings).build());
+        terminal.addTextInput("y");
+        OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
+        logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
+        command.execute(terminal, options, environment);
+        logger.info("--> output:\n{}", terminal.getOutput());
 
         logger.info("--> starting the replica node to test recovery");
         internalCluster().startNode(node2PathSettings);
@@ -566,9 +560,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final Map<String, Environment> environmentByNodeName = new HashMap<>();
         for (String nodeName : nodeNames) {
             final String nodeId = nodeNameToNodeId.get(nodeName);
-            final Set<Path> indexDirs = getDirs(nodeId, shardId, ShardPath.INDEX_FOLDER_NAME);
-            assertThat(indexDirs, hasSize(1));
-            indexPathByNodeName.put(nodeName, indexDirs.iterator().next());
+            indexPathByNodeName.put(nodeName, getPathToShardData(nodeId, shardId, ShardPath.INDEX_FOLDER_NAME));
 
             final Environment environment = TestEnvironment.newEnvironment(
                 Settings.builder().put(internalCluster().getDefaultSettings()).put(internalCluster().dataPathSettings(nodeName)).build());
@@ -586,7 +578,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         }
     }
 
-    private Set<Path> getDirs(String indexName, String dirSuffix) {
+    private Path getPathToShardData(String indexName, String dirSuffix) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{indexName}, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
@@ -597,30 +589,25 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
         ShardId shardId = shardRouting.shardId();
-        return getDirs(nodeId, shardId, dirSuffix);
+        return getPathToShardData(nodeId, shardId, dirSuffix);
     }
 
-    public static Set<Path> getDirs(String nodeId, ShardId shardId, String dirSuffix) {
-        final NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
-        final Set<Path> translogDirs = new TreeSet<>();
-        final NodeStats nodeStats = nodeStatses.getNodes().get(0);
-        for (FsInfo.Path fsPath : nodeStats.getFs()) {
-            final String path = fsPath.getPath();
-            final Path p = PathUtils.get(path)
+    public static Path getPathToShardData(String nodeId, ShardId shardId, String shardPathSubdirectory) {
+        final NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
+        final Set<Path> paths = StreamSupport.stream(nodeStatsResponse.getNodes().get(0).getFs().spliterator(), false)
+            .map(nodePath -> PathUtils.get(nodePath.getPath())
                 .resolve(NodeEnvironment.INDICES_FOLDER)
                 .resolve(shardId.getIndex().getUUID())
                 .resolve(Integer.toString(shardId.getId()))
-                .resolve(dirSuffix);
-            if (Files.isDirectory(p)) {
-                translogDirs.add(p);
-            }
-        }
-        return translogDirs;
+                .resolve(shardPathSubdirectory))
+            .filter(Files::isDirectory)
+            .collect(Collectors.toSet());
+        assertThat(paths, hasSize(1));
+        return paths.iterator().next();
     }
 
     private void corruptRandomTranslogFiles(String indexName) throws IOException {
-        Set<Path> translogDirs = getDirs(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
-        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDirs);
+        TestTranslog.corruptRandomTranslogFile(logger, random(), getPathToShardData(indexName, ShardPath.TRANSLOG_FOLDER_NAME));
     }
 
     /** Disables translog flushing for the specified index */

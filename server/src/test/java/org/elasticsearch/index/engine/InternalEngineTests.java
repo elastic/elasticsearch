@@ -2862,19 +2862,15 @@ public class InternalEngineTests extends EngineTestCase {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
-        final long primaryTerm = randomNonNegativeLong();
-        Translog translog = createTranslog(() -> primaryTerm);
+        final long newPrimaryTerm = randomLongBetween(0L, primaryTerm.get());
+        Translog translog = createTranslog(() -> newPrimaryTerm);
         long id = translog.currentFileGeneration();
         translog.close();
         IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
-        try {
-            engine = createEngine(store, primaryTranslogDir);
-            fail("engine shouldn't start without a valid translog id");
-        } catch (EngineCreationFailureException ex) {
-            // expected
-        }
+        expectThrows(EngineCreationFailureException.class, "engine shouldn't start without a valid translog id",
+            () -> createEngine(store, primaryTranslogDir));
         // when a new translog is created it should be ok
-        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, primaryTerm);
+        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, newPrimaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
         engine = new InternalEngine(config);

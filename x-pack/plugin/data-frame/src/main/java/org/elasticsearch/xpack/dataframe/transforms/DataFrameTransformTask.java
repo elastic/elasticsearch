@@ -386,7 +386,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private IndexerState indexerState = IndexerState.STOPPED;
         private DataFrameIndexerPosition initialPosition;
         private DataFrameTransformProgress progress;
-        private DataFrameTransformCheckpoint inProgressOrLastCheckpoint;
+        private DataFrameTransformCheckpoint lastCheckpoint;
+        private DataFrameTransformCheckpoint nextCheckpoint;
 
         ClientDataFrameIndexerBuilder(String transformId) {
             this.transformId = transformId;
@@ -405,7 +406,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 this.transformConfig,
                 this.fieldMappings,
                 this.progress,
-                this.inProgressOrLastCheckpoint,
+                this.lastCheckpoint,
+                this.nextCheckpoint,
                 parentTask);
         }
 
@@ -468,8 +470,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return this;
         }
 
-        ClientDataFrameIndexerBuilder setInProgressOrLastCheckpoint(DataFrameTransformCheckpoint inProgressOrLastCheckpoint) {
-            this.inProgressOrLastCheckpoint = inProgressOrLastCheckpoint;
+        ClientDataFrameIndexerBuilder setLastCheckpoint(DataFrameTransformCheckpoint lastCheckpoint) {
+            this.lastCheckpoint = lastCheckpoint;
+            return this;
+        }
+
+        ClientDataFrameIndexerBuilder setNextCheckpoint(DataFrameTransformCheckpoint nextCheckpoint) {
+            this.nextCheckpoint = nextCheckpoint;
             return this;
         }
     }
@@ -499,7 +506,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                DataFrameTransformConfig transformConfig,
                                Map<String, String> fieldMappings,
                                DataFrameTransformProgress transformProgress,
-                               DataFrameTransformCheckpoint inProgressOrLastCheckpoint,
+                               DataFrameTransformCheckpoint lastCheckpoint,
+                               DataFrameTransformCheckpoint nextCheckpoint,
                                DataFrameTransformTask parentTask) {
             super(ExceptionsHelper.requireNonNull(parentTask, "parentTask")
                     .threadPool
@@ -511,7 +519,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 initialPosition,
                 initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats,
                 transformProgress,
-                inProgressOrLastCheckpoint);
+                lastCheckpoint,
+                nextCheckpoint);
             this.transformId = ExceptionsHelper.requireNonNull(transformId, "transformId");
             this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
             this.transformsCheckpointService = ExceptionsHelper.requireNonNull(transformsCheckpointService,
@@ -531,7 +540,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     r -> {
                         TransformProgressGatherer.getInitialProgress(this.client, buildFilterQuery(), getConfig(), ActionListener.wrap(
                             newProgress -> {
-                                logger.trace("[{}] reset the progress from [{}] to [{}]", transformId, progress, newProgress);
+                                logger.info("[{}] reset the progress from [{}] to [{}]", transformId, progress, newProgress);
                                 progress = newProgress;
                                 super.onStart(now, listener);
                             },
@@ -546,17 +555,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 );
 
                 createCheckpoint(ActionListener.wrap(cp -> {
-                    DataFrameTransformCheckpoint oldCheckpoint = inProgressOrLastCheckpoint;
-                    if (oldCheckpoint.isEmpty()) {
-                        // this is the 1st run, accept the new in progress checkpoint and go on
-                        inProgressOrLastCheckpoint = cp;
-                        changedBucketsListener.onResponse(null);
-                    } else {
-                        logger.debug ("Getting changes from {} to {}", oldCheckpoint.getTimeUpperBound(), cp.getTimeUpperBound());
-                        getChangedBuckets(oldCheckpoint, cp, changedBucketsListener);
-                    }
+                    nextCheckpoint = cp;
+                    changedBucketsListener.onResponse(null);
                 }, listener::onFailure));
             } else {
+                logger.info("on start");
                 super.onStart(now, listener);
             }
         }
@@ -699,8 +702,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
+                // TODO: needs cleanup super is called with a listener, but listener.onResponse is called below
+                // super.onFinish() fortunately ignores the listener
                 super.onFinish(listener);
                 long checkpoint = transformTask.currentCheckpoint.getAndIncrement();
+                lastCheckpoint = nextCheckpoint;
+                nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
                 if (checkpoint % ON_FINISH_AUDIT_FREQUENCY == 0) {
@@ -757,7 +764,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             SetOnce<Boolean> changed = new SetOnce<>();
             transformsCheckpointService.getCheckpoint(transformConfig, new LatchedActionListener<>(ActionListener.wrap(
                     cp -> {
-                        long behind = DataFrameTransformCheckpoint.getBehind(inProgressOrLastCheckpoint, cp);
+                        long behind = DataFrameTransformCheckpoint.getBehind(lastCheckpoint, cp);
                         if (behind > 0) {
                             logger.debug("Detected changes, dest is {} operations behind the source", behind);
                             changed.set(true);

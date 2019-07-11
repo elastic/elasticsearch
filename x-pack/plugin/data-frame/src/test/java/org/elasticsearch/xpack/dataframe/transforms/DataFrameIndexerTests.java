@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 import org.junit.Before;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -75,7 +77,7 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Function<BulkRequest, BulkResponse> bulkFunction,
                 Consumer<Exception> failureConsumer) {
             super(executor, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
-                    /* DataFrameTransformProgress */ null, DataFrameTransformCheckpoint.EMPTY);
+                    /* DataFrameTransformProgress */ null, DataFrameTransformCheckpoint.EMPTY, DataFrameTransformCheckpoint.EMPTY);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -199,7 +201,12 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        Consumer<Exception> failureConsumer = e -> fail("expected circuit breaker exception to be handled, got:" + e);
+        Consumer<Exception> failureConsumer = e -> {
+            final StringWriter sw = new StringWriter();
+            final PrintWriter pw = new PrintWriter(sw, true);
+            e.printStackTrace(pw);
+            fail("expected circuit breaker exception to be handled, got:" + e + " Trace: " + sw.getBuffer().toString());
+        };
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {

@@ -261,7 +261,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put(globalSettings)
                 .put("xpack.security.authc.realms.pki.my_pki.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put("xpack.security.authc.realms.pki.my_pki.allow_delegation", true)
+                .put("xpack.security.authc.realms.pki.my_pki.delegation.enabled", true)
                 .setSecureSettings(secureSettings)
                 .build();
         PkiRealm realmWithDelegation = buildRealm(roleMapper, settings);

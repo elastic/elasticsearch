@@ -39,7 +39,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
-                .put("xpack.security.authc.realms.pki.pki1.allow_delegation", true)
+                .put("xpack.security.authc.realms.pki.pki1.delegation.enabled", true)
                 .build();
     }
 

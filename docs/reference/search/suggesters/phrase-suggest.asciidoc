@@ -33,12 +33,12 @@ PUT test
           "trigram": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["shingle"]
+            "filter": ["lowercase","shingle"]
           },
           "reverse": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["reverse"]
+            "filter": ["lowercase","reverse"]
           }
         },
         "filter": {

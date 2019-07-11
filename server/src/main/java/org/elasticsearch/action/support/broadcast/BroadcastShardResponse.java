@@ -54,7 +54,6 @@ public abstract class BroadcastShardResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardId.writeTo(out);
     }
 }

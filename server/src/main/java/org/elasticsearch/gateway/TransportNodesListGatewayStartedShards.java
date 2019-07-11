@@ -21,8 +21,9 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -62,12 +63,15 @@ public class TransportNodesListGatewayStartedShards extends
     TransportNodesAction<TransportNodesListGatewayStartedShards.Request,
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeRequest,
-        TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
-    implements
-    AsyncShardFetch.Lister<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
+    public static final ActionType<NodesGatewayStartedShards> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public NodesGatewayStartedShards newResponse() {
+            return new NodesGatewayStartedShards();
+        }
+    };
     private final Settings settings;
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesService;
@@ -84,12 +88,6 @@ public class TransportNodesListGatewayStartedShards extends
         this.nodeEnv = env;
         this.indicesService = indicesService;
         this.namedXContentRegistry = namedXContentRegistry;
-    }
-
-    @Override
-    public void list(ShardId shardId, DiscoveryNode[] nodes,
-                     ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, nodes), listener);
     }
 
     @Override
@@ -198,6 +196,8 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
+
+        public NodesGatewayStartedShards() {}
 
         public NodesGatewayStartedShards(ClusterName clusterName, List<NodeGatewayStartedShards> nodes,
                                          List<FailedNodeException> failures) {

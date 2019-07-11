@@ -45,13 +45,13 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
   (string) Identifier for the {dfanalytics-job}. If you do not specify one of 
   these options, the API returns information for the first hundred
   {dfanalytics-jobs}.
-  
-`allow_no_match` (Optional)
-  (boolean) If `false` and the `data_frame_analytics_id` does not match any 
-  {dfanalytics-job} an error will be returned. The default value is `true`.
 
 [[ml-get-dfanalytics-query-params]]
 ==== {api-query-parms-title}
+
+`allow_no_match` (Optional)::
+  (boolean) If `false` and the `data_frame_analytics_id` does not match any 
+  {dfanalytics-job} an error will be returned. The default value is `true`.
 
 `from` (Optional)::
   (integer) Skips the specified number of {dfanalytics-jobs}. The default value 

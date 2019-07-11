@@ -37,6 +37,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -195,6 +196,11 @@ public class ReindexTask extends AllocatedPersistentTask {
     // TODO: Copied from ClientHelper in x-pack
     private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {
         final ThreadContext.StoredContext storedContext = threadContext.stashContext();
+        if (headers.containsKey(Task.X_OPAQUE_ID)) {
+            headers = new HashMap<>(headers);
+            // If the X_OPAQUE_ID is present, we should not set it again.
+            headers.remove(Task.X_OPAQUE_ID);
+        }
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
     }

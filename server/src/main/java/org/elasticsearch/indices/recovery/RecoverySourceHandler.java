@@ -714,11 +714,6 @@ public class RecoverySourceHandler {
         }
 
         @Override
-        protected void handleResponse(StoreFileMetaData md, Void resp) {
-            // noop
-        }
-
-        @Override
         protected void handleError(StoreFileMetaData md, Exception e) throws Exception {
             handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{md});
         }

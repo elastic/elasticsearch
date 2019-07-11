@@ -11,12 +11,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.indices.recovery.MultiFileTransfer;
 import org.elasticsearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 
-public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest, MultiFileTransfer.ChunkRequest {
+public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest {
 
     private final DiscoveryNode node;
     private final String sessionUUID;
@@ -65,8 +64,7 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
         return fileName;
     }
 
-    @Override
-    public long sizeInBytes() {
+    int getSize() {
         return size;
     }
 

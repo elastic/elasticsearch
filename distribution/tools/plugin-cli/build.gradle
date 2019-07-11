@@ -46,7 +46,18 @@ thirdPartyAudit.onlyIf {
   project.inFipsJvm == false
 }
 
-// these two classes intentionally use JDK internal API
+/*
+ * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
+ * functionality
+ *
+ * sun.security.internal.spec.TlsKeyMaterialParameterSpec
+ * sun.security.internal.spec.TlsKeyMaterialSpec
+ * sun.security.internal.spec.TlsMasterSecretParameterSpec
+ * sun.security.internal.spec.TlsPrfParameterSpec
+ * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
+ * sun.security.provider.SecureRandom
+ *
+ */
 thirdPartyAudit.ignoreViolations(
         'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
         'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',

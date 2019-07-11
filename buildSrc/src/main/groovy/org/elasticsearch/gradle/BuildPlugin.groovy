@@ -840,7 +840,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 test.executable = "${ext.get('runtimeJavaHome')}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-                test.maxParallelForks = project.rootProject.extensions.getByType(ExtraPropertiesExtension).get('defaultParallel') as Integer
+                test.maxParallelForks = System.getProperty('tests.jvms', project.rootProject.extensions.extraProperties.get('defaultParallel').toString()) as Integer
 
                 test.exclude '**/*$*.class'
 

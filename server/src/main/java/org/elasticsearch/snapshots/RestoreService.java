@@ -178,11 +178,6 @@ public class RestoreService implements ClusterStateApplier {
             Repository repository = repositoriesService.repository(repositoryName);
             final RepositoryData repositoryData = repository.getRepositoryData();
             final String snapshotName = request.snapshot();
-            final Optional<SnapshotId> incompatibleSnapshotId =
-                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
-            if (incompatibleSnapshotId.isPresent()) {
-                throw new SnapshotRestoreException(repositoryName, snapshotName, "cannot restore incompatible snapshot");
-            }
             final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                 .filter(s -> snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {

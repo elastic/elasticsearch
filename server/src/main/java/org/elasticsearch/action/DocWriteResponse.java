@@ -111,14 +111,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         }
     }
 
-    private ShardId shardId;
-    private String id;
-    private String type;
-    private long version;
-    private long seqNo;
-    private long primaryTerm;
+    private final ShardId shardId;
+    private final String id;
+    private final String type;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
     private boolean forcedRefresh;
-    protected Result result;
+    protected final Result result;
 
     public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
         this.shardId = shardId;
@@ -131,7 +131,16 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     // needed for deserialization
-    protected DocWriteResponse() {
+    protected DocWriteResponse(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
+        type = in.readString();
+        id = in.readString();
+        version = in.readZLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
     }
 
     /**
@@ -254,19 +263,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         }
 
         return location.toString();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardId = new ShardId(in);
-        type = in.readString();
-        id = in.readString();
-        version = in.readZLong();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        forcedRefresh = in.readBoolean();
-        result = Result.readFrom(in);
     }
 
     @Override

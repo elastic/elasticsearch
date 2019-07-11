@@ -493,6 +493,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44192")
     public void testDocWithAllTypes() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();

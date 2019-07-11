@@ -70,9 +70,10 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     @Override
     public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+            private final AbstractRunnable thisConnectionAttempt = this;
+
             @Override
             protected void doRun() {
-
                 // TODO if transportService is already connected to this address then skip the handshaking
 
                 final DiscoveryNode targetNode = new DiscoveryNode("", transportAddress.toString(),
@@ -80,13 +81,13 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     transportAddress.address().getHostString(), transportAddress.getAddress(), transportAddress, emptyMap(),
                     emptySet(), Version.CURRENT.minimumCompatibilityVersion());
 
-                logger.trace("[{}] opening probe connection", this);
+                logger.trace("[{}] opening probe connection", thisConnectionAttempt);
                 transportService.openConnection(targetNode,
                     ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
                         TimeValue.MINUS_ONE, null), new ActionListener<>() {
                         @Override
                         public void onResponse(Connection connection) {
-                            logger.trace("[{}] opened probe connection", this);
+                            logger.trace("[{}] opened probe connection", thisConnectionAttempt);
 
                             // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
                             // the connection is closed in the onResponse handler
@@ -96,7 +97,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                 protected void innerOnResponse(DiscoveryNode remoteNode) {
                                     try {
                                         // success means (amongst other things) that the cluster names match
-                                        logger.trace("[{}] handshake successful: {}", this, remoteNode);
+                                        logger.trace("[{}] handshake successful: {}", thisConnectionAttempt, remoteNode);
                                         IOUtils.closeWhileHandlingException(connection);
 
                                         if (remoteNode.equals(transportService.getLocalNode())) {
@@ -109,7 +110,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                             transportService.connectToNode(remoteNode, new ActionListener<Void>() {
                                                 @Override
                                                 public void onResponse(Void ignored) {
-                                                    logger.trace("[{}] full connection successful: {}", this, remoteNode);
+                                                    logger.trace("[{}] full connection successful: {}", thisConnectionAttempt, remoteNode);
                                                     listener.onResponse(remoteNode);
                                                 }
 
@@ -129,7 +130,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     // we opened a connection and successfully performed a low-level handshake, so we were definitely
                                     // talking to an Elasticsearch node, but the high-level handshake failed indicating some kind of
                                     // mismatched configurations (e.g. cluster name) that the user should address
-                                    logger.warn(new ParameterizedMessage("handshake failed for [{}]", this), e);
+                                    logger.warn(new ParameterizedMessage("handshake failed for [{}]", thisConnectionAttempt), e);
                                     IOUtils.closeWhileHandlingException(connection);
                                     listener.onFailure(e);
                                 }

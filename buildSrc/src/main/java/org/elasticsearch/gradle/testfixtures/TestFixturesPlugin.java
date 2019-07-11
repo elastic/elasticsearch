@@ -120,7 +120,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
         extension.fixtures
             .matching(fixtureProject -> fixtureProject.equals(project) == false)
-            .all(fixtureProject ->  project.evaluationDependsOn(fixtureProject.getPath()));
+            .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
 
         conditionTaskByType(tasks, extension, Test.class);
         conditionTaskByType(tasks, extension, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));

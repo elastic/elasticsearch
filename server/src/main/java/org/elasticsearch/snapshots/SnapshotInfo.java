@@ -321,17 +321,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
-     * Gets a new {@link SnapshotInfo} instance for a snapshot that is incompatible with the
-     * current version of the cluster.
-     */
-    public static SnapshotInfo incompatible(SnapshotId snapshotId) {
-        return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
-                                "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
-                                null, 0L, 0L, 0, 0,
-                                Collections.emptyList(), null, null);
-    }
-
-    /**
      * Gets a new {@link SnapshotInfo} instance from the given {@link SnapshotInfo} with
      * all information stripped out except the snapshot id, state, and indices.
      */

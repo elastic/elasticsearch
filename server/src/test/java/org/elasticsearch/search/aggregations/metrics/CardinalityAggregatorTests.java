@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -34,12 +35,14 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
@@ -52,6 +55,25 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(0.0, card.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(card));
         });
+    }
+
+    public void testRangeFieldValues() throws IOException {
+        RangeType rangeType = RangeType.DOUBLE;
+        final RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
+        final RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(rangeType, 6.0D, 10.0D, true, true);
+        final String fieldName = "rangeField";
+        MappedFieldType fieldType = new RangeFieldMapper.Builder(fieldName, rangeType).fieldType();
+        fieldType.setName(fieldName);
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name", null).field(fieldName);
+        testCase(aggregationBuilder,  new MatchAllDocsQuery(), iw -> {
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
+            iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Set.of(range1, range2)))));
+        }, card -> {
+            assertEquals(3.0, card.getValue(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, fieldType);
     }
 
     public void testNoMatchingField() throws IOException {
@@ -155,8 +177,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
             NumberFieldMapper.NumberType.LONG);
         fieldType.setName("number");
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder(
-            "_name", ValueType.NUMERIC).field("number");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name", null).field("number");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 

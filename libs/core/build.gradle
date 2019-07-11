@@ -22,6 +22,9 @@ apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
 dependencies {
+    // This dependency is used only by :libs:core for null-checking interop with other tools
+    compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"

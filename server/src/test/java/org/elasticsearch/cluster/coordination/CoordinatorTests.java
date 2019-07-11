@@ -1239,20 +1239,21 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             not(hasItem(chosenNode.getId())));
     }
 
-    public void testDoesNotPerformElectionWhenRestartingNonMasterNode() {
+    public void testDoesNotPerformElectionWhenRestartingFollower() {
         final Cluster cluster = new Cluster(randomIntBetween(2, 5), false, Settings.EMPTY);
         cluster.runRandomly();
         cluster.stabilise();
 
-        final long expectedTerm = cluster.getAnyNode().coordinator.getCurrentTerm();
+        final ClusterNode leader = cluster.getAnyLeader();
+        final long expectedTerm = leader.coordinator.getCurrentTerm();
 
-        cluster.getAllNodesExcept().stream().filter(n -> n.getLocalNode().isMasterNode() == false).forEach(chosenNode -> {
-            chosenNode.close();
-            cluster.clusterNodes
-                .replaceAll(cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), Settings.EMPTY) : cn);
+        for (final ClusterNode clusterNode : cluster.getAllNodesExcept(leader)) {
+            clusterNode.close();
+            cluster.clusterNodes.replaceAll(cn ->
+                cn == clusterNode ? cn.restartedNode(Function.identity(), Function.identity(), Settings.EMPTY) : cn);
             cluster.stabilise();
             assertThat("term should not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(expectedTerm));
-        });
+        }
     }
 
 }

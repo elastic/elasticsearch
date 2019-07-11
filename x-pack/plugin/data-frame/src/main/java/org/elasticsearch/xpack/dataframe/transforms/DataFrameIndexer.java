@@ -191,14 +191,17 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
         DataFrameIndexerPosition oldPosition = getPosition();
         DataFrameIndexerPosition newPosition = new DataFrameIndexerPosition(agg.afterKey(),
-                oldPosition != null ? getPosition().getChangesPosition() : null);
+                oldPosition != null ? getPosition().getBucketsPosition() : null);
 
-        IterationResult<DataFrameIndexerPosition> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
-            newPosition,
-            agg.getBuckets().isEmpty());
+        IterationResult<DataFrameIndexerPosition> result = new IterationResult<>(
+                processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+                newPosition,
+                agg.getBuckets().isEmpty());
+
         if (progress != null) {
             progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
         }
+
         return result;
     }
 
@@ -372,7 +375,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         DataFrameIndexerPosition position = getPosition();
 
         CompositeAggregationBuilder changesAgg = pivot.buildIncrementalBucketUpdateAggregation(pageSize);
-        changesAgg.aggregateAfter(position != null ? position.getChangesPosition() : null);
+        changesAgg.aggregateAfter(position != null ? position.getBucketsPosition() : null);
         sourceBuilder.aggregation(changesAgg);
 
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();

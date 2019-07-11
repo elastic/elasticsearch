@@ -37,7 +37,7 @@ public class DataFrameIndexerPositionTests extends AbstractResponseTestCase<
         if (instance == null) {
             return null;
         }
-        return new DataFrameIndexerPosition(instance.getIndexerPosition(), instance.getChangesPosition());
+        return new DataFrameIndexerPosition(instance.getIndexerPosition(), instance.getBucketsPosition());
     }
 
     @Override
@@ -54,7 +54,7 @@ public class DataFrameIndexerPositionTests extends AbstractResponseTestCase<
     protected void assertInstances(DataFrameIndexerPosition serverTestInstance,
                                    org.elasticsearch.client.dataframe.transforms.DataFrameIndexerPosition clientInstance) {
         assertThat(serverTestInstance.getIndexerPosition(), equalTo(clientInstance.getIndexerPosition()));
-        assertThat(serverTestInstance.getChangesPosition(), equalTo(clientInstance.getChangesPosition()));
+        assertThat(serverTestInstance.getBucketsPosition(), equalTo(clientInstance.getBucketsPosition()));
     }
 
     private static Map<String, Object> randomPositionMap() {

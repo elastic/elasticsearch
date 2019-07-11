@@ -37,7 +37,7 @@ public class DataFrameTransformStateTests extends ESTestCase {
                 DataFrameTransformState::fromXContent)
                 .supportsUnknownFields(true)
                 .randomFieldsExcludeFilter(field -> field.equals("next_position.indexer_position") ||
-                        field.equals("next_position.changes_position") ||
+                        field.equals("next_position.buckets_position") ||
                         field.equals("node.attributes"))
                 .test();
     }

@@ -65,7 +65,7 @@ public class DataFrameTransformStateAndStatsTests extends AbstractHlrcXContentTe
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.equals("state.next_position.indexer_position") ||
-                field.equals("state.next_position.changes_position") ||
+                field.equals("state.next_position.buckets_position") ||
                 field.equals("state.node") ||
                 field.equals("state.node.attributes");
     }

@@ -24,16 +24,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * File chunks are sent/requested sequentially by at most one thread at any time. However, the sender/requestor won't wait for the response
@@ -53,31 +55,20 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
  * one of the networking threads which receive/handle the responses of the current pending file chunk requests. This process will continue
  * until all chunk requests are sent/responded.
  */
-public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest, Response> {
-    private final AtomicBoolean done = new AtomicBoolean(false);
+public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest, Response> implements Closeable {
+    private boolean done = false;
     private final ActionListener<Void> listener;
     private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
     private final AsyncIOProcessor<FileChunkResponseItem<Response>> processor;
     private final int maxConcurrentFileChunks;
-    private long fileOffset = 0;
     private StoreFileMetaData currentFile = null;
     private final Iterator<StoreFileMetaData> remainingFiles;
 
     protected MultiFileTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
                                 int maxConcurrentFileChunks, List<StoreFileMetaData> files) {
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
-        this.listener = ActionListener.wrap(
-            r -> {
-                if (done.compareAndSet(false, true)) {
-                    listener.onResponse(r);
-                }
-            },
-            e -> {
-                if (done.compareAndSet(false, true)) {
-                    listener.onFailure(e);
-                }
-            });
-        this.processor = new AsyncIOProcessor<>(logger, maxConcurrentFileChunks * 2, threadContext) {
+        this.listener = listener;
+        this.processor = new AsyncIOProcessor<>(logger, maxConcurrentFileChunks, threadContext) {
             @Override
             protected void write(List<Tuple<FileChunkResponseItem<Response>, Consumer<Exception>>> items) {
                 handleItems(items);
@@ -87,18 +78,21 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
     }
 
     public final void start() {
-        // put an dummy item to start the processor
-        processor.put(new FileChunkResponseItem<>(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, null, null, null), e -> {});
+        addItem(UNASSIGNED_SEQ_NO, null, null, null); // put an dummy item to start the processor
+    }
+
+    private void addItem(long requestSeqId, StoreFileMetaData md, Response response, Exception failure) {
+        processor.put(new FileChunkResponseItem<>(requestSeqId, md, response, failure), e -> { assert e == null : e; });
     }
 
     private void handleItems(List<Tuple<FileChunkResponseItem<Response>, Consumer<Exception>>> items) {
-        if (done.get()) {
+        if (done) {
             return;
         }
         try {
             for (Tuple<FileChunkResponseItem<Response>, Consumer<Exception>> item : items) {
                 final FileChunkResponseItem<Response> resp = item.v1();
-                if (resp.requestSeqId == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                if (resp.requestSeqId == UNASSIGNED_SEQ_NO) {
                     continue; // not an actual item
                 }
                 requestSeqIdTracker.markSeqNoAsProcessed(resp.requestSeqId);
@@ -111,16 +105,17 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                 if (currentFile == null) {
                     if (remainingFiles.hasNext()) {
                         currentFile = remainingFiles.next();
+                        onNewFile(currentFile);
                     } else {
                         if (requestSeqIdTracker.getProcessedCheckpoint() == requestSeqIdTracker.getMaxSeqNo()) {
-                            listener.onResponse(null);
+                            onCompleted(null);
                         }
                         return;
                     }
                 }
                 final Request request;
                 try {
-                    request = nextChunkRequest(currentFile, fileOffset);
+                    request = nextChunkRequest(currentFile);
                 } catch (Exception e) {
                     handleError(currentFile, e);
                     throw e;
@@ -128,21 +123,34 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                 final long requestSeqId = requestSeqIdTracker.generateSeqNo();
                 final StoreFileMetaData md = this.currentFile;
                 sendChunkRequest(request, ActionListener.wrap(
-                    r -> processor.put(new FileChunkResponseItem<>(requestSeqId, md, r, null), ignored -> {}),
-                    e -> processor.put(new FileChunkResponseItem<>(requestSeqId, md, null, e), ignored -> {})
-                ));
-                fileOffset += request.sizeInBytes();
-                if (fileOffset == this.currentFile.length()) {
-                    fileOffset = 0;
+                    r -> addItem(requestSeqId, md, r, null),
+                    e -> addItem(requestSeqId, md, null, e)));
+                if (request.lastChunk()) {
                     this.currentFile = null;
                 }
             }
         } catch (Exception e) {
-            listener.onFailure(e);
+            onCompleted(e);
         }
     }
 
-    protected abstract Request nextChunkRequest(StoreFileMetaData md, long offset) throws Exception;
+    private void onCompleted(Exception failure) {
+        if (done == false) {
+            done = true;
+            ActionListener.completeWith(listener, () -> {
+                IOUtils.close(failure, this);
+                return null;
+            });
+        }
+    }
+
+    /**
+     * This method is called when starting sending/requesting a new file. Subclasses should override
+     * this method to reset the file offset of close the previous file and open a new file if needed.
+     */
+    protected abstract void onNewFile(StoreFileMetaData md) throws IOException;
+
+    protected abstract Request nextChunkRequest(StoreFileMetaData md) throws Exception;
 
     protected abstract void sendChunkRequest(Request request, ActionListener<Response> listener);
 
@@ -164,8 +172,8 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
 
     protected interface ChunkRequest {
         /**
-         * @return the number of bytes of the file chunk request
+         * @return {@code true} if this chunk request is the last chunk of the current file
          */
-        long sizeInBytes();
+        boolean lastChunk();
     }
 }

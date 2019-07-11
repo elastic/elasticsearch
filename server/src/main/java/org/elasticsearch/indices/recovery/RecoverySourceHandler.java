@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -99,13 +100,15 @@ public class RecoverySourceHandler {
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
     private final int maxConcurrentFileChunks;
+    private final ThreadPool threadPool;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
 
-    public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
-                                 int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
+    public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
+                                 StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
+        this.threadPool = threadPool;
         this.request = request;
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
@@ -669,61 +672,6 @@ public class RecoverySourceHandler {
                 '}';
     }
 
-    private class MultiFileSender extends MultiFileTransfer<FileChunk, Void> implements Closeable {
-        private final Store store;
-        private final IntSupplier translogOps;
-        private InputStreamIndexInput currentInput = null;
-        private final byte[] buffer = new byte[chunkSizeInBytes];
-
-        MultiFileSender(Store store, IntSupplier translogOps, StoreFileMetaData[] files, ActionListener<Void> listener) {
-            super(logger, shard.getThreadPool().getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files));
-            this.store = store;
-            this.translogOps = translogOps;
-        }
-
-        @Override
-        protected FileChunk nextChunkRequest(StoreFileMetaData md, long offset) throws Exception {
-            assert Transports.assertNotTransportThread("read file chunk");
-            cancellableThreads.checkForCancel();
-            if (currentInput == null) {
-                assert offset == 0 : md + " offset=" + offset;
-                final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
-                currentInput = new InputStreamIndexInput(indexInput, md.length()) {
-                    @Override
-                    public void close() throws IOException {
-                        indexInput.close(); // InputStreamIndexInput's close is a noop
-                    }
-                };
-            }
-            final int bytesRead = currentInput.read(buffer);
-            if (bytesRead == -1) {
-                throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
-            }
-            final boolean lastChunk = offset + bytesRead == md.length();
-            final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk);
-            if (lastChunk) {
-                IOUtils.close(currentInput, () -> currentInput = null);
-            }
-            return chunk;
-        }
-
-        @Override
-        protected void sendChunkRequest(FileChunk fileChunk, ActionListener<Void> listener) {
-            cancellableThreads.execute(() -> recoveryTarget.writeFileChunk(
-                fileChunk.md, fileChunk.position, fileChunk.content, fileChunk.lastChunk, translogOps.getAsInt(), listener));
-        }
-
-        @Override
-        protected void handleError(StoreFileMetaData md, Exception e) throws Exception {
-            handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{md});
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(currentInput, () -> currentInput = null);
-        }
-    }
-
     private static class FileChunk implements MultiFileTransfer.ChunkRequest {
         final StoreFileMetaData md;
         final BytesReference content;
@@ -738,22 +686,64 @@ public class RecoverySourceHandler {
         }
 
         @Override
-        public long sizeInBytes() {
-            return content.length();
+        public boolean lastChunk() {
+            return lastChunk;
         }
     }
 
     void sendFiles(Store store, StoreFileMetaData[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
-        final StepListener<Void> wrappedListener = new StepListener<>();
-        final MultiFileSender multiFileSender = new MultiFileSender(store, translogOps, files, wrappedListener);
-        wrappedListener.whenComplete(r -> {
-            multiFileSender.close();
-            listener.onResponse(null);
-        }, e -> {
-            IOUtils.closeWhileHandlingException(multiFileSender);
-            listener.onFailure(e);
-        });
+
+        final MultiFileTransfer<FileChunk, Void> multiFileSender =
+            new MultiFileTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
+
+                final byte[] buffer = new byte[chunkSizeInBytes];
+                InputStreamIndexInput currentInput = null;
+                long offset = 0;
+
+                @Override
+                protected void onNewFile(StoreFileMetaData md) throws IOException {
+                    offset = 0;
+                    IOUtils.close(currentInput, () -> currentInput = null);
+                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                    currentInput = new InputStreamIndexInput(indexInput, md.length()) {
+                        @Override
+                        public void close() throws IOException {
+                            indexInput.close(); // InputStreamIndexInput's close is a noop
+                        }
+                    };
+                }
+
+                @Override
+                protected FileChunk nextChunkRequest(StoreFileMetaData md) throws Exception {
+                    assert Transports.assertNotTransportThread("read file chunk");
+                    cancellableThreads.checkForCancel();
+                    final int bytesRead = currentInput.read(buffer);
+                    if (bytesRead == -1) {
+                        throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
+                    }
+                    final boolean lastChunk = offset + bytesRead == md.length();
+                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk);
+                    offset += bytesRead;
+                    return chunk;
+                }
+
+                @Override
+                protected void sendChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                    cancellableThreads.execute(() -> recoveryTarget.writeFileChunk(
+                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener));
+                }
+
+                @Override
+                protected void handleError(StoreFileMetaData md, Exception e) throws Exception {
+                    handleErrorOnSendFiles(store, e, new StoreFileMetaData[]{md});
+                }
+
+                @Override
+                public void close() throws IOException {
+                    IOUtils.close(currentInput, () -> currentInput = null);
+                }
+            };
         resources.add(multiFileSender);
         multiFileSender.start();
     }
@@ -810,5 +800,4 @@ public class RecoverySourceHandler {
     protected void failEngine(IOException cause) {
         shard.failShard("recovery", cause);
     }
-
 }

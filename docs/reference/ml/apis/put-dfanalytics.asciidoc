@@ -56,14 +56,6 @@ and mappings.
 
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
-
-`source` (Required)::
-  (object) The source configuration, consisting of `index` and optionally a 
-  `query`.
-  
-`dest` (Required)::
-  (object) The destination configuration, consisting of `index` and optionally 
-  `results_field` (`ml` by default).
   
 `analysis` (Required)::
   (object) Defines the type of {dfanalytics} you want to perform on your source 
@@ -74,6 +66,14 @@ and mappings.
   (object) You can specify both `includes` and/or `excludes` patterns. If 
   `analyzed_fields` is not set, only the relevant fileds will be included. For 
   example all the numeric fields for {oldetection}.
+  
+`dest` (Required)::
+  (object) The destination configuration, consisting of `index` and optionally 
+  `results_field` (`ml` by default).
+  
+`source` (Required)::
+  (object) The source configuration, consisting of `index` and optionally a 
+  `query`.
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}

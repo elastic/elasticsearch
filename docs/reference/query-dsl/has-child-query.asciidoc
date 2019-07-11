@@ -12,8 +12,8 @@ Its performance degrades as the number of matching child documents pointing to
 unique parent documents increases. Each `has_child` query in a search can
 increase query time significantly.
 
-If you care about query performance, do not use this query. If you need to use the
-`has_child` query, use it as rarely as possible. 
+If you care about query performance, do not use this query. If you need to use
+the `has_child` query, use it as rarely as possible. 
 ====
 
 [[has-child-query-ex-request]]
@@ -91,14 +91,14 @@ You can use this parameter to query multiple indices that may not contain the
 --
 
 `max_children`::
-(integer) Optional. Maximum number of child documents allowed for returned parent
-documents. If the parent document exceeds this limit, it is excluded from the
-search results.
+(integer) Optional. Maximum number of child documents that match the `query`
+allowed for a returned parent document. If the parent document exceeds this
+limit, it is excluded from the search results.
 
 `min_children`::
-(integer) Optional. Minimum number of child documents required to return a
-parent document. If the parent document does not meet this limit, it is excluded
-from the search results.
+(integer) Optional. Minimum number of child documents that match the `query`
+required to match the query for a returned parent document. If the parent
+document does not meet this limit, it is excluded from the search results.
 
 `score_mode`::
 +

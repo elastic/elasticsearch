@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -36,8 +38,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyMaintenanceService.class);
 
-    private static final String MAPPING_POLICY_FIELD_PATH = MapperService.SINGLE_MAPPING_NAME + "._meta." +
-        EnrichPolicyRunner.ENRICH_POLICY_FIELD_NAME;
+    private static final String MAPPING_POLICY_FIELD_PATH = "_meta." + EnrichPolicyRunner.ENRICH_POLICY_FIELD_NAME;
     private static final IndicesOptions IGNORE_UNAVAILABLE = IndicesOptions.fromOptions(true, false, false, false);
 
     private final Settings settings;
@@ -110,18 +111,26 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private void execute() {
         logger.debug("Triggering scheduled [enrich] maintenance task");
         if (isMaster) {
-            if (maintenanceLock.tryAcquire()) {
-                cleanUpEnrichIndices();
-            } else {
-                logger.debug("Previous [enrich] maintenance task still in progress; Skipping this execution");
-            }
+            maybeCleanUpEnrichIndices();
             scheduleNext();
         } else {
             logger.debug("No longer master; Skipping next scheduled [enrich] maintenance task");
         }
     }
 
-    private void cleanUpEnrichIndices() {
+    private void maybeCleanUpEnrichIndices() {
+        if (maintenanceLock.tryAcquire()) {
+            cleanUpEnrichIndices();
+        } else {
+            logger.debug("Previous [enrich] maintenance task still in progress; Skipping this execution");
+        }
+    }
+
+    void concludeMaintenance() {
+        maintenanceLock.release();
+    }
+
+    void cleanUpEnrichIndices() {
         final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
         GetIndexRequest indices = new GetIndexRequest()
             .indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
@@ -142,23 +151,24 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                         deleteIndices(removeIndices);
                     } else {
                         logger.debug("Skipping enrich index cleanup since enrich policy was executed while gathering indices");
-                        maintenanceLock.release();
+                        concludeMaintenance();
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error("Failed to get indices during enrich index maintenance task", e);
-                    maintenanceLock.release();
+                    concludeMaintenance();
                 }
             });
         } else {
-            maintenanceLock.release();
+            concludeMaintenance();
         }
     }
 
     private boolean shouldRemoveIndex(GetIndexResponse getIndexResponse, Map<String, EnrichPolicy> policies, String indexName) {
         // Find the policy on the index
+        logger.debug("Checking if should remove enrich index [{}]", indexName);
         ImmutableOpenMap<String, MappingMetaData> indexMapping = getIndexResponse.getMappings().get(indexName);
         MappingMetaData mappingMetaData = indexMapping.get(MapperService.SINGLE_MAPPING_NAME);
         Map<String, Object> mapping = mappingMetaData.getSourceAsMap();
@@ -166,16 +176,27 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         // Check if index has a corresponding policy
         if (policyName == null || policies.containsKey(policyName) == false) {
             // No corresponding policy. Index should be marked for removal.
+            logger.debug("Enrich index [{}] does not correspond to any existing policy. Found policy name [{}]", indexName, policyName);
             return true;
         }
         // Check if index is currently linked to an alias
         final String aliasName = EnrichPolicy.getBaseName(policyName);
-        boolean hasAlias = getIndexResponse.aliases()
-            .get(indexName)
+        List<AliasMetaData> aliasMetadata = getIndexResponse.aliases().get(indexName);
+        if (aliasMetadata == null) {
+            logger.debug("Enrich index [{}] is not marked as a live index since it has no alias information", indexName);
+            return true;
+        }
+        boolean hasAlias = aliasMetadata
             .stream()
             .anyMatch((aliasMetaData -> aliasMetaData.getAlias().equals(aliasName)));
         // Index is not currently published to the enrich alias. Should be marked for removal.
-        return hasAlias == false;
+        if (hasAlias == false) {
+            logger.debug("Enrich index [{}] is not marked as a live index since it lacks the alias [{}]", indexName, aliasName);
+            return true;
+        }
+        logger.debug("Enrich index [{}] was spared since it is associated with the valid policy [{}] and references alias [{}]",
+            indexName, policyName, aliasName);
+        return false;
     }
 
     private void deleteIndices(String[] removeIndices) {
@@ -187,18 +208,18 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     logger.debug("Completed deletion of stale enrich indices [{}]", () -> Arrays.toString(removeIndices));
-                    maintenanceLock.release();
+                    concludeMaintenance();
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(() -> "Enrich maintenance task could not delete abandoned enrich indices [" +
                         Arrays.toString(removeIndices) + "]", e);
-                    maintenanceLock.release();
+                    concludeMaintenance();
                 }
             });
         } else {
-            maintenanceLock.release();
+            concludeMaintenance();
         }
     }
 }

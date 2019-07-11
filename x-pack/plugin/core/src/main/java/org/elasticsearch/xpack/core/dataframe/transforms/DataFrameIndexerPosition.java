@@ -28,10 +28,10 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
     public static final String NAME = "data_frame/indexer_position";
 
     public static final ParseField INDEXER_POSITION = new ParseField("indexer_position");
-    public static final ParseField BUCKETS_POSITION = new ParseField("buckets_position");
+    public static final ParseField BUCKET_POSITION = new ParseField("bucket_position");
 
     private final Map<String, Object> indexerPosition;
-    private final Map<String, Object> bucketsPosition;
+    private final Map<String, Object> bucketPosition;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(NAME,
@@ -40,19 +40,19 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, INDEXER_POSITION, ValueType.OBJECT);
-        PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, BUCKETS_POSITION, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, BUCKET_POSITION, ValueType.OBJECT);
     }
 
     public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketsPosition) {
         this.indexerPosition = indexerPosition == null ? null : Collections.unmodifiableMap(indexerPosition);
-        this.bucketsPosition = bucketsPosition == null ? null : Collections.unmodifiableMap(bucketsPosition);
+        this.bucketPosition = bucketsPosition == null ? null : Collections.unmodifiableMap(bucketsPosition);
     }
 
     public DataFrameIndexerPosition(StreamInput in) throws IOException {
         Map<String, Object> position = in.readMap();
         indexerPosition = position == null ? null : Collections.unmodifiableMap(position);
         position = in.readMap();
-        bucketsPosition = position == null ? null : Collections.unmodifiableMap(position);
+        bucketPosition = position == null ? null : Collections.unmodifiableMap(position);
     }
 
     public Map<String, Object> getIndexerPosition() {
@@ -60,13 +60,13 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
     }
 
     public Map<String, Object> getBucketsPosition() {
-        return bucketsPosition;
+        return bucketPosition;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(indexerPosition);
-        out.writeMap(bucketsPosition);
+        out.writeMap(bucketPosition);
     }
 
     @Override
@@ -75,8 +75,8 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
         if (indexerPosition != null) {
             builder.field(INDEXER_POSITION.getPreferredName(), indexerPosition);
         }
-        if (bucketsPosition != null) {
-            builder.field(BUCKETS_POSITION.getPreferredName(), bucketsPosition);
+        if (bucketPosition != null) {
+            builder.field(BUCKET_POSITION.getPreferredName(), bucketPosition);
         }
         builder.endObject();
         return builder;
@@ -95,12 +95,12 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
         DataFrameIndexerPosition that = (DataFrameIndexerPosition) other;
 
         return Objects.equals(this.indexerPosition, that.indexerPosition) &&
-            Objects.equals(this.bucketsPosition, that.bucketsPosition);
+            Objects.equals(this.bucketPosition, that.bucketPosition);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexerPosition, bucketsPosition);
+        return Objects.hash(indexerPosition, bucketPosition);
     }
 
     @Override

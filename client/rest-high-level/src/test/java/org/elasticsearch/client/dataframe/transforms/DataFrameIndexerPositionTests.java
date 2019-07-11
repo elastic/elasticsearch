@@ -37,7 +37,7 @@ public class DataFrameIndexerPositionTests extends ESTestCase {
                 DataFrameIndexerPosition::fromXContent)
                 .supportsUnknownFields(true)
                 .randomFieldsExcludeFilter(field -> field.equals("indexer_position") ||
-                    field.equals("buckets_position"))
+                    field.equals("bucket_position"))
                 .test();
     }
 
@@ -51,7 +51,7 @@ public class DataFrameIndexerPositionTests extends ESTestCase {
             builder.field("indexer_position", position.getIndexerPosition());
         }
         if (position.getBucketsPosition() != null) {
-            builder.field("buckets_position", position.getBucketsPosition());
+            builder.field("bucket_position", position.getBucketsPosition());
         }
         builder.endObject();
     }

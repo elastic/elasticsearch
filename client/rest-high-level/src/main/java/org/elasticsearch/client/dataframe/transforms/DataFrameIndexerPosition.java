@@ -35,14 +35,14 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Holds state of the cursors:
  *
  *  indexer_position: the position of the indexer querying the source
- *  buckets_position: the position used for identifying changes
+ *  bucket_position: the position used for identifying changes
  */
 public class DataFrameIndexerPosition {
     public static final ParseField INDEXER_POSITION = new ParseField("indexer_position");
-    public static final ParseField BUCKETS_POSITION = new ParseField("buckets_position");
+    public static final ParseField BUCKET_POSITION = new ParseField("bucket_position");
 
     private final Map<String, Object> indexerPosition;
-    private final Map<String, Object> bucketsPosition;
+    private final Map<String, Object> bucketPosition;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(
@@ -52,12 +52,12 @@ public class DataFrameIndexerPosition {
 
     static {
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, INDEXER_POSITION, ValueType.OBJECT);
-        PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, BUCKETS_POSITION, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, BUCKET_POSITION, ValueType.OBJECT);
     }
 
-    public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketsPosition) {
+    public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketPosition) {
         this.indexerPosition = indexerPosition == null ? null : Collections.unmodifiableMap(indexerPosition);
-        this.bucketsPosition = bucketsPosition == null ? null : Collections.unmodifiableMap(bucketsPosition);
+        this.bucketPosition = bucketPosition == null ? null : Collections.unmodifiableMap(bucketPosition);
     }
 
     public Map<String, Object> getIndexerPosition() {
@@ -65,7 +65,7 @@ public class DataFrameIndexerPosition {
     }
 
     public Map<String, Object> getBucketsPosition() {
-        return bucketsPosition;
+        return bucketPosition;
     }
 
     @Override
@@ -81,12 +81,12 @@ public class DataFrameIndexerPosition {
         DataFrameIndexerPosition that = (DataFrameIndexerPosition) other;
 
         return Objects.equals(this.indexerPosition, that.indexerPosition) &&
-            Objects.equals(this.bucketsPosition, that.bucketsPosition);
+            Objects.equals(this.bucketPosition, that.bucketPosition);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexerPosition, bucketsPosition);
+        return Objects.hash(indexerPosition, bucketPosition);
     }
 
     public static DataFrameIndexerPosition fromXContent(XContentParser parser) {

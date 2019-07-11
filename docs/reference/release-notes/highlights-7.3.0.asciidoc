@@ -14,7 +14,7 @@ coming[7.3.0]
 ==== Voting-only master nodes
 
 A new <<voting-only-node,`node.voting-only`>> role has been introduced that
-allows nodes to participate in elections even though they are not eligible.
+allows nodes to participate in elections even though they are not eligible to become the master.
 The benefit is that these nodes still help with high availability while
 requiring less CPU and heap than master nodes.
 

@@ -1,8 +1,6 @@
 [[cluster]]
 = Cluster APIs
 
-[partintro]
---
 ["float",id="cluster-nodes"]
 == Node specification
 
@@ -81,7 +79,6 @@ GET /_nodes/ra*:2
 GET /_nodes/ra*:2*
 --------------------------------------------------
 // CONSOLE
---
 
 include::cluster/health.asciidoc[]
 

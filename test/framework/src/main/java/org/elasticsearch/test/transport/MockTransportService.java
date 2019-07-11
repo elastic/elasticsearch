@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.transport;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -111,7 +112,17 @@ public final class MockTransportService extends TransportService {
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
         // a different default port range per JVM unless the incoming settings override it
         // use a non-default base port otherwise some cluster in this JVM might reuse a port
-        int basePort = 10300 + (ESTestCase.TEST_WORKER_VM * 100);
+
+        // We rely on Gradle implementation details here, the worker IDs are long values incremented by one  for the
+        // lifespan of the daemon this means that they can get larger than the allowed port range.
+        // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
+        // This is safe as long as we have fewer than 327 Gradle workers running in parallel
+        // See also: https://github.com/elastic/elasticsearch/issues/44134
+        final int startAt = Math.round(
+            RandomizedTest.systemPropertyAsLong(ESTestCase.TEST_WORKER_VM_ID, 0)
+            % 327L
+        );
+        int basePort = 10300 + (startAt * 100);
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),

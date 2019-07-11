@@ -59,7 +59,7 @@ public class TransportBulkActionTests extends ESTestCase {
         boolean indexCreated = false; // set when the "real" index is created
 
         TestTransportBulkAction() {
-            super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
+            super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()));
         }

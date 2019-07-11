@@ -33,14 +33,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, HDRPercentilesAggregatorFactory> {
+class HDRPercentilesAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double[] percents;
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;
 
     HDRPercentilesAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] percents,
-            int numberOfSignificantValueDigits, boolean keyed, SearchContext context, AggregatorFactory<?> parent,
+            int numberOfSignificantValueDigits, boolean keyed, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.percents = percents;

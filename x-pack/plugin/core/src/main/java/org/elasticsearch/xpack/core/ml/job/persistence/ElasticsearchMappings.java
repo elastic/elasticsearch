@@ -25,6 +25,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -391,6 +392,10 @@ public class ElasticsearchMappings {
         .endObject();
     }
 
+    /**
+     * {@link DataFrameAnalyticsConfig} mapping.
+     * Does not include mapping for CREATE_TIME as this mapping is added by {@link #addJobConfigFields} method.
+     */
     public static void addDataFrameAnalyticsFields(XContentBuilder builder) throws IOException {
         builder.startObject(DataFrameAnalyticsConfig.ID.getPreferredName())
             .field(TYPE, KEYWORD)
@@ -428,12 +433,16 @@ public class ElasticsearchMappings {
                         .startObject(OutlierDetection.METHOD.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
-                        .startObject(OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName())
+                        .startObject(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                     .endObject()
                 .endObject()
             .endObject()
+        .endObject()
+        // re-used: CREATE_TIME
+        .startObject(DataFrameAnalyticsConfig.VERSION.getPreferredName())
+            .field(TYPE, KEYWORD)
         .endObject();
     }
 
@@ -502,6 +511,7 @@ public class ElasticsearchMappings {
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
         addTimingStatsExceptBucketCountMapping(builder);
+        addDatafeedTimingStats(builder);
         addModelSnapshotMapping(builder);
 
         addTermFields(builder, extraTermFields);
@@ -916,6 +926,21 @@ public class ElasticsearchMappings {
                 .field(TYPE, DOUBLE)
             .endObject()
             .startObject(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject();
+    }
+
+    /**
+     * {@link DatafeedTimingStats} mapping.
+     *
+     * @throws IOException On builder write error
+     */
+    private static void addDatafeedTimingStats(XContentBuilder builder) throws IOException {
+        builder
+            .startObject(DatafeedTimingStats.SEARCH_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject();
     }

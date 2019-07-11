@@ -58,7 +58,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         stats = new SnapshotStats();
         for (SnapshotIndexShardStatus shard : shards) {
             indexShards.put(shard.getShardId().getId(), shard);
-            stats.add(shard.getStats());
+            stats.add(shard.getStats(), true);
         }
         shardsStats = new SnapshotShardsStats(shards);
         this.indexShards = unmodifiableMap(indexShards);

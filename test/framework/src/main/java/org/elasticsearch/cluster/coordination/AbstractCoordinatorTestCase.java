@@ -67,6 +67,8 @@ import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.hamcrest.core.IsCollectionContaining;
@@ -119,6 +121,7 @@ import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERV
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.elasticsearch.transport.TransportSettings.CONNECT_TIMEOUT;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -554,7 +557,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             if (clusterNodes.stream().allMatch(ClusterNode::isNotUsefullyBootstrapped)) {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
-                runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
+                runFor(defaultMillis(CONNECT_TIMEOUT) + // may be in a prior connection attempt which has been blackholed
+                    defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
                 final ClusterNode bootstrapNode = getAnyBootstrappableNode();
                 bootstrapNode.applyInitialConfiguration();
             } else {
@@ -822,7 +826,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
                         ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)).build(); // suppress auto-bootstrap
                 transportService = mockTransport.createTransportService(
-                    settings, deterministicTaskQueue.getThreadPool(this::onNode), NOOP_TRANSPORT_INTERCEPTOR,
+                    settings, deterministicTaskQueue.getThreadPool(this::onNode),
+                    getTransportInterceptor(localNode, deterministicTaskQueue.getThreadPool(this::onNode)),
                     a -> localNode, null, emptySet());
                 masterService = new AckedFakeThreadPoolMasterService(localNode.getId(), "test",
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(runnable)));
@@ -838,11 +843,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     allocationService, masterService, this::getPersistedState,
-                    Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), s -> {},
-                    ElectionStrategy.DEFAULT_INSTANCE);
+                    Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get(), (s, r) -> {},
+                    getElectionStrategy());
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService,
-                    deterministicTaskQueue.getThreadPool(this::onNode), null, coordinator);
+                    deterministicTaskQueue.getThreadPool(this::onNode), coordinator, null);
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();
@@ -1097,6 +1102,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return seedHostsList != null ? seedHostsList
                 : clusterNodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getAddress).collect(Collectors.toList());
         }
+    }
+
+    protected TransportInterceptor getTransportInterceptor(DiscoveryNode localNode, ThreadPool threadPool) {
+        return NOOP_TRANSPORT_INTERCEPTOR;
+    }
+
+    protected ElectionStrategy getElectionStrategy() {
+        return ElectionStrategy.DEFAULT_INSTANCE;
     }
 
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";

@@ -17,14 +17,10 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -35,29 +31,21 @@ import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -171,73 +159,6 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         final AtomicBoolean success = new AtomicBoolean();
         result.respond(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
         assertTrue(success.get());
-    }
-
-    public void testRetentionLeaseSyncExecution() {
-        final IndicesService indicesService = mock(IndicesService.class);
-
-        final Index index = new Index("index", "uuid");
-        final IndexService indexService = mock(IndexService.class);
-        when(indicesService.indexServiceSafe(index)).thenReturn(indexService);
-
-        final int id = randomIntBetween(0, 4);
-        final IndexShard indexShard = mock(IndexShard.class);
-        when(indexService.getShard(id)).thenReturn(indexShard);
-
-        final ShardId shardId = new ShardId(index, id);
-        when(indexShard.shardId()).thenReturn(shardId);
-
-        final Logger retentionLeaseSyncActionLogger = mock(Logger.class);
-
-        final RetentionLeases retentionLeases = mock(RetentionLeases.class);
-        final AtomicBoolean invoked = new AtomicBoolean();
-        final RetentionLeaseBackgroundSyncAction action = new RetentionLeaseBackgroundSyncAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver()) {
-
-            @Override
-            protected void doExecute(Task task, Request request, ActionListener<ReplicationResponse> listener) {
-                assertTrue(threadPool.getThreadContext().isSystemContext());
-                assertThat(request.shardId(), sameInstance(indexShard.shardId()));
-                assertThat(request.getRetentionLeases(), sameInstance(retentionLeases));
-                if (randomBoolean()) {
-                    listener.onResponse(new ReplicationResponse());
-                } else {
-                    final Exception e = randomFrom(
-                            new AlreadyClosedException("closed"),
-                            new IndexShardClosedException(indexShard.shardId()),
-                            new TransportException(randomFrom(
-                                    "failed",
-                                    "TransportService is closed stopped can't send request",
-                                    "transport stopped, action: indices:admin/seq_no/retention_lease_background_sync[p]")),
-                            new RuntimeException("failed"));
-                    listener.onFailure(e);
-                    if (e.getMessage().equals("failed")) {
-                        final ArgumentCaptor<ParameterizedMessage> captor = ArgumentCaptor.forClass(ParameterizedMessage.class);
-                        verify(retentionLeaseSyncActionLogger).warn(captor.capture(), same(e));
-                        final ParameterizedMessage message = captor.getValue();
-                        assertThat(message.getFormat(), equalTo("{} retention lease background sync failed"));
-                        assertThat(message.getParameters(), arrayContaining(indexShard.shardId()));
-                    }
-                    verifyNoMoreInteractions(retentionLeaseSyncActionLogger);
-                }
-                invoked.set(true);
-            }
-
-            @Override
-            protected Logger getLogger() {
-                return retentionLeaseSyncActionLogger;
-            }
-        };
-
-        action.backgroundSync(indexShard.shardId(), retentionLeases);
-        assertTrue(invoked.get());
     }
 
     public void testBlocks() {

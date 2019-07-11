@@ -34,7 +34,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
@@ -390,7 +390,8 @@ public abstract class MappedFieldType extends FieldType {
     /**
      * Create an {@link IntervalsSource} to be used for proximity queries
      */
-    public IntervalsSource intervals(String query, int max_gaps, boolean ordered, NamedAnalyzer analyzer) throws IOException {
+    public IntervalsSource intervals(String query, int max_gaps, boolean ordered,
+                                     NamedAnalyzer analyzer, boolean prefix) throws IOException {
         throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }

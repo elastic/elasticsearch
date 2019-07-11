@@ -24,9 +24,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -321,7 +322,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * @param node the node to connect to
      */
     public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-        connectToNode(node, null);
+        connectToNode(node, (ConnectionProfile) null);
     }
 
     /**
@@ -331,34 +332,74 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
-        if (isLocalNode(node)) {
-            return;
-        }
-        connectionManager.connectToNode(node, connectionProfile, connectionValidator(node));
+        PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
     }
 
-    public CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> connectionValidator(DiscoveryNode node) {
-        return (newConnection, actualProfile) -> {
-            // We don't validate cluster names to allow for CCS connections.
-            final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true).discoveryNode;
-            if (node.equals(remote) == false) {
-                throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
-            }
-        };
+    /**
+     * Connect to the specified node with the given connection profile.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
+     *
+     * @param node the node to connect to
+     * @param listener the action listener to notify
+     */
+    public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
+        connectToNode(node, null, listener);
+    }
 
+    /**
+     * Connect to the specified node with the given connection profile.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
+     *
+     * @param node the node to connect to
+     * @param connectionProfile the connection profile to use when connecting to this node
+     * @param listener the action listener to notify
+     */
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
+        if (isLocalNode(node)) {
+            listener.onResponse(null);
+            return;
+        }
+        connectionManager.connectToNode(node, connectionProfile, connectionValidator(node), listener);
+    }
+
+    public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
+        return (newConnection, actualProfile, listener) -> {
+            // We don't validate cluster names to allow for CCS connections.
+            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+                final DiscoveryNode remote = resp.discoveryNode;
+                if (node.equals(remote) == false) {
+                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                }
+                return null;
+            }));
+        };
     }
 
     /**
      * Establishes and returns a new connection to the given node. The connection is NOT maintained by this service, it's the callers
      * responsibility to close the connection once it goes out of scope.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      * @param node the node to connect to
      * @param connectionProfile the connection profile to use
      */
-    public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
+    public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile connectionProfile) {
+        return PlainActionFuture.get(fut -> openConnection(node, connectionProfile, fut));
+    }
+
+    /**
+     * Establishes a new connection to the given node. The connection is NOT maintained by this service, it's the callers
+     * responsibility to close the connection once it goes out of scope.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
+     * @param node the node to connect to
+     * @param connectionProfile the connection profile to use
+     * @param listener the action listener to notify
+     */
+    public void openConnection(final DiscoveryNode node, ConnectionProfile connectionProfile,
+                               ActionListener<Transport.Connection> listener) {
         if (isLocalNode(node)) {
-            return localNodeConnection;
+            listener.onResponse(localNodeConnection);
         } else {
-            return connectionManager.openConnection(node, connectionProfile);
+            connectionManager.openConnection(node, connectionProfile, listener);
         }
     }
 
@@ -367,17 +408,19 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node mismatches the local cluster name.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout
-     * @return the connected node
+     * @param listener         action listener to notify
      * @throws ConnectTransportException if the connection failed
      * @throws IllegalStateException if the handshake failed
      */
-    public DiscoveryNode handshake(
-            final Transport.Connection connection,
-            final long handshakeTimeout) throws ConnectTransportException {
-        return handshake(connection, handshakeTimeout, clusterName::equals).discoveryNode;
+    public void handshake(
+        final Transport.Connection connection,
+        final long handshakeTimeout,
+        final ActionListener<DiscoveryNode> listener) {
+        handshake(connection, handshakeTimeout, clusterName::equals, ActionListener.map(listener, HandshakeResponse::getDiscoveryNode));
     }
 
     /**
@@ -385,40 +428,43 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
      * name on the target node doesn't match the local cluster name.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout
      * @param clusterNamePredicate cluster name validation predicate
-     * @return the handshake response
+     * @param listener         action listener to notify
      * @throws IllegalStateException if the handshake failed
      */
-    public HandshakeResponse handshake(
+    public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate) {
-        final HandshakeResponse response;
+        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
+        final ActionListener<HandshakeResponse> listener) {
         final DiscoveryNode node = connection.getNode();
-        try {
-            PlainTransportFuture<HandshakeResponse> futureHandler = new PlainTransportFuture<>(
-                new FutureTransportResponseHandler<HandshakeResponse>() {
-                @Override
-                public HandshakeResponse read(StreamInput in) throws IOException {
-                    return new HandshakeResponse(in);
+        sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
+            TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
+            new ActionListenerResponseHandler<>(
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(HandshakeResponse response) {
+                        if (!clusterNamePredicate.test(response.clusterName)) {
+                            listener.onFailure(new IllegalStateException("handshake failed, mismatched cluster name [" +
+                                response.clusterName + "] - " + node.toString()));
+                        } else if (response.version.isCompatible(localNode.getVersion()) == false) {
+                            listener.onFailure(new IllegalStateException("handshake failed, incompatible version [" +
+                                response.version + "] - " + node));
+                        } else {
+                            listener.onResponse(response);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
-            });
-            sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
-                TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(), futureHandler);
-            response = futureHandler.txGet();
-        } catch (Exception e) {
-            throw new IllegalStateException("handshake failed with " + node, e);
-        }
-
-        if (!clusterNamePredicate.test(response.clusterName)) {
-            throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
-        } else if (response.version.isCompatible(localNode.getVersion()) == false) {
-            throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
-        }
-
-        return response;
+                , HandshakeResponse::new, ThreadPool.Names.GENERIC
+            ));
     }
 
     public ConnectionManager getConnectionManager() {
@@ -454,7 +500,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
             Version.writeVersion(version, out);

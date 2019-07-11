@@ -8,12 +8,12 @@
 <titleabbrev>Get {dataframe-transforms}</titleabbrev>
 ++++
 
-beta[]
-
 Retrieves configuration information for {dataframe-transforms}.
 
+beta[]
 
-==== Request
+[[get-data-frame-transform-request]]
+==== {api-request-title}
 
 `GET _data_frame/transforms/<data_frame_transform_id>` +
 
@@ -25,40 +25,73 @@ Retrieves configuration information for {dataframe-transforms}.
 
 `GET _data_frame/transforms/*`
 
-//===== Description
+[[get-data-frame-transform-prereqs]]
+==== {api-prereq-title}
 
-==== Path Parameters
-
-`data_frame_transform_id`::
-  (string) Identifier for the {dataframe-transform}. It can be a
-  {dataframe-transform} identifier or a wildcard expression. If you do not
-  specify one of these options, the API returns information for all
-  {dataframe-transforms}.
-
-`from`::
-      (integer) Skips the specified number of {dataframe-transforms}. The
-      default value is `0`.
-
-`size`::
-      (integer) Specifies the maximum number of {dataframe-transforms} to obtain. The default value is `100`.
-
-==== Results
-
-The API returns the following information:
-
-`transforms`::
-  (array) An array of transform resources, which are sorted by the `id` value in
-  ascending order.
-
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have
+* If the {es} {security-features} are enabled, you must have
 `monitor_data_frame_transforms` cluster privileges to use this API. The built-in
 `data_frame_transforms_user` role has these privileges. For more information,
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-==== Examples
+[[get-data-frame-transform-desc]]
+==== {api-description-title}
+
+You can get information for multiple {dataframe-transforms} in a single API
+request by using a comma-separated list of identifiers or a wildcard expression.
+You can get information for all {dataframe-transforms} by using `_all`, by
+specifying `*` as the `<data_frame_transform_id>`, or by omitting the
+`<data_frame_transform_id>`.
+
+[[get-data-frame-transform-path-parms]]
+==== {api-path-parms-title}
+
+`<data_frame_transform_id>`::
+  (string) Optional. Identifier for the {dataframe-transform}. It can be a
+  {dataframe-transform} identifier or a wildcard expression. If you do not
+  specify one of these options, the API returns information for all
+  {dataframe-transforms}.
+  
+[[get-data-frame-transform-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(boolean) Optional. Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {dataframe-transforms} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `transforms` array when
+there are no matches and the subset of results when there are partial matches.
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+
+`from`::
+  (integer) Optional. Skips the specified number of {dataframe-transforms}. The
+  default value is `0`.
+
+`size`::
+  (integer) Optional. Specifies the maximum number of {dataframe-transforms} to obtain. The default value is `100`.
+
+[[get-data-frame-transform-response]]
+==== {api-response-body-title}
+
+`transforms`::
+  (array) An array of transform resources, which are sorted by the `id` value in
+  ascending order. See <<data-frame-transform-resource>>.
+  
+[[get-data-frame-transform-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.  
+
+[[get-data-frame-transform-example]]
+==== {api-examples-title}
 
 The following example retrieves information about a maximum of ten transforms:
 
@@ -102,6 +135,7 @@ The API returns the following results:
       "dest" : {
         "index" : "kibana_sample_data_ecommerce_transform"
       },
+      "frequency": "1m",
       "pivot" : {
         "group_by" : {
           "customer_id" : {

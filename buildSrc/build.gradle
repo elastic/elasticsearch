@@ -179,14 +179,6 @@ if (project != rootProject) {
       exclude 'buildSrc.marker'
   }
 
-  String localDownloads = "${rootProject.buildDir}/local-downloads"
-  task setupLocalDownloads(type:Copy) {
-    from configurations.distribution
-    into localDownloads
-  }
-    
-  
-
   // TODO: re-enable once randomizedtesting gradle code is published and removed from here
   licenseHeaders.enabled = false
 
@@ -210,17 +202,8 @@ if (project != rootProject) {
   }
 
   task integTest(type: Test) {
-    inputs.dir(file("src/testKit"))
-    // integration test requires the local testing repo to simulate unpublished dependencies
-    dependsOn project.rootProject.allprojects.collect {
-        it.tasks.matching { it.name == 'publishNebulaPublicationToTestRepository'}
-    }
-    systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
+    inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    Matcher isLuceneSnapshot = (/\w+-snapshot-([a-z0-9]+)/ =~ versions.lucene)
-    if (isLuceneSnapshot) {
-          systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
-    }
     onlyIf { project.inFipsJvm == false }
     maxParallelForks = System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
   }

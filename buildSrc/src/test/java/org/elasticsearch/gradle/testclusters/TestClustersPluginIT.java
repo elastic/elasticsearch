@@ -24,8 +24,6 @@ import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Before;
 
 
-import java.util.Arrays;
-
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
     private GradleRunner runner;
@@ -36,21 +34,13 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testListClusters() {
-        BuildResult result = getTestClustersRunner("listTestClusters").build();
+        BuildResult result = runner.withArguments("listTestClusters", "-s", "-i").build();
 
         assertTaskSuccessful(result, ":listTestClusters");
         assertOutputContains(
             result.getOutput(),
             "   * myTestCluster:"
         );
-    }
-
-    private GradleRunner getTestClustersRunner(String... tasks) {
-        String[] arguments = Arrays.copyOf(tasks, tasks.length + 3);
-        arguments[tasks.length] = "-s";
-        arguments[tasks.length + 1] = "-i";
-        arguments[tasks.length + 2] = "-Dlocal.repo.path=" + getLocalTestRepoPath();
-        return runner.withArguments(arguments);
     }
 
 }

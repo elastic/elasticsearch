@@ -4,12 +4,6 @@ plugins {
 }
 
 allprojects { all ->
-    repositories {
-        maven {
-            name "local"
-            url System.getProperty("local.repo.path")
-        }
-    }
 
     if (project == rootProject || project.name == "alpha" || project.name == "bravo") {
         apply plugin: 'elasticsearch.testclusters'

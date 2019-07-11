@@ -41,14 +41,14 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
 
     public void testCheckTask() {
         BuildResult result = getGradleRunner("elasticsearch.build")
-            .withArguments("check", "assemble", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
+            .withArguments("check", "assemble", "-s")
             .build();
         assertTaskSuccessful(result, ":check");
     }
 
     public void testLicenseAndNotice() throws IOException {
         BuildResult result = getGradleRunner("elasticsearch.build")
-            .withArguments("clean", "assemble", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
+            .withArguments("clean", "assemble")
             .build();
 
         assertTaskSuccessful(result, ":assemble");

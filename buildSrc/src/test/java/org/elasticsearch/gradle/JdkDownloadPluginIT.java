@@ -106,7 +106,6 @@ public class JdkDownloadPluginIT extends GradleIntegrationTestCase {
 
             GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir("jdk-download"))
                 .withArguments(taskname,
-                    "-Dlocal.repo.path=" + getLocalTestRepoPath(),
                     "-Dtests.jdk_version=" + version,
                     "-Dtests.jdk_repo=" + wireMock.baseUrl(),
                     "-i")

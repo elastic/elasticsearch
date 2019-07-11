@@ -109,7 +109,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
 
-        transportAction.execute(new TestRequest(), future);
+        ActionTestUtils.execute(transportAction, null, new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());
             assertThat("shouldn't get here if an error is expected", errorExpected, equalTo(false));
@@ -172,7 +172,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         final AtomicInteger responses = new AtomicInteger();
         final List<Throwable> failures = new CopyOnWriteArrayList<>();
 
-        transportAction.execute(new TestRequest(), new LatchedActionListener<>(new ActionListener<TestResponse>() {
+        ActionTestUtils.execute(transportAction, null, new TestRequest(), new LatchedActionListener<>(new ActionListener<>() {
             @Override
             public void onResponse(TestResponse testResponse) {
                 responses.incrementAndGet();

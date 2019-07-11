@@ -30,7 +30,7 @@ buildScan {
         value 'Git Commit ID', scmInfo.change
         // Don't tag the branch if we are in a detached head state
         if (scmInfo.branch.startsWith(scmInfo.change) == false) {
-            value 'Git Branch', ? '' : scmInfo.branch
+            value 'Git Branch', scmInfo.branch
             tag scmInfo.branch
         }
         link 'Source', "https://github.com/elastic/elasticsearch/commit/${scmInfo.change}"

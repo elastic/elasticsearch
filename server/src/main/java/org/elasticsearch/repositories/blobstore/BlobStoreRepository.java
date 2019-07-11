@@ -1054,12 +1054,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
         long fileListGeneration = tuple.v2();
 
-        try {
-            indexShardSnapshotFormat.delete(shardContainer, snapshotId.getUUID());
-        } catch (IOException e) {
-            logger.warn(new ParameterizedMessage("[{}] [{}] failed to delete shard snapshot file", snapshotShardId, snapshotId), e);
-        }
-
         // Build a list of snapshots that should be preserved
         List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
         for (SnapshotFiles point : snapshots) {
@@ -1070,6 +1064,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
         finalizeShard(newSnapshotsList, fileListGeneration, blobs, "snapshot deletion [" + snapshotId + "]", shardContainer,
             snapshotShardId, snapshotId);
+
+        try {
+            shardContainer.deleteBlobIgnoringIfNotExists(indexShardSnapshotFormat.blobName(snapshotId.getUUID()));
+        } catch (IOException e) {
+            logger.warn(new ParameterizedMessage("[{}] [{}] failed to delete shard snapshot file", snapshotShardId, snapshotId), e);
+        }
     }
 
     /**

@@ -18,6 +18,11 @@ For more information, see
 `dest`::
   (object) The destination for the {dataframe-transform}. See
   <<data-frame-transform-dest>>.
+  
+`frequency`::
+  (time units) The interval between checks for changes in the source indices
+  when the {dataframe-transform} is running continuously. The minimum value is
+  `1s` and the maximum is `1h`. The default value is `1m`.
 
 `id`::
   (string) A unique identifier for the {dataframe-transform}.

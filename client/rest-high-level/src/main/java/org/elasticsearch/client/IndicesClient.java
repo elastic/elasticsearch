@@ -909,6 +909,33 @@ public final class IndicesClient {
     }
 
     /**
+     * Clones an index using the Clone Index API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clone-index.html">
+     * Clone Index API on elastic.co</a>
+     * @param resizeRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ResizeResponse clone(ResizeRequest resizeRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
+            ResizeResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously clones an index using the Clone Index API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clone-index.html">
+     * Clone Index API on elastic.co</a>
+     * @param resizeRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void cloneAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
+            ResizeResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Rolls over an index using the Rollover Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
      * Rollover Index API on elastic.co</a>

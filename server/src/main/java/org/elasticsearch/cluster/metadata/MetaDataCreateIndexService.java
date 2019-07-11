@@ -700,6 +700,13 @@ public class MetaDataCreateIndexService {
         IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
     }
 
+    static void validateCloneIndex(ClusterState state, String sourceIndex,
+                                   Set<String> targetIndexMappingsTypes, String targetIndexName,
+                                   Settings targetIndexSettings) {
+        IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
+        IndexMetaData.selectCloneShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+    }
+
     static IndexMetaData validateResize(ClusterState state, String sourceIndex,
                                            Set<String> targetIndexMappingsTypes, String targetIndexName,
                                            Settings targetIndexSettings) {
@@ -754,6 +761,9 @@ public class MetaDataCreateIndexService {
                 .put("index.allocation.max_retries", 1);
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+            indexSettingsBuilder.putNull(initialRecoveryIdFilter);
+        } else if (type == ResizeType.CLONE) {
+            validateCloneIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(initialRecoveryIdFilter);
         } else {
             throw new IllegalStateException("unknown resize type is " + type);

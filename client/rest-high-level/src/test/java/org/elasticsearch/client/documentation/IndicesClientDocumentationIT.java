@@ -1810,6 +1810,75 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testCloneIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("source_index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
+            updateIndexSettings("source_index", Settings.builder().put("index.blocks.write", true));
+        }
+
+        // tag::clone-index-request
+        ResizeRequest request = new ResizeRequest("target_index","source_index"); // <1>
+        request.setResizeType(ResizeType.CLONE); // <2>
+        // end::clone-index-request
+
+        // tag::clone-index-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+        request.timeout("2m"); // <2>
+        // end::clone-index-request-timeout
+        // tag::clone-index-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::clone-index-request-masterTimeout
+        // tag::clone-index-request-waitForActiveShards
+        request.setWaitForActiveShards(2); // <1>
+        request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+        // end::clone-index-request-waitForActiveShards
+        // tag::clone-index-request-settings
+        request.getTargetIndexRequest().settings(Settings.builder()
+            .put("index.number_of_shards", 2)); // <1>
+        // end::clone-index-request-settings
+        // tag::clone-index-request-aliases
+        request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
+        // end::clone-index-request-aliases
+
+        // tag::clone-index-execute
+        ResizeResponse resizeResponse = client.indices().clone(request, RequestOptions.DEFAULT);
+        // end::clone-index-execute
+
+        // tag::clone-index-response
+        boolean acknowledged = resizeResponse.isAcknowledged(); // <1>
+        boolean shardsAcked = resizeResponse.isShardsAcknowledged(); // <2>
+        // end::clone-index-response
+        assertTrue(acknowledged);
+        assertTrue(shardsAcked);
+
+        // tag::clone-index-execute-listener
+        ActionListener<ResizeResponse> listener = new ActionListener<ResizeResponse>() {
+            @Override
+            public void onResponse(ResizeResponse resizeResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::clone-index-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::clone-index-execute-async
+        client.indices().cloneAsync(request, RequestOptions.DEFAULT,listener); // <1>
+        // end::clone-index-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
     public void testRolloverIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

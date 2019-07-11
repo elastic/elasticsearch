@@ -835,18 +835,33 @@ public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testSplitWrongResizeType() {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        resizeRequest.setResizeType(ResizeType.SHRINK);
+        ResizeType wrongType = randomFrom(ResizeType.SHRINK, ResizeType.CLONE);
+        resizeRequest.setResizeType(wrongType);
         IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
             -> IndicesRequestConverters.split(resizeRequest));
-        Assert.assertEquals("Wrong resize type [SHRINK] for indices split request", iae.getMessage());
+        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices split request", iae.getMessage());
+    }
+
+    public void testClone() throws IOException {
+        resizeTest(ResizeType.CLONE, IndicesRequestConverters::clone);
+    }
+
+    public void testCloneWrongResizeType() {
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        ResizeType wrongType = randomFrom(ResizeType.SHRINK, ResizeType.SPLIT);
+        resizeRequest.setResizeType(wrongType);
+        IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
+            -> IndicesRequestConverters.clone(resizeRequest));
+        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices clone request", iae.getMessage());
     }
 
     public void testShrinkWrongResizeType() {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
-        resizeRequest.setResizeType(ResizeType.SPLIT);
+        ResizeType wrongType = randomFrom(ResizeType.SPLIT, ResizeType.CLONE);
+        resizeRequest.setResizeType(wrongType);
         IllegalArgumentException iae = LuceneTestCase.expectThrows(IllegalArgumentException.class, ()
             -> IndicesRequestConverters.shrink(resizeRequest));
-        Assert.assertEquals("Wrong resize type [SPLIT] for indices shrink request", iae.getMessage());
+        Assert.assertEquals("Wrong resize type [" + wrongType.name() + "] for indices shrink request", iae.getMessage());
     }
 
     public void testShrink() throws IOException {

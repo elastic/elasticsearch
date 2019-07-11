@@ -99,6 +99,7 @@ Index Management::
 * <<{upid}-close-index>>
 * <<{upid}-shrink-index>>
 * <<{upid}-split-index>>
+* <<{upid}-clone-index>>
 * <<{upid}-refresh>>
 * <<{upid}-flush>>
 * <<{upid}-flush-synced>>

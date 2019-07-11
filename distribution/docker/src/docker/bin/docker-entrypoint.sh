@@ -84,8 +84,20 @@ if [[ -f bin/elasticsearch-users ]]; then
   # honor the variable if it's present.
   if [[ -n "$ELASTIC_PASSWORD" ]]; then
     [[ -f /usr/share/elasticsearch/config/elasticsearch.keystore ]] || (run_as_other_user_if_needed elasticsearch-keystore create)
-    if ! (run_as_other_user_if_needed elasticsearch-keystore list | grep -q '^bootstrap.password$'); then
-      (run_as_other_user_if_needed echo "$ELASTIC_PASSWORD" | elasticsearch-keystore add -x 'bootstrap.password')
+    if (run_as_other_user_if_needed elasticsearch-keystore list >/dev/null 2>&1) ; then
+      # keystore is unencrypted
+      if ! (run_as_other_user_if_needed elasticsearch-keystore list | grep -q '^bootstrap.password$'); then
+        (run_as_other_user_if_needed echo "$ELASTIC_PASSWORD" | elasticsearch-keystore add -x 'bootstrap.password')
+      fi
+    else
+      # keystore requires password
+      # ugh - when keystore is password protected, prompt gets mixed up in list output
+      if ! (run_as_other_user_if_needed echo "$KEYSTORE_PASSWORD" \
+          | elasticsearch-keystore list \
+          | grep -q '^\(.*: \)\?bootstrap.password$') ; then
+        COMMANDS="$(printf "%s\n%s" "$KEYSTORE_PASSWORD" "$ELASTIC_PASSWORD")"
+        (run_as_other_user_if_needed echo "$COMMANDS" | elasticsearch-keystore add -x 'bootstrap.password')
+      fi
     fi
   fi
 fi
@@ -97,4 +109,4 @@ if [[ "$(id -u)" == "0" ]]; then
   fi
 fi
 
-run_as_other_user_if_needed /usr/share/elasticsearch/bin/elasticsearch "${es_opts[@]}"
+run_as_other_user_if_needed /usr/share/elasticsearch/bin/elasticsearch "${es_opts[@]}" <<<"$KEYSTORE_PASSWORD"

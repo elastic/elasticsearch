@@ -693,7 +693,7 @@ public class RecoverySourceHandler {
     void sendFiles(Store store, StoreFileMetaData[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
 
-        final MultiFileTransfer<FileChunk, Void> multiFileSender =
+        final MultiFileTransfer<FileChunk> multiFileSender =
             new MultiFileTransfer<>(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
                 final byte[] buffer = new byte[chunkSizeInBytes];

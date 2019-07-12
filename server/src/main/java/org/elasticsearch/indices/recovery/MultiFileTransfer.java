@@ -55,11 +55,11 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * one of the networking threads which receive/handle the responses of the current pending file chunk requests. This process will continue
  * until all chunk requests are sent/responded.
  */
-public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest, Response> implements Closeable {
+public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest> implements Closeable {
     private boolean done = false;
     private final ActionListener<Void> listener;
     private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
-    private final AsyncIOProcessor<FileChunkResponseItem<Response>> processor;
+    private final AsyncIOProcessor<FileChunkResponseItem> processor;
     private final int maxConcurrentFileChunks;
     private StoreFileMetaData currentFile = null;
     private final Iterator<StoreFileMetaData> remainingFiles;
@@ -70,7 +70,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
         this.listener = listener;
         this.processor = new AsyncIOProcessor<>(logger, maxConcurrentFileChunks, threadContext) {
             @Override
-            protected void write(List<Tuple<FileChunkResponseItem<Response>, Consumer<Exception>>> items) {
+            protected void write(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
                 handleItems(items);
             }
         };
@@ -78,20 +78,20 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
     }
 
     public final void start() {
-        addItem(UNASSIGNED_SEQ_NO, null, null, null); // put an dummy item to start the processor
+        addItem(UNASSIGNED_SEQ_NO, null, null); // put an dummy item to start the processor
     }
 
-    private void addItem(long requestSeqId, StoreFileMetaData md, Response response, Exception failure) {
-        processor.put(new FileChunkResponseItem<>(requestSeqId, md, response, failure), e -> { assert e == null : e; });
+    private void addItem(long requestSeqId, StoreFileMetaData md, Exception failure) {
+        processor.put(new FileChunkResponseItem(requestSeqId, md, failure), e -> { assert e == null : e; });
     }
 
-    private void handleItems(List<Tuple<FileChunkResponseItem<Response>, Consumer<Exception>>> items) {
+    private void handleItems(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
         if (done) {
             return;
         }
         try {
-            for (Tuple<FileChunkResponseItem<Response>, Consumer<Exception>> item : items) {
-                final FileChunkResponseItem<Response> resp = item.v1();
+            for (Tuple<FileChunkResponseItem, Consumer<Exception>> item : items) {
+                final FileChunkResponseItem resp = item.v1();
                 if (resp.requestSeqId == UNASSIGNED_SEQ_NO) {
                     continue; // not an actual item
                 }
@@ -123,8 +123,8 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                 final long requestSeqId = requestSeqIdTracker.generateSeqNo();
                 final StoreFileMetaData md = this.currentFile;
                 sendChunkRequest(request, ActionListener.wrap(
-                    r -> addItem(requestSeqId, md, r, null),
-                    e -> addItem(requestSeqId, md, null, e)));
+                    r -> addItem(requestSeqId, md, null),
+                    e -> addItem(requestSeqId, md, e)));
                 if (request.lastChunk()) {
                     this.currentFile = null;
                 }
@@ -135,13 +135,12 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
     }
 
     private void onCompleted(Exception failure) {
-        if (done == false) {
-            done = true;
-            ActionListener.completeWith(listener, () -> {
-                IOUtils.close(failure, this);
-                return null;
-            });
-        }
+        assert done == false;
+        done = true;
+        ActionListener.completeWith(listener, () -> {
+            IOUtils.close(failure, this);
+            return null;
+        });
     }
 
     /**
@@ -152,20 +151,18 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
 
     protected abstract Request nextChunkRequest(StoreFileMetaData md) throws Exception;
 
-    protected abstract void sendChunkRequest(Request request, ActionListener<Response> listener);
+    protected abstract void sendChunkRequest(Request request, ActionListener<Void> listener);
 
     protected abstract void handleError(StoreFileMetaData md, Exception e) throws Exception;
 
-    private static class FileChunkResponseItem<Resp> {
+    private static class FileChunkResponseItem {
         final long requestSeqId;
         final StoreFileMetaData md;
-        final Resp response;
         final Exception failure;
 
-        FileChunkResponseItem(long requestSeqId, StoreFileMetaData md, Resp response, Exception failure) {
+        FileChunkResponseItem(long requestSeqId, StoreFileMetaData md, Exception failure) {
             this.requestSeqId = requestSeqId;
             this.md = md;
-            this.response = response;
             this.failure = failure;
         }
     }

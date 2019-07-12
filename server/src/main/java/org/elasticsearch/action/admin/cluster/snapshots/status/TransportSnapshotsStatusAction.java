@@ -194,7 +194,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         if (Strings.hasText(repositoryName) && request.snapshots() != null && request.snapshots().length > 0) {
             final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
             final RepositoryData repositoryData = snapshotsService.getRepositoryData(repositoryName);
-            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getAllSnapshotIds().stream()
+            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
             for (final String snapshotName : request.snapshots()) {

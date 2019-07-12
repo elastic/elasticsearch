@@ -108,13 +108,6 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns an immutable collection of all the snapshot ids in the repository.
-     */
-    public Collection<SnapshotId> getAllSnapshotIds() {
-        return new ArrayList<>(snapshotIds.values());
-    }
-
-    /**
      * Returns the {@link SnapshotState} for the given snapshot.  Returns {@code null} if
      * there is no state for the snapshot.
      */

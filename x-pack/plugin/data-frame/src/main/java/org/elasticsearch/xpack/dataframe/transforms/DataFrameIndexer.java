@@ -225,8 +225,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     private IterationResult<DataFrameIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
         // initialize the map of changed buckets, the map might be empty if source do not require/implement
         // changed bucket detection
-
-        // TODO: what about histogram only data frame transforms????
         changedBuckets = pivot.initialIncrementalBucketUpdateMap();
 
         // reached the end?
@@ -406,7 +404,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
                 .filter(config.getSyncConfig()
                         .getRangeQuery(nextCheckpoint));
 
-        // TODO: can changedBuckets be empty for histograms?
         if (changedBuckets != null && changedBuckets.isEmpty() == false) {
             QueryBuilder pivotFilter = pivot.filterBuckets(changedBuckets);
             if (pivotFilter != null) {
@@ -464,7 +461,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             return RunState.FULL_RUN;
         }
 
-        // TODO: if incremental update is not supported (histogram only), do a full run
+        // if incremental update is not supported, do a full run
+        if (pivot.supportsIncrementalBucketUpdate() == false) {
+            return RunState.FULL_RUN;
+        }
 
         // continuous mode: we need to get the changed buckets first
         return RunState.PARTIAL_RUN_IDENTIFY_CHANGES;

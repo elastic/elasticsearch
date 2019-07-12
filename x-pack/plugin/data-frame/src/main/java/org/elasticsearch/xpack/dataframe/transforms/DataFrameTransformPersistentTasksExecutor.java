@@ -112,7 +112,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameTransform params, PersistentTaskState state) {
         final String transformId = params.getId();
         final DataFrameTransformTask buildTask = (DataFrameTransformTask) task;
-
+        final DataFrameTransformState transformPTaskState = (DataFrameTransformState) state;
         // If the transform is failed then the Persistent Task Service will
         // try to restart it on a node restart. Exiting here leaves the
         // transform in the failed state and it must be force closed.

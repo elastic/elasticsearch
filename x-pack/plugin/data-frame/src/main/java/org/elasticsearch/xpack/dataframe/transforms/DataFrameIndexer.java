@@ -104,6 +104,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         this.progress = transformProgress;
         this.lastCheckpoint = lastCheckpoint;
         this.nextCheckpoint = nextCheckpoint;
+        // give runState a default
+        this.runState = RunState.FULL_RUN;
     }
 
     protected abstract void failIndexer(String message);

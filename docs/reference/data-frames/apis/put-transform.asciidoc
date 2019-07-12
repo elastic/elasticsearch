@@ -67,6 +67,15 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 `source`::
   (object) Required. The source configuration, which consists of `index` and 
   optionally a `query`. See <<data-frame-transform-source>>.
+  
+`sync`::
+  (Optional, object) Defines the properties required to run continuously.
+  `field`:::
+    (Required, string) The date field that is used to identify new documents in
+    the source.
+  `delay`:::
+    (Optional, time units) The time delay between the current time and the
+    latest input data time.
 
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}
@@ -85,11 +94,6 @@ PUT _data_frame/transforms/ecommerce_transform
       }
     }
   },
-  "dest": {
-    "index": "kibana_sample_data_ecommerce_transform",
-    "pipeline": "add_timestamp_pipeline"
-  },
-  "frequency": "5m",
   "pivot": {
     "group_by": {
       "customer_id": {
@@ -106,7 +110,18 @@ PUT _data_frame/transforms/ecommerce_transform
       }
     }
   },
-  "description": "Maximum priced ecommerce data by customer_id in Asia"
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "5m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "60s"
+    }
+  }
 }
 --------------------------------------------------
 // CONSOLE

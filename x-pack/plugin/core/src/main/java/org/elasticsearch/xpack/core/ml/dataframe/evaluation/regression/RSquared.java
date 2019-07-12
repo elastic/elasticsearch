@@ -77,6 +77,7 @@ public class RSquared implements RegressionMetric {
     public EvaluationMetricResult evaluate(Aggregations aggs) {
         NumericMetricsAggregation.SingleValue residualSumOfSquares = aggs.get(SS_RES);
         ExtendedStats extendedStats = aggs.get(ExtendedStatsAggregationBuilder.NAME + "_actual");
+        // extendedStats.getVariance() is the statistical sumOfSquares divided by count
         return residualSumOfSquares == null || extendedStats == null || extendedStats.getCount() == 0 ?
             null :
             new Result(1 - (residualSumOfSquares.value() / (extendedStats.getVariance() * extendedStats.getCount())));

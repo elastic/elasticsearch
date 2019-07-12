@@ -206,7 +206,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
@@ -524,6 +527,11 @@ public class ActionModule extends AbstractModule {
         actions.register(RetentionLeaseActions.Add.INSTANCE, RetentionLeaseActions.Add.TransportAction.class);
         actions.register(RetentionLeaseActions.Renew.INSTANCE, RetentionLeaseActions.Renew.TransportAction.class);
         actions.register(RetentionLeaseActions.Remove.INSTANCE, RetentionLeaseActions.Remove.TransportAction.class);
+
+        // internal actions
+        actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);
+        actions.register(RetentionLeaseBackgroundSyncAction.TYPE, RetentionLeaseBackgroundSyncAction.class);
+        actions.register(RetentionLeaseSyncAction.TYPE, RetentionLeaseSyncAction.class);
 
         return unmodifiableMap(actions.getRegistry());
     }

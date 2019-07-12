@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
@@ -60,6 +62,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutDatafeedAction.class);
+
     private final XPackLicenseState licenseState;
     private final Client client;
     private final SecurityContext securityContext;
@@ -84,7 +88,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
-        clusterState = clusterService.state();
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -198,6 +201,11 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         };
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {
+            if (clusterState == null) {
+                logger.warn("Cannot update doc mapping because clusterState == null");
+                mappingsUpdated.accept(false);
+                return;
+            }
             ElasticsearchMappings.addDocMappingIfMissing(
                 AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings::configMapping,

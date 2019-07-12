@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
@@ -54,6 +56,8 @@ import java.util.function.Supplier;
 public class TransportPutDataFrameAnalyticsAction
     extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, PutDataFrameAnalyticsAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutDataFrameAnalyticsAction.class);
+
     private final XPackLicenseState licenseState;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final ThreadPool threadPool;
@@ -84,7 +88,6 @@ public class TransportPutDataFrameAnalyticsAction
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
-        clusterState = clusterService.state();
         clusterService.addListener(event -> clusterState = event.state());
     }
 
@@ -166,8 +169,13 @@ public class TransportPutDataFrameAnalyticsAction
     }
 
     private void updateDocMappingAndPutConfig(DataFrameAnalyticsConfig config,
-                                             Map<String, String> headers,
-                                             ActionListener<IndexResponse> listener) {
+                                              Map<String, String> headers,
+                                              ActionListener<IndexResponse> listener) {
+        if (clusterState == null) {
+            logger.warn("Cannot update doc mapping because clusterState == null");
+            configProvider.put(config, headers, listener);
+            return;
+        }
         ElasticsearchMappings.addDocMappingIfMissing(
             AnomalyDetectorsIndex.configIndexName(),
             ElasticsearchMappings::configMapping,

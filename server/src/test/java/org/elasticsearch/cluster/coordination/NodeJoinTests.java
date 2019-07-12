@@ -472,12 +472,16 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     public void testConcurrentJoining() {
-        List<DiscoveryNode> nodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
+        List<DiscoveryNode> masterNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true)).collect(Collectors.toList());
+        List<DiscoveryNode> otherNodes = IntStream.rangeClosed(masterNodes.size() + 1, masterNodes.size() + 1 + randomIntBetween(0, 5))
+            .mapToObj(nodeId -> newNode(nodeId, false)).collect(Collectors.toList());
+        List<DiscoveryNode> allNodes = Stream.concat(masterNodes.stream(), otherNodes.stream()).collect(Collectors.toList());
 
-        DiscoveryNode localNode = nodes.get(0);
+        DiscoveryNode localNode = masterNodes.get(0);
         VotingConfiguration votingConfiguration = new VotingConfiguration(randomValueOtherThan(singletonList(localNode),
-            () -> randomSubsetOf(randomIntBetween(1, nodes.size()), nodes)).stream().map(DiscoveryNode::getId).collect(Collectors.toSet()));
+            () -> randomSubsetOf(randomIntBetween(1, masterNodes.size()), masterNodes)).stream()
+            .map(DiscoveryNode::getId).collect(Collectors.toSet()));
 
         logger.info("Voting configuration: {}", votingConfiguration);
 
@@ -489,7 +493,7 @@ public class NodeJoinTests extends ESTestCase {
         // we need at least a quorum of voting nodes with a correct term and worse state
         List<DiscoveryNode> successfulNodes;
         do {
-            successfulNodes = randomSubsetOf(nodes);
+            successfulNodes = randomSubsetOf(allNodes);
         } while (votingConfiguration.hasQuorum(successfulNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toList()))
             == false);
 
@@ -499,7 +503,7 @@ public class NodeJoinTests extends ESTestCase {
             node -> new JoinRequest(node, Optional.of(new Join(node, localNode, newTerm, initialTerm, initialVersion))))
             .collect(Collectors.toList());
 
-        List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(nodes);
+        List<DiscoveryNode> possiblyUnsuccessfulNodes = new ArrayList<>(allNodes);
         possiblyUnsuccessfulNodes.removeAll(successfulNodes);
 
         logger.info("Possibly unsuccessful voting nodes: {}", possiblyUnsuccessfulNodes);
@@ -572,8 +576,8 @@ public class NodeJoinTests extends ESTestCase {
 
         assertTrue(MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster());
         for (DiscoveryNode successfulNode : successfulNodes) {
-            assertTrue(successfulNode.toString(), clusterStateHasNode(successfulNode));
-            assertTrue(successfulNode.toString(), coordinator.hasJoinVoteFrom(successfulNode));
+            assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
+            assertFalse(successfulNode + " voted for master", coordinator.missingJoinVoteFrom(successfulNode));
         }
     }
 

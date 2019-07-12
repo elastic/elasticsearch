@@ -92,7 +92,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     executable = new File(project.runtimeJavaHome, 'bin/java')
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
     maxWaitInSeconds 60
-    onlyIf {  project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled }
+    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled && project.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
@@ -132,7 +132,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     description = "Runs rest tests against an elasticsearch cluster with HDFS."
     dependsOn(project.bundlePlugin)
 
-    if (disabledIntegTestTaskNames.contains(integTestTaskName)) {
+    if (project.inFipsJvm || disabledIntegTestTaskNames.contains(integTestTaskName)) {
       enabled = false;
     }
 

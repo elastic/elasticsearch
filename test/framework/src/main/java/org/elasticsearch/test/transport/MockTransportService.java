@@ -106,27 +106,28 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
-     * concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
-     * be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
-     * a different default port range per JVM unless the incoming settings override it
-     * use a non-default base port otherwise some cluster in this JVM might reuse a port
-     */
-    private static int getBasePort() {
-        final int basePort = 10300 + (ESTestCase.TEST_WORKER_VM * 100);
-        if (basePort < 10300 || basePort >= 65000) {
-            // to ensure we don't get illegal ports above 65536 in the getPortRange method
-            throw new AssertionError("Expected basePort to be between 10300 and 65000 but was " + basePort);
-        }
-        return basePort;
-    }
-
-    /**
-     * Returns a unique port range for this JVM starting from the computed base port (see {@link #getBasePort()})
+     * Returns a unique port range for this JVM starting from the computed base port
      */
     public static String getPortRange() {
-        int basePort = getBasePort();
-        return basePort + "-" + (basePort + 99); // upper bound is inclusive
+        return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
+    }
+
+    protected static int getBasePort() {
+        // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
+        // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
+        // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
+        // a different default port range per JVM unless the incoming settings override it
+        // use a non-default base port otherwise some cluster in this JVM might reuse a port
+
+        // We rely on Gradle implementation details here, the worker IDs are long values incremented by one  for the
+        // lifespan of the daemon this means that they can get larger than the allowed port range.
+        // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
+        // This is safe as long as we have fewer than 224 Gradle workers running in parallel
+        // See also: https://github.com/elastic/elasticsearch/issues/44134
+        final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
+        assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
+        return 10300 + (startAt * 100);
     }
 
     public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {

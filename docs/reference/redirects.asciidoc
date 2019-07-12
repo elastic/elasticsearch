@@ -621,7 +621,3 @@ without any configuration, if the total number of hits is not tracked.
 === X-Pack APIs
 
 {es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
-
-[role="exclude",id="index-apis"]
-=== Index APIs
-{es} index APIs are now documented in <<indices>>.

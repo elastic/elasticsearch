@@ -166,7 +166,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 assert addr == null : "boundAddress: " + addr;
                 return DiscoveryNode.createLocal(settings, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID());
             }, null, Collections.emptySet());
-            transportService.addNodeConnectedBehavior((connectionManager, discoveryNode) -> false);
+            transportService.addNodeConnectedBehavior(cm -> Collections.emptySet());
             transportService.addGetConnectionBehavior((connectionManager, discoveryNode) -> {
                 // The FailAndRetryTransport does not use the connection profile
                 PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();

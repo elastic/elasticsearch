@@ -28,6 +28,9 @@ Retrieves configuration information for calendars.
 You can get information for a single calendar or for all calendars by using
 `_all`.
 
+For more information, see 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
 [[ml-get-calendar-path-parms]]
 ==== {api-path-parms-title}
 
@@ -50,8 +53,13 @@ You can get information for a single calendar or for all calendars by using
 The API returns the following information:
 
 `calendars`::
-  (array) An array of calendar resources.
-  For more information, see <<ml-calendar-resource>>.
+  (array) An array of calendar resources. A calendar resource has the following
+  properties:
+  `calendar_id`:::
+    (string) A numerical character string that uniquely identifies the calendar.
+
+  `job_ids`:::
+    (array) An array of job identifiers. For example: `["total-requests"]`.
 
 [[ml-get-calendar-example]]
 ==== {api-examples-title}

@@ -5,7 +5,6 @@
 These resource definitions are used in APIs related to {ml-features} and
 {security-features} and in {kib} advanced {ml} job configuration options.
 
-* <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
 * <<ml-dfanalytics-resources,{dfanalytics-cap}>>
@@ -19,7 +18,6 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<role-mapping-resources,Role mappings>>
 * <<ml-event-resource,Scheduled Events>>
 
-include::{es-repo-dir}/ml/apis/calendarresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/dfanalyticsresources.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/transformresource.asciidoc[]

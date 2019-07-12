@@ -625,3 +625,9 @@ without any configuration, if the total number of hits is not tracked.
 [role="exclude",id="index-apis"]
 === Index APIs
 {es} index APIs are now documented in <<indices>>.
+
+[role="exclude",id="ml-calendar-resource"]]
+=== Calendar resources
+
+See 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].

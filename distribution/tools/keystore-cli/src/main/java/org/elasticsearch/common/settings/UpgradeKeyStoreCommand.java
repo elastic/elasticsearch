@@ -29,13 +29,12 @@ import org.elasticsearch.env.Environment;
 public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
 
     UpgradeKeyStoreCommand() {
-        super("Upgrade the keystore format");
-        keyStoreMustExist = true;
+        super("Upgrade the keystore format", true);
     }
 
     @Override
     protected void executeCommand(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        KeyStoreWrapper.upgrade(keyStore, env.configFile(), keyStorePassword.getChars());
+        KeyStoreWrapper.upgrade(getKeyStore(), env.configFile(), getKeyStorePassword().getChars());
     }
 
 }

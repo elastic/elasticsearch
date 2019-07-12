@@ -36,8 +36,7 @@ class RemoveSettingKeyStoreCommand extends BaseKeyStoreCommand {
     private final OptionSpec<String> arguments;
 
     RemoveSettingKeyStoreCommand() {
-        super("Remove a setting from the keystore");
-        keyStoreMustExist = true;
+        super("Remove a setting from the keystore", true);
         arguments = parser.nonOptions("setting names");
     }
 
@@ -47,12 +46,13 @@ class RemoveSettingKeyStoreCommand extends BaseKeyStoreCommand {
         if (settings.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
         }
+        final KeyStoreWrapper keyStore = getKeyStore();
         for (String setting : arguments.values(options)) {
             if (keyStore.getSettingNames().contains(setting) == false) {
                 throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
             }
             keyStore.remove(setting);
         }
-        keyStore.save(env.configFile(), keyStorePassword.getChars());
+        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
     }
 }

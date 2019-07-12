@@ -42,7 +42,7 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
     private final OptionSpec<String> arguments;
 
     AddFileKeyStoreCommand() {
-        super("Add a file setting to the keystore");
+        super("Add a file setting to the keystore", false);
         this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"), "Overwrite existing setting without prompting");
         // jopt simple has issue with multiple non options, so we just get one set of them here
         // and convert to File when necessary
@@ -58,6 +58,7 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
             throw new UserException(ExitCodes.USAGE, "Missing setting name");
         }
         String setting = argumentValues.get(0);
+        final KeyStoreWrapper keyStore = getKeyStore();
         if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
             if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without modifying keystore.");
@@ -77,7 +78,7 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
                 String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
         }
         keyStore.setFile(setting, Files.readAllBytes(file));
-        keyStore.save(env.configFile(), keyStorePassword.getChars());
+        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
     }
 
     @SuppressForbidden(reason = "file arg for cli")

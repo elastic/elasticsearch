@@ -37,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -187,7 +186,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshot(), entry.state(),
-                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState()));
+                    Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState(), entry.startTime(),
+                    Math.max(threadPool.absoluteTimeInMillis() - entry.startTime(), 0L)));
             }
         }
         // Now add snapshots on disk that are not currently running
@@ -214,8 +214,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     } else {
                         throw new SnapshotMissingException(repositoryName, snapshotName);
                     }
-                } else if (repositoryData.getIncompatibleSnapshotIds().contains(snapshotId)) {
-                    throw new SnapshotException(repositoryName, snapshotName, "cannot get the status for an incompatible snapshot");
                 }
                 SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
@@ -240,8 +238,10 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         default:
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
+                    final long startTime = snapshotInfo.startTime();
                     builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state,
-                        Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState()));
+                        Collections.unmodifiableList(shardStatusBuilder), snapshotInfo.includeGlobalState(),
+                        startTime, snapshotInfo.endTime() - startTime));
                 }
             }
         }

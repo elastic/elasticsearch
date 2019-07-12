@@ -401,4 +401,39 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertThat(recoveryState.getTranslog().recoveredPercent(), equalTo(100.0f));
         }
     }
+
+    public void testTranslogStats()  {
+        final String indexName = "test";
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+
+        final int nbDocs = randomIntBetween(0, 50);
+        int uncommittedOps = 0;
+        for (long i = 0; i < nbDocs; i++) {
+            final IndexResponse indexResponse = client().prepareIndex(indexName, "_doc", Long.toString(i)).setSource("field", i).get();
+            assertThat(indexResponse.status(), is(RestStatus.CREATED));
+
+            if (rarely()) {
+                client().admin().indices().prepareFlush(indexName).get();
+                uncommittedOps = 0;
+            } else {
+                uncommittedOps += 1;
+            }
+        }
+
+        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
+        assertThat(stats.getIndex(indexName), notNullValue());
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedOps));
+
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new TransportFreezeIndexAction.FreezeRequest(indexName)).actionGet());
+        assertIndexFrozen(indexName);
+
+        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+        stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions).clear().setTranslog(true).get();
+        assertThat(stats.getIndex(indexName), notNullValue());
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
+    }
 }

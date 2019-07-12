@@ -42,7 +42,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
     private final OptionSpec<String> arguments;
 
     AddStringKeyStoreCommand() {
-        super("Add a string setting to the keystore");
+        super("Add a string setting to the keystore", false);
         this.stdinOption = parser.acceptsAll(Arrays.asList("x", "stdin"), "Read setting value from stdin");
         this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"), "Overwrite existing setting without prompting");
         this.arguments = parser.nonOptions("setting name");
@@ -59,6 +59,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         if (setting == null) {
             throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
         }
+        final KeyStoreWrapper keyStore = getKeyStore();
         if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
             if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without modifying keystore.");
@@ -78,7 +79,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         } catch (IllegalArgumentException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }
-        keyStore.save(env.configFile(), keyStorePassword.getChars());
+        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
 
     }
 }

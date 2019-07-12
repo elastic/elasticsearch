@@ -58,7 +58,7 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
             password = options.has(passwordOption) ?
                 BaseKeyStoreCommand.readPassword(terminal, true) : new SecureString(new char[0]);
             keystore.save(env.configFile(), password.getChars());
-            terminal.println("Created elasticsearch keystore in " + env.configFile());
+            terminal.println("Created elasticsearch keystore in " + KeyStoreWrapper.keystorePath(env.configFile()));
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Error creating the elasticsearch keystore.");
         } finally {

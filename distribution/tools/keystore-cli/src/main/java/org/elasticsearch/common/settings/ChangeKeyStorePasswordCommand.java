@@ -31,8 +31,7 @@ import org.elasticsearch.env.Environment;
 class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
 
     ChangeKeyStorePasswordCommand() {
-        super("Changes the password of a keystore");
-        keyStoreMustExist = true;
+        super("Changes the password of a keystore", true);
     }
 
     @Override
@@ -40,8 +39,9 @@ class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
         SecureString newPassword = null;
         try {
             newPassword = readPassword(terminal, true);
+            final KeyStoreWrapper keyStore = getKeyStore();
             keyStore.save(env.configFile(), newPassword.getChars());
-            terminal.println("Elasticsearch keystore password changed successfully." + env.configFile());
+            terminal.println("Elasticsearch keystore password changed successfully.");
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         } finally {

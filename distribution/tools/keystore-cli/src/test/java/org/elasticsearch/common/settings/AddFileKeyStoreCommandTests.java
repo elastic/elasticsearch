@@ -58,35 +58,12 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         keystore.save(env.configFile(), password.toCharArray());
     }
 
-    public void testMissingPromptCreate() throws Exception {
-        String password = "keystorepassword";
+    public void testMissingCreateWithEmptyPassword() throws Exception {
+        String password = "";
         Path file1 = createRandomFile();
-        terminal.addSecretInput(password);
-        terminal.addSecretInput(password);
-        terminal.addTextInput("y");
         terminal.addTextInput("y");
         execute("foo", file1.toString());
         assertSecureFile("foo", file1, password);
-    }
-
-    public void testMissingPromptCreateWithoutPassword() throws Exception {
-        Path file1 = createRandomFile();
-        terminal.addTextInput("y");
-        terminal.addTextInput("n");
-        execute("foo", file1.toString());
-        assertSecureFile("foo", file1, "");
-    }
-
-    public void testMissingPromptCreateNotMatchingPasswpord() throws Exception {
-        String password = "keystorepassword";
-        Path file1 = createRandomFile();
-        terminal.addTextInput("y");
-        terminal.addTextInput("y");
-        terminal.addSecretInput(password);
-        terminal.addSecretInput("adifferentpassphase");
-        UserException e = expectThrows(UserException.class, () -> execute("foo", file1.toString()));
-        assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
     }
 
     public void testMissingNoCreate() throws Exception {

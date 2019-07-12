@@ -31,8 +31,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     @Inject
     public TransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters, LicenseService licenseService,
                                     Set<XPackFeatureSet> featureSets) {
-        super(XPackInfoAction.NAME, transportService, actionFilters,
-            XPackInfoRequest::new);
+        super(XPackInfoAction.NAME, transportService, XPackInfoRequest::new, actionFilters);
         this.licenseService = licenseService;
         this.featureSets = featureSets;
     }

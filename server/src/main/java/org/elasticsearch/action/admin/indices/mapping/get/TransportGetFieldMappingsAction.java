@@ -46,7 +46,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
                                            TransportGetFieldMappingsIndexAction shardAction,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+        super(GetFieldMappingsAction.NAME, transportService, GetFieldMappingsRequest::new, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

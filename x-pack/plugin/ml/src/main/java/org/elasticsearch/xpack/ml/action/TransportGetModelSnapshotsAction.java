@@ -28,7 +28,7 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
     @Inject
     public TransportGetModelSnapshotsAction(TransportService transportService, ActionFilters actionFilters,
                                             JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(GetModelSnapshotsAction.NAME, transportService, actionFilters, GetModelSnapshotsAction.Request::new);
+        super(GetModelSnapshotsAction.NAME, transportService, GetModelSnapshotsAction.Request::new, actionFilters);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }

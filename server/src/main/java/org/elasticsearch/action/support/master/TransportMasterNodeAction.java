@@ -81,7 +81,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Supplier<Request> request) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, request, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

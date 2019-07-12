@@ -65,7 +65,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest, String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, request, actionFilters);
         this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);

@@ -286,19 +286,19 @@ public class DataFrameTransformsConfigManager {
 
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.INDEX_NAME)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(DataFrameTransformStateAndStats.documentId(stats.getTransformId()))
+                .id(DataFrameTransformStateAndStats.documentId(stats.getId()))
                 .source(source);
 
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                 r -> listener.onResponse(true),
                 e -> listener.onFailure(new RuntimeException(
-                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getTransformId()),
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
                     e))
             ));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(new ElasticsearchParseException(
-                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getTransformId()),
+                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
                 e));
         }
     }

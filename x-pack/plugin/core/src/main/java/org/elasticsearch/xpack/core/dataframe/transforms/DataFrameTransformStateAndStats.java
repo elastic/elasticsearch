@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,11 +16,14 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * A wrapper for grouping transform state and stats when persisting to an index.
+ * Not intended to be returned in endpoint responses.
+ */
 public class DataFrameTransformStateAndStats implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_state_and_stats";
@@ -53,17 +55,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         return PARSER.parse(parser, null);
     }
 
-    public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
-        return initialStateAndStats(id, new DataFrameIndexerTransformStats(id));
-    }
-
-    public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
-        return new DataFrameTransformStateAndStats(id,
-            new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null, null),
-            indexerTransformStats,
-            DataFrameTransformCheckpointingInfo.EMPTY);
-    }
-
     /**
      * Get the persisted state and stats document name from the Data Frame Transform Id.
      *
@@ -88,11 +79,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
     }
 
-    @Nullable
-    public String getTransformId() {
-        return transformStats.getTransformId();
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -100,9 +86,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.field(STATE_FIELD.getPreferredName(), transformState, params);
         builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
         builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
-        if (params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
-        }
+        builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         builder.endObject();
         return builder;
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -135,7 +135,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         startTransform(CONTINUOUS_DATA_FRAME_ID);
         waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, 0L);
 
-        DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        DataFrameTransformStateAndStatsInfo stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
         assertThat(stateAndStats.getTransformStats().getNumDocuments(), equalTo(totalDocsWritten));
@@ -147,13 +147,13 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         // A continuous data frame should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
-            DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+            DataFrameTransformStateAndStatsInfo stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
             assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
         },
         120,
         TimeUnit.SECONDS);
 
-        DataFrameTransformStateAndStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        DataFrameTransformStateAndStatsInfo previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         // Add a new user and write data to it
         // This is so we can have more reliable data counts, as writing to existing entities requires
@@ -172,7 +172,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             greaterThanOrEqualTo(docs + previousStateAndStats.getTransformStats().getNumDocuments())),
             120,
             TimeUnit.SECONDS);
-        DataFrameTransformStateAndStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        DataFrameTransformStateAndStatsInfo stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         assertThat(stateAndStats.getTransformState().getTaskState(),
             equalTo(DataFrameTransformTaskState.STARTED));
@@ -207,7 +207,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private DataFrameTransformStateAndStats getTransformStats(String id) throws IOException {
+    private DataFrameTransformStateAndStatsInfo getTransformStats(String id) throws IOException {
         final Request getStats = new Request("GET", DATAFRAME_ENDPOINT + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());

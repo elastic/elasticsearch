@@ -32,14 +32,13 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
     public static DataFrameTransformCheckpointingInfo fromHlrc(
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointingInfo instance) {
         return new DataFrameTransformCheckpointingInfo(
-                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getCurrent()),
-                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getInProgress()),
+                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getLast()),
+                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getNext()),
                 instance.getOperationsBehind());
     }
 
     @Override
-    public org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointingInfo doHlrcParseInstance(XContentParser parser)
-            throws IOException {
+    public org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointingInfo doHlrcParseInstance(XContentParser parser) {
         return org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointingInfo.fromXContent(parser);
     }
 
@@ -49,9 +48,14 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
         return fromHlrc(instance);
     }
 
+    public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
+        return new DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
+            DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(), randomNonNegativeLong());
+    }
+
     @Override
     protected DataFrameTransformCheckpointingInfo createTestInstance() {
-        return DataFrameTransformStateTests.randomDataFrameTransformCheckpointingInfo();
+        return randomDataFrameTransformCheckpointingInfo();
     }
 
     @Override
@@ -63,5 +67,4 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
     protected boolean supportsUnknownFields() {
         return true;
     }
-
 }

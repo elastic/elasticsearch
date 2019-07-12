@@ -1,0 +1,154 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.client.dataframe.transforms.hlrc;
+
+import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributes;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+
+public class DataFrameTransformStateAndStatsInfoTests extends AbstractHlrcXContentTestCase<DataFrameTransformStateAndStatsInfo,
+    org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo> {
+
+    public static NodeAttributes fromHlrc(org.elasticsearch.client.dataframe.transforms.NodeAttributes attributes) {
+        return attributes == null ? null : new NodeAttributes(attributes.getId(),
+            attributes.getName(),
+            attributes.getEphemeralId(),
+            attributes.getTransportAddress(),
+            attributes.getAttributes());
+    }
+
+    public static DataFrameTransformStateAndStatsInfo
+        fromHlrc(org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo instance) {
+
+        return new DataFrameTransformStateAndStatsInfo(instance.getId(),
+            DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
+            instance.getReason(),
+            fromHlrc(instance.getNode()),
+            DataFrameIndexerTransformStatsTests.fromHlrc(instance.getTransformStats()),
+            DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
+    }
+
+    @Override
+    public org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo doHlrcParseInstance(XContentParser parser)
+            throws IOException {
+        return org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo.fromXContent(parser);
+    }
+
+    @Override
+    public DataFrameTransformStateAndStatsInfo convertHlrcToInternal(
+        org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo instance) {
+        return new DataFrameTransformStateAndStatsInfo(instance.getId(),
+                DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
+                instance.getReason(),
+                fromHlrc(instance.getNode()),
+                DataFrameIndexerTransformStatsTests.fromHlrc(instance.getTransformStats()),
+                DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
+    }
+
+    public static DataFrameTransformStateAndStatsInfo randomDataFrameTransformStateAndStatsInfo() {
+        return new DataFrameTransformStateAndStatsInfo(randomAlphaOfLength(10),
+            randomFrom(DataFrameTransformTaskState.values()),
+            randomBoolean() ? null : randomAlphaOfLength(100),
+            randomBoolean() ? null : randomNodeAttributes(),
+            // On the server side the stats has transform ID "_all" when embedded in another doc
+            // TODO: change this so that the outer document sets the correct transform ID during parsing
+            // It's very confusing and could cause subtle errors that the inner object has a surprising ID
+            randomStats("_all"),
+            DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
+    }
+
+    @Override
+    protected DataFrameTransformStateAndStatsInfo createTestInstance() {
+        return randomDataFrameTransformStateAndStatsInfo();
+    }
+
+    @Override
+    protected DataFrameTransformStateAndStatsInfo doParseInstance(XContentParser parser) throws IOException {
+        return DataFrameTransformStateAndStatsInfo.PARSER.apply(parser, null);
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.contains("position") || field.equals("node.attributes");
+    }
+
+    public static DataFrameTransformProgress randomDataFrameTransformProgress() {
+        long totalDocs = randomNonNegativeLong();
+        Long remainingDocs = randomBoolean() ? null : randomLongBetween(0, totalDocs);
+        return new DataFrameTransformProgress(totalDocs, remainingDocs);
+    }
+
+    public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
+        return new DataFrameTransformCheckpointingInfo(randomDataFrameTransformCheckpointStats(),
+            randomDataFrameTransformCheckpointStats(), randomNonNegativeLong());
+    }
+
+    public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
+        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+            randomBoolean() ? null : randomFrom(IndexerState.values()),
+            DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
+            randomBoolean() ? null : DataFrameTransformProgressTests.randomDataFrameTransformProgress(),
+            randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
+    }
+
+    public static NodeAttributes randomNodeAttributes() {
+        int numberOfAttributes = randomIntBetween(1, 10);
+        Map<String, String> attributes = new HashMap<>(numberOfAttributes);
+        for(int i = 0; i < numberOfAttributes; i++) {
+            String val = randomAlphaOfLength(10);
+            attributes.put("key-"+i, val);
+        }
+        return new NodeAttributes(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            attributes);
+    }
+
+    public static DataFrameIndexerTransformStats randomStats(String transformId) {
+        return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L));
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected String[] getShuffleFieldsExceptions() {
+        return new String[] { "position" };
+    }
+}
+

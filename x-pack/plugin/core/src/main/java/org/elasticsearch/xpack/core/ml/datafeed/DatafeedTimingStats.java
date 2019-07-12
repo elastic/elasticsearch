@@ -140,7 +140,10 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
         builder.field(TOTAL_SEARCH_TIME_MS.getPreferredName(), totalSearchTimeMs);
         if (includeCalculatedFields) {
-            builder.field(AVG_SEARCH_TIME_PER_BUCKET_MS.getPreferredName(), getAvgSearchTimePerBucketMs());
+            Double avgSearchTimePerBucket = getAvgSearchTimePerBucketMs();
+            if (avgSearchTimePerBucket != null) {
+                builder.field(AVG_SEARCH_TIME_PER_BUCKET_MS.getPreferredName(), getAvgSearchTimePerBucketMs());
+            }
         }
         builder.endObject();
         return builder;

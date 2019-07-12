@@ -51,6 +51,7 @@ public class Pivot {
     private static final Logger logger = LogManager.getLogger(Pivot.class);
 
     private final PivotConfig config;
+    private final boolean supportsIncrementalBucketUpdate;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
@@ -58,6 +59,13 @@ public class Pivot {
     public Pivot(PivotConfig config) {
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
+
+        boolean supportsIncrementalBucketUpdate = false;
+        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
+            supportsIncrementalBucketUpdate |= entry.getValue().supportsIncrementalBucketUpdate();
+        }
+
+        this.supportsIncrementalBucketUpdate = supportsIncrementalBucketUpdate;
     }
 
     public void validate(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
@@ -133,6 +141,10 @@ public class Pivot {
         }
 
         return changedBuckets;
+    }
+
+    public boolean supportsIncrementalBucketUpdate() {
+        return supportsIncrementalBucketUpdate;
     }
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
@@ -283,8 +284,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexSearcherWrapper searcherWrapper) throws IOException {
-        return newShard(shardId, primary, nodeId, indexMetaData, searcherWrapper, () -> {});
+             @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper)
+        throws IOException {
+        return newShard(shardId, primary, nodeId, indexMetaData, readerWrapper, () -> {});
     }
 
     /**
@@ -296,11 +298,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
      *                (ready to recover from another shard)
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, String nodeId, IndexMetaData indexMetaData,
-                                  @Nullable IndexSearcherWrapper searcherWrapper, Runnable globalCheckpointSyncer) throws IOException {
+                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
+                                  Runnable globalCheckpointSyncer) throws IOException {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, primary, ShardRoutingState.INITIALIZING,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE);
         return newShard(
-            shardRouting, indexMetaData, searcherWrapper, new InternalEngineFactory(), globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
+            shardRouting, indexMetaData, readerWrapper, new InternalEngineFactory(), globalCheckpointSyncer, RetentionLeaseSyncer.EMPTY);
     }
 
     /**
@@ -311,10 +314,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param indexMetaData indexMetaData for the shard, including any mapping
      * @param listeners     an optional set of listeners to add to the shard
      */
-    protected IndexShard newShard(
-            ShardRouting routing, IndexMetaData indexMetaData, EngineFactory engineFactory, IndexingOperationListener... listeners)
+    protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
+            @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+            EngineFactory engineFactory, IndexingOperationListener... listeners)
         throws IOException {
-        return newShard(routing, indexMetaData, null, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
+        return newShard(routing, indexMetaData, indexReaderWrapper, engineFactory, () -> {}, RetentionLeaseSyncer.EMPTY, listeners);
     }
 
     /**
@@ -322,22 +326,20 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * current node id the shard is assigned to.
      * @param routing                shard routing to use
      * @param indexMetaData          indexMetaData for the shard, including any mapping
-     * @param indexSearcherWrapper   an optional wrapper to be used during searchers
+     * @param indexReaderWrapper     an optional wrapper to be used during search
      * @param globalCheckpointSyncer callback for syncing global checkpoints
      * @param listeners              an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, IndexMetaData indexMetaData,
-                                  @Nullable IndexSearcherWrapper indexSearcherWrapper,
-                                  @Nullable EngineFactory engineFactory,
-                                  Runnable globalCheckpointSyncer,
-                                  RetentionLeaseSyncer retentionLeaseSyncer,
-                                  IndexingOperationListener... listeners)
+             @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
+             @Nullable EngineFactory engineFactory, Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
+             IndexingOperationListener... listeners)
         throws IOException {
         // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetaData, null, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
+        return newShard(routing, shardPath, indexMetaData, null, indexReaderWrapper, engineFactory, globalCheckpointSyncer,
             retentionLeaseSyncer, EMPTY_EVENT_LISTENER, listeners);
     }
 
@@ -347,14 +349,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param shardPath                     path to use for shard data
      * @param indexMetaData                 indexMetaData for the shard, including any mapping
      * @param storeProvider                 an optional custom store provider to use. If null a default file based store will be created
-     * @param indexSearcherWrapper          an optional wrapper to be used during searchers
+     * @param indexReaderWrapper            an optional wrapper to be used during search
      * @param globalCheckpointSyncer        callback for syncing global checkpoints
      * @param indexEventListener            index event listener
      * @param listeners                     an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
                                   @Nullable CheckedFunction<IndexSettings, Store, IOException> storeProvider,
-                                  @Nullable IndexSearcherWrapper indexSearcherWrapper,
+                                  @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer, RetentionLeaseSyncer retentionLeaseSyncer,
                                   IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
@@ -372,8 +374,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     indexSettings.getSettings(), "index");
             mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-            final Engine.Warmer warmer = searcher -> {
-            };
+            final Engine.Warmer warmer = reader -> {};
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
             indexShard = new IndexShard(
@@ -387,7 +388,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     similarityService,
                     engineFactory,
                     indexEventListener,
-                    indexSearcherWrapper,
+                    indexReaderWrapper,
                     threadPool,
                     BigArrays.NON_RECYCLING_INSTANCE,
                     warmer,
@@ -522,6 +523,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         try {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
+            }
+            final Engine engine = shard.getEngineOrNull();
+            if (engine != null) {
+                EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
         } finally {
             IOUtils.close(() -> shard.close("test", false), shard.store());

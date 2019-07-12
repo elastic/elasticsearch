@@ -116,7 +116,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             }
             int numLeases = between(1, 100);
             IndexShard newPrimary = randomFrom(group.getReplicas());
-            RetentionLeases latestRetentionLeasesOnNewPrimary = RetentionLeases.EMPTY;
+            RetentionLeases latestRetentionLeasesOnNewPrimary = newPrimary.getRetentionLeases();
             for (int i = 0; i < numLeases; i++) {
                 PlainActionFuture<ReplicationResponse> addLeaseFuture = new PlainActionFuture<>();
                 group.addRetentionLease(Integer.toString(i), randomNonNegativeLong(), "test-" + i, addLeaseFuture);
@@ -135,7 +135,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
             group.addRetentionLease("new-lease-after-promotion", randomNonNegativeLong(), "test", newLeaseFuture);
             RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
             assertThat(leasesOnPrimary.primaryTerm(), equalTo(group.getPrimary().getOperationPrimaryTerm()));
-            assertThat(leasesOnPrimary.version(), equalTo(latestRetentionLeasesOnNewPrimary.version() + 1L));
+            assertThat(leasesOnPrimary.version(), equalTo(latestRetentionLeasesOnNewPrimary.version() + 1));
             assertThat(leasesOnPrimary.leases(), hasSize(latestRetentionLeasesOnNewPrimary.leases().size() + 1));
             RetentionLeaseSyncAction.Request request = ((SyncRetentionLeasesResponse) newLeaseFuture.actionGet()).syncRequest;
             for (IndexShard replica : group.getReplicas()) {

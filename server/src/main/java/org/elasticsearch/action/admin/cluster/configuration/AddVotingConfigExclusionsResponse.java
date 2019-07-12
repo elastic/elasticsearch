@@ -45,9 +45,7 @@ public class AddVotingConfigExclusionsResponse extends ActionResponse implements
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {

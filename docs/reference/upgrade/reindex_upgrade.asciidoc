@@ -36,7 +36,7 @@ been deleted.
 [[reindex-upgrade-inplace]]
 === Reindex in place
 
-You can use the Upgrade Assistant in {kib} 6.7 to automatically reindex 5.x
+You can use the Upgrade Assistant in {kib} 6.8 to automatically reindex 5.x
 indices you need to carry forward to {version}.
 
 To manually reindex your old indices in place:
@@ -103,7 +103,7 @@ endif::include-xpack[]
 
 You can use <<reindex-from-remote,reindex from remote>> to migrate indices from
 your old cluster to a new {version} cluster. This enables you move to {version}
-from a pre-6.7 cluster without interrupting service.
+from a pre-6.8 cluster without interrupting service.
 
 [WARNING]
 =============================================

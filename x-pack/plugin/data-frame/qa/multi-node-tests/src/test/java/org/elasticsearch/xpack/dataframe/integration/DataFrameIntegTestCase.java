@@ -143,25 +143,21 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field,
                                                                                        DateHistogramInterval interval,
-                                                                                       ZoneId zone,
-                                                                                       String format) {
+                                                                                       ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.FixedInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(String field,
                                                                                           DateHistogramInterval interval,
-                                                                                          ZoneId zone,
-                                                                                          String format) {
+                                                                                          ZoneId zone) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(new DateHistogramGroupSource.CalendarInterval(interval))
-            .setTimeZone(zone)
-            .setFormat(format);
+            .setTimeZone(zone);
         return builder.build();
     }
 
@@ -214,6 +210,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .setId(id)
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
+            .setFrequency(TimeValue.timeValueSeconds(10))
             .setPivotConfig(createPivotConfig(groups, aggregations))
             .setDescription("Test data frame transform config id: " + id);
     }

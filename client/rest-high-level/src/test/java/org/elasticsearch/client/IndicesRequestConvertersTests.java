@@ -54,6 +54,7 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.RandomCreateIndexGenerator;
+import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -1212,6 +1213,23 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Request request = IndicesRequestConverters.deleteTemplate(deleteTemplateRequest);
         Assert.assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + encodes.get(deleteTemplateRequest.name())));
+        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
+        Assert.assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testReloadAnalyzers() {
+        String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        ReloadAnalyzersRequest reloadRequest = new ReloadAnalyzersRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        RequestConvertersTests.setRandomIndicesOptions(reloadRequest::setIndicesOptions, reloadRequest::indicesOptions,
+                expectedParams);
+        Request request = IndicesRequestConverters.reloadAnalyzers(reloadRequest);
+        Assert.assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        Assert.assertThat(request.getEndpoint(), equalTo(endpoint + "/_reload_search_analyzers"));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
     }

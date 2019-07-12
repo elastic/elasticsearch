@@ -75,7 +75,6 @@ public final class RecoveryResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeStringCollection(phase1FileNames);
         out.writeCollection(phase1FileSizes, StreamOutput::writeVLong);
         out.writeStringCollection(phase1ExistingFileNames);

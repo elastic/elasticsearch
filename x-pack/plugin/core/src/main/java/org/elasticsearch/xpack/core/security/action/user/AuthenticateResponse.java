@@ -28,7 +28,6 @@ public class AuthenticateResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         authentication.writeTo(out);
     }
 

@@ -27,6 +27,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class TimeSyncConfig  implements SyncConfig {
 
+    public static final TimeValue DEFAULT_DELAY = TimeValue.timeValueSeconds(60);
     private static final String NAME = "data_frame_transform_pivot_sync_time";
 
     private final String field;
@@ -37,20 +38,18 @@ public class TimeSyncConfig  implements SyncConfig {
 
     private static ConstructingObjectParser<TimeSyncConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<TimeSyncConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient,
-                args -> {
-                    String field = (String) args[0];
-                    TimeValue delay = args[1] != null ? (TimeValue) args[1] : TimeValue.ZERO;
-
-                    return new TimeSyncConfig(field, delay);
-                    });
-
+            args -> {
+                String field = (String) args[0];
+                TimeValue delay = (TimeValue) args[1];
+                return new TimeSyncConfig(field, delay);
+            });
         parser.declareString(constructorArg(), DataFrameField.FIELD);
         parser.declareField(optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DataFrameField.DELAY.getPreferredName()), DataFrameField.DELAY,
-                ObjectParser.ValueType.STRING_OR_NULL);
-
-                    return parser;
-                }
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DEFAULT_DELAY, DataFrameField.DELAY.getPreferredName()),
+            DataFrameField.DELAY,
+            ObjectParser.ValueType.STRING_OR_NULL);
+        return parser;
+    }
 
     public TimeSyncConfig() {
         this(null, null);
@@ -58,7 +57,7 @@ public class TimeSyncConfig  implements SyncConfig {
 
     public TimeSyncConfig(final String field, final TimeValue delay) {
         this.field = ExceptionsHelper.requireNonNull(field, DataFrameField.FIELD.getPreferredName());
-        this.delay = ExceptionsHelper.requireNonNull(delay, DataFrameField.DELAY.getPreferredName());
+        this.delay = delay == null ? DEFAULT_DELAY : delay;
     }
 
     public TimeSyncConfig(StreamInput in) throws IOException {

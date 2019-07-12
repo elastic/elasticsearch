@@ -930,9 +930,9 @@ public class InternalEngine extends Engine {
         } catch (RuntimeException | IOException e) {
             try {
                 if (e instanceof AlreadyClosedException == false && treatDocumentFailureAsTragicError(index)) {
-                    failEngine("failed to index an operation with origin [" + index.origin() + "]", e);
+                    failEngine("index id[" + index.id() + "] origin[" + index.origin() + "] seq#[" + index.seqNo() + "]", e);
                 } else {
-                    maybeFailEngine("index", e);
+                    maybeFailEngine("index id[" + index.id() + "] origin[" + index.origin() + "] seq#[" + index.seqNo() + "]", e);
                 }
             } catch (Exception inner) {
                 e.addSuppressed(inner);
@@ -1059,7 +1059,8 @@ public class InternalEngine extends Engine {
             }
             return new IndexResult(plan.versionForIndexing, index.primaryTerm(), index.seqNo(), plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
-            if ( treatDocumentFailureAsTragicError(index) == false && indexWriter.getTragicException() == null) {
+            if (ex instanceof AlreadyClosedException == false &&
+                indexWriter.getTragicException() == null && treatDocumentFailureAsTragicError(index) == false) {
                 /* There is no tragic event recorded so this must be a document failure.
                  *
                  * The handling inside IW doesn't guarantee that an tragic / aborting exception

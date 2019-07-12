@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
@@ -177,10 +178,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         finalHandler.accept(leaderIMD.getSettingsVersion());
                     } else {
                         // Figure out which settings have been updated:
-                        final Settings updatedSettings = settings.filter(
-                            s -> existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false
-                        );
-
+                        final Settings updatedSettings = settings.filter(s -> {
+                            final Setting<?> indexSettings = indexScopedSettings.get(s);
+                            if (indexSettings == null || indexSettings.isPrivateIndex() || indexSettings.isInternalIndex()) {
+                                return false;
+                            }
+                            return existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false;
+                        });
                         // Figure out whether the updated settings are all dynamic settings and
                         // if so just update the follower index's settings:
                         if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {

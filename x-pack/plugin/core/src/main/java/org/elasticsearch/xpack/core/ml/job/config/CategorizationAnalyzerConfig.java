@@ -6,16 +6,13 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 
 import java.io.IOException;
@@ -176,87 +173,6 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         return builder.build();
     }
 
-    /**
-     * Simple store of either a name of a built-in analyzer element or a custom definition.
-     */
-    public static class NameOrDefinition implements ToXContentFragment, Writeable {
-
-        // Exactly one of these two members is not null
-        public final String name;
-        public final Settings definition;
-
-        NameOrDefinition(String name) {
-            this.name = Objects.requireNonNull(name);
-            this.definition = null;
-        }
-
-        NameOrDefinition(ParseField field, Map<String, Object> definition) {
-            this.name = null;
-            Objects.requireNonNull(definition);
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Failed to parse [" + definition + "] in [" + field.getPreferredName() + "]", e);
-            }
-        }
-
-        NameOrDefinition(StreamInput in) throws IOException {
-            name = in.readOptionalString();
-            if (in.readBoolean()) {
-                definition = Settings.readSettingsFromStream(in);
-            } else {
-                definition = null;
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(name);
-            boolean isNotNullDefinition = this.definition != null;
-            out.writeBoolean(isNotNullDefinition);
-            if (isNotNullDefinition) {
-                Settings.writeSettingsToStream(definition, out);
-            }
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (definition == null) {
-                builder.value(name);
-            } else {
-                builder.startObject();
-                definition.toXContent(builder, params);
-                builder.endObject();
-            }
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NameOrDefinition that = (NameOrDefinition) o;
-            return Objects.equals(name, that.name) &&
-                    Objects.equals(definition, that.definition);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, definition);
-        }
-
-        @Override
-        public String toString() {
-            if (definition == null) {
-                return name;
-            } else {
-                return definition.toDelimitedString(';');
-            }
-        }
-    }
-
     private final String analyzer;
     private final List<NameOrDefinition> charFilters;
     private final NameOrDefinition tokenizer;
@@ -373,7 +289,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         }
 
         public Builder addCharFilter(Map<String, Object> charFilter) {
-            this.charFilters.add(new NameOrDefinition(CHAR_FILTERS, charFilter));
+            this.charFilters.add(new NameOrDefinition(charFilter));
             return this;
         }
 
@@ -383,7 +299,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         }
 
         public Builder setTokenizer(Map<String, Object> tokenizer) {
-            this.tokenizer = new NameOrDefinition(TOKENIZER, tokenizer);
+            this.tokenizer = new NameOrDefinition(tokenizer);
             return this;
         }
 
@@ -393,7 +309,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         }
 
         public Builder addTokenFilter(Map<String, Object> tokenFilter) {
-            this.tokenFilters.add(new NameOrDefinition(TOKEN_FILTERS, tokenFilter));
+            this.tokenFilters.add(new NameOrDefinition(tokenFilter));
             return this;
         }
 

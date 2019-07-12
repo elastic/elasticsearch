@@ -19,6 +19,9 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.GeometryValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -36,7 +39,7 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("circle (20.0 10.0 15.0)", wkt.toWKT(new Circle(10, 20, 15)));
         assertEquals(new Circle(10, 20, 15), wkt.fromWKT("circle (20.0 10.0 15.0)"));
 
@@ -48,13 +51,19 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
     }
 
     public void testInitValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new Circle(10, 20, -1));
+        GeometryValidator validator = new GeographyValidator(true);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(10, 20, -1)));
         assertEquals("Circle radius [-1.0] cannot be negative", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new Circle(100, 20, 1));
+        ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(100, 20, 1)));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new Circle(10, 200, 1));
+        ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(10, 200, 1)));
         assertEquals("invalid longitude 200.0; must be between -180.0 and 180.0", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(new Circle(10, 200, 1, 20)));
+        assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new Circle(10, 200, 1, 20));
     }
 }

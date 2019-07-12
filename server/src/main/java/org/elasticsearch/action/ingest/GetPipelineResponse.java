@@ -72,7 +72,6 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(pipelines.size());
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);

@@ -125,7 +125,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         CsvDataToProcessWriter writer = createWriter();
         writer.writeHeader();
         try (CategorizationAnalyzer categorizationAnalyzer =
-                     new CategorizationAnalyzer(analysisRegistry, environment, analysisConfig.getCategorizationAnalyzerConfig())) {
+                     new CategorizationAnalyzer(analysisRegistry, analysisConfig.getCategorizationAnalyzerConfig())) {
             writer.write(inputStream, categorizationAnalyzer, null, (r, e) -> {});
         }
         verify(dataCountsReporter, times(1)).startNewIncrementalCount();

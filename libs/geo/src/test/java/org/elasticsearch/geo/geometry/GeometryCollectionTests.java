@@ -19,6 +19,8 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -35,7 +37,7 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
 
 
     public void testBasicSerialization() throws IOException, ParseException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("geometrycollection (point (20.0 10.0),point EMPTY)",
             wkt.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(10, 20), Point.EMPTY))));
 
@@ -57,5 +59,11 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(
             Arrays.asList(new Point(10, 20), new Point(10, 20, 30))));
         assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new GeometryCollection<Geometry>(Collections.singletonList(new Point(10, 20, 30)))));
+        assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(10, 20, 30))));
     }
 }

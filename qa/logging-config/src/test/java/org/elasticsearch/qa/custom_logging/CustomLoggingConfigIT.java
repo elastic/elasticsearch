@@ -40,7 +40,7 @@ import java.util.List;
  * The intention is to confirm that users can still run their Elasticsearch instances with previous configurations.
  */
 public class CustomLoggingConfigIT extends ESRestTestCase {
-    private static final String NODE_STARTED = ".*node-0.*cluster.uuid.*node.id.*recovered.*cluster_state.*";
+    private static final String NODE_STARTED = ".*integTest-0.*cluster.uuid.*node.id.*recovered.*cluster_state.*";
 
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {

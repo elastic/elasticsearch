@@ -6,15 +6,20 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
@@ -27,8 +32,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -191,6 +199,69 @@ public class JobResultsPersisterTests extends ESTestCase {
         }
 
         verify(client, times(1)).bulk(any());
+        verify(client, times(1)).threadPool();
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testPersistTimingStats() {
+        ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(bulkRequestCaptor);
+
+        JobResultsPersister persister = new JobResultsPersister(client);
+        TimingStats timingStats = new TimingStats("foo", 7, 1.0, 2.0, 1.23, 7.89);
+        persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
+
+        verify(client, times(1)).bulk(bulkRequestCaptor.capture());
+        BulkRequest bulkRequest = bulkRequestCaptor.getValue();
+        assertThat(bulkRequest.requests().size(), equalTo(1));
+        IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+        assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
+        assertThat(indexRequest.id(), equalTo("foo_timing_stats"));
+        assertThat(
+            indexRequest.sourceAsMap(),
+            equalTo(
+                Map.of(
+                    "job_id", "foo",
+                    "bucket_count", 7,
+                    "minimum_bucket_processing_time_ms", 1.0,
+                    "maximum_bucket_processing_time_ms", 2.0,
+                    "average_bucket_processing_time_ms", 1.23,
+                    "exponential_average_bucket_processing_time_ms", 7.89)));
+
+        verify(client, times(1)).threadPool();
+        verifyNoMoreInteractions(client);
+    }
+
+    public void testPersistDatafeedTimingStats() {
+        Client client = mockClient(ArgumentCaptor.forClass(BulkRequest.class));
+        doAnswer(
+            invocationOnMock -> {
+                // Take the listener passed to client::index as 2nd argument
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+                // Handle the response on the listener
+                listener.onResponse(new IndexResponse(null, null, null, 0, 0, 0, false));
+                return null;
+            })
+            .when(client).index(any(), any(ActionListener.class));
+
+        JobResultsPersister persister = new JobResultsPersister(client);
+        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 6, 666.0);
+        persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
+        verify(client, times(1)).index(indexRequestCaptor.capture(), any(ActionListener.class));
+        IndexRequest indexRequest = indexRequestCaptor.getValue();
+        assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
+        assertThat(indexRequest.id(), equalTo("foo_datafeed_timing_stats"));
+        assertThat(indexRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
+        assertThat(
+            indexRequest.sourceAsMap(),
+            equalTo(
+                Map.of(
+                    "job_id", "foo",
+                    "search_count", 6,
+                    "total_search_time_ms", 666.0)));
+
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);
     }

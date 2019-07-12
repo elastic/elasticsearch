@@ -25,11 +25,11 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -104,11 +104,9 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
 
-    protected DiscoveryNode createNode(DiscoveryNode.Role... mustHaveRoles) {
-        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Sets.newHashSet(DiscoveryNode.Role.values())));
-        for (DiscoveryNode.Role mustHaveRole : mustHaveRoles) {
-            roles.add(mustHaveRole);
-        }
+    protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
+        Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        Collections.addAll(roles, mustHaveRoles);
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
             Version.CURRENT);
@@ -126,12 +124,12 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode localNode = createNode(DiscoveryNode.Role.MASTER); // local node is the master
+            DiscoveryNode localNode = createNode(DiscoveryNodeRole.MASTER_ROLE); // local node is the master
             allNodes.add(localNode);
             int numDataNodes = randomIntBetween(3, 5);
             List<DiscoveryNode> dataNodes = new ArrayList<>(numDataNodes);
             for (int i = 0; i < numDataNodes; i++) {
-                dataNodes.add(createNode(DiscoveryNode.Role.DATA));
+                dataNodes.add(createNode(DiscoveryNodeRole.DATA_ROLE));
             }
             allNodes.addAll(dataNodes);
             ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
@@ -179,7 +177,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     .collect(Collectors.toList());
 
                 if (randomBoolean()) {
-                    nodesToAdd.add(createNode(DiscoveryNode.Role.DATA));
+                    nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
                 state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd);

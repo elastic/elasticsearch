@@ -1,9 +1,9 @@
 {
   "delete_by_query": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-delete-by-query.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_delete_by_query",
       "paths": ["/{index}/_delete_by_query"],
       "comment": "most things below this are just copied from search.json",
       "parts": {
@@ -85,10 +85,6 @@
         "search_timeout": {
           "type" : "time",
           "description" : "Explicit timeout for each search request. Defaults to no timeout."
-        },
-        "size": {
-          "type" : "number",
-          "description" : "Deprecated, please use `max_docs` instead"
         },
         "max_docs": {
           "type" : "number",

@@ -63,4 +63,24 @@ public class RegexTests extends ESTestCase {
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
     }
+
+    public void testSimpleMatch() {
+        for (int i = 0; i < 1000; i++) {
+            final String matchingString = randomAlphaOfLength(between(0, 50));
+
+            // construct a pattern that matches this string by repeatedly replacing random substrings with '*' characters
+            String pattern = matchingString;
+            for (int shrink = between(0, 5); shrink > 0; shrink--) {
+                final int shrinkStart = between(0, pattern.length());
+                final int shrinkEnd = between(shrinkStart, pattern.length());
+                pattern = pattern.substring(0, shrinkStart) + "*" + pattern.substring(shrinkEnd);
+            }
+            assertTrue("[" + pattern + "] should match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
+
+            // construct a pattern that does not match this string by inserting a non-matching character (a digit)
+            final int insertPos = between(0, pattern.length());
+            pattern = pattern.substring(0, insertPos) + between(0, 9) + pattern.substring(insertPos);
+            assertFalse("[" + pattern + "] should not match [" + matchingString + "]", Regex.simpleMatch(pattern, matchingString));
+        }
+    }
 }

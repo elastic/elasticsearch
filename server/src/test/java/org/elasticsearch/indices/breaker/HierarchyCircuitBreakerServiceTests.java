@@ -246,6 +246,10 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(exception.getMessage(),
             containsString("real usage: [181/181b], new bytes reserved: [" + (reservationInBytes * 2) +
                 "/" + new ByteSizeValue(reservationInBytes * 2) + "]"));
+        final long requestCircuitBreakerUsed = (requestBreaker.getUsed() + reservationInBytes) * 2;
+        assertThat(exception.getMessage(),
+            containsString("usages [request=" + requestCircuitBreakerUsed + "/" + new ByteSizeValue(requestCircuitBreakerUsed) +
+                ", fielddata=0/0b, in_flight_requests=0/0b, accounting=0/0b]"));
         assertThat(exception.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         assertEquals(0, requestBreaker.getTrippedCount());
         assertEquals(1, service.stats().getStats(CircuitBreaker.PARENT).getTrippedCount());

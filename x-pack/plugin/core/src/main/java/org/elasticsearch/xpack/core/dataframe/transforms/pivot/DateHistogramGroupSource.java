@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -185,13 +188,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
     private static final String NAME = "data_frame_date_histogram_group";
     private static final ParseField TIME_ZONE = new ParseField("time_zone");
-    private static final ParseField FORMAT = new ParseField("format");
 
     private static final ConstructingObjectParser<DateHistogramGroupSource, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DateHistogramGroupSource, Void> LENIENT_PARSER = createParser(true);
 
     private final Interval interval;
-    private String format;
     private ZoneId timeZone;
 
     public DateHistogramGroupSource(String field, Interval interval) {
@@ -203,7 +204,10 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         super(in);
         this.interval = readInterval(in);
         this.timeZone = in.readOptionalZoneId();
-        this.format = in.readOptionalString();
+        // Format was optional in 7.2.x, removed in 7.3+
+        if (in.getVersion().before(Version.V_7_3_0)) {
+            in.readOptionalString();
+        }
     }
 
     private static ConstructingObjectParser<DateHistogramGroupSource, Void> createParser(boolean lenient) {
@@ -240,7 +244,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             }
         }, TIME_ZONE, ObjectParser.ValueType.LONG);
 
-        parser.declareString(DateHistogramGroupSource::setFormat, FORMAT);
         return parser;
     }
 
@@ -257,14 +260,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return interval;
     }
 
-    public String getFormat() {
-        return format;
-    }
-
-    public void setFormat(String format) {
-        this.format = format;
-    }
-
     public ZoneId getTimeZone() {
         return timeZone;
     }
@@ -278,7 +273,10 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         out.writeOptionalString(field);
         writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
-        out.writeOptionalString(format);
+        // Format was optional in 7.2.x, removed in 7.3+
+        if (out.getVersion().before(Version.V_7_3_0)) {
+            out.writeOptionalString(null);
+        }
     }
 
     @Override
@@ -290,9 +288,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         interval.toXContent(builder, params);
         if (timeZone != null) {
             builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
-        }
-        if (format != null) {
-            builder.field(FORMAT.getPreferredName(), format);
         }
         builder.endObject();
         return builder;
@@ -312,12 +307,22 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         return Objects.equals(this.field, that.field) &&
             Objects.equals(interval, that.interval) &&
-            Objects.equals(timeZone, that.timeZone) &&
-            Objects.equals(format, that.format);
+            Objects.equals(timeZone, that.timeZone);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, interval, timeZone, format);
+        return Objects.hash(field, interval, timeZone);
+    }
+
+    @Override
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
+        // no need for an extra range filter as this is already done by checkpoints
+        return null;
+    }
+
+    @Override
+    public boolean supportsIncrementalBucketUpdate() {
+        return false;
     }
 }

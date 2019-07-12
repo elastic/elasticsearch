@@ -23,11 +23,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
@@ -119,6 +121,17 @@ public class JobResultsPersister {
                     indexResult(id, bucketInfluencer, "bucket influencer");
                 }
             }
+        }
+
+        /**
+         * Persist timing stats
+         *
+         * @param timingStats timing stats to persist
+         * @return this
+         */
+        public Builder persistTimingStats(TimingStats timingStats) {
+            indexResult(TimingStats.documentId(timingStats.getJobId()), timingStats, TimingStats.TYPE.getPreferredName());
+            return this;
         }
 
         /**
@@ -311,6 +324,20 @@ public class JobResultsPersister {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();
         }
+    }
+
+    /**
+     * Persist datafeed timing stats
+     *
+     * @param timingStats datafeed timing stats to persist
+     * @param refreshPolicy refresh policy to apply
+     */
+    public IndexResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
+        String jobId = timingStats.getJobId();
+        logger.trace("[{}] Persisting datafeed timing stats", jobId);
+        Persistable persistable = new Persistable(jobId, timingStats, DatafeedTimingStats.documentId(timingStats.getJobId()));
+        persistable.setRefreshPolicy(refreshPolicy);
+        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
     }
 
     private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {

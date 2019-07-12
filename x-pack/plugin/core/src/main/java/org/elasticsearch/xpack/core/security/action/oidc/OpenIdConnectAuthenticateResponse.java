@@ -56,7 +56,6 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(principal);
         out.writeString(accessTokenString);
         out.writeString(refreshTokenString);

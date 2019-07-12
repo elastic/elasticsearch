@@ -10,12 +10,26 @@
 
 Instantiates a {dataframe-transform}.
 
+beta[]
 
-==== Request
+[[put-data-frame-transform-request]]
+==== {api-request-title}
 
 `PUT _data_frame/transforms/<data_frame_transform_id>`
 
-===== Description
+[[put-data-frame-transform-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have
+`manage_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_admin` role has these privileges. You must also
+have `read` and `view_index_metadata` privileges on the source index and `read`,
+`create_index`, and `index` privileges on the destination index. For more
+information, see {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[put-data-frame-transform-desc]]
+==== {api-description-title}
 
 IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
             Do not put a {dataframe-transform} directly into any
@@ -23,33 +37,39 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
             If {es} {security-features} are enabled, do not give users any
             privileges on `.data-frame-internal*` indices.
 
-==== Path Parameters
+[[put-data-frame-transform-path-parms]]
+==== {api-path-parms-title}
 
-`data_frame_transform_id` (required)::
-  (string) Identifier for the {dataframe-transform}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+`<data_frame_transform_id>`::
+  (string) Required. Identifier for the {dataframe-transform}. This identifier
+  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
 
+[[put-data-frame-transform-request-body]]
+==== {api-request-body-title}
 
-==== Request Body
+`description`::
+  (string) Optional. Free text description of the {dataframe-transform}.
 
-`source` (required):: (object) The source configuration, consisting of `index` and optionally
-a `query`.
+`dest`::
+  (object) Required. The destination configuration, which consists of `index`
+  and optionally a `pipeline` id. See <<data-frame-transform-dest>>.
 
-`dest` (required):: (object) The destination configuration, consisting of `index`.
+`frequency`::
+  (time units) Optional. The interval between checks for changes in the source indices
+  when the {dataframe-transform} is running continuously. Defaults to `1m`.
+  The lowest permitted value is `1s`; the highest `1h`.
 
-`pivot`:: (object) Defines the pivot function `group by` fields and the aggregation to
-reduce the data. See <<data-frame-transform-pivot, data frame transform pivot objects>>.
+`pivot`::
+  (object) Required. Defines the pivot function `group by` fields and the aggregation to
+  reduce the data. See <<data-frame-transform-pivot>>.
 
-`description`:: Optional free text description of the data frame transform
+`source`::
+  (object) Required. The source configuration, which consists of `index` and 
+  optionally a `query`. See <<data-frame-transform-source>>.
 
-
-//==== Authorization
-
-==== Examples
-
-The following example creates a {dataframe-transform} for the {kib} eCommerce
-sample data:
+[[put-data-frame-transform-example]]
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------
@@ -66,8 +86,10 @@ PUT _data_frame/transforms/ecommerce_transform
     }
   },
   "dest": {
-    "index": "kibana_sample_data_ecommerce_transform"
+    "index": "kibana_sample_data_ecommerce_transform",
+    "pipeline": "add_timestamp_pipeline"
   },
+  "frequency": "5m",
   "pivot": {
     "group_by": {
       "customer_id": {
@@ -88,7 +110,7 @@ PUT _data_frame/transforms/ecommerce_transform
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:add sample kibana data]
+// TEST[skip: https://github.com/elastic/elasticsearch/issues/43271]
 
 When the transform is created, you receive the following results:
 [source,js]
@@ -97,4 +119,4 @@ When the transform is created, you receive the following results:
   "acknowledged" : true
 }
 ----
-// NOTCONSOLE
+// TESTRESPONSE

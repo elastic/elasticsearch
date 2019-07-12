@@ -23,9 +23,7 @@ import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
-import org.elasticsearch.gradle.precommit.JarHellTask;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
-import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
@@ -36,6 +34,10 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.testing.Test;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
@@ -51,65 +53,83 @@ public class TestFixturesPlugin implements Plugin<Project> {
             "testFixtures", TestFixtureExtension.class, project
         );
 
+        ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+        File testfixturesDir = project.file("testfixtures_shared");
+        ext.set("testFixturesDir", testfixturesDir);
+
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
-            // convenience boilerplate with build plugin
-            // Can't reference tasks that are implemented in Groovy, use reflection  instead
-            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
-            disableTaskByType(tasks, ThirdPartyAuditTask.class);
-            disableTaskByType(tasks, JarHellTask.class);
+            // the project that defined a test fixture can also use it
+            extension.fixtures.add(project);
 
             Task buildFixture = project.getTasks().create("buildFixture");
             Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
+            preProcessFixture.doFirst((task) -> {
+                try {
+                    Files.createDirectories(testfixturesDir.toPath());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            preProcessFixture.getOutputs().dir(testfixturesDir);
             buildFixture.dependsOn(preProcessFixture);
             pullFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
+            postProcessFixture.dependsOn(buildFixture);
+            preProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
+            postProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
 
-            if (dockerComposeSupported(project) == false) {
+            if (dockerComposeSupported() == false) {
                 preProcessFixture.setEnabled(false);
                 postProcessFixture.setEnabled(false);
                 buildFixture.setEnabled(false);
                 pullFixture.setEnabled(false);
-                return;
+            } else {
+                project.apply(spec -> spec.plugin(BasePlugin.class));
+                project.apply(spec -> spec.plugin(DockerComposePlugin.class));
+                ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
+                composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
+                composeExtension.setRemoveContainers(true);
+                composeExtension.setExecutable(
+                    project.file("/usr/local/bin/docker-compose").exists() ?
+                        "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
+                );
+
+                buildFixture.dependsOn(tasks.getByName("composeUp"));
+                pullFixture.dependsOn(tasks.getByName("composePull"));
+                tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
+                tasks.getByName("composePull").mustRunAfter(preProcessFixture);
+                tasks.getByName("composeDown").doLast((task) -> {
+                    project.delete(testfixturesDir);
+                });
+
+                configureServiceInfoForTask(
+                    postProcessFixture,
+                    project,
+                    (name, port) -> postProcessFixture.getExtensions()
+                        .getByType(ExtraPropertiesExtension.class).set(name, port)
+                );
             }
-            preProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
-            postProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
-
-            project.apply(spec -> spec.plugin(BasePlugin.class));
-            project.apply(spec -> spec.plugin(DockerComposePlugin.class));
-            ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
-            composeExtension.setUseComposeFiles(Collections.singletonList(DOCKER_COMPOSE_YML));
-            composeExtension.setRemoveContainers(true);
-            composeExtension.setExecutable(
-                project.file("/usr/local/bin/docker-compose").exists() ?
-                    "/usr/local/bin/docker-compose" : "/usr/bin/docker-compose"
-            );
-
-            buildFixture.dependsOn(tasks.getByName("composeUp"));
-            pullFixture.dependsOn(tasks.getByName("composePull"));
-            tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
-            tasks.getByName("composePull").mustRunAfter(preProcessFixture);
-            postProcessFixture.dependsOn(buildFixture);
-
-            configureServiceInfoForTask(
-                postProcessFixture,
-                project,
-                (name, port) -> postProcessFixture.getExtensions()
-                    .getByType(ExtraPropertiesExtension.class).set(name, port)
-            );
-            extension.fixtures.add(project);
+        } else {
+            project.afterEvaluate(spec -> {
+                if (extension.fixtures.isEmpty()) {
+                    // if only one fixture is used, that's this one, but without a compose file that's not a valid configuration
+                    throw new IllegalStateException("No " + DOCKER_COMPOSE_YML + " found for " + project.getPath() +
+                        " nor does it use other fixtures.");
+                }
+            });
         }
 
         extension.fixtures
             .matching(fixtureProject -> fixtureProject.equals(project) == false)
-            .all(fixtureProject ->  project.evaluationDependsOn(fixtureProject.getPath()));
+            .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
 
         conditionTaskByType(tasks, extension, Test.class);
         conditionTaskByType(tasks, extension, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
         conditionTaskByType(tasks, extension, TestingConventionsTasks.class);
         conditionTaskByType(tasks, extension, ComposeUp.class);
 
-        if (dockerComposeSupported(project) == false) {
+        if (dockerComposeSupported() == false) {
             project.getLogger().warn(
                 "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
                     "but none could be found so these will be skipped", project.getPath()
@@ -138,7 +158,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
             taskClass,
             task -> task.onlyIf(spec ->
                 extension.fixtures.stream()
-                    .anyMatch(fixtureProject -> fixtureProject.getTasks().getByName("buildFixture").getEnabled() == false) == false
+                    .anyMatch(fixtureProject ->
+                        fixtureProject.getTasks().getByName("buildFixture").getEnabled() == false
+                    ) == false
             )
         );
     }
@@ -175,12 +197,12 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
     }
 
-    public boolean dockerComposeSupported(Project project) {
+    public static boolean dockerComposeSupported() {
         if (OS.current().equals(OS.WINDOWS)) {
             return false;
         }
-        final boolean hasDockerCompose = project.file("/usr/local/bin/docker-compose").exists() ||
-            project.file("/usr/bin/docker-compose").exists();
+        final boolean hasDockerCompose = (new File("/usr/local/bin/docker-compose")).exists() ||
+            (new File("/usr/bin/docker-compose").exists());
         return hasDockerCompose && Boolean.parseBoolean(System.getProperty("tests.fixture.enabled", "true"));
     }
 

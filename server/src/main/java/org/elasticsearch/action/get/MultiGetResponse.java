@@ -254,7 +254,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(responses.length);
         for (MultiGetItemResponse response : responses) {
             response.writeTo(out);

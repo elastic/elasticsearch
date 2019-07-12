@@ -38,7 +38,9 @@ public class DataFrameMessages {
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION =
             "Failed to parse transform configuration for data frame transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION =
-        "Failed to parse transform statistics for data frame transform [{0}]";
+            "Failed to parse transform statistics for data frame transform [{0}]";
+    public static final String FAILED_TO_LOAD_TRANSFORM_CHECKPOINT =
+            "Failed to load data frame transform configuration for transform [{0}]";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM =
             "Data frame transform configuration must specify exactly 1 function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY =
@@ -57,14 +59,18 @@ public class DataFrameMessages {
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
             "Failed to parse aggregation for data frame pivot transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE =
-            "Search returned with out of memory error, reducing number of buckets per search from [{0}] to [{1}]";
+            "Insufficient memory for search, reducing number of buckets per search from [{0}] to [{1}]";
     public static final String LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE =
-            "Search returned with out of memory error after repeated page size reductions to [{0}], unable to continue pivot, "
+            "Insufficient memory for search after repeated page size reductions to [{0}], unable to continue pivot, "
             + "please simplify job or increase heap size on data nodes.";
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
             "Failed to parse transform checkpoints for [{0}]";
 
+
+    public static final String ID_TOO_LONG = "The id cannot contain more than {0} characters.";
+    public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or " +
+        "underscores; must start and end with alphanumeric";
     private DataFrameMessages() {
     }
 

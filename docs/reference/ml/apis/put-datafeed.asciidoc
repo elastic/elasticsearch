@@ -93,7 +93,7 @@ those same roles.
   script fields to the {dfeed}.
   The <<ml-detectorconfig,detector configuration objects>> in a job can contain
   functions that use these script fields. For more information,
-  see {ref}/search-request-script-fields.html[Script Fields].
+  see {ref}/search-request-body.html#search-request-script-fields[Script Fields].
 
 `scroll_size` (Optional)::
   (unsigned integer) The `size` parameter that is used in {es} searches.

@@ -129,6 +129,7 @@ public abstract class Command implements Closeable {
         terminal.println(description);
         terminal.println("");
         printAdditionalHelp(terminal);
+        // TODO[wrb]: switch for stdout vs. stderr?
         parser.printHelpOn(terminal.getWriter());
     }
 

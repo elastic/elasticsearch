@@ -302,53 +302,53 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
                 // keystore password is not valid
                 if (httpCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                    terminal.println("");
-                    terminal.println("Failed to authenticate user '" + elasticUser + "' against " + route.toString());
-                    terminal.println("Possible causes include:");
-                    terminal.println(" * The password for the '" + elasticUser + "' user has already been changed on this cluster");
-                    terminal.println(" * Your elasticsearch node is running against a different keystore");
-                    terminal.println("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
-                    terminal.println("");
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Failed to authenticate user '" + elasticUser + "' against " + route.toString());
+                    terminal.errorPrintln("Possible causes include:");
+                    terminal.errorPrintln(" * The password for the '" + elasticUser + "' user has already been changed on this cluster");
+                    terminal.errorPrintln(" * Your elasticsearch node is running against a different keystore");
+                    terminal.errorPrintln("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.CONFIG, "Failed to verify bootstrap password");
                 } else if (httpCode != HttpURLConnection.HTTP_OK) {
-                    terminal.println("");
-                    terminal.println("Unexpected response code [" + httpCode + "] from calling GET " + route.toString());
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Unexpected response code [" + httpCode + "] from calling GET " + route.toString());
                     XPackSecurityFeatureConfig xPackSecurityFeatureConfig = getXPackSecurityConfig(terminal);
                     if (xPackSecurityFeatureConfig.isAvailable == false) {
-                        terminal.println("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
-                        terminal.println("Please check if you have installed a license that allows access to X-Pack Security feature.");
-                        terminal.println("");
+                        terminal.errorPrintln("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
+                        terminal.errorPrintln("Please check if you have installed a license that allows access to X-Pack Security feature.");
+                        terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is not available.");
                     }
                     if (xPackSecurityFeatureConfig.isEnabled == false) {
-                        terminal.println("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
-                        terminal.println("Please check if you have enabled X-Pack security in your elasticsearch.yml configuration file.");
-                        terminal.println("");
+                        terminal.errorPrintln("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
+                        terminal.errorPrintln("Please check if you have enabled X-Pack security in your elasticsearch.yml configuration file.");
+                        terminal.errorPrintln("");
                         throw new UserException(ExitCodes.CONFIG, "X-Pack Security is disabled by configuration.");
                     }
-                    terminal.println("X-Pack security feature is available and enabled on this Elasticsearch node.");
-                    terminal.println("Possible causes include:");
-                    terminal.println(" * The relative path of the URL is incorrect. Is there a proxy in-between?");
-                    terminal.println(" * The protocol (http/https) does not match the port.");
-                    terminal.println(" * Is this really an Elasticsearch server?");
-                    terminal.println("");
+                    terminal.errorPrintln("X-Pack security feature is available and enabled on this Elasticsearch node.");
+                    terminal.errorPrintln("Possible causes include:");
+                    terminal.errorPrintln(" * The relative path of the URL is incorrect. Is there a proxy in-between?");
+                    terminal.errorPrintln(" * The protocol (http/https) does not match the port.");
+                    terminal.errorPrintln(" * Is this really an Elasticsearch server?");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.CONFIG, "Unknown error");
                 }
             } catch (SSLException e) {
-                terminal.println("");
-                terminal.println("SSL connection to " + route.toString() + " failed: " + e.getMessage());
-                terminal.println("Please check the elasticsearch SSL settings under " + XPackSettings.HTTP_SSL_PREFIX);
-                terminal.println(Verbosity.VERBOSE, "");
-                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
-                terminal.println("");
+                terminal.errorPrintln("");
+                terminal.errorPrintln("SSL connection to " + route.toString() + " failed: " + e.getMessage());
+                terminal.errorPrintln("Please check the elasticsearch SSL settings under " + XPackSettings.HTTP_SSL_PREFIX);
+                terminal.errorPrintln(Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln("");
                 throw new UserException(ExitCodes.CONFIG,
                         "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ", e);
             } catch (IOException e) {
-                terminal.println("");
-                terminal.println("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
-                terminal.println(Verbosity.VERBOSE, "");
-                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
-                terminal.println("");
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
+                terminal.errorPrintln(Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln("");
                 throw new UserException(ExitCodes.CONFIG,
                         "Failed to connect to elasticsearch at " + route.toString() + ". Is the URL correct and elasticsearch running?", e);
             }

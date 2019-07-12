@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.Version;
@@ -60,22 +60,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
     private final File workingDirBase;
-    private final File artifactsExtractDir;
+    private final Function<Integer, ElasticsearchDistribution> distributionFactory;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
 
-    public ElasticsearchCluster(String path, String clusterName, Project project, File artifactsExtractDir, File workingDirBase) {
+    public ElasticsearchCluster(String path, String clusterName, Project project,
+                                Function<Integer, ElasticsearchDistribution> distributionFactory, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
         this.project = project;
+        this.distributionFactory = distributionFactory;
         this.workingDirBase = workingDirBase;
-        this.artifactsExtractDir = artifactsExtractDir;
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
                 path, clusterName + "-0",
-                project, artifactsExtractDir, workingDirBase
-            )
+                project, workingDirBase, distributionFactory.apply(0)
+                )
         );
         // configure the cluster name eagerly so nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
@@ -98,8 +99,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
         for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
-                path, clusterName + "-" + i, project, artifactsExtractDir, workingDirBase
-            ));
+                path, clusterName + "-" + i, project, workingDirBase, distributionFactory.apply(i)
+                ));
         }
     }
 
@@ -121,7 +122,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void setDistribution(Distribution distribution) {
+    public void setDistribution(TestDistribution distribution) {
         nodes.all(each -> each.setDistribution(distribution));
     }
 
@@ -248,7 +249,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         for (ElasticsearchNode node : nodes) {
             if (nodeNames != null) {
                 // Can only configure master nodes if we have node names defined
-                if (Version.fromString(node.getVersion()).getMajor() >= 7) {
+                if (node.getVersion().getMajor() >= 7) {
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
                     node.defaultConfig.put("discovery.seed_hosts", "[]");
@@ -338,9 +339,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
     }
 
-    void eachVersionedDistribution(BiConsumer<String, Distribution> consumer) {
+    void eachVersionedDistribution(BiConsumer<Version, TestDistribution> consumer) {
         nodes.forEach(each -> {
-            consumer.accept(each.getVersion(), each.getDistribution());
+            consumer.accept(each.getVersion(), each.getTestDistribution());
         });
     }
 

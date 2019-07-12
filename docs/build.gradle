@@ -1,4 +1,4 @@
-import static org.elasticsearch.gradle.Distribution.DEFAULT
+import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Licensed to Elasticsearch under one or more contributor

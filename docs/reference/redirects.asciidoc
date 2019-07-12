@@ -629,5 +629,17 @@ without any configuration, if the total number of hits is not tracked.
 [role="exclude",id="ml-calendar-resource"]]
 === Calendar resources
 
-See 
+See <<ml-get-calendar>> and 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="ml-filter-resource"]
+=== Filter resources
+
+See <<ml-get-filter>> and
+{stack-ov}/ml-rules.html[Machine learning custom rules].
+
+[role="exclude",id="ml-event-resource"]
+=== Scheduled event resources
+
+See <<ml-get-calendar-event>> and 
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].

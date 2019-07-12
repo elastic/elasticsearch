@@ -20,12 +20,23 @@
 package org.elasticsearch.common.geo.builders;
 
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geo.geometry.Circle;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuilder> {
 
+    public void testBuildGeometry() {
+        CircleBuilder builder = createRandomShape();
+        Circle circle = builder.buildGeometry();
+        assertThat(circle.getLon(), equalTo(builder.center().x));
+        assertThat(circle.getLat(), equalTo(builder.center().y));
+        assertThat(circle.getAlt(), equalTo(builder.center().z));
+        assertThat(circle.getRadiusMeters(), equalTo(builder.radius()));
+    }
     @Override
     protected CircleBuilder createTestShapeBuilder() {
         return createRandomShape();

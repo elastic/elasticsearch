@@ -151,7 +151,7 @@ function. The `datafeed-test1` {dfeed} defines the script field. It contains a
 script that adds two fields in the document to produce a "total" error count.
 
 The syntax for the `script_fields` property is identical to that used by {es}.
-For more information, see {ref}/search-request-script-fields.html[Script Fields].
+For more information, see {ref}/search-request-body.html#search-request-script-fields[Script fields].
 
 You can preview the contents of the {dfeed} by using the following API:
 
@@ -176,8 +176,10 @@ the `error_count` and `aborted_count` values:
 ----------------------------------
 
 NOTE: This example demonstrates how to use script fields, but it contains
-insufficient data to generate meaningful results. For a full demonstration of
-how to create jobs with sample data, see <<ml-getting-started>>.
+insufficient data to generate meaningful results.
+
+//For a full demonstration of
+//how to create jobs with sample data, see <<ml-getting-started>>.
 
 You can alternatively use {kib} to create an advanced job that uses script
 fields. To add the `script_fields` property to your {dfeed}, you must use the

@@ -154,7 +154,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final RepositoryData repositoryData;
         if (isCurrentSnapshotsOnly(snapshots) == false) {
             repositoryData = snapshotsService.getRepositoryData(repo);
-            for (SnapshotId snapshotId : repositoryData.getAllSnapshotIds()) {
+            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                 allSnapshotIds.put(snapshotId.getName(), snapshotId);
             }
         } else {

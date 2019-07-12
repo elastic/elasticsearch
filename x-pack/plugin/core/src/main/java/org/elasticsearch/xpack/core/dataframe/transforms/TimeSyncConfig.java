@@ -45,9 +45,9 @@ public class TimeSyncConfig  implements SyncConfig {
             });
         parser.declareString(constructorArg(), DataFrameField.FIELD);
         parser.declareField(optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DEFAULT_DELAY, DataFrameField.DELAY.getPreferredName()),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), DEFAULT_DELAY, DataFrameField.DELAY.getPreferredName()),
             DataFrameField.DELAY,
-            ObjectParser.ValueType.STRING_OR_NULL);
+            ObjectParser.ValueType.STRING);
         return parser;
     }
 
@@ -88,9 +88,7 @@ public class TimeSyncConfig  implements SyncConfig {
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         builder.field(DataFrameField.FIELD.getPreferredName(), field);
-        if (delay.duration() > 0) {
-            builder.field(DataFrameField.DELAY.getPreferredName(), delay.getStringRep());
-        }
+        builder.field(DataFrameField.DELAY.getPreferredName(), delay.getStringRep());
         builder.endObject();
         return builder;
     }

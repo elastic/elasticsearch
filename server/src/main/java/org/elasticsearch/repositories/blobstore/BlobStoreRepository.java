@@ -1077,8 +1077,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Set<String> survivingSnapshotNames =
             repositoryData.getSnapshots(indexId).stream().map(SnapshotId::getName).collect(Collectors.toSet());
         for (SnapshotFiles point : snapshots) {
-            final String snapshotName = point.snapshot();
-            if (survivingSnapshotNames.contains(snapshotName)) {
+            if (survivingSnapshotNames.contains(point.snapshot())) {
                 newSnapshotsList.add(point);
             }
         }

@@ -65,6 +65,7 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
     private final int maxConcurrentFileChunks;
     private StoreFileMetaData currentFile = null;
     private final Iterator<StoreFileMetaData> remainingFiles;
+    private Tuple<StoreFileMetaData, Request> readAheadRequest = null;
 
     protected MultiFileTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
                                 int maxConcurrentFileChunks, List<StoreFileMetaData> files) {
@@ -91,7 +92,7 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
     private void handleItems(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
         if (status != Status.PROCESSING) {
             assert status == Status.FAILED : "must not receive any response after the transfer was completed";
-            // These exceptions will be ignored as we record only the first failure, log them for debugging purpose
+            // These exceptions will be ignored as we record only the first failure, log them for debugging purpose.
             items.stream().filter(item -> item.v1().failure != null).forEach(item ->
                 logger.debug(new ParameterizedMessage("failed to transfer file chunk request {}", item.v1().md), item.v1().failure));
             return;
@@ -109,32 +110,24 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
                 }
             }
             while (requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentFileChunks) {
-                if (currentFile == null) {
-                    if (remainingFiles.hasNext()) {
-                        currentFile = remainingFiles.next();
-                        onNewFile(currentFile);
-                    } else {
-                        if (requestSeqIdTracker.getProcessedCheckpoint() == requestSeqIdTracker.getMaxSeqNo()) {
-                            onCompleted(null);
-                        }
-                        return;
+                final Tuple<StoreFileMetaData, Request> request = readAheadRequest != null ? readAheadRequest : getNextRequest();
+                readAheadRequest = null;
+                if (request == null) {
+                    assert currentFile == null && remainingFiles.hasNext() == false;
+                    if (requestSeqIdTracker.getMaxSeqNo() == requestSeqIdTracker.getProcessedCheckpoint()) {
+                        onCompleted(null);
                     }
-                }
-                final Request request;
-                try {
-                    request = nextChunkRequest(currentFile);
-                } catch (Exception e) {
-                    handleError(currentFile, e);
-                    throw e;
+                    return;
                 }
                 final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                final StoreFileMetaData md = this.currentFile;
-                sendChunkRequest(request, ActionListener.wrap(
-                    r -> addItem(requestSeqId, md, null),
-                    e -> addItem(requestSeqId, md, e)));
-                if (request.lastChunk()) {
-                    this.currentFile = null;
-                }
+                sendChunkRequest(request.v2(), ActionListener.wrap(
+                    r -> addItem(requestSeqId, request.v1(), null),
+                    e -> addItem(requestSeqId, request.v1(), e)));
+            }
+            // While we are waiting for the responses, we can prepare the next request in advance
+            // so we can send it immediately when the responses arrive to reduce the transfer time.
+            if (readAheadRequest == null) {
+                readAheadRequest = getNextRequest();
             }
         } catch (Exception e) {
             onCompleted(e);
@@ -150,13 +143,35 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
         });
     }
 
+    private Tuple<StoreFileMetaData, Request> getNextRequest() throws Exception {
+        try {
+            if (currentFile == null) {
+                if (remainingFiles.hasNext()) {
+                    currentFile = remainingFiles.next();
+                    onNewFile(currentFile);
+                } else {
+                    return null;
+                }
+            }
+            final StoreFileMetaData md = currentFile;
+            final Request request = nextChunkRequest(md);
+            if (request.lastChunk()) {
+                currentFile = null;
+            }
+            return Tuple.tuple(md, request);
+        } catch (Exception e) {
+            handleError(currentFile, e);
+            throw e;
+        }
+    }
+
     /**
      * This method is called when starting sending/requesting a new file. Subclasses should override
      * this method to reset the file offset or close the previous file and open a new file if needed.
      */
     protected abstract void onNewFile(StoreFileMetaData md) throws IOException;
 
-    protected abstract Request nextChunkRequest(StoreFileMetaData md) throws Exception;
+    protected abstract Request nextChunkRequest(StoreFileMetaData md) throws IOException;
 
     protected abstract void sendChunkRequest(Request request, ActionListener<Void> listener);
 

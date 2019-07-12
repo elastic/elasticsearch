@@ -714,7 +714,7 @@ public class RecoverySourceHandler {
                 }
 
                 @Override
-                protected FileChunk nextChunkRequest(StoreFileMetaData md) throws Exception {
+                protected FileChunk nextChunkRequest(StoreFileMetaData md) throws IOException {
                     assert Transports.assertNotTransportThread("read file chunk");
                     cancellableThreads.checkForCancel();
                     final int bytesRead = currentInput.read(buffer);

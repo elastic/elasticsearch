@@ -30,7 +30,7 @@ import java.util.Objects;
 /**
  * Calculates R-Squared between two known numerical fields.
  *
- * equation: mse = 1 - SSres/SStot
+ * equation: R-Squared = 1 - SSres/SStot
  * such that,
  * SSres = Σ(y - y´)^2, The residual sum of squares
  * SStot =  Σ(y - y_mean)^2, The total sum of squares

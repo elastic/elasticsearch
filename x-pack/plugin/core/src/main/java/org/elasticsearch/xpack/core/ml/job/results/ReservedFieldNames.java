@@ -181,13 +181,16 @@ public final class ReservedFieldNames {
             Result.IS_INTERIM.getPreferredName(),
 
             TimingStats.BUCKET_COUNT.getPreferredName(),
+            TimingStats.TOTAL_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
 
             DatafeedTimingStats.SEARCH_COUNT.getPreferredName(),
+            DatafeedTimingStats.BUCKET_COUNT.getPreferredName(),
             DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
+            DatafeedTimingStats.AVG_SEARCH_TIME_PER_BUCKET_MS.getPreferredName(),
 
             GetResult._ID,
             GetResult._INDEX,

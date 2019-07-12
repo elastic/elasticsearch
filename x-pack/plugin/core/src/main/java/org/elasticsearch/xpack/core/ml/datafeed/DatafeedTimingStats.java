@@ -28,7 +28,7 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     public static final ParseField SEARCH_COUNT = new ParseField("search_count");
     public static final ParseField BUCKET_COUNT = new ParseField("bucket_count");
     public static final ParseField TOTAL_SEARCH_TIME_MS = new ParseField("total_search_time_ms");
-    public static final ParseField AVERAGE_SEARCH_TIME_PER_BUCKET_MS = new ParseField("average_search_time_per_bucket_ms");
+    public static final ParseField AVG_SEARCH_TIME_PER_BUCKET_MS = new ParseField("average_search_time_per_bucket_ms");
 
     public static final ParseField TYPE = new ParseField("datafeed_timing_stats");
 
@@ -140,7 +140,7 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
         builder.field(TOTAL_SEARCH_TIME_MS.getPreferredName(), totalSearchTimeMs);
         if (includeCalculatedFields) {
-            builder.field(AVERAGE_SEARCH_TIME_PER_BUCKET_MS.getPreferredName(), getAvgSearchTimePerBucketMs());
+            builder.field(AVG_SEARCH_TIME_PER_BUCKET_MS.getPreferredName(), getAvgSearchTimePerBucketMs());
         }
         builder.endObject();
         return builder;

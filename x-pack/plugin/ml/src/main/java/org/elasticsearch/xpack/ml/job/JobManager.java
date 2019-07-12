@@ -297,7 +297,7 @@ public class JobManager {
                 ElasticsearchMappings.addDocMappingIfMissing(
                     AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings::configMapping, client, clusterState, putJobListener);
             },
-            actionListener::onFailure
+            putJobListener::onFailure
         );
 
         ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(

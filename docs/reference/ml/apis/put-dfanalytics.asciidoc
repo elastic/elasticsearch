@@ -58,22 +58,21 @@ and mappings.
 ==== {api-request-body-title}
 
 `analysis`::
-  (Required, object) Defines the type of {dfanalytics} you want to perform on
-  your source index. For example: `outlier_detection`.  See {oldetection}
-  resources.
+  (Required, object) Defines the type of {dfanalytics} you want to perform on your source 
+  index. For example: `outlier_detection`. See <<dfanalytics-types>>.
   
 `analyzed_fields`::
-  (Optional, object) You can specify both `includes` and/or `excludes` patterns.
-  If `analyzed_fields` is not set, only the relevant fileds will be included.
-  For example all the numeric fields for {oldetection}.
+  (Optional, object) You can specify both `includes` and/or `excludes` patterns. If 
+  `analyzed_fields` is not set, only the relevant fields will be included. For 
+  example, all the numeric fields for {oldetection}.
   
 `dest`::
-  (Required, object) The destination configuration, consisting of `index` and
-  optionally `results_field` (`ml` by default).
+  (Required, object) The destination configuration, consisting of `index` and optionally 
+  `results_field` (`ml` by default). See <<dfanalytics-dest-resources>>.
   
 `source`::
-  (Required, object) The source configuration, consisting of `index` and
-  optionally a `query`.
+  (Required, object) The source configuration, consisting of `index` and optionally a 
+  `query`. See <<dfanalytics-source-resources>>. 
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}

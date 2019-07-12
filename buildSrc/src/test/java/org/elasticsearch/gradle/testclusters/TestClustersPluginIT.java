@@ -68,9 +68,9 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     public void testUseClusterByUpToDateTask() {
         // Run it once, ignoring the result and again to make sure it's considered up to date.
         // Gradle randomly considers tasks without inputs and outputs as as up-to-date or success on the first run
-        getTestClustersRunner(":upToDate1", ":upToDate2").build();
-        BuildResult result = getTestClustersRunner(":upToDate1", ":upToDate2").build();
-        assertTaskUpToDate(result, ":upToDate1", ":upToDate2");
+        getTestClustersRunner(":upToDate1").build();
+        BuildResult result = getTestClustersRunner(":upToDate1").build();
+        assertTaskUpToDate(result, ":upToDate1");
         assertNotStarted(result);
     }
 

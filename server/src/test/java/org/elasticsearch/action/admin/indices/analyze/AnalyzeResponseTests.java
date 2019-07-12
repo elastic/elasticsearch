@@ -27,11 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -76,7 +76,7 @@ public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<Analyz
         int tokenCount = randomIntBetween(0, 30);
         AnalyzeAction.AnalyzeToken[] tokens = new AnalyzeAction.AnalyzeToken[tokenCount];
         for (int i = 0; i < tokenCount; i++) {
-            tokens[i] = randomToken();
+            tokens[i] = RandomObjects.randomToken(random());
         }
         if (randomBoolean()) {
             AnalyzeAction.CharFilteredText[] charfilters = null;
@@ -108,7 +108,7 @@ public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<Analyz
     protected AnalyzeAction.Response mutateInstance(AnalyzeAction.Response instance) throws IOException {
         if (instance.getTokens() != null) {
             List<AnalyzeToken> extendedList = new ArrayList<>(instance.getTokens());
-            extendedList.add(randomToken());
+            extendedList.add(RandomObjects.randomToken(random()));
             return new AnalyzeAction.Response(extendedList, null);
         } else {
             AnalyzeToken[] tokens = instance.detail().tokenizer().getTokens();
@@ -122,45 +122,6 @@ public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<Analyz
     @Override
     protected Reader<AnalyzeAction.Response> instanceReader() {
         return AnalyzeAction.Response::new;
-    }
-
-    public static AnalyzeToken randomToken() {
-        String token = randomAlphaOfLengthBetween(1, 20);
-        int position = randomIntBetween(0, 1000);
-        int startOffset = randomIntBetween(0, 1000);
-        int endOffset = randomIntBetween(0, 1000);
-        int posLength = randomIntBetween(1, 5);
-        String type = randomAlphaOfLengthBetween(1, 20);
-        Map<String, Object> extras = new HashMap<>();
-        if (randomBoolean()) {
-            int entryCount = randomInt(6);
-            for (int i = 0; i < entryCount; i++) {
-                switch (randomInt(6)) {
-                    case 0:
-                    case 1:
-                    case 2:
-                    case 3:
-                        String key = randomAlphaOfLength(5);
-                        String value = randomAlphaOfLength(10);
-                        extras.put(key, value);
-                        break;
-                    case 4:
-                        String objkey = randomAlphaOfLength(5);
-                        Map<String, String> obj = new HashMap<>();
-                        obj.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
-                        extras.put(objkey, obj);
-                        break;
-                    case 5:
-                        String listkey = randomAlphaOfLength(5);
-                        List<String> list = new ArrayList<>();
-                        list.add(randomAlphaOfLength(4));
-                        list.add(randomAlphaOfLength(6));
-                        extras.put(listkey, list);
-                        break;
-                }
-            }
-        }
-        return new AnalyzeAction.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);
     }
 
 }

@@ -101,7 +101,7 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
-boolean s3DisableChunkedEncoding = (new Random()).nextBoolean()
+boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(project.rootProject.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
@@ -235,9 +235,7 @@ task s3FixtureProperties {
       "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
   ]
 
-  doLast {
-    file(s3FixtureFile).text = s3FixtureOptions.collect { k, v -> "$k = $v" }.join("\n")
-  }
+  file(s3FixtureFile).text = s3FixtureOptions.collect { k, v -> "$k = $v" }.join("\n")
 }
 
 /** A task to start the AmazonS3Fixture which emulates an S3 service **/

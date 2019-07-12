@@ -254,7 +254,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                         return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
                     }
                 } else {
-                    if (!disableChunkedEncoding) {
+                    if (disableChunkedEncoding == false) {
                         return newInternalError(request.getId(), "Something is wrong with this PUT request");
                     }
                     // Read from body directly

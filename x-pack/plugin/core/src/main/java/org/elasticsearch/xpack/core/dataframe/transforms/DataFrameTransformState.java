@@ -115,7 +115,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public DataFrameTransformState(StreamInput in) throws IOException {
         taskState = DataFrameTransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             position = in.readOptionalWriteable(DataFrameIndexerPosition::new);
         } else {
             Map<String, Object> pos = in.readMap();
@@ -212,7 +212,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public void writeTo(StreamOutput out) throws IOException {
         taskState.writeTo(out);
         indexerState.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalWriteable(position);
         } else {
             out.writeMap(position != null ? position.getIndexerPosition() : null);

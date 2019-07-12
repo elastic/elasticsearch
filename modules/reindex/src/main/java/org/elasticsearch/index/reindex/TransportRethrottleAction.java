@@ -55,12 +55,7 @@ public class TransportRethrottleAction extends TransportTasksAction<Task, Rethro
             BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
             rethrottle(logger, clusterService.localNode().getId(), client, bulkByScrollTask, request.getRequestsPerSecond(), listener);
         } else if (task instanceof ReindexTask) {
-            BulkByScrollTask childTask = null;
-            for (Task task1 : taskManager.getTasks().values()) {
-                if (task1.getParentTaskId().getId() == task.getId()) {
-                    childTask = (BulkByScrollTask) task1;
-                }
-            }
+            BulkByScrollTask childTask = ((ReindexTask) task).getChildTask();
             if (childTask == null) {
                 listener.onFailure(new ResourceNotFoundException("Child BulkByScrollTask could not be found."));
             } else {

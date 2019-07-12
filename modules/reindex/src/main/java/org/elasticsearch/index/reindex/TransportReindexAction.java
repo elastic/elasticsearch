@@ -120,22 +120,28 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
-        ClusterState state = clusterService.state();
-        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
-            indexNameExpressionResolver, autoCreateIndex, state);
+        threadPool.generic().execute(() -> {
+            try {
+                checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+                ClusterState state = clusterService.state();
+                validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
+                    indexNameExpressionResolver, autoCreateIndex, state);
 
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+                BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
 
-        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
-            clusterService.localNode(),
-            () -> {
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
-                    bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request, state,
-                    listener).start();
+                BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
+                    clusterService.localNode(),
+                    () -> {
+                        ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                            bulkByScrollTask);
+                        new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, TransportReindexAction.this,
+                            request, state, listener).start();
+                    }
+                );
+            } catch (Exception e) {
+                listener.onFailure(e);
             }
-        );
+        });
     }
 
     static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {

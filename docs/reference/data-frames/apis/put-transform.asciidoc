@@ -41,7 +41,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
-  (string) Required. Identifier for the {dataframe-transform}. This identifier
+  (Required, string) Identifier for the {dataframe-transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
@@ -49,23 +49,23 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 ==== {api-request-body-title}
 
 `description`::
-  (string) Optional. Free text description of the {dataframe-transform}.
+  (Optional, string) Free text description of the {dataframe-transform}.
 
 `dest`::
-  (object) Required. The destination configuration, which consists of `index`
+  (Required, object) Required. The destination configuration, which consists of `index`
   and optionally a `pipeline` id. See <<data-frame-transform-dest>>.
 
 `frequency`::
-  (time units) Optional. The interval between checks for changes in the source indices
+  (Optional, time units) The interval between checks for changes in the source indices
   when the {dataframe-transform} is running continuously. Defaults to `1m`.
   The lowest permitted value is `1s`; the highest `1h`.
 
 `pivot`::
-  (object) Required. Defines the pivot function `group by` fields and the aggregation to
+  (Required, object) Defines the pivot function `group by` fields and the aggregation to
   reduce the data. See <<data-frame-transform-pivot>>.
 
 `source`::
-  (object) Required. The source configuration, which consists of `index` and 
+  (Required, object) The source configuration, which consists of `index` and 
   optionally a `query`. See <<data-frame-transform-source>>.
 
 [[put-data-frame-transform-example]]

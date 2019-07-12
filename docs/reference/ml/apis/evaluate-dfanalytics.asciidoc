@@ -40,13 +40,15 @@ packages together commonly used metrics for various analyses.
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`index` (Required)::
-  (object) Defines the `index` in which the evaluation will be performed.
+`index`::
+  (Required, object) Defines the `index` in which the evaluation will be
+  performed.
   
-`evaluation` (Required)::
-  (object) Defines the type of evaluation you want to perform. For example: 
+`evaluation`::
+  (Required, object) Defines the type of evaluation you want to perform. For example: 
   `binary_soft_classification`. See <<ml-evaluate-dfanalytics-resources>>.
   
+////
 [[ml-evaluate-dfanalytics-results]]
 ==== {api-response-body-title}
 
@@ -61,6 +63,7 @@ packages together commonly used metrics for various analyses.
 `precision`::: TBD
 
 `recall`::: TBD
+////
 
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}

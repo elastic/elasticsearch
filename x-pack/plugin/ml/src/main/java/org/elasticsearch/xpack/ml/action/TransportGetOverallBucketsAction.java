@@ -65,8 +65,8 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     @Inject
     public TransportGetOverallBucketsAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                             ClusterService clusterService, JobManager jobManager, Client client) {
-        super(GetOverallBucketsAction.NAME, transportService, actionFilters,
-            (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
+        super(GetOverallBucketsAction.NAME, transportService, (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new, actionFilters
+        );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;

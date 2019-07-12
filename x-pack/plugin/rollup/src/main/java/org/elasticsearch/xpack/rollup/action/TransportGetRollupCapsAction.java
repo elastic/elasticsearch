@@ -37,8 +37,8 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
-        super(GetRollupCapsAction.NAME, transportService, actionFilters,
-            (Supplier<GetRollupCapsAction.Request>) GetRollupCapsAction.Request::new);
+        super(GetRollupCapsAction.NAME, transportService, (Supplier<GetRollupCapsAction.Request>) GetRollupCapsAction.Request::new, actionFilters
+        );
         this.clusterService = clusterService;
     }
 

@@ -28,8 +28,8 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
     @Inject
     public TransportGetInfluencersAction(TransportService transportService, ActionFilters actionFilters,
                                          JobResultsProvider jobResultsProvider, Client client, JobManager jobManager) {
-        super(GetInfluencersAction.NAME, transportService, actionFilters,
-            (Supplier<GetInfluencersAction.Request>) GetInfluencersAction.Request::new);
+        super(GetInfluencersAction.NAME, transportService, (Supplier<GetInfluencersAction.Request>) GetInfluencersAction.Request::new, actionFilters
+        );
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
         this.jobManager = jobManager;

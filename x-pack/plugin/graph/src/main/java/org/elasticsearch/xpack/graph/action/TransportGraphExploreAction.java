@@ -85,7 +85,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     @Inject
     public TransportGraphExploreAction(ThreadPool threadPool, NodeClient client, TransportService transportService,
                                        ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+        super(GraphExploreAction.NAME, transportService, (Supplier<GraphExploreRequest>)GraphExploreRequest::new, actionFilters);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;

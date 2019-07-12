@@ -40,7 +40,7 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
 
     @Inject
     public TransportNoopBulkAction(TransportService transportService, ActionFilters actionFilters) {
-        super(NoopBulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new);
+        super(NoopBulkAction.NAME, transportService, (Supplier<BulkRequest>) BulkRequest::new, actionFilters);
     }
 
     @Override

@@ -35,7 +35,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     @Inject
     public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters,
                                  ClusterService clusterService, MlControllerHolder mlControllerHolder) {
-        super(MlInfoAction.NAME, transportService, actionFilters, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
+        super(MlInfoAction.NAME, transportService, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new, actionFilters);
 
         this.clusterService = clusterService;
 

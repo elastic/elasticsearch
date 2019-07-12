@@ -36,7 +36,7 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
 
     @Inject
     public TransportDeleteWatchAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteWatchAction.NAME, transportService, actionFilters, (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new);
+        super(DeleteWatchAction.NAME, transportService, (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new, actionFilters);
         this.client = client;
     }
 

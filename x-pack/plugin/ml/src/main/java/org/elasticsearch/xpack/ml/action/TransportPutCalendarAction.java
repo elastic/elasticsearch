@@ -40,8 +40,8 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
     @Inject
     public TransportPutCalendarAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutCalendarAction.NAME, transportService, actionFilters,
-            (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new);
+        super(PutCalendarAction.NAME, transportService, (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new, actionFilters
+        );
         this.client = client;
     }
 

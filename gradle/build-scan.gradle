@@ -14,6 +14,9 @@ buildScan {
         tag 'CI'
         tag System.getenv('JOB_NAME')
         link 'Jenkins Build', System.getenv('BUILD_URL')
+        System.getenv('NODE_LABELS').split(' ').each {
+            value 'Jenkins Worker Label', it
+        }
 
         // Capture changes included in this CI build except for pull request builds
         if (System.getenv('GIT_COMMIT') && System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') == null) {

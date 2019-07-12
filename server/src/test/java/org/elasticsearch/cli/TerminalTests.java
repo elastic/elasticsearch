@@ -41,6 +41,8 @@ public class TerminalTests extends ESTestCase {
         assertPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
     }
 
+    // TODO: test error verbosity
+
     public void testEscaping() throws Exception {
         MockTerminal terminal = new MockTerminal();
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "This message contains percent like %20n");
@@ -87,4 +89,8 @@ public class TerminalTests extends ESTestCase {
         String output = logTerminal.getOutput();
         assertTrue(output, output.isEmpty());
     }
+
+    // TODO: assertErrorPrinted
+
+    // TODO: assertErrorNotPrinted
 }

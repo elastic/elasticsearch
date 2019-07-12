@@ -93,14 +93,15 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, String msg) {
-        print(verbosity, msg + lineSeparator);
+        print(verbosity, msg + lineSeparator, false);
     }
 
     /** Prints message to the terminal at {@code verbosity} level, without a newline. */
-    public final void print(Verbosity verbosity, String msg) {
+    public final void print(Verbosity verbosity, String msg, boolean isError) {
         if (isPrintable(verbosity)) {
-            getWriter().print(msg);
-            getWriter().flush();
+            PrintWriter writer = isError ? getErrorWriter() : getWriter();
+            writer.print(msg);
+            writer.flush();
         }
     }
 
@@ -111,15 +112,7 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal's standard error at {@code verbosity} level. */
     public final void errorPrintln(Verbosity verbosity, String msg) {
-        errorPrint(verbosity, msg + lineSeparator);
-    }
-
-    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
-    public final void errorPrint(Verbosity verbosity, String msg) {
-        if (isPrintable(verbosity)) {
-            getErrorWriter().print(msg);
-            getErrorWriter().flush();
-        }
+        print(verbosity, msg + lineSeparator, true);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */
@@ -141,7 +134,7 @@ public abstract class Terminal {
             answer = answer.toLowerCase(Locale.ROOT);
             boolean answerYes = answer.equals("y");
             if (answerYes == false && answer.equals("n") == false) {
-                println("Did not understand answer '" + answer + "'");
+                errorPrintln("Did not understand answer '" + answer + "'");
                 continue;
             }
             return answerYes;
@@ -196,7 +189,7 @@ public abstract class Terminal {
 
         @Override
         public String readText(String text) {
-            getWriter().print(text);
+            getErrorWriter().print(text); // prompts should go to standard error to avoid mixing with list output
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
                 final String line = reader.readLine();

@@ -364,6 +364,8 @@ will escape these special characters if not already done by the application.
 
 
 `IndexIncludeFrozen` (default: `false`)::
-If this parameter is `true`, the server will allow quering of frozen indices.
+If this parameter is `true`, the server will include the frozen indices in the
+query execution.
 This corresponds to {es-sql}'s request parameter `index_include_frozen`
 (see <<sql-rest-fields>>).
+

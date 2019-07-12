@@ -1,6 +1,6 @@
 {
   "scroll": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#search-request-scroll",
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {

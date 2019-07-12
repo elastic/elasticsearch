@@ -40,7 +40,6 @@ public final class DelegatePkiResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(tokenString);
         out.writeTimeValue(expiresIn);
     }

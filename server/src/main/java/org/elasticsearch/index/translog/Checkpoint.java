@@ -47,21 +47,19 @@ final class Checkpoint {
     final long minTranslogGeneration;
     final long trimmedAboveSeqNo;
 
-    private static final int CURRENT_VERSION = 3; // introduction of trimmed above seq#
+    private static final int CURRENT_VERSION = 3;
 
     private static final String CHECKPOINT_CODEC = "ckp";
-
-    // size of 6.4.0 checkpoint
 
     static final int V3_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
         + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
-        + Long.BYTES // minimum sequence number, introduced in 6.0.0
-        + Long.BYTES // maximum sequence number, introduced in 6.0.0
-        + Long.BYTES // global checkpoint, introduced in 6.0.0
-        + Long.BYTES // minimum translog generation in the translog - introduced in 6.0.0
-        + Long.BYTES // maximum reachable (trimmed) sequence number, introduced in 6.4.0
+        + Long.BYTES // minimum sequence number
+        + Long.BYTES // maximum sequence number
+        + Long.BYTES // global checkpoint
+        + Long.BYTES // minimum translog generation in the translog
+        + Long.BYTES // maximum reachable (trimmed) sequence number
         + CodecUtil.footerLength();
 
     /**
@@ -112,7 +110,7 @@ final class Checkpoint {
         return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
-    static Checkpoint readCheckpointV6_4_0(final DataInput in) throws IOException {
+    static Checkpoint readCheckpointV3(final DataInput in) throws IOException {
         final long offset = in.readLong();
         final int numOps = in.readInt();
         final long generation = in.readLong();
@@ -146,7 +144,7 @@ final class Checkpoint {
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, CURRENT_VERSION, CURRENT_VERSION);
                 assert fileVersion == CURRENT_VERSION : fileVersion;
                 assert indexInput.length() == V3_FILE_SIZE : indexInput.length();
-                return Checkpoint.readCheckpointV6_4_0(indexInput);
+                return Checkpoint.readCheckpointV3(indexInput);
             }
         }
     }

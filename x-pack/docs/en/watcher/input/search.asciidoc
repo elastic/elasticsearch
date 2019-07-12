@@ -163,7 +163,7 @@ accurately.
 |======
 | Name                                          |Required   | Default             | Description
 
-| `request.search_type`                         | no        | `query_then_fetch`  | The {ref}/search-request-body.html#search-request-search-type[type]
+| `request.search_type`                         | no        | `query_then_fetch`  | The {ref}/search-request-search-type.html#search-request-search-type[type]
                                                                                     of search request to perform. Valid values are: `dfs_query_and_fetch`,
                                                                                     `dfs_query_then_fetch`, `query_and_fetch`, and `query_then_fetch`. The
                                                                                     Elasticsearch default is `query_then_fetch`.

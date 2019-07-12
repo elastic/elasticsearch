@@ -160,18 +160,14 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             Collections.emptyList());
     }
 
-    public IndexMetaData newIndexMeta(String name, Settings indexSettings) {
-        final Version createdVersion = VersionUtils.randomVersionBetween(random(),
-            Version.CURRENT.minimumIndexCompatibilityVersion(), VersionUtils.getPreviousVersion());
-        final Version upgradedVersion = VersionUtils.randomVersionBetween(random(), createdVersion, VersionUtils.getPreviousVersion());
-
+    public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
         final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, createdVersion)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, randomEarlierCompatibleVersion())
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 5))
             .put(IndexMetaData.SETTING_CREATION_DATE, randomNonNegativeLong())
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            .put(IndexMetaData.SETTING_VERSION_UPGRADED, upgradedVersion)
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, randomEarlierCompatibleVersion())
             .put(indexSettings)
             .build();
         final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(name).settings(settings);
@@ -179,6 +175,11 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             indexMetaDataBuilder.state(IndexMetaData.State.CLOSE);
         }
         return indexMetaDataBuilder.build();
+    }
+
+    private static Version randomEarlierCompatibleVersion() {
+        return VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumIndexCompatibilityVersion(), VersionUtils.getPreviousVersion());
     }
 
 }

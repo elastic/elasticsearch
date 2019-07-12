@@ -195,15 +195,15 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 SecureString password1 = new SecureString(terminal.readSecret("Enter password for [" + user + "]: "));
                 Validation.Error err = Validation.Users.validatePassword(password1);
                 if (err != null) {
-                    terminal.println(err.toString());
-                    terminal.println("Try again.");
+                    terminal.errorPrintln(err.toString());
+                    terminal.errorPrintln("Try again.");
                     password1.close();
                     continue;
                 }
                 try (SecureString password2 = new SecureString(terminal.readSecret("Reenter password for [" + user + "]: "))) {
                     if (password1.equals(password2) == false) {
-                        terminal.println("Passwords do not match.");
-                        terminal.println("Try again.");
+                        terminal.errorPrintln("Passwords do not match.");
+                        terminal.errorPrintln("Try again.");
                         password1.close();
                         continue;
                     }
@@ -361,19 +361,19 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             final HttpResponse httpResponse =
                     client.execute("GET", route, elasticUser, elasticUserPassword, () -> null, is -> responseBuilder(is, terminal));
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                terminal.println("");
-                terminal.println("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
                 if (httpResponse.getHttpStatus() == HttpURLConnection.HTTP_BAD_REQUEST) {
-                    terminal.println("It doesn't look like the X-Pack is available on this Elasticsearch node.");
-                    terminal.println("Please check that you have followed all installation instructions and that this tool");
-                    terminal.println("   is pointing to the correct Elasticsearch server.");
-                    terminal.println("");
+                    terminal.errorPrintln("It doesn't look like the X-Pack is available on this Elasticsearch node.");
+                    terminal.errorPrintln("Please check that you have followed all installation instructions and that this tool");
+                    terminal.errorPrintln("   is pointing to the correct Elasticsearch server.");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.CONFIG, "X-Pack is not available on this Elasticsearch node.");
                 } else {
-                    terminal.println("* Try running this tool again.");
-                    terminal.println("* Verify that the tool is pointing to the correct Elasticsearch server.");
-                    terminal.println("* Check the elasticsearch logs for additional error details.");
-                    terminal.println("");
+                    terminal.errorPrintln("* Try running this tool again.");
+                    terminal.errorPrintln("* Verify that the tool is pointing to the correct Elasticsearch server.");
+                    terminal.errorPrintln("* Check the elasticsearch logs for additional error details.");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to determine x-pack security feature configuration.");
                 }
             }
@@ -406,33 +406,33 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
                     is -> responseBuilder(is, terminal));
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                terminal.println("");
-                terminal.println("Failed to determine the health of the cluster running at " + url);
-                terminal.println("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
+                terminal.errorPrintln("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
                 final String cause = getErrorCause(httpResponse);
                 if (cause != null) {
-                    terminal.println("Cause: " + cause);
+                    terminal.errorPrintln("Cause: " + cause);
                 }
             } else {
                 final String clusterStatus = Objects.toString(httpResponse.getResponseBody().get("status"), "");
                 if (clusterStatus.isEmpty()) {
-                    terminal.println("");
-                    terminal.println("Failed to determine the health of the cluster running at " + url);
-                    terminal.println("Could not find a 'status' value at " + route.toString());
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Failed to determine the health of the cluster running at " + url);
+                    terminal.errorPrintln("Could not find a 'status' value at " + route.toString());
                 } else if ("red".equalsIgnoreCase(clusterStatus)) {
-                    terminal.println("");
-                    terminal.println("Your cluster health is currently RED.");
-                    terminal.println("This means that some cluster data is unavailable and your cluster is not fully functional.");
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln("Your cluster health is currently RED.");
+                    terminal.errorPrintln("This means that some cluster data is unavailable and your cluster is not fully functional.");
                 } else {
                     // Cluster is yellow/green -> all OK
                     return;
                 }
             }
-            terminal.println("");
-            terminal.println(
+            terminal.errorPrintln("");
+            terminal.errorPrintln(
                     "It is recommended that you resolve the issues with your cluster before running elasticsearch-setup-passwords.");
-            terminal.println("It is very likely that the password changes will fail when run against an unhealthy cluster.");
-            terminal.println("");
+            terminal.errorPrintln("It is very likely that the password changes will fail when run against an unhealthy cluster.");
+            terminal.errorPrintln("");
             if (shouldPrompt) {
                 final boolean keepGoing = terminal.promptYesNo("Do you want to continue with the password setup process", false);
                 if (keepGoing == false) {
@@ -465,28 +465,28 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     }
                 }, is -> responseBuilder(is, terminal));
                 if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                    terminal.println("");
-                    terminal.println(
+                    terminal.errorPrintln("");
+                    terminal.errorPrintln(
                             "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString());
                     String cause = getErrorCause(httpResponse);
                     if (cause != null) {
-                        terminal.println("Cause: " + cause);
-                        terminal.println("");
+                        terminal.errorPrintln("Cause: " + cause);
+                        terminal.errorPrintln("");
                     }
-                    terminal.println("Possible next steps:");
-                    terminal.println("* Try running this tool again.");
-                    terminal.println("* Try running with the --verbose parameter for additional messages.");
-                    terminal.println("* Check the elasticsearch logs for additional error details.");
-                    terminal.println("* Use the change password API manually. ");
-                    terminal.println("");
+                    terminal.errorPrintln("Possible next steps:");
+                    terminal.errorPrintln("* Try running this tool again.");
+                    terminal.errorPrintln("* Try running with the --verbose parameter for additional messages.");
+                    terminal.errorPrintln("* Check the elasticsearch logs for additional error details.");
+                    terminal.errorPrintln("* Use the change password API manually. ");
+                    terminal.errorPrintln("");
                     throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].");
                 }
             } catch (IOException e) {
-                terminal.println("");
-                terminal.println("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
-                terminal.println(Verbosity.VERBOSE, "");
-                terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
-                terminal.println("");
+                terminal.errorPrintln("");
+                terminal.errorPrintln("Connection failure to: " + route.toString() + " failed: " + e.getMessage());
+                terminal.errorPrintln(Verbosity.VERBOSE, "");
+                terminal.errorPrintln(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
+                terminal.errorPrintln("");
                 throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].", e);
             }
         }

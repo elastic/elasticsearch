@@ -407,7 +407,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 if (percent == 100) {
                     sb.append("\n");
                 }
-                terminal.print(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, sb.toString(), percent + "%"));
+                terminal.print(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, sb.toString(), percent + "%"), false);
             }
         }
     }

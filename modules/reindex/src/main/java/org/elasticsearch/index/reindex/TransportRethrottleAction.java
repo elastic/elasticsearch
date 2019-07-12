@@ -37,6 +37,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 public class TransportRethrottleAction extends TransportTasksAction<Task, RethrottleRequest, ListTasksResponse, TaskInfo> {
     private final Client client;
@@ -56,6 +58,15 @@ public class TransportRethrottleAction extends TransportTasksAction<Task, Rethro
             rethrottle(logger, clusterService.localNode().getId(), client, bulkByScrollTask, request.getRequestsPerSecond(), listener);
         } else if (task instanceof ReindexTask) {
             BulkByScrollTask childTask = ((ReindexTask) task).getChildTask();
+            long startNanos = System.nanoTime();
+            while (childTask == null || (childTask.isLeader() == false && childTask.isWorker() == false)) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+                childTask = ((ReindexTask) task).getChildTask();
+                if ((System.nanoTime() - startNanos) > TimeUnit.SECONDS.toNanos(15)) {
+                    break;
+                }
+            }
+
             if (childTask == null) {
                 listener.onFailure(new ResourceNotFoundException("Child BulkByScrollTask could not be found."));
             } else {

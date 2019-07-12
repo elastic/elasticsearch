@@ -206,8 +206,7 @@ public class TransportPutDataFrameTransformAction
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
-
-        // <5> Return the listener, or clean up destination index on failure.
+        // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
             putTransformConfigurationResult -> {
                 auditor.info(config.getId(), "Created data frame transform.");
@@ -216,7 +215,7 @@ public class TransportPutDataFrameTransformAction
             listener::onFailure
         );
 
-        // <4> Put our transform
+        // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
             validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> listener.onFailure(

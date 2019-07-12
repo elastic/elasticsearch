@@ -62,8 +62,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     }
 
     @Override
-    protected NodeInfo newNodeResponse() {
-        return new NodeInfo();
+    protected NodeInfo newNodeResponse(StreamInput in) throws IOException {
+        return new NodeInfo(in);
     }
 
     @Override

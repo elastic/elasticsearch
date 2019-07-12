@@ -57,6 +57,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
 
@@ -263,8 +264,8 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeResponse newNodeResponse() {
-            return new TestNodeResponse();
+        protected TestNodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new TestNodeResponse(in);
         }
 
         @Override
@@ -307,7 +308,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
         @Override
         protected List<TestNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(TestNodeResponse::new);
+            return in.readList(TestNodeResponse::new);
         }
 
         @Override
@@ -318,8 +319,23 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static class TestNodeRequest extends BaseNodeRequest { }
 
-    private static class TestNodeResponse extends BaseNodeResponse { }
+    private static class TestNodeResponse extends BaseNodeResponse {
+        TestNodeResponse() {
+            super(mock(DiscoveryNode.class));
+        }
+        protected TestNodeResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 
-    private static class OtherNodeResponse extends BaseNodeResponse { }
+    private static class OtherNodeResponse extends BaseNodeResponse {
+        OtherNodeResponse() {
+            super(mock(DiscoveryNode.class));
+        }
+
+        protected OtherNodeResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 
 }

@@ -60,8 +60,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
     }
 
     @Override
-    protected NodeHotThreads newNodeResponse() {
-        return new NodeHotThreads();
+    protected NodeHotThreads newNodeResponse(StreamInput in) throws IOException {
+        return new NodeHotThreads(in);
     }
 
     @Override

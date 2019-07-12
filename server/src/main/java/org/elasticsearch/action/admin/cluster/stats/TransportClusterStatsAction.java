@@ -87,8 +87,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     }
 
     @Override
-    protected ClusterStatsNodeResponse newNodeResponse() {
-        return new ClusterStatsNodeResponse();
+    protected ClusterStatsNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new ClusterStatsNodeResponse(in);
     }
 
     @Override

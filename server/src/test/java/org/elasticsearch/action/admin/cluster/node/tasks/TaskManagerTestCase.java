@@ -102,8 +102,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     static class NodeResponse extends BaseNodeResponse {
 
-        protected NodeResponse() {
-            super();
+        protected NodeResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
         protected NodeResponse(DiscoveryNode node) {
@@ -119,7 +119,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeResponse::new);
+            return in.readList(NodeResponse::new);
         }
 
         @Override
@@ -152,8 +152,8 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
 
         @Override

@@ -161,8 +161,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
     }
 

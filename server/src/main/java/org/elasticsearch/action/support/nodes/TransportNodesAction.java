@@ -121,7 +121,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);
 
-    protected abstract NodeResponse newNodeResponse();
+    protected abstract NodeResponse newNodeResponse(StreamInput in) throws IOException;
 
     protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
@@ -179,9 +179,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                             new TransportResponseHandler<NodeResponse>() {
                                 @Override
                                 public NodeResponse read(StreamInput in) throws IOException {
-                                    NodeResponse nodeResponse = newNodeResponse();
-                                    nodeResponse.readFrom(in);
-                                    return nodeResponse;
+                                    return newNodeResponse(in);
                                 }
 
                                 @Override

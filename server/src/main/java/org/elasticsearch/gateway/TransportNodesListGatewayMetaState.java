@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -48,12 +47,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
                                                                              TransportNodesListGatewayMetaState.NodeGatewayMetaState> {
 
     public static final String ACTION_NAME = "internal:gateway/local/meta_state";
-    public static final ActionType<NodesGatewayMetaState> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
-        @Override
-        public NodesGatewayMetaState newResponse() {
-            return new NodesGatewayMetaState();
-        }
-    };
+    public static final ActionType<NodesGatewayMetaState> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayMetaState::new);
 
     private final GatewayMetaState metaState;
 
@@ -71,8 +65,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodeGatewayMetaState newNodeResponse() {
-        return new NodeGatewayMetaState();
+    protected NodeGatewayMetaState newNodeResponse(StreamInput in) throws IOException {
+        return new NodeGatewayMetaState(in);
     }
 
     @Override
@@ -97,7 +91,9 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     public static class NodesGatewayMetaState extends BaseNodesResponse<NodeGatewayMetaState> {
 
-        public NodesGatewayMetaState() {}
+        public NodesGatewayMetaState(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public NodesGatewayMetaState(ClusterName clusterName, List<NodeGatewayMetaState> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
@@ -105,7 +101,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
         @Override
         protected List<NodeGatewayMetaState> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeGatewayMetaState::new);
+            return in.readList(NodeGatewayMetaState::new);
         }
 
         @Override
@@ -121,7 +117,11 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
         private MetaData metaData;
 
-        NodeGatewayMetaState() {
+        public NodeGatewayMetaState(StreamInput in) throws IOException {
+            super(in);
+            if (in.readBoolean()) {
+                metaData = MetaData.readFrom(in);
+            }
         }
 
         public NodeGatewayMetaState(DiscoveryNode node, MetaData metaData) {
@@ -131,14 +131,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
         public MetaData metaData() {
             return metaData;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.readBoolean()) {
-                metaData = MetaData.readFrom(in);
-            }
         }
 
         @Override

@@ -61,8 +61,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     }
 
     @Override
-    protected NodeStats newNodeResponse() {
-        return new NodeStats();
+    protected NodeStats newNodeResponse(StreamInput in) throws IOException {
+        return new NodeStats(in);
     }
 
     @Override

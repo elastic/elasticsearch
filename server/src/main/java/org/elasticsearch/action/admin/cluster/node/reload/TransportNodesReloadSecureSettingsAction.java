@@ -74,8 +74,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
-    protected NodesReloadSecureSettingsResponse.NodeResponse newNodeResponse() {
-        return new NodesReloadSecureSettingsResponse.NodeResponse();
+    protected NodesReloadSecureSettingsResponse.NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodesReloadSecureSettingsResponse.NodeResponse(in);
     }
 
     @Override

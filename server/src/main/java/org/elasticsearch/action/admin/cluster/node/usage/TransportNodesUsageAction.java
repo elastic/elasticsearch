@@ -59,8 +59,8 @@ public class TransportNodesUsageAction
     }
 
     @Override
-    protected NodeUsage newNodeResponse() {
-        return new NodeUsage();
+    protected NodeUsage newNodeResponse(StreamInput in) throws IOException {
+        return new NodeUsage(in);
     }
 
     @Override

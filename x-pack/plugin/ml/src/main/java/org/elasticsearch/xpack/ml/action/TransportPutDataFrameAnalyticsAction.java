@@ -67,7 +67,6 @@ public class TransportPutDataFrameAnalyticsAction
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
-    private volatile ClusterState clusterState;
 
     @Inject
     public TransportPutDataFrameAnalyticsAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
@@ -88,7 +87,6 @@ public class TransportPutDataFrameAnalyticsAction
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
-        clusterService.addListener(event -> clusterState = event.state());
     }
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
@@ -171,6 +169,7 @@ public class TransportPutDataFrameAnalyticsAction
     private void updateDocMappingAndPutConfig(DataFrameAnalyticsConfig config,
                                               Map<String, String> headers,
                                               ActionListener<IndexResponse> listener) {
+        ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
             configProvider.put(config, headers, listener);

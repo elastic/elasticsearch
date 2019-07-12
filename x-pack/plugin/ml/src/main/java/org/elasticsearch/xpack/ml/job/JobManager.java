@@ -99,7 +99,6 @@ public class JobManager {
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
-    private volatile ClusterState clusterState;
 
     /**
      * Create a JobManager
@@ -121,7 +120,6 @@ public class JobManager {
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
-        clusterService.addListener(event -> clusterState = event.state());
     }
 
     private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
@@ -289,13 +287,13 @@ public class JobManager {
 
         ActionListener<Boolean> addDocMappingsListener = ActionListener.wrap(
             indicesCreated -> {
-                if (clusterState == null) {
+                if (state == null) {
                     logger.warn("Cannot update doc mapping because clusterState == null");
                     putJobListener.onResponse(false);
                     return;
                 }
                 ElasticsearchMappings.addDocMappingIfMissing(
-                    AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings::configMapping, client, clusterState, putJobListener);
+                    AnomalyDetectorsIndex.configIndexName(), ElasticsearchMappings::configMapping, client, state, putJobListener);
             },
             putJobListener::onFailure
         );

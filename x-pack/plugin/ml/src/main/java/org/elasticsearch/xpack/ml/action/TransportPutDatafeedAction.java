@@ -71,8 +71,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     private final JobConfigProvider jobConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
 
-    private volatile ClusterState clusterState;
-
     @Inject
     public TransportPutDatafeedAction(Settings settings, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, Client client,
@@ -88,7 +86,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
-        clusterService.addListener(event -> clusterState = event.state());
     }
 
     @Override
@@ -120,7 +117,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 .indices(indices);
 
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, r, listener),
+                r -> handlePrivsResponse(username, request, r, state, listener),
                 listener::onFailure);
 
             ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
@@ -154,15 +151,17 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             }
 
         } else {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
         }
     }
 
-    private void handlePrivsResponse(String username, PutDatafeedAction.Request request,
+    private void handlePrivsResponse(String username,
+                                     PutDatafeedAction.Request request,
                                      HasPrivilegesResponse response,
+                                     ClusterState clusterState,
                                      ActionListener<PutDatafeedAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
@@ -178,7 +177,9 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         }
     }
 
-    private void putDatafeed(PutDatafeedAction.Request request, Map<String, String> headers,
+    private void putDatafeed(PutDatafeedAction.Request request,
+                             Map<String, String> headers,
+                             ClusterState clusterState,
                              ActionListener<PutDatafeedAction.Response> listener) {
 
         String datafeedId = request.getDatafeed().getId();

@@ -860,7 +860,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 
@@ -881,7 +881,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 
@@ -948,7 +948,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).threadPool();
         verify(client).prepareMultiSearch();
-        verify(client).multiSearch(any(MultiSearchRequest.class), any(ActionListener.class));
+        verify(client).multiSearch(any(MultiSearchRequest.class), any());
         verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
         verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"));
         verifyNoMoreInteractions(client);
@@ -976,7 +976,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 
@@ -997,7 +997,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 

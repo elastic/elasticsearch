@@ -46,8 +46,6 @@ bundlePlugin {
     exclude 'platform/licenses/**'
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-unchecked"
-
 dependencies {
     compileOnly project(':modules:lang-painless:spi')
     compileOnly project(path: xpackModule('core'), configuration: 'default')

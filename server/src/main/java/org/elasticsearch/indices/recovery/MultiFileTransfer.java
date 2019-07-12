@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
@@ -55,8 +56,9 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * one of the networking threads which receive/handle the responses of the current pending file chunk requests. This process will continue
  * until all chunk requests are sent/responded.
  */
-public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest> implements Closeable {
-    private boolean done = false;
+abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest> implements Closeable {
+    private Status status = Status.PROCESSING;
+    private final Logger logger;
     private final ActionListener<Void> listener;
     private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
     private final AsyncIOProcessor<FileChunkResponseItem> processor;
@@ -66,6 +68,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
 
     protected MultiFileTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
                                 int maxConcurrentFileChunks, List<StoreFileMetaData> files) {
+        this.logger = logger;
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
         this.listener = listener;
         this.processor = new AsyncIOProcessor<>(logger, maxConcurrentFileChunks, threadContext) {
@@ -86,7 +89,11 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
     }
 
     private void handleItems(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
-        if (done) {
+        if (status != Status.PROCESSING) {
+            assert status == Status.FAILED : "must not receive any response after the transfer was completed";
+            // These exceptions will be ignored as we record only the first failure, log them for debugging purpose
+            items.stream().filter(item -> item.v1().failure != null).forEach(item ->
+                logger.debug(new ParameterizedMessage("failed to transfer file chunk request {}", item.v1().md), item.v1().failure));
             return;
         }
         try {
@@ -135,8 +142,8 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
     }
 
     private void onCompleted(Exception failure) {
-        assert done == false;
-        done = true;
+        assert status == Status.PROCESSING;
+        status = failure == null ? Status.SUCCESS : Status.FAILED;
         ActionListener.completeWith(listener, () -> {
             IOUtils.close(failure, this);
             return null;
@@ -172,5 +179,11 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
          * @return {@code true} if this chunk request is the last chunk of the current file
          */
         boolean lastChunk();
+    }
+
+    private enum Status {
+        PROCESSING,
+        SUCCESS,
+        FAILED
     }
 }

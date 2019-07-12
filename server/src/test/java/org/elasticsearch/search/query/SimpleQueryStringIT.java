@@ -83,7 +83,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(50, 100);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
     }
 
     @Override
@@ -493,7 +493,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44192")
     public void testDocWithAllTypes() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();

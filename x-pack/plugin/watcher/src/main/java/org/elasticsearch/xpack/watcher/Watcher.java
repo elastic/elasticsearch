@@ -342,7 +342,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                         String failure = triggeredFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("triggered watches could not be deleted {}, failure [{}]",
                             triggeredFailures.keySet(), Strings.substring(failure, 0, 2000));
-                    } else if (historyFailures.isEmpty() == false) {
+                    }
+                    if (historyFailures.isEmpty() == false) {
                         String failure = historyFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("watch history could not be written {}, failure [{}]",
                             historyFailures.keySet(), Strings.substring(failure, 0, 2000));

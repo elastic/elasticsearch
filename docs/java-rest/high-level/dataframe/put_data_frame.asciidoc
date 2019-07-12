@@ -19,7 +19,7 @@ A +{request}+ requires the following argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The configuration of the {dataframe-job} to create
+<1> The configuration of the {dataframe-transform} to create
 
 [id="{upid}-{api}-config"]
 ==== Data Frame Transform Configuration

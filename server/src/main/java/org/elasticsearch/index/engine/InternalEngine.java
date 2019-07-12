@@ -930,7 +930,7 @@ public class InternalEngine extends Engine {
         } catch (RuntimeException | IOException e) {
             try {
                 if (e instanceof AlreadyClosedException == false && treatDocumentFailureAsTragicError(index)) {
-                    failEngine("failed to index and operation with origin [" + index.origin() + "]", e);
+                    failEngine("failed to index an operation with origin [" + index.origin() + "]", e);
                 } else {
                     maybeFailEngine("index", e);
                 }

@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
@@ -2783,6 +2784,15 @@ public class TranslogTests extends ESTestCase {
         }
         Checkpoint read = Checkpoint.read(tempDir.resolve("foo.cpk"));
         assertEquals(read, checkpoint);
+    }
+
+    public void testLegacyCheckpointVersion() throws IOException {
+        expectThrows(
+            IndexFormatTooOldException.class,
+            () -> Checkpoint.read(getDataPath("/org/elasticsearch/index/checkpoint/v1.cpk"))
+        );
+        // just check that it doesn't fail
+        Checkpoint.read(getDataPath("/org/elasticsearch/index/checkpoint/v2.cpk"));
     }
 
     /**

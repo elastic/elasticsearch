@@ -176,8 +176,10 @@ the `error_count` and `aborted_count` values:
 ----------------------------------
 
 NOTE: This example demonstrates how to use script fields, but it contains
-insufficient data to generate meaningful results. For a full demonstration of
-how to create jobs with sample data, see <<ml-getting-started>>.
+insufficient data to generate meaningful results.
+
+//For a full demonstration of
+//how to create jobs with sample data, see <<ml-getting-started>>.
 
 You can alternatively use {kib} to create an advanced job that uses script
 fields. To add the `script_fields` property to your {dfeed}, you must use the

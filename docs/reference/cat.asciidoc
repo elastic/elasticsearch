@@ -1,9 +1,6 @@
 [[cat]]
 = cat APIs
 
-[partintro]
---
-
 ["float",id="intro"]
 == Introduction
 
@@ -209,8 +206,6 @@ pizza_pepperoni       [*pepperoni*]  2
 sushi_california_roll [*avocado*]    1     1
 pizza_hawaiian        [*pineapples*] 1
 --------------------------------------------------
-
---
 
 include::cat/alias.asciidoc[]
 

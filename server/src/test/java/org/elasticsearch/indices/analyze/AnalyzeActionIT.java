@@ -397,7 +397,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen("test");
 
         AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("test", ".").get();
-        System.out.println(analyzeResponse);
         assertNotNull(analyzeResponse.getTokens());
         assertThat(analyzeResponse.getTokens().size(), equalTo(0));
     }

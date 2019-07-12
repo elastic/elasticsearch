@@ -70,12 +70,15 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   
 `sync`::
   (Optional, object) Defines the properties required to run continuously.
-  `field`:::
-    (Required, string) The date field that is used to identify new documents in
-    the source.
-  `delay`:::
-    (Optional, time units) The time delay between the current time and the
-    latest input data time.
+  `time`:::
+    (Required, object) Specifies that the {dataframe-transform} uses a time
+    field to synchronize the source and destination indices.
+    `field`::::
+      (Required, string) The date field that is used to identify new documents
+      in the source.
+    `delay`::::
+      (Optional, time units) The time delay between the current time and the
+      latest input data time.
 
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}

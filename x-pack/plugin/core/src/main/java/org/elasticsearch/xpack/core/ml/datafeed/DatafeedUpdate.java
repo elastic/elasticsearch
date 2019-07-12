@@ -22,7 +22,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
@@ -53,7 +55,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 TimeValue.parseTimeValue(val, DatafeedConfig.QUERY_DELAY.getPreferredName())), DatafeedConfig.QUERY_DELAY);
         PARSER.declareString((builder, val) -> builder.setFrequency(
                 TimeValue.parseTimeValue(val, DatafeedConfig.FREQUENCY.getPreferredName())), DatafeedConfig.FREQUENCY);
-        PARSER.declareObject(Builder::setQuery, (p, c) -> QueryProvider.fromXContent(p, false), DatafeedConfig.QUERY);
+        PARSER.declareObject(Builder::setQuery, (p, c) -> QueryProvider.fromXContent(p, false, Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT),
+            DatafeedConfig.QUERY);
         PARSER.declareObject(Builder::setAggregationsSafe,
             (p, c) -> AggProvider.fromXContent(p, false),
             DatafeedConfig.AGGREGATIONS);

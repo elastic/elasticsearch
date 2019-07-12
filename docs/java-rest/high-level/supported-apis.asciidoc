@@ -155,6 +155,7 @@ include::indices/get_index.asciidoc[]
 include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
 include::indices/delete_template.asciidoc[]
+include::indices/reload_analyzers.asciidoc[]
 
 == Cluster APIs
 
@@ -285,6 +286,13 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar-job>>
 * <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-get-data-frame-analytics>>
+* <<{upid}-get-data-frame-analytics-stats>>
+* <<{upid}-put-data-frame-analytics>>
+* <<{upid}-delete-data-frame-analytics>>
+* <<{upid}-start-data-frame-analytics>>
+* <<{upid}-stop-data-frame-analytics>>
+* <<{upid}-evaluate-data-frame>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
 * <<{upid}-update-filter>>
@@ -329,6 +337,13 @@ include::ml/delete-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/get-data-frame-analytics.asciidoc[]
+include::ml/get-data-frame-analytics-stats.asciidoc[]
+include::ml/put-data-frame-analytics.asciidoc[]
+include::ml/delete-data-frame-analytics.asciidoc[]
+include::ml/start-data-frame-analytics.asciidoc[]
+include::ml/stop-data-frame-analytics.asciidoc[]
+include::ml/evaluate-data-frame.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-filters.asciidoc[]
 include::ml/update-filter.asciidoc[]
@@ -404,6 +419,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 * <<{upid}-invalidate-token>>
+* <<{upid}-get-builtin-privileges>>
 * <<{upid}-get-privileges>>
 * <<{upid}-put-privileges>>
 * <<{upid}-delete-privileges>>
@@ -421,6 +437,7 @@ include::security/put-role.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/delete-privileges.asciidoc[]
+include::security/get-builtin-privileges.asciidoc[]
 include::security/get-privileges.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]

@@ -42,15 +42,15 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class EnrichMultiNodeIT extends ESIntegTestCase {
 
-    private static final String POLICY_NAME = "my-policy";
+    static final String POLICY_NAME = "my-policy";
     private static final String PIPELINE_NAME = "my-pipeline";
-    private static final String SOURCE_INDEX_NAME = "users";
-    private static final String KEY_FIELD = "email";
-    private static final String[] DECORATE_FIELDS = new String[]{"address", "city", "country"};
+    static final String SOURCE_INDEX_NAME = "users";
+    static final String KEY_FIELD = "email";
+    static final String[] DECORATE_FIELDS = new String[]{"address", "city", "country"};
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EnrichPlugin.class, ReindexPlugin.class);
+        return List.of(LocalStateEnrich.class, ReindexPlugin.class);
     }
 
     public void testEnrichAPIs() {

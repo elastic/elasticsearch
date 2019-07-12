@@ -135,7 +135,7 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
     }
 
     private void onCompleted(Exception failure) {
-        assert status == Status.PROCESSING;
+        assert status == Status.PROCESSING : "status [" + status + "] failure [" + failure + "]";
         status = failure == null ? Status.SUCCESS : Status.FAILED;
         ActionListener.completeWith(listener, () -> {
             IOUtils.close(failure, this);

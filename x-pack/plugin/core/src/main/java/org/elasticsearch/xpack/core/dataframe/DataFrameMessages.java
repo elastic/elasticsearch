@@ -32,6 +32,9 @@ public class DataFrameMessages {
     public static final String DATA_FRAME_FAILED_TO_PERSIST_STATS = "Failed to persist data frame statistics for transform [{0}]";
     public static final String DATA_FRAME_UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
+    public static final String DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM =
+        "Unable to stop data frame transform [{0}] as it is in a failed state with reason [{1}]." +
+            " Use force stop to stop the data frame transform.";
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CONFIGURATION =
             "Failed to load data frame transform configuration for transform [{0}]";

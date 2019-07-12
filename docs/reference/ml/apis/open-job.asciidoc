@@ -7,8 +7,6 @@
 ++++
 
 Opens one or more jobs.
-A job must be opened in order for it to be ready to receive and analyze data.
-A job can be opened and closed multiple times throughout its lifecycle.
 
 [[ml-open-job-request]]
 ==== {api-request-title}
@@ -25,6 +23,9 @@ A job can be opened and closed multiple times throughout its lifecycle.
 [[ml-open-job-desc]]
 ==== {api-description-title}
 
+A job must be opened in order for it to be ready to receive and analyze data.
+A job can be opened and closed multiple times throughout its lifecycle.
+
 When you open a new job, it starts with an empty model.
 
 When you open an existing job, the most recent model state is automatically
@@ -34,15 +35,15 @@ data is received.
 [[ml-open-job-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job
+`<job_id>`::
+  (Required, string) Identifier for the job
 
 [[ml-open-job-request-body]]
 ==== {api-request-body-title}
 
-`timeout` (Optional)::
-  (time) Controls the time to wait until a job has opened.
-  The default value is 30 minutes.
+`timeout`::
+  (Optional, time) Controls the time to wait until a job has opened. The default
+  value is 30 minutes.
 
 [[ml-open-job-example]]
 ==== {api-examples-title}

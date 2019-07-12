@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -27,18 +28,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetRecordsAction extends StreamableResponseActionType<GetRecordsAction.Response> {
+public class GetRecordsAction extends ActionType<GetRecordsAction.Response> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/records/get";
 
     private GetRecordsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -81,6 +77,18 @@ public class GetRecordsAction extends StreamableResponseActionType<GetRecordsAct
         private boolean descending = true;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            excludeInterim = in.readBoolean();
+            pageParams = new PageParams(in);
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            sort = in.readOptionalString();
+            descending = in.readBoolean();
+            recordScoreFilter = in.readDouble();
         }
 
         public Request(String jobId) {
@@ -153,15 +161,7 @@ public class GetRecordsAction extends StreamableResponseActionType<GetRecordsAct
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            excludeInterim = in.readBoolean();
-            pageParams = new PageParams(in);
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            sort = in.readOptionalString();
-            descending = in.readBoolean();
-            recordScoreFilter = in.readDouble();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -226,7 +226,8 @@ public class GetRecordsAction extends StreamableResponseActionType<GetRecordsAct
 
     public static class Response extends AbstractGetResourcesResponse<AnomalyRecord> implements ToXContentObject {
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(QueryPage<AnomalyRecord> records) {

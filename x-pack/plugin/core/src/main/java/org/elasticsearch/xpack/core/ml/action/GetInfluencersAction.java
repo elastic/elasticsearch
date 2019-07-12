@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -27,18 +28,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetInfluencersAction extends StreamableResponseActionType<GetInfluencersAction.Response> {
+public class GetInfluencersAction extends ActionType<GetInfluencersAction.Response> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/influencers/get";
 
     private GetInfluencersAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -81,6 +77,18 @@ public class GetInfluencersAction extends StreamableResponseActionType<GetInflue
         private boolean descending = true;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            excludeInterim = in.readBoolean();
+            pageParams = new PageParams(in);
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            sort = in.readOptionalString();
+            descending = in.readBoolean();
+            influencerScore = in.readDouble();
         }
 
         public Request(String jobId) {
@@ -154,15 +162,7 @@ public class GetInfluencersAction extends StreamableResponseActionType<GetInflue
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            excludeInterim = in.readBoolean();
-            pageParams = new PageParams(in);
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            sort = in.readOptionalString();
-            descending = in.readBoolean();
-            influencerScore = in.readDouble();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -227,6 +227,10 @@ public class GetInfluencersAction extends StreamableResponseActionType<GetInflue
     public static class Response extends AbstractGetResourcesResponse<Influencer> implements ToXContentObject {
 
         public Response() {
+        }
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(QueryPage<Influencer> influencers) {

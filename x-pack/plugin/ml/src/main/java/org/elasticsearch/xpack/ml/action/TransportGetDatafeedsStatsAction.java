@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -55,7 +57,12 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
 
     @Override
     protected GetDatafeedsStatsAction.Response newResponse() {
-        return new GetDatafeedsStatsAction.Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected GetDatafeedsStatsAction.Response read(StreamInput in) throws IOException {
+        return new GetDatafeedsStatsAction.Response(in);
     }
 
     @Override

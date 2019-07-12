@@ -22,6 +22,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -78,7 +79,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       NamedXContentRegistry xContentRegistry) {
         super(PutDatafeedAction.NAME, transportService, clusterService, threadPool,
-                actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
+                actionFilters, PutDatafeedAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -95,7 +96,12 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
     @Override
     protected PutDatafeedAction.Response newResponse() {
-        return new PutDatafeedAction.Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected PutDatafeedAction.Response read(StreamInput in) throws IOException {
+        return new PutDatafeedAction.Response(in);
     }
 
     @Override

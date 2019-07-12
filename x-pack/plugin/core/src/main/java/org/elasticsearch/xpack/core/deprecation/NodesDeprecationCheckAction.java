@@ -35,16 +35,13 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
         NodesDeprecationCheckRequest request;
 
-        public NodeRequest() {}
-        public NodeRequest(NodesDeprecationCheckRequest request) {
-            this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
             request = new NodesDeprecationCheckRequest();
             request.readFrom(in);
+        }
+        public NodeRequest(NodesDeprecationCheckRequest request) {
+            this.request = request;
         }
 
         @Override

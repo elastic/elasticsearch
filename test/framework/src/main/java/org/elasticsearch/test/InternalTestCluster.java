@@ -505,7 +505,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public static String clusterName(String prefix, long clusterSeed) {
         StringBuilder builder = new StringBuilder(prefix);
-        builder.append("-TEST_WORKER_VM=[").append(ESTestCase.TEST_WORKER_VM).append(']');
+        builder.append("-TEST_WORKER_VM=[").append(ESTestCase.TEST_WORKER_VM_ID).append(']');
         builder.append("-CLUSTER_SEED=[").append(clusterSeed).append(']');
         // if multiple maven task run on a single host we better have an identifier that doesn't rely on input params
         builder.append("-HASH=[").append(SeedUtils.formatSeed(System.nanoTime())).append(']');

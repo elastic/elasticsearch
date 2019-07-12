@@ -362,7 +362,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final String snapshotName = snapshotId.getName();
             // check if the snapshot name already exists in the repository
             final RepositoryData repositoryData = getRepositoryData();
-            if (repositoryData.getAllSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
+            if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
                 throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
             }
 
@@ -434,7 +434,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void cleanupStaleRootFiles(Set<String> rootBlobNames, RepositoryData repositoryData) {
         final Set<String> allSnapshotIds =
-            repositoryData.getAllSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
+            repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
         final List<String> blobsToDelete = rootBlobNames.stream().filter(
             blob -> {
                 if (FsBlobContainer.isTempBlobName(blob)) {

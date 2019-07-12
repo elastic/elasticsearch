@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-import java.util.function.Supplier;
-
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -40,7 +38,7 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     public TransportDeleteCalendarAction(TransportService transportService,
                                          ActionFilters actionFilters, Client client, JobManager jobManager,
                                          JobResultsProvider jobResultsProvider) {
-        super(DeleteCalendarAction.NAME, transportService, (Supplier<DeleteCalendarAction.Request>) DeleteCalendarAction.Request::new, actionFilters
+        super(DeleteCalendarAction.NAME, transportService, DeleteCalendarAction.Request::new, actionFilters
         );
         this.client = client;
         this.jobManager = jobManager;

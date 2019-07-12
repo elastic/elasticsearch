@@ -11,9 +11,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 
 import java.util.Collections;
-import java.util.function.Supplier;
 
 public class TransportGetCalendarEventsAction extends HandledTransportAction<GetCalendarEventsAction.Request,
         GetCalendarEventsAction.Response> {
@@ -34,7 +33,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     public TransportGetCalendarEventsAction(TransportService transportService,
                                             ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
                                             JobConfigProvider jobConfigProvider) {
-        super(GetCalendarEventsAction.NAME, transportService, (Supplier<GetCalendarEventsAction.Request>) GetCalendarEventsAction.Request::new, actionFilters
+        super(GetCalendarEventsAction.NAME, transportService, GetCalendarEventsAction.Request::new, actionFilters
         );
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;

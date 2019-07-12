@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -41,7 +40,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
 
     @Inject
     public TransportPutFilterAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutFilterAction.NAME, transportService, (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new, actionFilters);
+        super(PutFilterAction.NAME, transportService, PutFilterAction.Request::new, actionFilters);
         this.client = client;
     }
 

@@ -21,8 +21,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
-import java.util.function.Supplier;
-
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -36,7 +34,7 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
 
     @Inject
     public TransportDeleteWatchAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteWatchAction.NAME, transportService, (Supplier<DeleteWatchRequest>) DeleteWatchRequest::new, actionFilters);
+        super(DeleteWatchAction.NAME, transportService, DeleteWatchRequest::new, actionFilters);
         this.client = client;
     }
 

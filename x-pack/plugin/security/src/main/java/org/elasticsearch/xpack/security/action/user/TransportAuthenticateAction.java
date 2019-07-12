@@ -21,15 +21,13 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
-import java.util.function.Supplier;
-
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
     private final SecurityContext securityContext;
 
     @Inject
     public TransportAuthenticateAction(TransportService transportService, ActionFilters actionFilters, SecurityContext securityContext) {
-        super(AuthenticateAction.NAME, transportService, (Supplier<AuthenticateRequest>) AuthenticateRequest::new, actionFilters);
+        super(AuthenticateAction.NAME, transportService, AuthenticateRequest::new, actionFilters);
         this.securityContext = securityContext;
     }
 

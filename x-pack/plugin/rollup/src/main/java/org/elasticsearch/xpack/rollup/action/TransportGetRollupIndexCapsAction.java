@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -36,7 +35,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     @Inject
     public TransportGetRollupIndexCapsAction(TransportService transportService, ClusterService clusterService,
                                              ActionFilters actionFilters) {
-        super(GetRollupIndexCapsAction.NAME, transportService, (Supplier<GetRollupIndexCapsAction.Request>) GetRollupIndexCapsAction.Request::new, actionFilters
+        super(GetRollupIndexCapsAction.NAME, transportService, GetRollupIndexCapsAction.Request::new, actionFilters
         );
         this.clusterService = clusterService;
     }

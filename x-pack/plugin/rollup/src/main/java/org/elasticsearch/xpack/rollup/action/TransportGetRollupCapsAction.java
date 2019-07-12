@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class TransportGetRollupCapsAction extends HandledTransportAction<GetRollupCapsAction.Request, GetRollupCapsAction.Response> {
@@ -37,7 +36,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
 
     @Inject
     public TransportGetRollupCapsAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
-        super(GetRollupCapsAction.NAME, transportService, (Supplier<GetRollupCapsAction.Request>) GetRollupCapsAction.Request::new, actionFilters
+        super(GetRollupCapsAction.NAME, transportService, GetRollupCapsAction.Request::new, actionFilters
         );
         this.clusterService = clusterService;
     }

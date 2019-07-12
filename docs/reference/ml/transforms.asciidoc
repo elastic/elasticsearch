@@ -151,7 +151,7 @@ function. The `datafeed-test1` {dfeed} defines the script field. It contains a
 script that adds two fields in the document to produce a "total" error count.
 
 The syntax for the `script_fields` property is identical to that used by {es}.
-For more information, see <<search-request-script-fields,Script fields>>.
+For more information, see <<{ref}/search-request-body.html#search-request-script-fields,Script fields>>.
 
 You can preview the contents of the {dfeed} by using the following API:
 

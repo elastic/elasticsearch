@@ -178,8 +178,8 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
     }
 
     private static Version randomEarlierCompatibleVersion() {
-        return VersionUtils.randomVersionBetween(random(),
-            Version.CURRENT.minimumIndexCompatibilityVersion(), VersionUtils.getPreviousVersion());
+        return randomValueOtherThan(Version.CURRENT, () -> VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT));
     }
 
 }

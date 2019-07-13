@@ -146,7 +146,7 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
             }
             listener.onResponse(null);
         } catch (Exception ignored) {
-            // we can safely this exception as it happens after we have released the resource and notified the caller.
+            // we can safely ignore this exception as it happens after we have released the resource and notified the caller.
         }
     }
 

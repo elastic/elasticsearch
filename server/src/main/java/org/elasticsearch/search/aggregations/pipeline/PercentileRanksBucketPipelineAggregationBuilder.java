@@ -80,6 +80,10 @@ public class PercentileRanksBucketPipelineAggregationBuilder
             throw new IllegalArgumentException("[values] must not be null: [" + name + "]");
         }
 
+        if (values.length == 0) {
+            throw new IllegalArgumentException("[values] must be of length 1 or higher: [" + name + "]");
+        }
+
         this.values = values;
         return this;
     }
@@ -150,8 +154,7 @@ public class PercentileRanksBucketPipelineAggregationBuilder
                 }
                 params.put(VALUES_FIELD.getPreferredName(), values.toArray());
                 return true;
-            }
-            else if (KEYED_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_BOOLEAN){
+            } else if (KEYED_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_BOOLEAN){
                 params.put(KEYED_FIELD.getPreferredName(), parser.booleanValue());
                 return true;
             }

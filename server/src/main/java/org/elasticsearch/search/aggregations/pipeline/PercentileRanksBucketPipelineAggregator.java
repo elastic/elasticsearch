@@ -74,22 +74,6 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
         data.add(bucketValue);
     }
 
-    public int binarySearch(List<Double> data, double target) {
-        int lo = 0;
-        int hi = data.size() - 1;
-        int mid = 0;
-        while (lo <= hi) {
-            mid = lo + (hi - lo) / 2;
-            if (data[mid] == target) return mid;
-            if (data[mid] < target) {
-                lo = mid + 1;
-            } else {
-                hi = mid - 1;
-            }
-        }
-        return lo;
-    }
-
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
 
@@ -105,9 +89,15 @@ public class PercentileRanksBucketPipelineAggregator extends BucketMetricsPipeli
             }
         } else {
             for (int i = 0; i < values.length; i++) {
-                int index = binarySearch(data, values[i]);
-                double percentile_rank = (double) index/n;
-                percentileRanks[i] = percentile_rank*100;
+                int index = Collections.binarySearch(data, values[i]);
+                if (index < 0) {
+                    // index < 0 means value is not present in data set. Java returns
+                    // -(insertion_point) - 1 as result in this case.
+                    // derive insertion_point which shows # of values smaller than value of interest.
+                    index = -index-1;
+                }
+                double percentile_rank = (double) index / n;
+                percentileRanks[i] = percentile_rank * 100;
             }
         }
 

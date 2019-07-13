@@ -77,18 +77,13 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
 
         NodesStatsRequest request;
 
-        public NodeStatsRequest() {
+        public NodeStatsRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesStatsRequest(in);
         }
 
         NodeStatsRequest(NodesStatsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesStatsRequest();
-            request.readFrom(in);
         }
 
         @Override

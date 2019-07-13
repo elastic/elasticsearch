@@ -83,18 +83,13 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
 
         NodesHotThreadsRequest request;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesHotThreadsRequest(in);
         }
 
         NodeRequest(NodesHotThreadsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesHotThreadsRequest();
-            request.readFrom(in);
         }
 
         @Override

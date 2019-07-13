@@ -123,7 +123,10 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
         private Snapshot[] snapshots;
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            // This operation is never executed remotely
+            throw new UnsupportedOperationException("shouldn't be here");
         }
 
         public Request(String[] nodesIds) {
@@ -133,12 +136,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public Request snapshots(Snapshot[] snapshots) {
             this.snapshots = snapshots;
             return this;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            // This operation is never executed remotely
-            throw new UnsupportedOperationException("shouldn't be here");
         }
 
         @Override
@@ -174,17 +171,13 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
         private List<Snapshot> snapshots;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            snapshots = in.readList(Snapshot::new);
         }
 
         NodeRequest(TransportNodesSnapshotsStatus.Request request) {
             snapshots = Arrays.asList(request.snapshots);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            snapshots = in.readList(Snapshot::new);
         }
 
         @Override

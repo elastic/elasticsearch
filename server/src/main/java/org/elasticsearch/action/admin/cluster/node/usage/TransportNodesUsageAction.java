@@ -73,18 +73,13 @@ public class TransportNodesUsageAction
 
         NodesUsageRequest request;
 
-        public NodeUsageRequest() {
+        public NodeUsageRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesUsageRequest(in);
         }
 
         NodeUsageRequest(NodesUsageRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesUsageRequest();
-            request.readFrom(in);
         }
 
         @Override

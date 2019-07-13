@@ -238,18 +238,14 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
         private ShardId shardId;
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            shardId = new ShardId(in);
         }
 
         public Request(ShardId shardId, DiscoveryNode[] nodes) {
             super(nodes);
             this.shardId = shardId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = new ShardId(in);
         }
 
         @Override
@@ -285,17 +281,13 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
         private ShardId shardId;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            shardId = new ShardId(in);
         }
 
         NodeRequest(TransportNodesListShardStoreMetaData.Request request) {
             this.shardId = request.shardId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = new ShardId(in);
         }
 
         @Override

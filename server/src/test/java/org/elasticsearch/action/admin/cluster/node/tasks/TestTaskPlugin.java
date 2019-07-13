@@ -171,20 +171,15 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         protected String requestName;
         protected boolean shouldBlock;
 
-        public NodeRequest() {
-            super();
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
+            shouldBlock = in.readBoolean();
         }
 
         public NodeRequest(NodesRequest request, boolean shouldBlock) {
             requestName = request.requestName;
             this.shouldBlock = shouldBlock;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
-            shouldBlock = in.readBoolean();
         }
 
         @Override
@@ -211,8 +206,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         private boolean shouldBlock = true;
         private boolean shouldFail = false;
 
-        NodesRequest() {
-            super();
+        NodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
+            shouldStoreResult = in.readBoolean();
+            shouldBlock = in.readBoolean();
+            shouldFail = in.readBoolean();
         }
 
         public NodesRequest(String requestName, String... nodesIds) {
@@ -243,15 +242,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         public boolean getShouldFail() {
             return shouldFail;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
-            shouldStoreResult = in.readBoolean();
-            shouldBlock = in.readBoolean();
-            shouldFail = in.readBoolean();
         }
 
         @Override

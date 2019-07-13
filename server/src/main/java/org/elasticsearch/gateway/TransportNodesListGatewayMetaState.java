@@ -81,7 +81,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     public static class Request extends BaseNodesRequest<Request> {
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Request(String... nodesIds) {
@@ -111,6 +112,10 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     public static class NodeRequest extends BaseNodeRequest {
+        NodeRequest() {}
+        NodeRequest(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     public static class NodeGatewayMetaState extends BaseNodeResponse {

@@ -51,6 +51,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     private TimeValue timeout;
 
     protected BaseNodesRequest(StreamInput in) throws IOException {
+        super(in);
         nodesIds = in.readStringArray();
         concreteNodes = in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
         timeout = in.readOptionalTimeValue();

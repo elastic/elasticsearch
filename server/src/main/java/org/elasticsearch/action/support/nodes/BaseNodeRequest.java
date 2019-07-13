@@ -32,6 +32,7 @@ public abstract class BaseNodeRequest extends TransportRequest {
     public BaseNodeRequest() {}
 
     public BaseNodeRequest(StreamInput in) throws IOException {
+        super(in);
         if (in.getVersion().before(Version.V_7_3_0)) {
             in.readString(); // previously nodeId
         }

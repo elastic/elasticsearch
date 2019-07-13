@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -47,7 +48,23 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, DataFrameIndexerTransformStats> {
+public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameIndexerPosition, DataFrameIndexerTransformStats> {
+
+    /**
+     * RunState is an internal (non-persisted) state that controls the internal logic
+     * which query filters to run and which index requests to send
+     */
+    private enum RunState {
+        // do a complete query/index, this is used for batch data frames and for bootstraping (1st run)
+        FULL_RUN,
+
+        // Partial run modes in 2 stages:
+        // identify buckets that have changed
+        PARTIAL_RUN_IDENTIFY_CHANGES,
+
+        // recalculate buckets based on the update list
+        PARTIAL_RUN_APPLY_CHANGES
+    }
 
     public static final int MINIMUM_PAGE_SIZE = 10;
     public static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
@@ -61,24 +78,34 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     private Pivot pivot;
     private int pageSize = 0;
-    protected volatile DataFrameTransformCheckpoint inProgressOrLastCheckpoint;
+    protected volatile DataFrameTransformCheckpoint lastCheckpoint;
+    protected volatile DataFrameTransformCheckpoint nextCheckpoint;
+
+    private volatile RunState runState;
+
+    // hold information for continuous mode (partial updates)
     private volatile Map<String, Set<String>> changedBuckets;
+    private volatile Map<String, Object> changedBucketsAfterKey;
 
     public DataFrameIndexer(Executor executor,
                             DataFrameAuditor auditor,
                             DataFrameTransformConfig transformConfig,
                             Map<String, String> fieldMappings,
                             AtomicReference<IndexerState> initialState,
-                            Map<String, Object> initialPosition,
+                            DataFrameIndexerPosition initialPosition,
                             DataFrameIndexerTransformStats jobStats,
                             DataFrameTransformProgress transformProgress,
-                            DataFrameTransformCheckpoint inProgressOrLastCheckpoint) {
+                            DataFrameTransformCheckpoint lastCheckpoint,
+                            DataFrameTransformCheckpoint nextCheckpoint) {
         super(executor, initialState, initialPosition, jobStats);
         this.auditor = Objects.requireNonNull(auditor);
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
         this.progress = transformProgress;
-        this.inProgressOrLastCheckpoint = inProgressOrLastCheckpoint;
+        this.lastCheckpoint = lastCheckpoint;
+        this.nextCheckpoint = nextCheckpoint;
+        // give runState a default
+        this.runState = RunState.FULL_RUN;
     }
 
     protected abstract void failIndexer(String message);
@@ -117,6 +144,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             if (pageSize == 0) {
                 pageSize = pivot.getInitialPageSize();
             }
+
+            runState = determineRunStateAtStart();
             listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -136,22 +165,93 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     }
 
     @Override
-    protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
+    protected IterationResult<DataFrameIndexerPosition> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
 
+        switch (runState) {
+        case FULL_RUN:
+            return processBuckets(agg);
+        case PARTIAL_RUN_APPLY_CHANGES:
+            return processPartialBucketUpdates(agg);
+        case PARTIAL_RUN_IDENTIFY_CHANGES:
+            return processChangedBuckets(agg);
+
+        default:
+            // Any other state is a bug, should not happen
+            logger.warn("Encountered unexpected run state [" + runState + "]");
+            throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
+        }
+    }
+
+    private IterationResult<DataFrameIndexerPosition> processBuckets(final CompositeAggregation agg) {
         // we reached the end
         if (agg.getBuckets().isEmpty()) {
             return new IterationResult<>(Collections.emptyList(), null, true);
         }
 
         long docsBeforeProcess = getStats().getNumDocuments();
-        IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
-            agg.afterKey(),
-            agg.getBuckets().isEmpty());
+
+        DataFrameIndexerPosition oldPosition = getPosition();
+        DataFrameIndexerPosition newPosition = new DataFrameIndexerPosition(agg.afterKey(),
+                oldPosition != null ? getPosition().getBucketsPosition() : null);
+
+        IterationResult<DataFrameIndexerPosition> result = new IterationResult<>(
+                processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+                newPosition,
+                agg.getBuckets().isEmpty());
+
         if (progress != null) {
             progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
         }
+
         return result;
+    }
+
+    private IterationResult<DataFrameIndexerPosition> processPartialBucketUpdates(final CompositeAggregation agg) {
+        // we reached the end
+        if (agg.getBuckets().isEmpty()) {
+            // cleanup changed Buckets
+            changedBuckets = null;
+
+            // reset the runState to fetch changed buckets
+            runState = RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
+            // advance the cursor for changed bucket detection
+            return new IterationResult<>(Collections.emptyList(),
+                    new DataFrameIndexerPosition(null, changedBucketsAfterKey), false);
+        }
+
+        return processBuckets(agg);
+    }
+
+
+    private IterationResult<DataFrameIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
+        // initialize the map of changed buckets, the map might be empty if source do not require/implement
+        // changed bucket detection
+        changedBuckets = pivot.initialIncrementalBucketUpdateMap();
+
+        // reached the end?
+        if (agg.getBuckets().isEmpty()) {
+            // reset everything and return the end marker
+            changedBuckets = null;
+            changedBucketsAfterKey = null;
+            return new IterationResult<>(Collections.emptyList(), null, true);
+        }
+        // else
+
+        // collect all buckets that require the update
+        agg.getBuckets().stream().forEach(bucket -> {
+            bucket.getKey().forEach((k, v) -> {
+                changedBuckets.get(k).add(v.toString());
+            });
+        });
+
+        // remember the after key but do not store it in the state yet (in the failure we need to retrieve it again)
+        changedBucketsAfterKey = agg.afterKey();
+
+        // reset the runState to fetch the partial updates next
+        runState = RunState.PARTIAL_RUN_APPLY_CHANGES;
+
+        return new IterationResult<>(Collections.emptyList(), getPosition(), false);
     }
 
     /*
@@ -197,41 +297,126 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     }
 
     protected QueryBuilder buildFilterQuery() {
+        assert nextCheckpoint != null;
+
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
         DataFrameTransformConfig config = getConfig();
-        if (config.getSyncConfig() != null) {
-            if (inProgressOrLastCheckpoint == null) {
-                throw new RuntimeException("in progress checkpoint not found");
-            }
+        if (this.isContinuous()) {
 
             BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
-                .filter(pivotQueryBuilder)
-                .filter(config.getSyncConfig().getRangeQuery(inProgressOrLastCheckpoint));
+                .filter(pivotQueryBuilder);
 
-            if (changedBuckets != null && changedBuckets.isEmpty() == false) {
-                QueryBuilder pivotFilter = pivot.filterBuckets(changedBuckets);
-                if (pivotFilter != null) {
-                    filteredQuery.filter(pivotFilter);
-                }
+            if (lastCheckpoint != null) {
+                filteredQuery.filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
+            } else {
+                filteredQuery.filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
             }
-
-            logger.trace("running filtered query: {}", filteredQuery);
             return filteredQuery;
-        } else {
-            return pivotQueryBuilder;
         }
+
+        return pivotQueryBuilder;
     }
 
     @Override
     protected SearchRequest buildSearchRequest() {
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
+        assert nextCheckpoint != null;
+
+        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex())
+                .allowPartialSearchResults(false);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .aggregation(pivot.buildAggregation(getPosition(), pageSize))
-            .size(0)
-            .query(buildFilterQuery());
+                .size(0);
+
+        switch (runState) {
+        case FULL_RUN:
+            buildFullRunQuery(sourceBuilder);
+            break;
+        case PARTIAL_RUN_IDENTIFY_CHANGES:
+            buildChangedBucketsQuery(sourceBuilder);
+            break;
+        case PARTIAL_RUN_APPLY_CHANGES:
+            buildPartialUpdateQuery(sourceBuilder);
+            break;
+        default:
+            // Any other state is a bug, should not happen
+            logger.warn("Encountered unexpected run state [" + runState + "]");
+            throw new IllegalStateException("DataFrame indexer job encountered an illegal state [" + runState + "]");
+        }
+
         searchRequest.source(sourceBuilder);
         return searchRequest;
+    }
+
+    private SearchSourceBuilder buildFullRunQuery(SearchSourceBuilder sourceBuilder) {
+        DataFrameIndexerPosition position = getPosition();
+
+        sourceBuilder.aggregation(pivot.buildAggregation(position != null ? position.getIndexerPosition() : null, pageSize));
+        DataFrameTransformConfig config = getConfig();
+
+        QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
+        if (isContinuous()) {
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
+                    .filter(pivotQueryBuilder)
+                    .filter(config.getSyncConfig()
+                            .getRangeQuery(nextCheckpoint));
+            sourceBuilder.query(filteredQuery);
+        } else {
+            sourceBuilder.query(pivotQueryBuilder);
+        }
+
+        logger.trace("running full run query: {}", sourceBuilder);
+
+        return sourceBuilder;
+    }
+
+    private SearchSourceBuilder buildChangedBucketsQuery(SearchSourceBuilder sourceBuilder) {
+        assert isContinuous();
+
+        DataFrameIndexerPosition position = getPosition();
+
+        CompositeAggregationBuilder changesAgg = pivot.buildIncrementalBucketUpdateAggregation(pageSize);
+        changesAgg.aggregateAfter(position != null ? position.getBucketsPosition() : null);
+        sourceBuilder.aggregation(changesAgg);
+
+        QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
+
+        DataFrameTransformConfig config = getConfig();
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().
+                filter(pivotQueryBuilder).
+                filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
+
+        sourceBuilder.query(filteredQuery);
+
+        logger.trace("running changes query {}", sourceBuilder);
+        return sourceBuilder;
+    }
+
+    private SearchSourceBuilder buildPartialUpdateQuery(SearchSourceBuilder sourceBuilder) {
+        assert isContinuous();
+
+        DataFrameIndexerPosition position = getPosition();
+
+        sourceBuilder.aggregation(pivot.buildAggregation(position != null ? position.getIndexerPosition() : null, pageSize));
+        DataFrameTransformConfig config = getConfig();
+
+        QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
+
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
+                .filter(pivotQueryBuilder)
+                .filter(config.getSyncConfig()
+                        .getRangeQuery(nextCheckpoint));
+
+        if (changedBuckets != null && changedBuckets.isEmpty() == false) {
+            QueryBuilder pivotFilter = pivot.filterBuckets(changedBuckets);
+            if (pivotFilter != null) {
+                filteredQuery.filter(pivotFilter);
+            }
+        }
+
+        sourceBuilder.query(filteredQuery);
+        logger.trace("running partial update query: {}", sourceBuilder);
+
+        return sourceBuilder;
     }
 
     /**
@@ -272,82 +457,19 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         return true;
     }
 
-    protected void getChangedBuckets(DataFrameTransformCheckpoint oldCheckpoint,
-                                     DataFrameTransformCheckpoint newCheckpoint,
-                                     ActionListener<Map<String, Set<String>>> listener) {
-
-        ActionListener<Map<String, Set<String>>> wrappedListener = ActionListener.wrap(
-            r -> {
-                this.inProgressOrLastCheckpoint = newCheckpoint;
-                this.changedBuckets = r;
-                listener.onResponse(r);
-            },
-            listener::onFailure
-        );
-        // initialize the map of changed buckets, the map might be empty if source do not require/implement
-        // changed bucket detection
-        Map<String, Set<String>> keys = pivot.initialIncrementalBucketUpdateMap();
-        if (keys.isEmpty()) {
-            logger.trace("This data frame does not implement changed bucket detection, returning");
-            wrappedListener.onResponse(null);
-            return;
+    private RunState determineRunStateAtStart() {
+        // either 1st run or not a continuous data frame
+        if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
+            return RunState.FULL_RUN;
         }
 
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-
-        // we do not need the sub-aggs
-        CompositeAggregationBuilder changesAgg = pivot.buildIncrementalBucketUpdateAggregation(pageSize);
-        sourceBuilder.aggregation(changesAgg);
-        sourceBuilder.size(0);
-
-        QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
-
-        DataFrameTransformConfig config = getConfig();
-        if (config.getSyncConfig() != null) {
-            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().
-                    filter(pivotQueryBuilder).
-                    filter(config.getSyncConfig().getRangeQuery(oldCheckpoint, newCheckpoint));
-
-            logger.trace("Gathering changes using query {}", filteredQuery);
-            sourceBuilder.query(filteredQuery);
-        } else {
-            logger.trace("No sync configured");
-            wrappedListener.onResponse(null);
-            return;
+        // if incremental update is not supported, do a full run
+        if (pivot.supportsIncrementalBucketUpdate() == false) {
+            return RunState.FULL_RUN;
         }
 
-        searchRequest.source(sourceBuilder);
-        searchRequest.allowPartialSearchResults(false);
-
-        collectChangedBuckets(searchRequest, changesAgg, keys, ActionListener.wrap(wrappedListener::onResponse, e -> {
-            // fall back if bucket collection failed
-            logger.error("Failed to retrieve changed buckets, fall back to complete retrieval", e);
-            wrappedListener.onResponse(null);
-        }));
-    }
-
-    void collectChangedBuckets(SearchRequest searchRequest, CompositeAggregationBuilder changesAgg, Map<String, Set<String>> keys,
-            ActionListener<Map<String, Set<String>>> finalListener) {
-
-        // re-using the existing search hook
-        doNextSearch(searchRequest, ActionListener.wrap(searchResponse -> {
-            final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-
-            agg.getBuckets().stream().forEach(bucket -> {
-                bucket.getKey().forEach((k, v) -> {
-                    keys.get(k).add(v.toString());
-                });
-            });
-
-            if (agg.getBuckets().isEmpty()) {
-                finalListener.onResponse(keys);
-            } else {
-                // adjust the after key
-                changesAgg.aggregateAfter(agg.afterKey());
-                collectChangedBuckets(searchRequest, changesAgg, keys, finalListener);
-            }
-        }, finalListener::onFailure));
+        // continuous mode: we need to get the changed buckets first
+        return RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
     }
 
     /**

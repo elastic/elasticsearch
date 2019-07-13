@@ -51,7 +51,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class TransportPutDataFrameAnalyticsAction
     extends HandledTransportAction<PutDataFrameAnalyticsAction.Request, PutDataFrameAnalyticsAction.Response> {
@@ -73,8 +72,8 @@ public class TransportPutDataFrameAnalyticsAction
                                                 XPackLicenseState licenseState, Client client, ThreadPool threadPool,
                                                 ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 DataFrameAnalyticsConfigProvider configProvider) {
-        super(PutDataFrameAnalyticsAction.NAME, transportService, actionFilters,
-            (Supplier<PutDataFrameAnalyticsAction.Request>) PutDataFrameAnalyticsAction.Request::new);
+        super(PutDataFrameAnalyticsAction.NAME, transportService, PutDataFrameAnalyticsAction.Request::new, actionFilters
+        );
         this.licenseState = licenseState;
         this.configProvider = configProvider;
         this.threadPool = threadPool;

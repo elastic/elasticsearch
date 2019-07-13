@@ -30,12 +30,12 @@ events and delete the calendar, see the
 [[ml-delete-calendar-event-path-parms]]
 ==== {api-path-parms-title}
 
-`<calendar_id>` (Required)::
-  (string) Identifier for the calendar.
+`<calendar_id>`::
+  (Required, string) Identifier for the calendar.
 
-`<event_id>` (Required)::
-  (string) Identifier for the scheduled event. You can obtain this identifier
-  by using the <<ml-get-calendar-event,get calendar events API>>.
+`<event_id>`::
+  (Required, string) Identifier for the scheduled event. You can obtain this
+  identifier by using the <<ml-get-calendar-event,get calendar events API>>.
 
 [[ml-delete-calendar-event-example]]
 ==== {api-examples-title}

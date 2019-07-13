@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -43,7 +42,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -337,12 +335,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public boolean isProcessAlive() {
         return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
-    }
-
-    void eachVersionedDistribution(BiConsumer<Version, TestDistribution> consumer) {
-        nodes.forEach(each -> {
-            consumer.accept(each.getVersion(), each.getTestDistribution());
-        });
     }
 
     public ElasticsearchNode singleNode() {

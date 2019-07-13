@@ -26,11 +26,12 @@ import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.Project;
-import org.gradle.api.file.FileTree;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Classpath;
@@ -158,6 +159,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         esStderrFile = confPathLogs.resolve("es.stderr.log");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
+
+        testDistribution = TestDistribution.INTEG_TEST;
+        version = VersionProperties.getElasticsearch();
     }
 
     public String getName() {
@@ -994,19 +998,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Classpath
-    private Iterable<File> getDistributionClasspath() {
-        FileTree jarFiles = distribution.getExtracted().getFileTree(project).matching(filter -> filter.include("**/*.jar"));
-        return () -> {
-            List<File> files = new ArrayList<>(jarFiles.getFiles());
-            files.sort(Comparator.comparing(File::getName));
-            return files.iterator();
-        };
+    private List<File> getDistributionClasspath() {
+        ArrayList<File> files = new ArrayList<>(project.fileTree(getExtractedDistributionDir())
+            .matching(filter -> filter.include("**/*.jar"))
+            .getFiles());
+        files.sort(Comparator.comparing(File::getName));
+
+        return files;
     }
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    private Iterable<File> getDistributionFiles() {
-        return distribution.getExtracted().getFileTree(project).minus(project.files(getDistributionClasspath()));
+    private FileCollection getDistributionFiles() {
+        return project.fileTree(getExtractedDistributionDir()).minus(project.files(getDistributionClasspath()));
     }
 
     @Nested

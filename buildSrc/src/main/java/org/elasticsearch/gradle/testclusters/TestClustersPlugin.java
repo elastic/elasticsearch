@@ -58,7 +58,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        Project rootProject = project.getRootProject();
+        project.getPlugins().apply(DistributionDownloadPlugin.class);
 
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project);
@@ -85,11 +85,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project) {
-
-        project.getPlugins().apply(DistributionDownloadPlugin.class);
-        @SuppressWarnings("unchecked")
-        NamedDomainObjectContainer<ElasticsearchDistribution> distros =
-            (NamedDomainObjectContainer<ElasticsearchDistribution>) project.getExtensions().getByName("elasticsearch_distributions");
+        NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project);
 
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(

@@ -169,7 +169,7 @@ public class JoinHelperTests extends ESTestCase {
         final CoordinationStateRejectedException coordinationStateRejectedException
             = expectThrows(CoordinationStateRejectedException.class, future::actionGet);
         assertThat(coordinationStateRejectedException.getMessage(),
-            containsString("join validation on cluster state with a different cluster uuid"));
+            containsString("join validation on cluster state with a different cluster uuid (node's must not have different data, delete node's data and restart elasticsearch)"));
         assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metaData().clusterUUID()));
         assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metaData().clusterUUID()));
     }

@@ -19,12 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexNotFoundException;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
@@ -39,7 +34,6 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -53,91 +47,18 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.indices.recovery.PeerRecoveryTargetService.getStartRecoveryRequest;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
-
-    public void testGetStartingSeqNo() throws Exception {
-        final IndexShard replica = newShard(false);
-        try {
-            // Empty store
-            {
-                recoveryEmptyReplica(replica, true);
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
-                recoveryTarget.decRef();
-            }
-            // Last commit is good - use it.
-            final long initDocs = scaledRandomIntBetween(1, 10);
-            {
-                for (int i = 0; i < initDocs; i++) {
-                    indexDoc(replica, "_doc", Integer.toString(i));
-                    if (randomBoolean()) {
-                        flushShard(replica);
-                    }
-                }
-                flushShard(replica);
-                replica.updateGlobalCheckpointOnReplica(initDocs - 1, "test");
-                replica.sync();
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
-                recoveryTarget.decRef();
-            }
-            // Global checkpoint does not advance, last commit is not good - use the previous commit
-            final int moreDocs = randomIntBetween(1, 10);
-            {
-                for (int i = 0; i < moreDocs; i++) {
-                    indexDoc(replica, "_doc", Long.toString(i));
-                    if (randomBoolean()) {
-                        flushShard(replica);
-                    }
-                }
-                flushShard(replica);
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
-                recoveryTarget.decRef();
-            }
-            // Advances the global checkpoint, a safe commit also advances
-            {
-                replica.updateGlobalCheckpointOnReplica(initDocs + moreDocs - 1, "test");
-                replica.sync();
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs + moreDocs));
-                recoveryTarget.decRef();
-            }
-            // Different translogUUID, fallback to file-based
-            {
-                replica.close("test", false);
-                final List<IndexCommit> commits = DirectoryReader.listCommits(replica.store().directory());
-                IndexWriterConfig iwc = new IndexWriterConfig(null)
-                    .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-                try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
-                    final Map<String, String> userData = new HashMap<>(commits.get(commits.size() - 1).getUserData());
-                    userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
-                    writer.setLiveCommitData(userData.entrySet());
-                    writer.commit();
-                }
-                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-                recoveryTarget.decRef();
-            }
-        } finally {
-            closeShards(replica);
-        }
-    }
 
     public void testWriteFileChunksConcurrently() throws Exception {
         IndexShard sourceShard = newStartedShard(true);
@@ -214,7 +135,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    public void testPrepareShardForPeerRecovery() throws Exception {
+    public void testPrepareIndexForPeerRecovery() throws Exception {
         CheckedFunction<IndexShard, Long, Exception> populateData = shard -> {
             List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
             Randomness.shuffle(seqNos);
@@ -226,7 +147,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
             }
             shard.sync();
-            long globalCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, getTranslog(shard).getMaxSeqNo());
+            long globalCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, shard.getLocalCheckpoint());
             shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
             shard.sync();
             return globalCheckpoint;
@@ -236,15 +157,15 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         CheckedFunction<IndexShard, Long, Exception> getStartingSeqno = shard -> {
             RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
-            try(Closeable ignored = recoveryTarget::decRef ) {
-                return PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget);
+            try (Closeable ignored = recoveryTarget::decRef) {
+                return getStartRecoveryRequest(logger, localNode, recoveryTarget).startingSeqNo();
             }
         };
 
         // empty copy
         IndexShard shard = newShard(false);
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, localNode));
-        shard.prepareShardForPeerRecovery();
+        shard.prepareForIndexRecovery();
         expectThrows(IndexNotFoundException.class, shard::snapshotStoreMetadata);
         assertThat(getStartingSeqno.apply(shard), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
         closeShards(shard);
@@ -256,13 +177,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             RecoverySource.PeerRecoverySource.INSTANCE));
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        replica.prepareShardForPeerRecovery();
         assertThat(getStartingSeqno.apply(replica), equalTo(globalCheckpoint + 1));
         closeShards(replica);
 
         // corrupted copy
         shard = newStartedShard(false);
-        if (randomBoolean()){
+        if (randomBoolean()) {
             populateData.apply(shard);
         }
         shard.store().markStoreCorrupted(new IOException("test"));
@@ -270,7 +190,6 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             RecoverySource.PeerRecoverySource.INSTANCE));
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        replica.prepareShardForPeerRecovery();
         assertThat(getStartingSeqno.apply(replica), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
         closeShards(replica);
 
@@ -279,15 +198,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         globalCheckpoint = populateData.apply(shard);
         replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(),
             RecoverySource.PeerRecoverySource.INSTANCE));
-
-        String translogUUID = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(),globalCheckpoint,
+        String translogUUID = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), globalCheckpoint,
             replica.shardId(), replica.getPendingPrimaryTerm());
         replica.store().associateIndexWithNewTranslog(translogUUID);
+        long startingSeqNo = shard.store().findSafeIndexCommit(shard.shardPath().resolveTranslog())
+            .map(commitInfo -> commitInfo.localCheckpoint + 1).orElse(SequenceNumbers.UNASSIGNED_SEQ_NO);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        long startingSeqNoWithoutLocalRecovery = getStartingSeqno.apply(replica);
-        replica.prepareShardForPeerRecovery();
-        assertThat(getStartingSeqno.apply(replica), equalTo(startingSeqNoWithoutLocalRecovery));
-        closeShards(replica);
+        assertThat(getStartingSeqno.apply(replica), equalTo(startingSeqNo));
     }
 }

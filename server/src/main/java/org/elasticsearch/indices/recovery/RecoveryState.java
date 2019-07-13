@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -47,30 +48,35 @@ import java.util.Map;
  */
 public class RecoveryState implements ToXContentFragment, Streamable, Writeable {
 
-    public enum Stage {
+    public enum Stage implements Writeable {
         INIT((byte) 0),
+
+        /**
+         * Locally recover the index up to the global checkpoint before performing a peer recovery
+         */
+        PREPARE_INDEX((byte) 1),
 
         /**
          * recovery of lucene files, either reusing local ones are copying new ones
          */
-        INDEX((byte) 1),
+        INDEX((byte) 2),
 
         /**
          * potentially running check index
          */
-        VERIFY_INDEX((byte) 2),
+        VERIFY_INDEX((byte) 3),
 
         /**
          * starting up the engine, replaying the translog
          */
-        TRANSLOG((byte) 3),
+        TRANSLOG((byte) 4),
 
         /**
          * performing final task after all translog ops have been done
          */
-        FINALIZE((byte) 4),
+        FINALIZE((byte) 5),
 
-        DONE((byte) 5);
+        DONE((byte) 6);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 
@@ -91,16 +97,28 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             return id;
         }
 
-        public static Stage fromId(byte id) {
+        public static Stage fromId(StreamInput in) throws IOException {
+            byte id = in.readByte();
+            if (in.getVersion().before(Version.V_8_0_0) && id >= PREPARE_INDEX.id) {
+                id++;
+            }
             if (id < 0 || id >= STAGES.length) {
                 throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }
             return STAGES[id];
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            byte id = this.id;
+            if (out.getVersion().before(Version.V_8_0_0) && id >= PREPARE_INDEX.id) {
+                id--;
+            }
+            out.writeByte(id);
+        }
     }
 
     private Stage stage;
-
     private final Index index;
     private final Translog translog;
     private final VerifyIndex verifyIndex;
@@ -133,7 +151,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
 
     public RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
-        stage = Stage.fromId(in.readByte());
+        stage = Stage.fromId(in);
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
@@ -147,7 +165,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
-        out.writeByte(stage.id());
+        stage.writeTo(out);
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         targetNode.writeTo(out);
@@ -185,8 +203,11 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
                 getVerifyIndex().reset();
                 getTranslog().reset();
                 break;
-            case INDEX:
+            case PREPARE_INDEX:
                 validateAndSetStage(Stage.INIT, stage);
+                break;
+            case INDEX:
+                validateAndSetStage(Stage.PREPARE_INDEX, stage);
                 getIndex().start();
                 break;
             case VERIFY_INDEX:
@@ -456,6 +477,15 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             builder.humanReadableField(Fields.CHECK_INDEX_TIME_IN_MILLIS, Fields.CHECK_INDEX_TIME, new TimeValue(checkIndexTime));
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
+        }
+    }
+
+    public static class PrepareIndex extends Translog {
+        PrepareIndex() {
+        }
+
+        PrepareIndex(StreamInput in) throws IOException {
+            super(in);
         }
     }
 

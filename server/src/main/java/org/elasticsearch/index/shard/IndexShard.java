@@ -83,7 +83,6 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -160,6 +159,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -1350,14 +1350,50 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * called before starting to copy index files over
+     * Prepares the local index before performing a recovery. If the recovery is a peer recovery, this method
+     * will try to bring the index of this shard up to the global checkpoint using the local translog.
      */
     public void prepareForIndexRecovery() {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+        recoveryState.setStage(RecoveryState.Stage.PREPARE_INDEX);
+        if (routingEntry().recoverySource().getType() == RecoverySource.Type.PEER) {
+            recoverLocallyUpToGlobalCheckpoint();
+        }
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         assert currentEngineReference.get() == null;
+    }
+
+    private void recoverLocallyUpToGlobalCheckpoint() {
+        final Optional<SequenceNumbers.CommitInfo> safeCommit = store.findSafeIndexCommit(translogConfig.getTranslogPath());
+        if (safeCommit.isPresent() == false) {
+            return;
+        }
+        try {
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
+            if (safeCommit.get().localCheckpoint == globalCheckpoint) {
+                return; // the index commit is up to date already.
+            }
+            try {
+                final Engine.TranslogRecoveryRunner translogRecoveryRunner =
+                    (engine, snapshot) -> runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY, () -> {});
+                innerOpenEngineAndTranslog();
+                final Engine engine = getEngine();
+                engine.recoverFromTranslog(translogRecoveryRunner, globalCheckpoint);
+                engine.flush(true, true);
+                logger.debug("recover shard locally to {}", engine.getSeqNoStats(globalCheckpoint));
+            } finally {
+                synchronized (mutex) {
+                    IOUtils.close(currentEngineReference.getAndSet(null));
+                }
+            }
+        } catch (Exception e) {
+            // this step is a best effort to bring up this shard locally to the global checkpoint
+            logger.debug("failed to recover shard locally up to the global checkpoint", e);
+        }
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
@@ -1470,7 +1506,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
                 translogRecoveryStats::incrementRecoveredOperations);
         };
+        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         innerOpenEngineAndTranslog();
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
@@ -1479,65 +1517,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The translog is kept but its operations won't be replayed.
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
+        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         innerOpenEngineAndTranslog();
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         getEngine().skipTranslogRecovery();
     }
 
-    /**
-     * Recovers a replica locally up to the global checkpoint before starting a peer recovery.
-     */
-    public void prepareShardForPeerRecovery() {
+    private void innerOpenEngineAndTranslog() throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        if (recoveryState.getRecoverySource() instanceof RecoverySource.PeerRecoverySource == false) {
-            assert false : "only peer recovery needs to recover locally up to the global checkpoint";
-            throw new IllegalStateException("only peer recovery needs to recover locally up to the global checkpoint");
-        }
-        try {
-            final long globalCheckpoint;
-            final Engine engine;
-            synchronized (mutex) {
-                String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-                globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-                List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-                IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
-                SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
-                boolean shouldRecoverLocally = commitInfo.maxSeqNo <= globalCheckpoint && commitInfo.localCheckpoint < globalCheckpoint;
-                if (shouldRecoverLocally && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
-                    engine = innerOpenEngineAndTranslog();
-                } else {
-                    engine = null;
-                }
-            }
-            if (engine != null) {
-                try {
-                    indexShardOperationPermits.blockOperations(-1, TimeUnit.SECONDS, () -> {
-                        final Engine.TranslogRecoveryRunner translogRecoveryRunner =
-                            (e, snapshot) -> runTranslogRecovery(e, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> { });
-                        engine.recoverFromTranslog(translogRecoveryRunner, globalCheckpoint);
-                    });
-                    engine.flush(true, true);
-                } finally {
-                    synchronized (mutex) {
-                        currentEngineReference.compareAndSet(engine, null);
-                        IOUtils.close(engine);
-                    }
-                    recoveryState.setStage(RecoveryState.Stage.INIT);
-                    recoveryState.setStage(RecoveryState.Stage.INDEX);
-                }
-            }
-        } catch (Exception ignored) {
-            // We can hit exception if the store is empty or corrupted or incomplete (due to the abort of the previous peer recovery).
-            // It's fine if this step failed as the peer recovery can use whatever outcome correctly. We can safely ignore exception here.
-        }
-    }
-
-    private Engine innerOpenEngineAndTranslog() throws IOException {
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
-        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
         if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
             try {
@@ -1546,8 +1535,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 throw new RecoveryFailedException(recoveryState, "check index failed", ex);
             }
         }
-        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-
         final EngineConfig config = newEngineConfig();
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -1563,12 +1550,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
             + "] but got " + getRetentionLeases();
-        final Engine newEngine;
         synchronized (mutex) {
             verifyNotClosed();
             assert currentEngineReference.get() == null : "engine is running";
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            newEngine = engineFactory.newReadWriteEngine(config);
+            final Engine newEngine = engineFactory.newReadWriteEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             // We set active because we are now writing operations to the engine; this way,
@@ -1579,8 +1565,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
         assert assertSequenceNumbersInCommit();
-        assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
-        return newEngine;
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {

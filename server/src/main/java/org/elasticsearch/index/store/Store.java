@@ -80,6 +80,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -96,6 +97,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -1557,6 +1559,28 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
         } finally {
             metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Returns a {@link org.elasticsearch.index.seqno.SequenceNumbers.CommitInfo} of the safe commit if exists.
+     * If the index is not found or corrupted or translog is corrupted, this method won't throw exception but return an empty result.
+     */
+    public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(Path translogPath) {
+        try {
+            String translogUUID = readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
+            List<IndexCommit> commits = DirectoryReader.listCommits(directory);
+            IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
+            SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
+            // max_seq_no of the safe commit must be at most the global checkpoint
+            if (commitInfo.maxSeqNo <= globalCheckpoint) {
+                return Optional.of(commitInfo);
+            } else {
+                return Optional.empty();
+            }
+        } catch (final TranslogCorruptedException | IOException e) {
+            return Optional.empty();
         }
     }
 

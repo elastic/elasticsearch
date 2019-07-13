@@ -1041,10 +1041,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final long lastSyncedGlobalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
         shard.failShard("test", new IOException("simulated"));
         StartRecoveryRequest startRecoveryRequest = startRecoveryRequestFuture.actionGet();
-        SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+        SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             startRecoveryRequest.metadataSnapshot().getCommitUserData().entrySet());
-        assertThat(commitInfo.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
-        assertThat(commitInfo.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
         assertThat(startRecoveryRequest.startingSeqNo(), equalTo(lastSyncedGlobalCheckpoint + 1));
         ensureGreen(indexName);
         for (String node : nodes) {

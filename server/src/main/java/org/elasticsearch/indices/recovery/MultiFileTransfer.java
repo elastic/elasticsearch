@@ -82,7 +82,7 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
     }
 
     public final void start() {
-        addItem(UNASSIGNED_SEQ_NO, null, null); // put an dummy item to start the processor
+        addItem(UNASSIGNED_SEQ_NO, null, null); // put a dummy item to start the processor
     }
 
     private void addItem(long requestSeqId, StoreFileMetaData md, Exception failure) {
@@ -91,10 +91,10 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
 
     private void handleItems(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
         if (status != Status.PROCESSING) {
-            assert status == Status.FAILED : "must not receive any response after the transfer was completed";
+            assert status != Status.SUCCESS : "must not receive any response after the transfer was completed";
             // These exceptions will be ignored as we record only the first failure, log them for debugging purpose.
             items.stream().filter(item -> item.v1().failure != null).forEach(item ->
-                logger.debug(new ParameterizedMessage("failed to transfer file chunk request {}", item.v1().md), item.v1().failure));
+                logger.debug(new ParameterizedMessage("failed to transfer a file chunk request {}", item.v1().md), item.v1().failure));
             return;
         }
         try {
@@ -137,10 +137,17 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
     private void onCompleted(Exception failure) {
         assert status == Status.PROCESSING : "status [" + status + "] failure [" + failure + "]";
         status = failure == null ? Status.SUCCESS : Status.FAILED;
-        ActionListener.completeWith(listener, () -> {
-            IOUtils.close(failure, this);
-            return null;
-        });
+        try {
+            try {
+                IOUtils.close(failure, this);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
+            listener.onResponse(null);
+        } catch (Exception ignored) {
+            // we can safely this exception as it happens after we have released the resource and notified the caller.
+        }
     }
 
     private Tuple<StoreFileMetaData, Request> getNextRequest() throws Exception {

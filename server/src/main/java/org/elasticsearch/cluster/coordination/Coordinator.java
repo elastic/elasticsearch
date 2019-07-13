@@ -295,7 +295,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     sourceNode, publishRequest.getAcceptedState().metaData().clusterUUID(), localState.metaData().clusterUUID());
                 throw new CoordinationStateRejectedException("received cluster state from " + sourceNode +
                     " with a different cluster uuid " + publishRequest.getAcceptedState().metaData().clusterUUID() +
-                    " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
+                    " than local cluster uuid " + localState.metaData().clusterUUID() + ", (node's must not have different data, delete node's data and restart elasticsearch)" +", rejecting");
             }
 
             if (publishRequest.getAcceptedState().term() > localState.term()) {

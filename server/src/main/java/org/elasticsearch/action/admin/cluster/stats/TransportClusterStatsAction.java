@@ -142,8 +142,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new ClusterStatsRequest();
-            request.readFrom(in);
+            request = new ClusterStatsRequest(in);
         }
 
         ClusterStatsNodeRequest(ClusterStatsRequest request) {

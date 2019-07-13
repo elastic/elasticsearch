@@ -37,8 +37,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new NodesDeprecationCheckRequest();
-            request.readFrom(in);
+            request = new NodesDeprecationCheckRequest(in);
         }
         public NodeRequest(NodesDeprecationCheckRequest request) {
             this.request = request;

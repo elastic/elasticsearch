@@ -34,6 +34,7 @@ public abstract class BaseNodeResponse extends TransportResponse {
     private DiscoveryNode node;
 
     protected BaseNodeResponse(StreamInput in) throws IOException {
+        super(in);
         node = new DiscoveryNode(in);
     }
 

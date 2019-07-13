@@ -39,6 +39,7 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     private Map<String, TNodeResponse> nodesMap;
 
     protected BaseNodesResponse(StreamInput in) throws IOException {
+        super(in);
         clusterName = new ClusterName(in);
         nodes = readNodesFrom(in);
         failures = in.readList(FailedNodeException::new);

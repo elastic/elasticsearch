@@ -37,7 +37,8 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for verifying repository operation
  */
-public class TransportVerifyRepositoryAction extends StreamableTransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
+public class TransportVerifyRepositoryAction extends
+    StreamableTransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
 

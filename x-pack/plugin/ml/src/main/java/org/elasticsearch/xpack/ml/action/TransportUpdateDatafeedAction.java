@@ -37,7 +37,8 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import java.util.Collections;
 import java.util.Map;
 
-public class TransportUpdateDatafeedAction extends StreamableTransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+public class TransportUpdateDatafeedAction extends
+    StreamableTransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;

@@ -33,7 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportGetDatafeedsAction extends StreamableTransportMasterNodeReadAction<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
+public class TransportGetDatafeedsAction extends
+    StreamableTransportMasterNodeReadAction<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
 
     private final DatafeedConfigProvider datafeedConfigProvider;
 

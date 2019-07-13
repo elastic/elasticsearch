@@ -32,8 +32,8 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 @Deprecated
-public abstract class StreamableTransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>, Response extends ActionResponse>
-    extends TransportMasterNodeReadAction<Request, Response> {
+public abstract class StreamableTransportMasterNodeReadAction<Request extends MasterNodeReadRequest<Request>,
+    Response extends ActionResponse> extends TransportMasterNodeReadAction<Request, Response> {
 
     protected StreamableTransportMasterNodeReadAction(String actionName, TransportService transportService,
                                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,

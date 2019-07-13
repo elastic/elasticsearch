@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
+public class TransportGetDatafeedsAction extends StreamableTransportMasterNodeReadAction<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
 
     private final DatafeedConfigProvider datafeedConfigProvider;
 

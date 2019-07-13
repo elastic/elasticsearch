@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import java.util.Collections;
 import java.util.Map;
 
-public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+public class TransportUpdateDatafeedAction extends StreamableTransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.template.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends StreamableTransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
     @Inject
     public TransportGetIndexTemplatesAction(TransportService transportService, ClusterService clusterService,

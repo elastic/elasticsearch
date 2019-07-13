@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for verifying repository operation
  */
-public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
+public class TransportVerifyRepositoryAction extends StreamableTransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
 

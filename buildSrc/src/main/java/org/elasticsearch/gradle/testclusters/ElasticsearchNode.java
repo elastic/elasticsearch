@@ -160,8 +160,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
 
-        testDistribution = TestDistribution.INTEG_TEST;
-        version = VersionProperties.getElasticsearch();
+        setDistribution(TestDistribution.INTEG_TEST);
+        setVersion(VersionProperties.getElasticsearch());
     }
 
     public String getName() {

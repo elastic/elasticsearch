@@ -88,11 +88,10 @@ public final class TransportLogger {
                 if (isRequest) {
                     if (TransportStatus.isCompress(status)) {
                         Compressor compressor;
-                        try {
-                            final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-                            compressor = CompressorFactory.compressor(message.slice(bytesConsumed, message.length() - bytesConsumed));
-                        } catch (NotCompressedException ex) {
-                            throw new IllegalStateException(ex);
+                        final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
+                        compressor = CompressorFactory.compressor(message.slice(bytesConsumed, message.length() - bytesConsumed));
+                        if (compressor == null) {
+                            throw new IllegalStateException(new NotCompressedException());
                         }
                         streamInput = compressor.streamInput(streamInput);
                     }

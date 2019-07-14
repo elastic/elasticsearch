@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,21 +74,20 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 final boolean isHandshake = TransportStatus.isHandshake(status);
                 ensureVersionCompatibility(remoteVersion, version, isHandshake);
                 if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamInput.available() > 0) {
-                    Compressor compressor;
-                    try {
-                        final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-                        compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
-                    } catch (NotCompressedException ex) {
-                        int maxToRead = Math.min(reference.length(), 10);
-                        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
-                            .append(maxToRead).append("] content bytes out of [").append(reference.length())
-                            .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
-                        for (int i = 0; i < maxToRead; i++) {
-                            sb.append(reference.get(i)).append(",");
+                    final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
+                    Compressor compressor =
+                        CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
+                        if (compressor == null) {
+                            int maxToRead = Math.min(reference.length(), 10);
+                            StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
+                                .append(maxToRead).append("] content bytes out of [").append(reference.length())
+                                .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
+                            for (int i = 0; i < maxToRead; i++) {
+                                sb.append(reference.get(i)).append(",");
+                            }
+                            sb.append("]");
+                            throw new IllegalStateException(sb.toString());
                         }
-                        sb.append("]");
-                        throw new IllegalStateException(sb.toString());
-                    }
                     streamInput = compressor.streamInput(streamInput);
                 }
                 streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);

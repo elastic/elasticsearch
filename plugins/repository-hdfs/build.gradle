@@ -229,6 +229,10 @@ if (fixtureSupported) {
   integTest.dependsOn hdfsFixture
   integTestHa.dependsOn haHdfsFixture
 
+  if (project.ext.has('inFipsJvm') && project.ext.inFipsJvm) {
+    integTest.enabled = false
+  }
+
   // The normal test runner only runs the standard hdfs rest tests
   integTest.runner {
     systemProperty 'tests.rest.suite', 'hdfs_repository'

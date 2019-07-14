@@ -45,7 +45,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -94,11 +96,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     }
 
     @Override
-    protected void masterOperation(final GetSnapshotsRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final GetSnapshotsRequest request, final ClusterState state,
                                    final ActionListener<GetSnapshotsResponse> listener) {
         final String[] repositories = request.repositories();
-        transportService.sendRequest(transportService.getLocalNode(), GetRepositoriesAction.NAME,
-                new GetRepositoriesRequest(repositories),
+        transportService.sendChildRequest(transportService.getLocalNode(), GetRepositoriesAction.NAME,
+                new GetRepositoriesRequest(repositories), task, TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                         ActionListener.wrap(
                                 response ->
@@ -112,6 +114,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private void getMultipleReposSnapshotInfo(List<RepositoryMetaData> repos, String[] snapshots, boolean ignoreUnavailable,
                                               boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
+        // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
+        if (repos.isEmpty()) {
+            listener.onResponse(new GetSnapshotsResponse(Collections.emptyList()));
+            return;
+        }
         final GroupedActionListener<GetSnapshotsResponse.Response> groupedActionListener =
                 new GroupedActionListener<>(
                         ActionListener.map(listener, responses -> {
@@ -147,7 +154,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final RepositoryData repositoryData;
         if (isCurrentSnapshotsOnly(snapshots) == false) {
             repositoryData = snapshotsService.getRepositoryData(repo);
-            for (SnapshotId snapshotId : repositoryData.getAllSnapshotIds()) {
+            for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                 allSnapshotIds.put(snapshotId.getName(), snapshotId);
             }
         } else {
@@ -183,10 +190,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         final List<SnapshotInfo> snapshotInfos;
         if (verbose) {
-            final Set<SnapshotId> incompatibleSnapshots = repositoryData != null ?
-                    new HashSet<>(repositoryData.getIncompatibleSnapshotIds()) : Collections.emptySet();
-            snapshotInfos = snapshotsService.snapshots(repo, new ArrayList<>(toResolve),
-                    incompatibleSnapshots, ignoreUnavailable);
+            snapshotInfos = snapshotsService.snapshots(repo, new ArrayList<>(toResolve), ignoreUnavailable);
         } else {
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data

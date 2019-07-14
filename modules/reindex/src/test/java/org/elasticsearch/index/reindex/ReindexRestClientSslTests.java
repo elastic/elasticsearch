@@ -199,8 +199,9 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     private RemoteInfo getRemoteInfo() {
-        return new RemoteInfo("https", server.getAddress().getHostName(), server.getAddress().getPort(), "/", new BytesArray("test"),
-            "user", "password", Collections.emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo("https", server.getAddress().getHostName(), server.getAddress().getPort(), "/",
+            new BytesArray("{\"match_all\":{}}"), "user", "password", Collections.emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
 
     @SuppressForbidden(reason = "use http server")

@@ -9,6 +9,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.search.SearchHit;
 
@@ -58,6 +59,8 @@ public abstract class ExtractedField {
 
     public abstract Object[] value(SearchHit hit);
 
+    public abstract boolean supportsFromSource();
+
     public String getDocValueFormat() {
         return null;
     }
@@ -93,6 +96,14 @@ public abstract class ExtractedField {
         }
     }
 
+    public ExtractedField newFromSource() {
+        if (supportsFromSource()) {
+            return new FromSource(alias, name);
+        }
+        throw new IllegalStateException("Field (alias [" + alias + "], name [" + name + "]) should be extracted via ["
+            + extractionMethod + "] and cannot be extracted from source");
+    }
+
     private static class FromFields extends ExtractedField {
 
         FromFields(String alias, String name, ExtractionMethod extractionMethod) {
@@ -108,10 +119,15 @@ public abstract class ExtractedField {
             }
             return new Object[0];
         }
+
+        @Override
+        public boolean supportsFromSource() {
+            return getExtractionMethod() == ExtractionMethod.DOC_VALUE;
+        }
     }
 
     private static class GeoShapeField extends FromSource {
-        private static final WellKnownText wkt = new WellKnownText(true, true);
+        private static final WellKnownText wkt = new WellKnownText(true, new StandardValidator(true));
 
         GeoShapeField(String alias, String name) {
             super(alias, name);
@@ -195,6 +211,11 @@ public abstract class ExtractedField {
                 throw new IllegalArgumentException("Unexpected value for a geo_point field: " + geoString);
             }
         }
+
+        @Override
+        public boolean supportsFromSource() {
+            return false;
+        }
     }
 
     private static class TimeField extends FromFields {
@@ -222,6 +243,11 @@ public abstract class ExtractedField {
         @Override
         public String getDocValueFormat() {
             return EPOCH_MILLIS_FORMAT;
+        }
+
+        @Override
+        public boolean supportsFromSource() {
+            return false;
         }
     }
 
@@ -255,6 +281,11 @@ public abstract class ExtractedField {
                 }
             }
             return new Object[0];
+        }
+
+        @Override
+        public boolean supportsFromSource() {
+            return true;
         }
 
         @SuppressWarnings("unchecked")

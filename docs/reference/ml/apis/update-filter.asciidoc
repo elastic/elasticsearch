@@ -8,40 +8,41 @@
 
 Updates the description of a filter, adds items, or removes items. 
 
-==== Request
+[[ml-update-filter-request]]
+==== {api-request-title}
 
 `POST _ml/filters/<filter_id>/_update`
 
-//==== Description
+[[ml-update-filter-prereqs]]
+==== {api-prereq-title}
 
-==== Path Parameters
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
 
-`filter_id` (required)::
-		(string) Identifier for the filter.
+[[ml-update-filter-path-parms]]
+==== {api-path-parms-title}
 
+`<filter_id>`::
+		(Required, string) Identifier for the filter.
 
-==== Request Body
+[[ml-update-filter-request-body]]
+==== {api-request-body-title}
+
+`add_items`::
+  (Optional, array of strings) The items to add to the filter.
 
 `description`::
-  (string) A description for the filter. See <<ml-filter-resource>>.
-	
-`add_items`::
-  (array of strings) The items to add to the filter.
+  (Optional, string) A description for the filter. See <<ml-filter-resource>>.
 	
 `remove_items`::
-  (array of strings) The items to remove from the filter.
+  (Optional, array of strings) The items to remove from the filter.
 
+[[ml-update-filter-example]]
+==== {api-examples-title}
 
-==== Authorization
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-
-
-==== Examples
-
-You can change the description, add and remove items to the `safe_domains` filter as follows:
+You can change the description, add and remove items to the `safe_domains`
+filter as follows:
 
 [source,js]
 --------------------------------------------------

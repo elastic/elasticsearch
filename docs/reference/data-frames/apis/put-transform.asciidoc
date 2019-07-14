@@ -8,48 +8,19 @@
 <titleabbrev>Create {dataframe-transforms}</titleabbrev>
 ++++
 
-beta[]
-
 Instantiates a {dataframe-transform}.
 
+beta[]
 
-==== Request
+[[put-data-frame-transform-request]]
+==== {api-request-title}
 
 `PUT _data_frame/transforms/<data_frame_transform_id>`
 
-===== Description
+[[put-data-frame-transform-prereqs]]
+==== {api-prereq-title}
 
-IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
-            Do not put a {dataframe-transform} directly into any
-            `.data-frame-internal*` indices using the Elasticsearch index API.
-            If {es} {security-features} are enabled, do not give users any
-            privileges on `.data-frame-internal*` indices.
-
-==== Path Parameters
-
-`data_frame_transform_id` (required)::
-  (string) Identifier for the {dataframe-transform}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
-
-
-==== Request Body
-
-`source` (required):: (object) The source configuration, consisting of `index` and optionally
-a `query`.
-
-`dest` (required):: (object) The destination configuration, consisting of `index` and optionally a
-`pipeline` id.
-
-`pivot`:: (object) Defines the pivot function `group by` fields and the aggregation to
-reduce the data. See <<data-frame-transform-pivot, data frame transform pivot objects>>.
-
-`description`:: Optional free text description of the data frame transform
-
-
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have
+* If the {es} {security-features} are enabled, you must have
 `manage_data_frame_transforms` cluster privileges to use this API. The built-in
 `data_frame_transforms_admin` role has these privileges. You must also
 have `read` and `view_index_metadata` privileges on the source index and `read`,
@@ -57,10 +28,48 @@ have `read` and `view_index_metadata` privileges on the source index and `read`,
 information, see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-==== Examples
+[[put-data-frame-transform-desc]]
+==== {api-description-title}
 
-The following example creates a {dataframe-transform} for the {kib} eCommerce
-sample data:
+IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
+            Do not put a {dataframe-transform} directly into any
+            `.data-frame-internal*` indices using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users any
+            privileges on `.data-frame-internal*` indices.
+
+[[put-data-frame-transform-path-parms]]
+==== {api-path-parms-title}
+
+`<data_frame_transform_id>`::
+  (Required, string) Identifier for the {dataframe-transform}. This identifier
+  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
+
+[[put-data-frame-transform-request-body]]
+==== {api-request-body-title}
+
+`description`::
+  (Optional, string) Free text description of the {dataframe-transform}.
+
+`dest`::
+  (Required, object) Required. The destination configuration, which consists of `index`
+  and optionally a `pipeline` id. See <<data-frame-transform-dest>>.
+
+`frequency`::
+  (Optional, time units) The interval between checks for changes in the source indices
+  when the {dataframe-transform} is running continuously. Defaults to `1m`.
+  The lowest permitted value is `1s`; the highest `1h`.
+
+`pivot`::
+  (Required, object) Defines the pivot function `group by` fields and the aggregation to
+  reduce the data. See <<data-frame-transform-pivot>>.
+
+`source`::
+  (Required, object) The source configuration, which consists of `index` and 
+  optionally a `query`. See <<data-frame-transform-source>>.
+
+[[put-data-frame-transform-example]]
+==== {api-examples-title}
 
 [source,js]
 --------------------------------------------------
@@ -80,6 +89,7 @@ PUT _data_frame/transforms/ecommerce_transform
     "index": "kibana_sample_data_ecommerce_transform",
     "pipeline": "add_timestamp_pipeline"
   },
+  "frequency": "5m",
   "pivot": {
     "group_by": {
       "customer_id": {

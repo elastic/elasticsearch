@@ -81,7 +81,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Supplier<Request> request) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, request, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -118,14 +118,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         return response;
     }
 
-    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
-
-    /**
-     * Override this operation if access to the task parameter is needed
-     */
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        masterOperation(request, state, listener);
-    }
+    protected abstract void masterOperation(Task task, Request request, ClusterState state,
+                                            ActionListener<Response> listener) throws Exception;
 
     protected boolean localExecute(Request request) {
         return false;

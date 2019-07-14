@@ -8,31 +8,32 @@
 
 Deletes a calendar.
 
-
-==== Request
+[[ml-delete-calendar-request]]
+==== {api-request-title}
 
 `DELETE _ml/calendars/<calendar_id>`
 
+[[ml-delete-calendar-prereqs]]
+==== {api-prereq-title}
 
-==== Description
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-delete-calendar-desc]]
+==== {api-description-title}
 
 This API removes all scheduled events from the calendar then deletes the
 calendar.
 
+[[ml-delete-calendar-path-parms]]
+==== {api-path-parms-title}
 
-==== Path Parameters
+`<calendar_id>`::
+  (Required, string) Identifier for the calendar.
 
-`calendar_id` (required)::
-  (string) Identifier for the calendar.
-
-
-==== Authorization
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
-
-
-==== Examples
+[[ml-delete-calendar-example]]
+==== {api-examples-title}
 
 The following example deletes the `planned-outages` calendar:
 

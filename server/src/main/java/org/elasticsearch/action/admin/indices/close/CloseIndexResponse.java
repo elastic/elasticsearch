@@ -40,9 +40,15 @@ import static java.util.Collections.unmodifiableList;
 
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
-    private List<IndexResult> indices;
+    private final List<IndexResult> indices;
 
-    CloseIndexResponse() {
+    CloseIndexResponse(StreamInput in) throws IOException {
+        super(in, in.getVersion().onOrAfter(Version.V_7_2_0));
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            indices = unmodifiableList(in.readList(IndexResult::new));
+        } else {
+            indices = unmodifiableList(emptyList());
+        }
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
@@ -52,19 +58,6 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     public List<IndexResult> getIndices() {
         return indices;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            readShardsAcknowledged(in);
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            indices = unmodifiableList(in.readList(IndexResult::new));
-        } else {
-            indices = unmodifiableList(emptyList());
-        }
     }
 
     @Override

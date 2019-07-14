@@ -6,7 +6,10 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
+
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.Alias;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +48,24 @@ public class SqlParserTests extends ESTestCase {
         NamedExpression p = project.projections().get(0);
         assertThat(p, instanceOf(type));
         return type.cast(p);
+    }
+
+    public void testEscapeDoubleQuotes() {
+        Project project = project(parseStatement("SELECT bar FROM \"fo\"\"o\""));
+        assertTrue(project.child() instanceof UnresolvedRelation);
+        assertEquals("fo\"o", ((UnresolvedRelation) project.child()).table().index());
+    }
+
+    public void testEscapeSingleQuotes() {
+        Alias a = singleProjection(project(parseStatement("SELECT '''ab''c' AS \"escaped_text\"")), Alias.class);
+        assertEquals("'ab'c", ((Literal) a.child()).value());
+        assertEquals("escaped_text", a.name());
+    }
+
+    public void testEscapeSingleAndDoubleQuotes() {
+        Alias a = singleProjection(project(parseStatement("SELECT 'ab''c' AS \"escaped\"\"text\"")), Alias.class);
+        assertEquals("ab'c", ((Literal) a.child()).value());
+        assertEquals("escaped\"text", a.name());
     }
 
     public void testSelectField() {

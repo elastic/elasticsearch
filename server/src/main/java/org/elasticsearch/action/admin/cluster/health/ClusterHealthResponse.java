@@ -297,7 +297,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(clusterName);
         out.writeByte(clusterHealthStatus.value());
         clusterStateHealth.writeTo(out);

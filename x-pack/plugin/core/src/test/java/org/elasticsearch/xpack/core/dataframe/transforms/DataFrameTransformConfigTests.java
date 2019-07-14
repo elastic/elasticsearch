@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.dataframe.transforms;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,6 +47,8 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
         return new DataFrameTransformConfig(id,
             randomSourceConfig(),
             randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean() ? null : randomSyncConfig(),
             null,
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
@@ -57,6 +60,8 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
         return new DataFrameTransformConfig(id,
             randomSourceConfig(),
             randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
             PivotConfigTests.randomPivotConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
@@ -66,13 +71,17 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
         if (randomBoolean()) {
-            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(),
-                    randomDestConfig(), randomHeaders(), PivotConfigTests.randomPivotConfig(),
-                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
+            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(), randomDestConfig(),
+                    null, randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig(),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
         } // else
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), randomHeaders(), PivotConfigTests.randomInvalidPivotConfig(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(), randomDestConfig(),
+                null, randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomInvalidPivotConfig(),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
+    }
+
+    public static SyncConfig randomSyncConfig() {
+        return TimeSyncConfigTests.randomTimeSyncConfig();
     }
 
     @Before
@@ -140,7 +149,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
         }
     }
 
-    public void testPreventHeaderInjection() throws IOException {
+    public void testPreventHeaderInjection() {
         String pivotTransform = "{"
                 + " \"headers\" : {\"key\" : \"value\" },"
                 + " \"source\" : {\"index\":\"src\"},"
@@ -161,7 +170,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
                 () -> createDataFrameTransformConfigFromString(pivotTransform, "test_header_injection"));
     }
 
-    public void testPreventCreateTimeInjection() throws IOException {
+    public void testPreventCreateTimeInjection() {
         String pivotTransform = "{"
             + " \"create_time\" : " + Instant.now().toEpochMilli() + " },"
             + " \"source\" : {\"index\":\"src\"},"
@@ -182,7 +191,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
             () -> createDataFrameTransformConfigFromString(pivotTransform, "test_createTime_injection"));
     }
 
-    public void testPreventVersionInjection() throws IOException {
+    public void testPreventVersionInjection() {
         String pivotTransform = "{"
             + " \"version\" : \"7.3.0\","
             + " \"source\" : {\"index\":\"src\"},"
@@ -223,11 +232,11 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public void testMaxLengthDescription() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataFrameTransformConfig("id",
-            randomSourceConfig(), randomDestConfig(), null, PivotConfigTests.randomPivotConfig(), randomAlphaOfLength(1001)));
+            randomSourceConfig(), randomDestConfig(), null, null, null, PivotConfigTests.randomPivotConfig(), randomAlphaOfLength(1001)));
         assertThat(exception.getMessage(), equalTo("[description] must be less than 1000 characters in length."));
         String description = randomAlphaOfLength(1000);
         DataFrameTransformConfig config = new DataFrameTransformConfig("id",
-            randomSourceConfig(), randomDestConfig(), null, PivotConfigTests.randomPivotConfig(), description);
+            randomSourceConfig(), randomDestConfig(), null, null, null, PivotConfigTests.randomPivotConfig(), description);
         assertThat(description, equalTo(config.getDescription()));
     }
 

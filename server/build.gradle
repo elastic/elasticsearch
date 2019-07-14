@@ -73,6 +73,7 @@ if (!isEclipse && !isIdea) {
 }
 
 dependencies {
+  compile group: 'com.graphql-java', name: 'graphql-java', version: '13.0'
 
   compile project(':libs:elasticsearch-core')
   compile project(':libs:elasticsearch-secure-sm')

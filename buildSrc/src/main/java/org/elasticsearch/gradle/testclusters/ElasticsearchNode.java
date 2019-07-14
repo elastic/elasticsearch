@@ -160,7 +160,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
 
-        setDistribution(TestDistribution.INTEG_TEST);
+        setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getElasticsearch());
     }
 
@@ -193,7 +193,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void setDistribution(TestDistribution testDistribution) {
+    public void setTestDistribution(TestDistribution testDistribution) {
         requireNonNull(testDistribution, "null distribution passed when configuring test cluster `" + this + "`");
         checkFrozen();
         this.testDistribution = testDistribution;

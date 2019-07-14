@@ -38,7 +38,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 testClusters.integTest {
-  if (singleNode().distribution == DEFAULT) {
+  if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 

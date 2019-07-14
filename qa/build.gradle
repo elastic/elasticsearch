@@ -12,7 +12,7 @@ subprojects { Project subproj ->
   }
   plugins.withType(TestClustersPlugin).whenPluginAdded {
     testClusters.all {
-      distribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
+      testDistribution = System.getProperty('tests.distribution', 'oss').toUpperCase()
     }
   }
 }

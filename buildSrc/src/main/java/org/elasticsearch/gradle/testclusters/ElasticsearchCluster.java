@@ -120,8 +120,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void setDistribution(TestDistribution distribution) {
-        nodes.all(each -> each.setDistribution(distribution));
+    public void setTestDistribution(TestDistribution distribution) {
+        nodes.all(each -> each.setTestDistribution(distribution));
     }
 
     @Override

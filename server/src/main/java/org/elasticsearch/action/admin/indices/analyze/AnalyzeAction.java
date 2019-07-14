@@ -301,7 +301,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super.readFrom(in);
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
                 tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;

@@ -705,4 +705,22 @@ public class SettingsTests extends ESTestCase {
         assertThat(actual, equalTo(expected));
     }
 
+    public void testProcessSetting() throws IOException {
+        Map<String, Object> map = new HashMap<>(2);
+        SettingsTests.processSetting(map, "", "ant", "value1");
+        SettingsTests.processSetting(map, "", "ant.bee.cat", "value2");
+        SettingsTests.processSetting(map, "", "bee.cat", "value3");
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.map(map);
+        assertEquals("{\"ant.bee\":{\"cat\":\"value2\"},\"ant\":\"value1\",\"bee\":{\"cat\":\"value3\"}}", Strings.toString(builder));
+
+        map.clear();
+        SettingsTests.processSetting(map, "", "ant", "value1");
+        SettingsTests.processSetting(map, "", "ant.bee.cat", "value2");
+        SettingsTests.processSetting(map, "", "ant.bee.cat.dog.ewe", "value3");
+        builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        builder.map(map);
+        assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", Strings.toString(builder));
+    }
+
 }

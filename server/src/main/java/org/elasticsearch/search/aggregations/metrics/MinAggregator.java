@@ -49,9 +49,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 class MinAggregator extends NumericMetricsAggregator.SingleValue {
+    private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;
     final DocValueFormat format;
@@ -210,6 +212,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             return converter.apply(pointValues.getMinPackedValue());
         }
         final Number[] result = new Number[1];
+        final AtomicInteger lookupCounter = new AtomicInteger(0);
         try {
             pointValues.intersect(new PointValues.IntersectVisitor() {
                 @Override
@@ -219,6 +222,9 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
                 @Override
                 public void visit(int docID, byte[] packedValue) {
+                    if (lookupCounter.incrementAndGet() > MAX_BKD_LOOKUPS) {
+                        throw new CollectionTerminatedException();
+                    }
                     if (liveDocs.get(docID)) {
                         result[0] = converter.apply(packedValue);
                         // this is the first leaf with a live doc so the value is the minimum for this segment.

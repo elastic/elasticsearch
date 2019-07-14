@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +33,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.mockito.Mockito.mock;
 
 public class RestUpdateActionTests extends RestActionTestCase {
@@ -73,8 +74,10 @@ public class RestUpdateActionTests extends RestActionTestCase {
             .withParams(params)
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
-        assertThat(e.getMessage(), equalTo("update requests do not support versioning"));
+        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        assertThat(e.getMessage(), containsString("internal versioning can not be used for optimistic concurrency control. " +
+            "Please use `if_seq_no` and `if_primary_term` instead"));
     }
 
     public void testUpdateDocVersionType() {
@@ -91,7 +94,9 @@ public class RestUpdateActionTests extends RestActionTestCase {
             .withParams(params)
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
-        assertThat(e.getMessage(), equalTo("update requests do not support versioning"));
+        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        assertThat(e.getMessage(), containsString("internal versioning can not be used for optimistic concurrency control. " +
+            "Please use `if_seq_no` and `if_primary_term` instead"));
     }
 }

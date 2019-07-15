@@ -820,7 +820,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     // Considered a recoverable indexing failure
     private static class BulkIndexingException extends ElasticsearchException {
-        public BulkIndexingException(String msg, Object... args) {
+        BulkIndexingException(String msg, Object... args) {
             super(msg, args);
         }
     }

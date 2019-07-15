@@ -40,7 +40,7 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
     @Inject
     public TransportMainAction(Settings settings, TransportService transportService,
                                ActionFilters actionFilters, ClusterService clusterService) {
-        super(MainAction.NAME, transportService, actionFilters, MainRequest::new);
+        super(MainAction.NAME, transportService, MainRequest::new, actionFilters);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }

@@ -8,15 +8,9 @@
 <titleabbrev>Evaluate {dfanalytics}</titleabbrev>
 ++++
 
-experimental[]
+Evaluates the {dfanalytics} for an annotated index.
 
-Evaluates the executed analysis on an index that is already annotated with a 
-field that contains the results of the analytics (the `ground truth`) for each 
-{dataframe} row. Evaluation is typically done via calculating a set of metrics 
-that capture various aspects of the quality of the results over the data for 
-which we have the `ground truth`. For different types of analyses different 
-metrics are suitable. This API packages together commonly used metrics for 
-various analyses.
+experimental[]
 
 [[ml-evaluate-dfanalytics-request]]
 ==== {api-request-title}
@@ -30,16 +24,46 @@ various analyses.
 information, see {stack-ov}/security-privileges.html[Security privileges] and 
 {stack-ov}/built-in-roles.html[Built-in roles].
 
+[[ml-evaluate-dfanalytics-desc]]
+==== {api-description-title}
+
+This API evaluates the executed analysis on an index that is already annotated
+with a field that contains the results of the analytics (the `ground truth`)
+for each {dataframe} row.
+
+Evaluation is typically done by calculating a set of metrics that capture various aspects of the quality of the results over the data for which you have the
+`ground truth`.
+
+For different types of analyses different metrics are suitable. This API
+packages together commonly used metrics for various analyses.
+
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
-`index` (Required)::
-  (object) Defines the `index` in which the evaluation will be performed.
+`index`::
+  (Required, object) Defines the `index` in which the evaluation will be
+  performed.
   
-`evaluation` (Required)::
-  (object) Defines the type of evaluation you want to perform. For example: 
-  `binary_soft_classification`.
-  See Evaluate API resources.
+`evaluation`::
+  (Required, object) Defines the type of evaluation you want to perform. For example: 
+  `binary_soft_classification`. See <<ml-evaluate-dfanalytics-resources>>.
+  
+////
+[[ml-evaluate-dfanalytics-results]]
+==== {api-response-body-title}
+
+`binary_soft_classification`::
+  (object) If you chose to do binary soft classification, the API returns the
+  following evaluation metrics:
+  
+`auc_roc`::: TBD
+
+`confusion_matrix`::: TBD
+  
+`precision`::: TBD
+
+`recall`::: TBD
+////
 
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}

@@ -141,6 +141,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         String config = "{"
             + " \"source\": {\"index\":\"" + indexName + "\"},"
             + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"frequency\": \"1s\","
             + " \"sync\": {\"time\": {\"field\": \"timestamp\", \"delay\": \"1s\"}},"
             + " \"pivot\": {"
             + "   \"group_by\": {"

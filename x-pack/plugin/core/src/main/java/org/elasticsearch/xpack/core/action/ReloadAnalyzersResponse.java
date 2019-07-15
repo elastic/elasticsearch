@@ -105,7 +105,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
         private final Set<String> reloadedIndicesNodes;
         private final Set<String> reloadedAnalyzers;
 
-        ReloadDetails(String name, Set<String> reloadedIndicesNodes, Set<String> reloadedAnalyzers) {
+        public ReloadDetails(String name, Set<String> reloadedIndicesNodes, Set<String> reloadedAnalyzers) {
             this.indexName = name;
             this.reloadedIndicesNodes = reloadedIndicesNodes;
             this.reloadedAnalyzers = reloadedAnalyzers;

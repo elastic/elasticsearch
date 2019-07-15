@@ -164,7 +164,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected final MultiValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValueType finalValueType = this.valueType != null ? this.valueType : targetValueType;
 
@@ -190,8 +190,8 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return valueFormat;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
-        Map<String, ValuesSourceConfig<VS>> configs, DocValueFormat format, AggregatorFactory<?> parent,
+    protected abstract MultiValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context,
+        Map<String, ValuesSourceConfig<VS>> configs, DocValueFormat format, AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
 

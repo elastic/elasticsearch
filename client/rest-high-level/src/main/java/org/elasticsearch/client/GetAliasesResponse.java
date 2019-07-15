@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -47,7 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * We would usually throw such exception, but we configure the client to not throw for 404 to support the case above, hence we also not
  * throw in case an index is not found, although it is a hard error that doesn't come back with aliases.
  */
-public class GetAliasesResponse extends ActionResponse implements StatusToXContentObject {
+public class GetAliasesResponse implements StatusToXContentObject {
 
     private final RestStatus status;
     private final String error;

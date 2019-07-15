@@ -32,15 +32,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MedianAbsoluteDeviationAggregatorFactory extends
-        ValuesSourceAggregatorFactory<ValuesSource.Numeric, MedianAbsoluteDeviationAggregatorFactory> {
+public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double compression;
 
     MedianAbsoluteDeviationAggregatorFactory(String name,
                                                     ValuesSourceConfig<ValuesSource.Numeric> config,
                                                     SearchContext context,
-                                                    AggregatorFactory<?> parent,
+                                                    AggregatorFactory parent,
                                                     AggregatorFactories.Builder subFactoriesBuilder,
                                                     Map<String, Object> metaData,
                                                     double compression) throws IOException {

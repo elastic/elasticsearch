@@ -1147,6 +1147,45 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
               number_of_shards: 1
               number_of_replicas: 0
 '''
+buildRestTests.setups['setup_logdata'] = '''
+  - do:
+        indices.create:
+          index: logdata
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: logdata
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+'''
+buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+  - do:
+      ml.put_data_frame_analytics:
+        id: "loganalytics"
+        body:  >
+          {
+            "source": { 
+              "index": "logdata"
+              },
+            "dest": {
+              "index": "logdata_out"
+              },
+            "analysis": {
+              "outlier_detection": {}
+            }
+          }
+'''
 // Used by snapshot lifecycle management docs
 buildRestTests.setups['setup-repository'] = '''
   - do:

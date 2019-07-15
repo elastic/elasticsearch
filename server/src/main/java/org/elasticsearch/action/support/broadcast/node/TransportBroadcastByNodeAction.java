@@ -104,7 +104,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             Supplier<Request> request,
             String executor,
             boolean canTripCircuitBreaker) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, request, actionFilters);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -549,7 +549,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(nodeId);
             out.writeVInt(totalShards);
             out.writeVInt(results.size());

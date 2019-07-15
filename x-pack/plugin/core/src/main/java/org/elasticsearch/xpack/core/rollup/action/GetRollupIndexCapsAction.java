@@ -156,7 +156,6 @@ public class GetRollupIndexCapsAction extends StreamableResponseActionType<GetRo
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 

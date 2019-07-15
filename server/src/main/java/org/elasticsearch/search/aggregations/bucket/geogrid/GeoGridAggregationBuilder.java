@@ -108,9 +108,9 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     /**
      * Creates a new instance of the {@link ValuesSourceAggregatorFactory}-derived class specific to the geo aggregation.
      */
-    protected abstract ValuesSourceAggregatorFactory<ValuesSource.GeoPoint,?> createFactory(
+    protected abstract ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> createFactory(
         String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize,
-        SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder, Map<String, Object> metaData
+        SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder, Map<String, Object> metaData
     ) throws IOException;
 
     public int precision() {
@@ -144,8 +144,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(SearchContext context,
-            ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerBuild(SearchContext context,
+            ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory parent, Builder subFactoriesBuilder)
                     throws IOException {
         int shardSize = this.shardSize;
 

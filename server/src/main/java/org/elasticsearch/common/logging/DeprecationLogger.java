@@ -25,6 +25,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.security.AccessController;
@@ -222,13 +223,14 @@ public class DeprecationLogger {
     }
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
-        final Iterator<ThreadContext> iterator = threadContexts.iterator();
+        final String formattedMessage = LoggerMessageFormat.format(message, params);
+        final String warningHeaderValue = formatWarning(formattedMessage);
+        assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+        assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
 
+        final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
-            final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningHeaderValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
+
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
@@ -244,7 +246,16 @@ public class DeprecationLogger {
                 @SuppressLoggerChecks(reason = "safely delegates to logger")
                 @Override
                 public Void run() {
-                    logger.warn(message, params);
+                    /**
+                     * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
+                     */
+                    String opaqueId = threadContexts.stream()
+                                                     .filter(t -> t.isClosed() == false)
+                                                     .findFirst()
+                                                     .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+                                                     .orElse("");
+
+                    logger.warn(new DeprecatedMessage(message, opaqueId, params));
                     return null;
                 }
             });

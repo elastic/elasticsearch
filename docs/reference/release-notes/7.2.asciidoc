@@ -22,7 +22,7 @@ Authentication::
 * Fix credential encoding for OIDC token request {pull}43808[#43808] (issue: {issue}43709[#43709])
 
 Data Frame::
-* Re-ordering format priorities in dest mapping {pull}43602[#43602]
+* Reorder format priorities in dest mapping {pull}43602[#43602]
 * Adjust error message {pull}43455[#43455]
 * Size the GET stats search by number of Ids requested {pull}43206[#43206] (issue: {issue}43203[#43203])
 

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

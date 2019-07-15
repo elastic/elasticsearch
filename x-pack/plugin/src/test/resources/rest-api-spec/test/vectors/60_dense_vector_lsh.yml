@@ -1,0 +1,75 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 7.9.99"
+      reason: "dense_vector_lsh functionality was added from 8.0"
+  - do:
+      indices.create:
+        include_type_name: false
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 2
+          mappings:
+            properties:
+              my_vector:
+                type: dense_vector_lsh
+                dims: 5
+                l: 8 # number of LSH tables
+                k: 5 # number of hash functions in each table
+                w: 3 # width of projection
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          my_vector: [-0.7862,  -0.3771, 0.6328, -0.4836, -0.2992]
+  - do:
+      indices.refresh: {}
+
+---
+"dense_vector_lsh is able to find an identical vector":
+  # close and reopen index to make sure LSH model was stored in the mapping and the same LSH model is used for search
+  - do:
+      indices.close:
+        index: test-index
+  - is_true: acknowledged
+  - do:
+      indices.open:
+        index: test-index
+  - is_true: acknowledged
+
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        _source: false
+        body:
+          query:
+            ann:
+              field: my_vector
+              number_of_probes: 3
+              query_vector: [-0.7862, -0.3771, 0.6328, -0.4836, -0.2992]
+
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._score: 8} # all 8 terms corresponding to 8 LSH tables match
+
+---
+"dense_vector_lsh is able to find a similar vector":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        _source: false
+        body:
+          query:
+            ann:
+              field: my_vector
+              number_of_probes: 3
+              query_vector: [-0.6, 0, 0.6, -0.4, 0]
+
+  - match: {hits.total: 1}
+  - gte: {hits.hits.0._score: 1.0}

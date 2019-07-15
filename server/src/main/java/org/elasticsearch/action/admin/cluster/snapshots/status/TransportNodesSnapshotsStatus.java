@@ -20,7 +20,9 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -30,6 +32,7 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -57,9 +60,16 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                                                                         TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
     public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
+    public static final ActionType<NodesSnapshotStatus> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public NodesSnapshotStatus newResponse() {
+            return new TransportNodesSnapshotsStatus.NodesSnapshotStatus();
+        }
+    };
 
     private final SnapshotShardsService snapshotShardsService;
 
+    @Inject
     public TransportNodesSnapshotsStatus(ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, SnapshotShardsService snapshotShardsService,
                                          ActionFilters actionFilters) {
@@ -145,6 +155,10 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
+
+        public NodesSnapshotStatus() {
+
+        }
 
         public NodesSnapshotStatus(ClusterName clusterName, List<NodeSnapshotStatus> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);

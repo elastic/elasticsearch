@@ -69,11 +69,6 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(Task task, final UpgradeSettingsRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         UpgradeSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpgradeSettingsClusterStateUpdateRequest()

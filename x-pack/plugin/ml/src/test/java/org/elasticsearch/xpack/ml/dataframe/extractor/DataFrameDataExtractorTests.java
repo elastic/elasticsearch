@@ -61,6 +61,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));

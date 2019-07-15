@@ -143,7 +143,7 @@ public class FindFileStructureAction extends ActionType<FindFileStructureAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             linesToSample = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 lineMergeSizeLimit = in.readOptionalVInt();
             }
             timeout = in.readOptionalTimeValue();
@@ -356,7 +356,7 @@ public class FindFileStructureAction extends ActionType<FindFileStructureAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalVInt(linesToSample);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeOptionalVInt(lineMergeSizeLimit);
             }
             out.writeOptionalTimeValue(timeout);

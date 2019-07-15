@@ -43,11 +43,6 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
     }
 
     @Override
-    protected GetJobsAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected GetJobsAction.Response read(StreamInput in) throws IOException {
         return new GetJobsAction.Response(in);
     }

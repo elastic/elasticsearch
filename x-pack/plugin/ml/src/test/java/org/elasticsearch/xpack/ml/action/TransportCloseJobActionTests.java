@@ -279,6 +279,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
                 jobConfigProvider, datafeedConfigProvider);
     }
 
+    @SuppressWarnings("unchecked")
     private void mockDatafeedConfigFindDatafeeds(Set<String> datafeedIds) {
         doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -288,6 +289,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         }).when(datafeedConfigProvider).findDatafeedsForJobIds(any(), any(ActionListener.class));
     }
 
+    @SuppressWarnings("unchecked")
     private void mockJobConfigProviderExpandIds(Set<String> expandedIds) {
         doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[3];

@@ -198,11 +198,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(OpenJobAction.Request request, ClusterState state) {
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,

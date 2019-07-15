@@ -42,7 +42,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, randomZone(), randomBoolean(), hitName, false);
+        return new FieldHitExtractor(name, null, null, randomZone(), randomBoolean(), hitName, false);
     }
 
     @Override
@@ -59,6 +59,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
         return new FieldHitExtractor(
             instance.fieldName() + "mutated",
+            instance.fullFieldName() + "mutated",
             randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
             randomBoolean(),
@@ -188,7 +189,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testToString() {
         assertEquals("hit.field@hit@Europe/Berlin",
-            new FieldHitExtractor("hit.field", null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
+            new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
     }
 
     public void testMultiValuedDocValue() {

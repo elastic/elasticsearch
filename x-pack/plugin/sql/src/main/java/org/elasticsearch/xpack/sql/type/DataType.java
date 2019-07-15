@@ -268,11 +268,12 @@ public enum DataType {
         return isDateBased() || isTimeBased();
     }
     
+    // data type extract-able from _source or from docvalue_fields
     public boolean isFromDocValuesOnly() {
-        return this == KEYWORD
-                || this == DATE
+        return this == KEYWORD  // because of ignore_above. Extracting this from _source wouldn't make sense if it wasn't indexed at all.
+                || this == DATE         // because of date formats
                 || this == DATETIME
-                || this == SCALED_FLOAT
+                || this == SCALED_FLOAT // because of scaling_factor
                 || this == GEO_POINT
                 || this == GEO_SHAPE;
     }

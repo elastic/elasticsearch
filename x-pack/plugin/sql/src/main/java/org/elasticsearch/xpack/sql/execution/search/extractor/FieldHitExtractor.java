@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -51,6 +52,7 @@ public class FieldHitExtractor implements HitExtractor {
     }
 
     private final String fieldName, hitName;
+    private final String fullFieldName; // used to look at the _ignored section of the query response for the actual full field name
     private final DataType dataType;
     private final ZoneId zoneId;
     private final boolean useDocValue;
@@ -58,15 +60,17 @@ public class FieldHitExtractor implements HitExtractor {
     private final String[] path;
 
     public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
-        this(name, dataType, zoneId, useDocValue, null, false);
+        this(name, null, dataType, zoneId, useDocValue, null, false);
     }
 
     public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
-        this(name, dataType, zoneId, useDocValue, null, arrayLeniency);
+        this(name, null, dataType, zoneId, useDocValue, null, arrayLeniency);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName, boolean arrayLeniency) {
+    public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
+            boolean arrayLeniency) {
         this.fieldName = name;
+        this.fullFieldName = fullFieldName;
         this.dataType = dataType;
         this.zoneId = zoneId;
         this.useDocValue = useDocValue;
@@ -84,6 +88,7 @@ public class FieldHitExtractor implements HitExtractor {
 
     FieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
+        fullFieldName = in.readOptionalString();
         String esType = in.readOptionalString();
         dataType = esType != null ? DataType.fromTypeName(esType) : null;
         zoneId = ZoneId.of(in.readString());
@@ -101,6 +106,7 @@ public class FieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
+        out.writeOptionalString(fullFieldName);
         out.writeOptionalString(dataType == null ? null : dataType.typeName);
         out.writeString(zoneId.getId());
         out.writeBoolean(useDocValue);
@@ -118,8 +124,20 @@ public class FieldHitExtractor implements HitExtractor {
             }
         } else {
             // if the field was ignored because it was malformed and ignore_malformed was turned on
-            if (hit.getFields().containsKey(IgnoredFieldMapper.NAME)) {
-                if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fieldName)) {
+            if (fullFieldName != null
+                    && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
+                    && dataType.isFromDocValuesOnly() == false
+                    && dataType.isNumeric()) {
+                /*
+                 * ignore_malformed makes sense for extraction from _source for numeric fields only.
+                 * And we check here that the data type is actually a numeric one to rule out
+                 * any non-numeric sub-fields (for which the "parent" field should actually be extracted from _source).
+                 * For example, in the case of a malformed number, a "byte" field with "ignore_malformed: true"
+                 * with a "text" sub-field should return "null" for the "byte" parent field and the actual malformed
+                 * data for the "text" sub-field. Also, the _ignored section of the response contains the full field
+                 * name, thus the need to do the comparison with that and not only the field name.
+                 */
+                if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fullFieldName)) {
                     return null;
                 }
             }
@@ -182,31 +200,21 @@ public class FieldHitExtractor implements HitExtractor {
             }
             if (dataType.isNumeric() && dataType.isFromDocValuesOnly() == false) {
                 if (dataType == DataType.DOUBLE || dataType == DataType.FLOAT || dataType == DataType.HALF_FLOAT) {
-                    return NumberType.DOUBLE.parse(values, true);
-                } else {
-                    long l = (long) NumberType.LONG.parse(values, true);
-                    switch (dataType) {
-                        case BYTE:
-                            if (l > Byte.MAX_VALUE || l < Byte.MIN_VALUE) {
-                                return l;
-                            } else {
-                                return NumberType.BYTE.parse(values, true);
-                            }
-                        case SHORT:
-                            if (l > Short.MAX_VALUE || l < Short.MIN_VALUE) {
-                                return l;
-                            } else {
-                                return NumberType.SHORT.parse(values, true);
-                            }
-                        case INTEGER:
-                            if (l > Integer.MAX_VALUE || l < Integer.MIN_VALUE) {
-                                return l;
-                            } else {
-                                return NumberType.INTEGER.parse(values, true);
-                            }
-                        case LONG:
-                            return l;
+                    Number result = null;
+                    try {
+                        result = NumberType.DOUBLE.parse(values, true);
+                    } catch(IllegalArgumentException iae) {
+                        return null;
                     }
+                    return result;
+                } else {
+                    Number result = null;
+                    try {
+                        result = NumberType.valueOf(dataType.esType.toUpperCase(Locale.ROOT)).parse(values, true);
+                    } catch(IllegalArgumentException iae) {
+                        return null;
+                    }
+                    return result;
                 }
             } else if (dataType.isString()) {
                 return values.toString();
@@ -300,6 +308,10 @@ public class FieldHitExtractor implements HitExtractor {
 
     public String fieldName() {
         return fieldName;
+    }
+    
+    public String fullFieldName() {
+        return fullFieldName;
     }
 
     public ZoneId zoneId() {

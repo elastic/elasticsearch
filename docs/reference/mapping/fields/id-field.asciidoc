@@ -44,3 +44,4 @@ enabled.
 [NOTE]
 ==================================================
 `_id` is limited to 512 bytes in size and larger values will be rejected.
+==================================================

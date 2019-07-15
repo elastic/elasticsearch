@@ -370,7 +370,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
             masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
             ESAllocationTestCase.createAllocationService(),
-            Collections.emptyList(), mock(GatewayMetaState.class), (s, r) -> {});
+            Collections.emptyList(), mock(GatewayMetaState.class), (s, p, r) -> {});
         zenDiscovery.start();
         return zenDiscovery;
     }

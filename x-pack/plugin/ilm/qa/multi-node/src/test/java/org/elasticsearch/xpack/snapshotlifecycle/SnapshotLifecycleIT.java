@@ -81,14 +81,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             assertThat(snapshotResponseMap.size(), greaterThan(0));
-            List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
-                .findFirst()
-                .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
-                .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
-            assertThat(snapResponse.size(), greaterThan(0));
-            assertThat(snapResponse.get(0).get("snapshot").toString(), startsWith("snap-"));
-            assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
-            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
+            assertThat(((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).size(), greaterThan(0));
+            Map<String, Object> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).get(0);
+            assertThat(snapResponse.get("snapshot").toString(), startsWith("snap-"));
+            assertThat(snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
+            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));
             assertHistoryIsPresent(policyName, true, repoId);
@@ -223,11 +220,8 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> extractMetadata(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
-        List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
-            .findFirst()
-            .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
-            .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
-        return snapResponse.stream()
+        List<Map<String, Object>> snapshots = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots"));
+        return snapshots.stream()
             .filter(snapshot -> ((String) snapshot.get("snapshot")).startsWith(snapshotPrefix))
             .map(snapshot -> (Map<String, Object>) snapshot.get("metadata"))
             .findFirst()

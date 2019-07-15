@@ -23,7 +23,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -57,21 +58,20 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
+public class TransportSnapshotsStatusAction extends StreamableTransportMasterNodeAction<SnapshotsStatusRequest, SnapshotsStatusResponse> {
 
     private final SnapshotsService snapshotsService;
 
-    private final TransportNodesSnapshotsStatus transportNodesSnapshotsStatus;
+    private final NodeClient client;
 
     @Inject
     public TransportSnapshotsStatusAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, SnapshotsService snapshotsService,
-                                          TransportNodesSnapshotsStatus transportNodesSnapshotsStatus,
+                                          ThreadPool threadPool, SnapshotsService snapshotsService, NodeClient client,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
               SnapshotsStatusRequest::new, indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
-        this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
+        this.client = client;
     }
 
     @Override
@@ -119,7 +119,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             TransportNodesSnapshotsStatus.Request nodesRequest =
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout());
-            transportNodesSnapshotsStatus.execute(nodesRequest,
+            client.executeLocally(TransportNodesSnapshotsStatus.TYPE, nodesRequest,
                 ActionListener.map(
                     listener, nodeSnapshotStatuses ->
                         buildResponse(request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
@@ -195,7 +195,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         if (Strings.hasText(repositoryName) && request.snapshots() != null && request.snapshots().length > 0) {
             final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
             final RepositoryData repositoryData = snapshotsService.getRepositoryData(repositoryName);
-            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getAllSnapshotIds().stream()
+            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
             for (final String snapshotName : request.snapshots()) {

@@ -386,6 +386,7 @@ public class AllocationService {
         ClusterHealthStatus previousHealth = previousStateHealth.getStatus();
         ClusterHealthStatus currentHealth = newStateHealth.getStatus();
         if (!previousHealth.equals(currentHealth)) {
+            logger.info(new ClusterChangeLogMessage(previousHealth,currentHealth,reason));
             logger.info("Cluster health status changed from [{}] to [{}] (reason: [{}]).", previousHealth, currentHealth, reason);
         }
     }

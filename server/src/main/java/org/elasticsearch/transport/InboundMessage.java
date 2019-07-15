@@ -101,7 +101,12 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 if (TransportStatus.isRequest(status)) {
                     final Set<String> features;
                     if (remoteVersion.onOrAfter(Version.V_6_3_0)) {
-                        features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
+                        final String[] featuresFound = streamInput.readStringArray();
+                        if (featuresFound.length == 0) {
+                            features = Collections.emptySet();
+                        } else {
+                            features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(featuresFound)));
+                        }
                     } else {
                         features = Collections.emptySet();
                     }

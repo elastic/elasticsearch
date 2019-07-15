@@ -229,7 +229,7 @@ public final class GeoJson {
     private static Geometry createGeometry(String type, List<Geometry> geometries, CoordinateNode coordinates, Boolean orientation,
                                            boolean defaultOrientation, boolean coerce, DistanceUnit.Distance radius) {
         ShapeType shapeType;
-        if ("bbox".equals(type.toLowerCase(Locale.ROOT))) {
+        if ("bbox".equalsIgnoreCase(type)) {
             shapeType = ShapeType.ENVELOPE;
         } else {
             shapeType = ShapeType.forName(type);

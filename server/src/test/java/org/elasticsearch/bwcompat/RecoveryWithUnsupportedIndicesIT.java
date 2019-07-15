@@ -84,7 +84,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         String indexName = "unsupported-2.4.5";
 
         logger.info("Checking static index {}", indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"));
+        Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
         assertThat(expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings))
             .getCause().getCause().getMessage(), containsString("Format version is not supported"));
     }

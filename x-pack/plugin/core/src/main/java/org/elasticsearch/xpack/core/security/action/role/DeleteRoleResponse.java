@@ -44,7 +44,6 @@ public class DeleteRoleResponse extends ActionResponse implements ToXContentObje
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(found);
     }
 

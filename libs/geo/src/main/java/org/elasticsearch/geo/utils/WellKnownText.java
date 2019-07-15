@@ -52,12 +52,16 @@ public class WellKnownText {
     public static final String COMMA = ",";
     public static final String NAN = "NaN";
 
-    private static final String NUMBER = "<NUMBER>";
-    private static final String EOF = "END-OF-STREAM";
-    private static final String EOL = "END-OF-LINE";
+    private final String NUMBER = "<NUMBER>";
+    private final String EOF = "END-OF-STREAM";
+    private final String EOL = "END-OF-LINE";
 
-    public WellKnownText() {
+    private final boolean coerce;
+    private final GeometryValidator validator;
 
+    public WellKnownText(boolean coerce, GeometryValidator validator) {
+        this.coerce = coerce;
+        this.validator = validator;
     }
 
     public String toWKT(Geometry geometry) {
@@ -238,7 +242,9 @@ public class WellKnownText {
             tokenizer.whitespaceChars('\r', '\r');
             tokenizer.whitespaceChars('\n', '\n');
             tokenizer.commentChar('#');
-            return parseGeometry(tokenizer);
+            Geometry geometry = parseGeometry(tokenizer);
+            validator.validate(geometry);
+            return geometry;
         } finally {
             reader.close();
         }
@@ -247,7 +253,7 @@ public class WellKnownText {
     /**
      * parse geometry from the stream tokenizer
      */
-    private static Geometry parseGeometry(StreamTokenizer stream) throws IOException, ParseException {
+    private Geometry parseGeometry(StreamTokenizer stream) throws IOException, ParseException {
         final String type = nextWord(stream).toLowerCase(Locale.ROOT);
         switch (type) {
             case "point":
@@ -272,7 +278,7 @@ public class WellKnownText {
         throw new IllegalArgumentException("Unknown geometry type: " + type);
     }
 
-    private static GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream) throws IOException, ParseException {
+    private GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return GeometryCollection.EMPTY;
         }
@@ -284,7 +290,7 @@ public class WellKnownText {
         return new GeometryCollection<>(shapes);
     }
 
-    private static Point parsePoint(StreamTokenizer stream) throws IOException, ParseException {
+    private Point parsePoint(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Point.EMPTY;
         }
@@ -300,7 +306,7 @@ public class WellKnownText {
         return pt;
     }
 
-    private static void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
+    private void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
         parseCoordinate(stream, lats, lons, alts);
         while (nextCloserOrComma(stream).equals(COMMA)) {
@@ -308,7 +314,7 @@ public class WellKnownText {
         }
     }
 
-    private static void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
+    private void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
         lons.add(nextNumber(stream));
         lats.add(nextNumber(stream));
@@ -320,7 +326,7 @@ public class WellKnownText {
         }
     }
 
-    private static MultiPoint parseMultiPoint(StreamTokenizer stream) throws IOException, ParseException {
+    private MultiPoint parseMultiPoint(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return MultiPoint.EMPTY;
@@ -340,7 +346,7 @@ public class WellKnownText {
         return new MultiPoint(Collections.unmodifiableList(points));
     }
 
-    private static Line parseLine(StreamTokenizer stream) throws IOException, ParseException {
+    private Line parseLine(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return Line.EMPTY;
@@ -356,7 +362,7 @@ public class WellKnownText {
         }
     }
 
-    private static MultiLine parseMultiLine(StreamTokenizer stream) throws IOException, ParseException {
+    private MultiLine parseMultiLine(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return MultiLine.EMPTY;
@@ -369,12 +375,13 @@ public class WellKnownText {
         return new MultiLine(Collections.unmodifiableList(lines));
     }
 
-    private static LinearRing parsePolygonHole(StreamTokenizer stream) throws IOException, ParseException {
+    private LinearRing parsePolygonHole(StreamTokenizer stream) throws IOException, ParseException {
         nextOpener(stream);
         ArrayList<Double> lats = new ArrayList<>();
         ArrayList<Double> lons = new ArrayList<>();
         ArrayList<Double> alts = new ArrayList<>();
         parseCoordinates(stream, lats, lons, alts);
+        closeLinearRingIfCoerced(lats, lons, alts);
         if (alts.isEmpty()) {
             return new LinearRing(toArray(lats), toArray(lons));
         } else {
@@ -382,7 +389,7 @@ public class WellKnownText {
         }
     }
 
-    private static Polygon parsePolygon(StreamTokenizer stream) throws IOException, ParseException {
+    private Polygon parsePolygon(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Polygon.EMPTY;
         }
@@ -395,6 +402,7 @@ public class WellKnownText {
         while (nextCloserOrComma(stream).equals(COMMA)) {
             holes.add(parsePolygonHole(stream));
         }
+        closeLinearRingIfCoerced(lats, lons, alts);
         LinearRing shell;
         if (alts.isEmpty()) {
             shell = new LinearRing(toArray(lats), toArray(lons));
@@ -408,7 +416,25 @@ public class WellKnownText {
         }
     }
 
-    private static MultiPolygon parseMultiPolygon(StreamTokenizer stream) throws IOException, ParseException {
+    /**
+     * Treats supplied arrays as coordinates of a linear ring. If the ring is not closed and coerce is set to true,
+     * the first set of coordinates (lat, lon and alt if available) are added to the end of the arrays.
+     */
+    private void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts) {
+        if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {
+            int last = lats.size() - 1;
+            if (!lats.get(0).equals(lats.get(last)) || !lons.get(0).equals(lons.get(last)) ||
+                (alts.isEmpty() == false && !alts.get(0).equals(alts.get(last)))) {
+                lons.add(lons.get(0));
+                lats.add(lats.get(0));
+                if (alts.isEmpty() == false) {
+                    alts.add(alts.get(0));
+                }
+            }
+        }
+    }
+
+    private MultiPolygon parseMultiPolygon(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return MultiPolygon.EMPTY;
@@ -421,7 +447,7 @@ public class WellKnownText {
         return new MultiPolygon(Collections.unmodifiableList(polygons));
     }
 
-    private static Rectangle parseBBox(StreamTokenizer stream) throws IOException, ParseException {
+    private Rectangle parseBBox(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Rectangle.EMPTY;
         }
@@ -438,7 +464,7 @@ public class WellKnownText {
     }
 
 
-    private static Circle parseCircle(StreamTokenizer stream) throws IOException, ParseException {
+    private Circle parseCircle(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Circle.EMPTY;
         }
@@ -457,7 +483,7 @@ public class WellKnownText {
     /**
      * next word in the stream
      */
-    private static String nextWord(StreamTokenizer stream) throws ParseException, IOException {
+    private String nextWord(StreamTokenizer stream) throws ParseException, IOException {
         switch (stream.nextToken()) {
             case StreamTokenizer.TT_WORD:
                 final String word = stream.sval;
@@ -472,7 +498,7 @@ public class WellKnownText {
         throw new ParseException("expected word but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static double nextNumber(StreamTokenizer stream) throws IOException, ParseException {
+    private double nextNumber(StreamTokenizer stream) throws IOException, ParseException {
         if (stream.nextToken() == StreamTokenizer.TT_WORD) {
             if (stream.sval.equalsIgnoreCase(NAN)) {
                 return Double.NaN;
@@ -487,7 +513,7 @@ public class WellKnownText {
         throw new ParseException("expected number but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String tokenString(StreamTokenizer stream) {
+    private String tokenString(StreamTokenizer stream) {
         switch (stream.ttype) {
             case StreamTokenizer.TT_WORD:
                 return stream.sval;
@@ -501,13 +527,13 @@ public class WellKnownText {
         return "'" + (char) stream.ttype + "'";
     }
 
-    private static boolean isNumberNext(StreamTokenizer stream) throws IOException {
+    private boolean isNumberNext(StreamTokenizer stream) throws IOException {
         final int type = stream.nextToken();
         stream.pushBack();
         return type == StreamTokenizer.TT_WORD;
     }
 
-    private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
+    private String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
         final String next = nextWord(stream);
         if (next.equals(EMPTY) || next.equals(LPAREN)) {
             return next;
@@ -516,28 +542,28 @@ public class WellKnownText {
             + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
+    private String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(RPAREN)) {
             return RPAREN;
         }
         throw new ParseException("expected " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextComma(StreamTokenizer stream) throws IOException, ParseException {
+    private String nextComma(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(COMMA) == true) {
             return COMMA;
         }
         throw new ParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextOpener(StreamTokenizer stream) throws IOException, ParseException {
+    private String nextOpener(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(LPAREN)) {
             return LPAREN;
         }
         throw new ParseException("expected " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private static String nextCloserOrComma(StreamTokenizer stream) throws IOException, ParseException {
+    private String nextCloserOrComma(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextWord(stream);
         if (token.equals(COMMA) || token.equals(RPAREN)) {
             return token;
@@ -546,7 +572,7 @@ public class WellKnownText {
             + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    public static String getWKTName(Geometry geometry) {
+    private static String getWKTName(Geometry geometry) {
         return geometry.visit(new GeometryVisitor<String, RuntimeException>() {
             @Override
             public String visit(Circle circle) {
@@ -600,7 +626,7 @@ public class WellKnownText {
         });
     }
 
-    private static double[] toArray(ArrayList<Double> doubles) {
+    private double[] toArray(ArrayList<Double> doubles) {
         return doubles.stream().mapToDouble(i -> i).toArray();
     }
 

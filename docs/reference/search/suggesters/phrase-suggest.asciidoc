@@ -33,12 +33,12 @@ PUT test
           "trigram": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["shingle"]
+            "filter": ["lowercase","shingle"]
           },
           "reverse": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["reverse"]
+            "filter": ["lowercase","reverse"]
           }
         },
         "filter": {
@@ -224,7 +224,7 @@ The response contains suggestions scored by the most likely spell correction fir
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST test/_search
 {
   "suggest": {
     "text" : "noble prize",
@@ -293,7 +293,7 @@ properties that can be configured.
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST test/_search
 {
   "suggest": {
     "text" : "obel prize",
@@ -414,7 +414,7 @@ accept ordinary analyzer names.
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST test/_search
 {
   "suggest": {
     "text" : "obel prize",

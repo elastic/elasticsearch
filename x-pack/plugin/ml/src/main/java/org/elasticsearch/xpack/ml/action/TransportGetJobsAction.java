@@ -7,19 +7,20 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJobsAction.Request, GetJobsAction.Response> {
+public class TransportGetJobsAction extends StreamableTransportMasterNodeReadAction<GetJobsAction.Request, GetJobsAction.Response> {
 
     private final JobManager jobManager;
 
@@ -44,7 +45,7 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
     }
 
     @Override
-    protected void masterOperation(GetJobsAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, GetJobsAction.Request request, ClusterState state,
                                    ActionListener<GetJobsAction.Response> listener) {
         logger.debug("Get job '{}'", request.getJobId());
         jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(

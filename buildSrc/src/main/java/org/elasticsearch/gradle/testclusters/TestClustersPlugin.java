@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.testclusters;
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.test.RestTestRunnerTask;
 import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -43,13 +44,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
@@ -58,18 +55,14 @@ public class TestClustersPlugin implements Plugin<Project> {
     public static final String EXTENSION_NAME = "testClusters";
     private static final String HELPER_CONFIGURATION_PREFIX = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
-    private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
-    private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
 
     private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
-    private final Set<ElasticsearchCluster> runningClusters =new HashSet<>();
-    private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
+    private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
-    private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public static String getHelperConfigurationName(String version) {
         return HELPER_CONFIGURATION_PREFIX + "-" + version;
@@ -81,6 +74,8 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project);
+
+        TestClustersCleanupExtension.createExtension(project);
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
@@ -99,9 +94,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // After each task we determine if there are clusters that are no longer needed.
         configureStopClustersHook(project);
-
-        // configure hooks to make sure no test cluster processes survive the build
-        configureCleanupHooks(project);
 
         // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
         // configuration so the user doesn't have to repeat this.
@@ -164,6 +156,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                             ((Task) thisObject).dependsOn(
                                 project.getRootProject().getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME)
                             );
+                            if (thisObject instanceof RestTestRunnerTask) {
+                                ((RestTestRunnerTask) thisObject).testCluster(cluster);
+                            }
                         }
                     })
         );
@@ -196,8 +191,19 @@ public class TestClustersPlugin implements Plugin<Project> {
                 @Override
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    usedClusters.getOrDefault(task, Collections.emptyList()).stream()
+                    List<ElasticsearchCluster> neededButNotRunning = usedClusters.getOrDefault(
+                        task,
+                        Collections.emptyList()
+                    )
+                        .stream()
                         .filter(cluster -> runningClusters.contains(cluster) == false)
+                        .collect(Collectors.toList());
+
+                    project.getRootProject().getExtensions()
+                        .getByType(TestClustersCleanupExtension.class)
+                        .getCleanupThread()
+                        .watch(neededButNotRunning);
+                    neededButNotRunning
                         .forEach(elasticsearchCluster -> {
                             elasticsearchCluster.start();
                             runningClusters.add(elasticsearchCluster);
@@ -220,22 +226,36 @@ public class TestClustersPlugin implements Plugin<Project> {
                         task,
                         Collections.emptyList()
                     );
+                    if (clustersUsedByTask.isEmpty()) {
+                        return;
+                    }
+                    logger.info("Clusters were used, stopping and releasing permits");
+                    final int permitsToRelease;
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
-                        // executed at all, so we will never get to un-claim and terminate it.
+                        // executed at all, so we will never be called again to un-claim and terminate it.
                         clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
+                        permitsToRelease = clustersUsedByTask.stream()
+                            .map(cluster -> cluster.getNumberOfNodes())
+                            .reduce(Integer::sum).get();
                     } else {
                         clustersUsedByTask.forEach(
                             cluster -> claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) - 1)
                         );
-                        claimsInventory.entrySet().stream()
+                        List<ElasticsearchCluster> stoppingClusers = claimsInventory.entrySet().stream()
                             .filter(entry -> entry.getValue() == 0)
                             .filter(entry -> runningClusters.contains(entry.getKey()))
                             .map(Map.Entry::getKey)
-                            .forEach(cluster -> {
-                                stopCluster(cluster, false);
-                                runningClusters.remove(cluster);
-                            });
+                            .collect(Collectors.toList());
+                        stoppingClusers.forEach(cluster -> {
+                            stopCluster(cluster, false);
+                            runningClusters.remove(cluster);
+                        });
+
+                        project.getRootProject().getExtensions()
+                            .getByType(TestClustersCleanupExtension.class)
+                            .getCleanupThread()
+                            .unWatch(stoppingClusers);
                     }
                 }
                 @Override
@@ -404,64 +424,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
                 }
             })));
-    }
-
-    private void configureCleanupHooks(Project project) {
-        // When the Gradle daemon is used, it will interrupt all threads when the build concludes.
-        // This is our signal to clean up
-        executorService.submit(() -> {
-            while (true) {
-                try {
-                    Thread.sleep(Long.MAX_VALUE);
-                } catch (InterruptedException interrupted) {
-                    shutDownAllClusters();
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        });
-
-        // When the Daemon is not used, or runs into issues, rely on a shutdown hook
-        // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptible
-        // thread in the build) process will be stopped eventually when the daemon dies.
-        Runtime.getRuntime().addShutdownHook(shutdownHook);
-
-        // When we don't run into anything out of the ordinary, and the build completes, makes sure to clean up
-        project.getGradle().buildFinished(buildResult -> {
-            shutdownExecutorService();
-            if (false == Runtime.getRuntime().removeShutdownHook(shutdownHook)) {
-                logger.info("Trying to deregister shutdown hook when it was not registered.");
-            }
-        });
-    }
-
-    private void shutdownExecutorService() {
-        executorService.shutdownNow();
-        try {
-            if (executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
-                throw new IllegalStateException(
-                    "Failed to shut down executor service after " +
-                    EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
-                );
-            }
-        } catch (InterruptedException e) {
-            logger.info("Wait for testclusters shutdown interrupted", e);
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private void shutDownAllClusters() {
-        synchronized (runningClusters) {
-            if (runningClusters.isEmpty()) {
-                return;
-            }
-            Iterator<ElasticsearchCluster> iterator = runningClusters.iterator();
-            while (iterator.hasNext()) {
-                ElasticsearchCluster next = iterator.next();
-                iterator.remove();
-                next.stop(false);
-            }
-        }
     }
 
 }

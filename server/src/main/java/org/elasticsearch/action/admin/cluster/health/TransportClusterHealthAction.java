@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -47,7 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.function.Predicate;
 
 public class TransportClusterHealthAction
-        extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
+        extends StreamableTransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private final GatewayAllocator gatewayAllocator;
 
@@ -75,13 +75,6 @@ public class TransportClusterHealthAction
     @Override
     protected ClusterHealthResponse newResponse() {
         return new ClusterHealthResponse();
-    }
-
-    @Override
-    protected final void masterOperation(ClusterHealthRequest request, ClusterState state,
-                                         ActionListener<ClusterHealthResponse> listener) throws Exception {
-        logger.warn("attempt to execute a cluster health operation without a task");
-        throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override

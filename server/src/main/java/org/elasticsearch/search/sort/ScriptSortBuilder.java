@@ -19,18 +19,17 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -65,7 +64,6 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * Script sort builder allows to sort based on a custom script expression.
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptSortBuilder.class));
 
     public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -77,10 +75,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private final ScriptSortType type;
 
     private SortMode sortMode;
-
-    private QueryBuilder nestedFilter;
-
-    private String nestedPath;
 
     private NestedSortBuilder nestedSort;
 
@@ -105,8 +99,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         this.type = original.type;
         this.order = original.order;
         this.sortMode = original.sortMode;
-        this.nestedFilter = original.nestedFilter;
-        this.nestedPath = original.nestedPath;
         this.nestedSort = original.nestedSort;
     }
 
@@ -118,8 +110,12 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        nestedPath = in.readOptionalString();
-        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
+                throw new IOException("the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " +
+                    "please use [nested] instead");
+            }
+        }
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
     }
 
@@ -129,8 +125,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        out.writeOptionalString(nestedPath);
-        out.writeOptionalNamedWriteable(nestedFilter);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalString(null);
+            out.writeOptionalNamedWriteable(null);
+        }
         out.writeOptionalWriteable(nestedSort);
     }
 
@@ -170,56 +168,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     /**
-     * Sets the nested filter that the nested objects should match with in order to be taken into account
-     * for sorting.
-     *
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
-     */
-    @Deprecated
-    public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
-        if (this.nestedSort != null) {
-            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
-        }
-        this.nestedFilter = nestedFilter;
-        return this;
-    }
-
-    /**
-     * Gets the nested filter.
-     *
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
-     */
-    @Deprecated
-    public QueryBuilder getNestedFilter() {
-        return this.nestedFilter;
-    }
-
-    /**
-     * Sets the nested path if sorting occurs on a field that is inside a nested object. For sorting by script this
-     * needs to be specified.
-     *
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
-     */
-    @Deprecated
-    public ScriptSortBuilder setNestedPath(String nestedPath) {
-        if (this.nestedSort != null) {
-            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
-        }
-        this.nestedPath = nestedPath;
-        return this;
-    }
-
-    /**
-     * Gets the nested path.
-     *
-     * @deprecated set nested sort with {@link #setNestedSort(NestedSortBuilder)} and retrieve with {@link #getNestedSort()}
-     */
-    @Deprecated
-    public String getNestedPath() {
-        return this.nestedPath;
-    }
-
-    /**
      * Returns the {@link NestedSortBuilder}
      */
     public NestedSortBuilder getNestedSort() {
@@ -233,9 +181,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * order to be taken into account for sorting.
      */
     public ScriptSortBuilder setNestedSort(final NestedSortBuilder nestedSort) {
-        if (this.nestedFilter != null || this.nestedPath != null) {
-            throw new IllegalArgumentException("Setting both nested_path/nested_filter and nested not allowed");
-        }
         this.nestedSort = nestedSort;
         return this;
     }
@@ -249,12 +194,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         builder.field(ORDER_FIELD.getPreferredName(), order);
         if (sortMode != null) {
             builder.field(SORTMODE_FIELD.getPreferredName(), sortMode);
-        }
-        if (nestedPath != null) {
-            builder.field(NESTED_PATH_FIELD.getPreferredName(), nestedPath);
-        }
-        if (nestedFilter != null) {
-            builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, builderParams);
         }
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
@@ -273,14 +212,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareField(constructorArg(), p -> ScriptSortType.fromString(p.text()), TYPE_FIELD, ValueType.STRING);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
-        PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
-            fieldSortBuilder.setNestedPath(nestedPath);
-        }, NESTED_PATH_FIELD);
-        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
-            return SortBuilder.parseNestedFilter(p);
-        }, NESTED_FILTER_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
     }
 
@@ -309,16 +240,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             valueMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
-        final Nested nested;
+        Nested nested = null;
         if (nestedSort != null) {
             if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
                 throw new QueryShardException(context,
                     "max_children is only supported on last level of nested sort");
             }
-            // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);
-        } else {
-            nested = resolveNested(context, nestedPath, nestedFilter);
         }
 
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
@@ -399,14 +327,12 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 Objects.equals(type, other.type) &&
                 Objects.equals(order, other.order) &&
                 Objects.equals(sortMode, other.sortMode) &&
-                Objects.equals(nestedFilter, other.nestedFilter) &&
-                Objects.equals(nestedPath, other.nestedPath) &&
                 Objects.equals(nestedSort, other.nestedSort);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(script, type, order, sortMode, nestedFilter, nestedPath, nestedSort);
+        return Objects.hash(script, type, order, sortMode, nestedSort);
     }
 
     @Override
@@ -452,21 +378,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public ScriptSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
-        if (nestedFilter == null && nestedSort == null) {
+        if (nestedSort == null) {
             return this;
         }
-        if (nestedFilter != null) {
-            QueryBuilder rewrite = nestedFilter.rewrite(ctx);
-            if (nestedFilter == rewrite) {
-                return this;
-            }
-            return new ScriptSortBuilder(this).setNestedFilter(rewrite);
-        } else {
-            NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
-            if (nestedSort == rewrite) {
-                return this;
-            }
-            return new ScriptSortBuilder(this).setNestedSort(rewrite);
+        NestedSortBuilder rewrite = nestedSort.rewrite(ctx);
+        if (nestedSort == rewrite) {
+            return this;
         }
+        return new ScriptSortBuilder(this).setNestedSort(rewrite);
     }
 }

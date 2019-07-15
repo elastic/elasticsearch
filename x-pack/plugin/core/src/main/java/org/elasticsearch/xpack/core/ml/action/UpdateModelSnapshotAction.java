@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.Response> {
+public class UpdateModelSnapshotAction extends StreamableResponseActionType<UpdateModelSnapshotAction.Response> {
 
     public static final UpdateModelSnapshotAction INSTANCE = new UpdateModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";
@@ -188,7 +188,6 @@ public class UpdateModelSnapshotAction extends Action<UpdateModelSnapshotAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             model.writeTo(out);
         }
 

@@ -1,0 +1,129 @@
+[role="xpack"]
+[testenv="platinum"]
+[[evaluate-dfanalytics]]
+=== Evaluate {dfanalytics} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Evaluate {dfanalytics}</titleabbrev>
+++++
+
+Evaluates the {dfanalytics} for an annotated index.
+
+experimental[]
+
+[[ml-evaluate-dfanalytics-request]]
+==== {api-request-title}
+
+`POST _ml/data_frame/_evaluate`
+
+[[ml-evaluate-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+* You must have `monitor_ml` privilege to use this API. For more 
+information, see {stack-ov}/security-privileges.html[Security privileges] and 
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-evaluate-dfanalytics-desc]]
+==== {api-description-title}
+
+This API evaluates the executed analysis on an index that is already annotated
+with a field that contains the results of the analytics (the `ground truth`)
+for each {dataframe} row.
+
+Evaluation is typically done by calculating a set of metrics that capture various aspects of the quality of the results over the data for which you have the
+`ground truth`.
+
+For different types of analyses different metrics are suitable. This API
+packages together commonly used metrics for various analyses.
+
+[[ml-evaluate-dfanalytics-request-body]]
+==== {api-request-body-title}
+
+`index`::
+  (Required, object) Defines the `index` in which the evaluation will be
+  performed.
+  
+`evaluation`::
+  (Required, object) Defines the type of evaluation you want to perform. For example: 
+  `binary_soft_classification`. See <<ml-evaluate-dfanalytics-resources>>.
+  
+////
+[[ml-evaluate-dfanalytics-results]]
+==== {api-response-body-title}
+
+`binary_soft_classification`::
+  (object) If you chose to do binary soft classification, the API returns the
+  following evaluation metrics:
+  
+`auc_roc`::: TBD
+
+`confusion_matrix`::: TBD
+  
+`precision`::: TBD
+
+`recall`::: TBD
+////
+
+[[ml-evaluate-dfanalytics-example]]
+==== {api-examples-title}
+
+[source,js]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "my_analytics_dest_index",
+  "evaluation": {
+    "binary_soft_classification": {
+      "actual_field": "is_outlier",
+      "predicted_probability_field": "ml.outlier_score"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,js]
+----
+{
+  "binary_soft_classification": {
+    "auc_roc": {
+      "score": 0.92584757746414444
+    },
+    "confusion_matrix": {
+      "0.25": {
+          "tp": 5,
+          "fp": 9,
+          "tn": 204,
+          "fn": 5
+      },
+      "0.5": {
+          "tp": 1,
+          "fp": 5,
+          "tn": 208,
+          "fn": 9
+      },
+      "0.75": {
+          "tp": 0,
+          "fp": 4,
+          "tn": 209,
+          "fn": 10
+      }
+    },
+    "precision": {
+        "0.25": 0.35714285714285715,
+        "0.5": 0.16666666666666666,
+        "0.75": 0
+    },
+    "recall": {
+        "0.25": 0.5,
+        "0.5": 0.1,
+        "0.75": 0
+    }
+  }
+}
+----
+// TESTRESPONSE

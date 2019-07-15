@@ -21,17 +21,18 @@ package org.elasticsearch.action.support.master.info;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
-        extends TransportMasterNodeReadAction<Request, Response> {
+        extends StreamableTransportMasterNodeReadAction<Request, Response> {
 
     public TransportClusterInfoAction(String actionName, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
@@ -46,7 +47,8 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Override
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
+    protected final void masterOperation(Task task, final Request request, final ClusterState state,
+                                         final ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         doMasterOperation(request, concreteIndices, state, listener);
     }

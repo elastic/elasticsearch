@@ -51,10 +51,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
     }
 
-    /**
-     * Create a simple dataset for testing with reviewers, ratings and businesses
-     */
-    protected void createReviewsIndex() throws IOException {
+    protected void createReviewsIndex(String indexName) throws IOException {
         int[] distributionTable = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1};
 
         final int numDocs = 1000;
@@ -65,27 +62,27 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             {
                 builder.startObject("mappings")
                     .startObject("properties")
-                      .startObject("timestamp")
-                         .field("type", "date")
-                      .endObject()
-                      .startObject("user_id")
-                        .field("type", "keyword")
-                      .endObject()
-                      .startObject("business_id")
-                        .field("type", "keyword")
-                      .endObject()
-                      .startObject("stars")
-                        .field("type", "integer")
-                      .endObject()
-                      .startObject("location")
-                        .field("type", "geo_point")
-                      .endObject()
+                    .startObject("timestamp")
+                    .field("type", "date")
                     .endObject()
-                  .endObject();
+                    .startObject("user_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("business_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("stars")
+                    .field("type", "integer")
+                    .endObject()
+                    .startObject("location")
+                    .field("type", "geo_point")
+                    .endObject()
+                    .endObject()
+                    .endObject();
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT", REVIEWS_INDEX_NAME);
+            Request req = new Request("PUT", indexName);
             req.setEntity(entity);
             client().performRequest(req);
         }
@@ -96,7 +93,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         int hour = 10;
         int min = 10;
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"" + REVIEWS_INDEX_NAME + "\"}}\n");
+            bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
@@ -142,17 +139,61 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
     }
+    /**
+     * Create a simple dataset for testing with reviewers, ratings and businesses
+     */
+    protected void createReviewsIndex() throws IOException {
+        createReviewsIndex(REVIEWS_INDEX_NAME);
+    }
 
     protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query) throws IOException {
         createPivotReviewsTransform(transformId, dataFrameIndex, query, null);
     }
 
-    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String authHeader)
+    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String pipeline)
+        throws IOException {
+        createPivotReviewsTransform(transformId, dataFrameIndex, query, pipeline, null);
+    }
+
+    protected void createContinuousPivotReviewsTransform(String transformId, String dataFrameIndex, String authHeader) throws IOException {
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, authHeader);
+
+        String config = "{ \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            //Set frequency high for testing
+            + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\", \"frequency\": \"1s\"}},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+    }
+
+
+    protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query, String pipeline, String authHeader)
         throws IOException {
         final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, authHeader);
 
-        String config = "{"
-            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+        String config = "{";
+
+        if (pipeline != null) {
+            config += " \"dest\": {\"index\":\"" + dataFrameIndex + "\", \"pipeline\":\"" + pipeline + "\"},";
+        } else {
+            config += " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+        }
 
         if (query != null) {
             config += " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\", \"query\":{" + query + "}},";
@@ -219,8 +260,25 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId);
 
-        // TODO: assuming non-continuous data frames, so transform should auto-stop
         waitForDataFrameStopped(transformId);
+        refreshIndex(dataFrameIndex);
+    }
+
+    protected void startAndWaitForContinuousTransform(String transformId,
+                                                      String dataFrameIndex,
+                                                      String authHeader) throws Exception {
+        startAndWaitForContinuousTransform(transformId, dataFrameIndex, authHeader, 1L);
+    }
+
+    protected void startAndWaitForContinuousTransform(String transformId,
+                                                      String dataFrameIndex,
+                                                      String authHeader,
+                                                      long checkpoint) throws Exception {
+        // start the transform
+        startDataframeTransform(transformId, false, authHeader, new String[0]);
+        assertTrue(indexExists(dataFrameIndex));
+        // wait until the dataframe has been created and all data is available
+        waitForDataFrameCheckpoint(transformId, checkpoint);
         refreshIndex(dataFrameIndex);
     }
 
@@ -244,10 +302,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     }
 
     void waitForDataFrameCheckpoint(String transformId) throws Exception {
-        assertBusy(() -> {
-            long checkpoint = getDataFrameCheckpoint(transformId);
-            assertEquals(1, checkpoint);
-        }, 30, TimeUnit.SECONDS);
+        waitForDataFrameCheckpoint(transformId, 1L);
+    }
+
+    void waitForDataFrameCheckpoint(String transformId, long checkpoint) throws Exception {
+        assertBusy(() -> assertEquals(checkpoint, getDataFrameCheckpoint(transformId)), 30, TimeUnit.SECONDS);
     }
 
     void refreshIndex(String index) throws IOException {

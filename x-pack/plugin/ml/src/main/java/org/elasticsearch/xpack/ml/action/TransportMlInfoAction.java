@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -21,15 +20,11 @@ import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.process.NativeController;
-import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
+import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 
-import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
@@ -38,23 +33,13 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     @Inject
     public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters,
-                                 ClusterService clusterService, Environment env) {
-        super(MlInfoAction.NAME, transportService, actionFilters, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
+                                 ClusterService clusterService, MlControllerHolder mlControllerHolder) {
+        super(MlInfoAction.NAME, transportService, MlInfoAction.Request::new, actionFilters);
+
         this.clusterService = clusterService;
 
         try {
-            NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), env);
-            // TODO: this leniency is only for tests. it can be removed when NativeController is created as a component and
-            // becomes a ctor arg to this action
-            if (nativeController != null) {
-                nativeCodeInfo = nativeController.getNativeCodeInfo();
-            } else {
-                nativeCodeInfo = Collections.emptyMap();
-            }
-        } catch (IOException e) {
-            // this should not be possible since this action is only registered when ML is enabled,
-            // and the MachineLearning plugin would have failed to create components
-            throw new IllegalStateException("native controller failed to load", e);
+            nativeCodeInfo = mlControllerHolder.getMlController().getNativeCodeInfo();
         } catch (TimeoutException e) {
             throw new RuntimeException("Could not get native code info from native controller", e);
         }

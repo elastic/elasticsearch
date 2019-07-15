@@ -164,7 +164,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected final MultiValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValueType finalValueType = this.valueType != null ? this.valueType : targetValueType;
 
@@ -190,8 +190,8 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return valueFormat;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
-        Map<String, ValuesSourceConfig<VS>> configs, DocValueFormat format, AggregatorFactory<?> parent,
+    protected abstract MultiValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context,
+        Map<String, ValuesSourceConfig<VS>> configs, DocValueFormat format, AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
 
@@ -225,28 +225,20 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(fields, format, targetValueType, valueType, innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), fields, format, targetValueType, valueType);
     }
 
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object other) {
-        if (this == other) {
-            return true;
-        }
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
 
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-
-        MultiValuesSourceAggregationBuilder that = (MultiValuesSourceAggregationBuilder) other;
-
-        return Objects.equals(this.fields, that.fields)
-            && Objects.equals(this.format, that.format)
-            && Objects.equals(this.valueType, that.valueType);
+        MultiValuesSourceAggregationBuilder other = (MultiValuesSourceAggregationBuilder) obj;
+        return Objects.equals(this.fields, other.fields)
+            && Objects.equals(this.format, other.format)
+            && Objects.equals(this.valueType, other.valueType);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

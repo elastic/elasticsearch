@@ -8,49 +8,59 @@
 
 Retrieves anomaly records for a job.
 
-
-==== Request
+[[ml-get-record-request]]
+==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/records`
 
-//===== Description
+[[ml-get-record-prereqs]]
+==== {api-prereq-title}
 
-==== Path Parameters
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
-`job_id`::
-  (string) Identifier for the job.
+[[ml-get-record-path-parms]]
+==== {api-path-parms-title}
 
+`<job_id>`::
+  (Required, string) Identifier for the job.
 
-==== Request Body
+[[ml-get-record-request-body]]
+==== {api-request-body-title}
 
 `desc`::
-  (boolean) If true, the results are sorted in descending order.
+  (Optional, boolean) If true, the results are sorted in descending order.
 
 `end`::
-  (string) Returns records with timestamps earlier than this time.
+  (Optional, string) Returns records with timestamps earlier than this time.
 
 `exclude_interim`::
-  (boolean) If true, the output excludes interim results.
-  By default, interim results are included.
+  (Optional, boolean) If true, the output excludes interim results. By default,
+  interim results are included.
 
 `page`::
 `from`:::
-  (integer) Skips the specified number of records.
+  (Optional, integer) Skips the specified number of records.
 `size`:::
-  (integer) Specifies the maximum number of records to obtain.
+  (Optional, integer) Specifies the maximum number of records to obtain.
 
 `record_score`::
-  (double) Returns records with anomaly scores greater or equal than this value.
+  (Optional, double) Returns records with anomaly scores greater or equal than
+  this value.
 
 `sort`::
-  (string) Specifies the sort field for the requested records.
-  By default, the records are sorted by the `anomaly_score` value.
+  (Optional, string) Specifies the sort field for the requested records. By
+  default, the records are sorted by the `anomaly_score` value.
 
 `start`::
-  (string) Returns records with timestamps after this time.
+  (Optional, string) Returns records with timestamps after this time.
 
-
-==== Results
+[[ml-get-record-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -58,19 +68,8 @@ The API returns the following information:
   (array) An array of record objects. For more information, see
   <<ml-results-records,Records>>.
 
-
-==== Authorization
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. You also need `read` index privilege on the index
-that stores the results. The `machine_learning_admin` and `machine_learning_user`
-roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
-//<<security-privileges>> and <<built-in-roles>>.
-
-
-==== Examples
+[[ml-get-record-example]]
+==== {api-examples-title}
 
 The following example gets record information for the `it-ops-kpi` job:
 

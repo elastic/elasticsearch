@@ -24,7 +24,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
 
     @Inject
     public TransportRefreshTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
-        super(RefreshTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
+        super(RefreshTokenAction.NAME, transportService, CreateTokenRequest::new, actionFilters);
         this.tokenService = tokenService;
     }
 
@@ -33,7 +33,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
         tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tuple -> {
             final String scope = getResponseScopeValue(request.getScope());
             final CreateTokenResponse response =
-                    new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope, tuple.v2());
+                    new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope, tuple.v2(), null);
             listener.onResponse(response);
         }, listener::onFailure));
     }

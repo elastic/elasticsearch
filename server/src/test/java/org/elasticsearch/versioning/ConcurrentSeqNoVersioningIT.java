@@ -38,7 +38,6 @@ import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -119,10 +118,6 @@ import static org.hamcrest.Matchers.greaterThan;
  * </ul>
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6)
-@TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
-    "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
-    "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
-    "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
 public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private static final Pattern EXTRACT_VERSION = Pattern.compile("current document has seqNo \\[(\\d+)\\] and primary term \\[(\\d+)\\]");

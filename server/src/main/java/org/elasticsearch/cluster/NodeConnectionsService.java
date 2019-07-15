@@ -297,14 +297,27 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
         private final AtomicInteger consecutiveFailureCount = new AtomicInteger();
 
-        private final Runnable connectActivity = () -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
+        private final Runnable connectActivity = new AbstractRunnable() {
+
+            final AbstractRunnable abstractRunnable = this;
+
             @Override
             protected void doRun() {
                 assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
-                transportService.connectToNode(discoveryNode);
-                consecutiveFailureCount.set(0);
-                logger.debug("connected to {}", discoveryNode);
-                onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
+                transportService.connectToNode(discoveryNode, new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        assert Thread.holdsLock(mutex) == false : "mutex unexpectedly held";
+                        consecutiveFailureCount.set(0);
+                        logger.debug("connected to {}", discoveryNode);
+                        onCompletion(ActivityType.CONNECTING, null, disconnectActivity);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        abstractRunnable.onFailure(e);
+                    }
+                });
             }
 
             @Override
@@ -322,7 +335,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             public String toString() {
                 return "connect to " + discoveryNode;
             }
-        });
+        };
 
         private final Runnable disconnectActivity = new AbstractRunnable() {
             @Override

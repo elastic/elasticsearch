@@ -591,21 +591,31 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 BulkAction.INSTANCE,
                 request,
                 ActionListener.wrap(bulkResponse -> {
-                    if (bulkResponse.hasFailures() && auditBulkFailures) {
+                    if (bulkResponse.hasFailures()) {
                         int failureCount = 0;
                         for(BulkItemResponse item : bulkResponse.getItems()) {
                             if (item.isFailed()) {
                                 failureCount++;
                             }
+                            // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
                         }
-                        auditor.warning(transformId,
-                            "Experienced at least [" +
-                                failureCount +
-                                "] bulk index failures. See the logs of the node running the transform for details. " +
-                                bulkResponse.buildFailureMessage());
-                        auditBulkFailures = false;
+                        if (auditBulkFailures) {
+                            auditor.warning(transformId,
+                                "Experienced at least [" +
+                                    failureCount +
+                                    "] bulk index failures. See the logs of the node running the transform for details. " +
+                                    bulkResponse.buildFailureMessage());
+                            auditBulkFailures = false;
+                        }
+                        // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
+                        // It increments the indexing failure, and then calls the `onFailure` logic
+                        nextPhase.onFailure(
+                            new BulkIndexFailure("Bulk index experienced failures. " +
+                                "See the logs of the node running the transform for details."));
+                    } else {
+                        auditBulkFailures = true;
+                        nextPhase.onResponse(bulkResponse);
                     }
-                    nextPhase.onResponse(bulkResponse);
                 }, nextPhase::onFailure));
         }
 
@@ -805,6 +815,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     // Successfully marked as failed, reset counter so that task can be restarted
                     failureCount.set(0);
                 }, e -> {}));
+        }
+    }
+
+    // Considered a recoverable indexing failure
+    private static class BulkIndexFailure extends Exception {
+        public BulkIndexFailure(String msg) {
+            super(msg);
         }
     }
 }

@@ -64,6 +64,7 @@ import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -109,6 +110,13 @@ public class RemoteClusterConnectionTests extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44339", System.getProperty("os.name").contains("Win"));
     }
 
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {

@@ -61,11 +61,6 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(Task task, PutStoredScriptRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.putStoredScript(clusterService, request, listener);

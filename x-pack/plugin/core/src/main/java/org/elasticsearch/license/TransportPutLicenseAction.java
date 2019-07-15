@@ -42,11 +42,6 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     }
 
     @Override
-    protected PutLicenseResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected PutLicenseResponse read(StreamInput in) throws IOException {
         return new PutLicenseResponse(in);
     }

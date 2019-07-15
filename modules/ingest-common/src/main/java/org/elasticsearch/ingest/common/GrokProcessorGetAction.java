@@ -102,7 +102,7 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, Request::new, actionFilters);
         }
 
         @Override

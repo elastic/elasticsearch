@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -90,16 +91,9 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                 = client().admin().cluster().prepareAllocationExplain().setIndex("test").setShard(0).setPrimary(true).get();
             final UnassignedInfo unassignedInfo = allocationExplainResponse.getExplanation().getUnassignedInfo();
             assertThat(unassignedInfo, not(nullValue()));
-            final Exception outerException = unassignedInfo.getFailure();
-            Throwable throwable = outerException;
-            while (throwable != null) {
-                if (throwable instanceof TranslogCorruptedException) {
-                    assertThat(throwable.getMessage(), containsString(translogPath.toString()));
-                    return;
-                }
-                throwable = throwable.getCause();
-            }
-            throw new AssertionError("no TranslogCorruptedException found", outerException);
+            final Throwable cause = ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class);
+            assertThat(cause, not(nullValue()));
+            assertThat(cause.getMessage(), containsString(translogPath.toString()));
         });
 
         assertThat(expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test").setQuery(matchAllQuery()).get())

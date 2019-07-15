@@ -2863,7 +2863,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
         final long newPrimaryTerm = randomLongBetween(0L, primaryTerm.get());
-        Translog translog = createTranslog(() -> newPrimaryTerm);
+        final Translog translog = createTranslog(() -> newPrimaryTerm);
         long id = translog.currentFileGeneration();
         translog.close();
         IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));

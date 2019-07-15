@@ -28,6 +28,7 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -95,7 +96,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -329,14 +332,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             final UnassignedInfo unassignedInfo = client().admin().cluster().prepareAllocationExplain()
                 .setIndex(indexName).setShard(0).setPrimary(true).get().getExplanation().getUnassignedInfo();
             assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            Throwable throwable = unassignedInfo.getFailure();
-            while (throwable != null) {
-                if (throwable instanceof TranslogCorruptedException) {
-                    return;
-                }
-                throwable = throwable.getCause();
-            }
-            throw new AssertionError("no TranslogCorruptedException thrown", unassignedInfo.getFailure());
+            assertThat(ExceptionsHelper.unwrap(unassignedInfo.getFailure(), TranslogCorruptedException.class), not(nullValue()));
         });
 
         // have to shut down primary node - otherwise node lock is present

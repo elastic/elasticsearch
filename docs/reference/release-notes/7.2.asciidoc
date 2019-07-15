@@ -23,7 +23,7 @@ Authentication::
 
 Data Frame::
 * Re-ordering format priorities in dest mapping {pull}43602[#43602]
-* Adjusting error message {pull}43455[#43455]
+* Adjust error message {pull}43455[#43455]
 * Size the GET stats search by number of Ids requested {pull}43206[#43206] (issue: {issue}43203[#43203])
 
 Distributed::

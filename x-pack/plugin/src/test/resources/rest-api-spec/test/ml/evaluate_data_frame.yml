@@ -567,6 +567,24 @@ setup:
           }
 
   - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - is_false: regression.r_squared.value
+---
+"Test regression r_squared":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "r_squared": {} }
+              }
+            }
+          }
+  - match: { regression.r_squared.value: 0.8551031778603486 }
+  - is_false: regression.mean_squared_error
 ---
 "Test regression with null metrics":
   - do:
@@ -583,3 +601,4 @@ setup:
           }
 
   - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.r_squared.value: 0.8551031778603486 }

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.regression;
+package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
@@ -26,10 +26,11 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class RegressionTests extends AbstractXContentTestCase<Regression> {
+public class BinarySoftClassificationTests extends AbstractXContentTestCase<BinarySoftClassification> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -37,22 +38,37 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
     }
 
     @Override
-    protected Regression createTestInstance() {
+    protected BinarySoftClassification createTestInstance() {
         List<EvaluationMetric> metrics = new ArrayList<>();
         if (randomBoolean()) {
-            metrics.add(new MeanSquaredErrorMetric());
+            metrics.add(new AucRocMetric(randomBoolean()));
         }
         if (randomBoolean()) {
-            metrics.add(new RSquaredMetric());
+            metrics.add(new PrecisionMetric(Arrays.asList(randomArray(1,
+                4,
+                Double[]::new,
+                BinarySoftClassificationTests::randomDouble))));
+        }
+        if (randomBoolean()) {
+            metrics.add(new RecallMetric(Arrays.asList(randomArray(1,
+                4,
+                Double[]::new,
+                BinarySoftClassificationTests::randomDouble))));
+        }
+        if (randomBoolean()) {
+            metrics.add(new ConfusionMatrixMetric(Arrays.asList(randomArray(1,
+                4,
+                Double[]::new,
+                BinarySoftClassificationTests::randomDouble))));
         }
         return randomBoolean() ?
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+            new BinarySoftClassification(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
+            new BinarySoftClassification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
     @Override
-    protected Regression doParseInstance(XContentParser parser) throws IOException {
-        return Regression.fromXContent(parser);
+    protected BinarySoftClassification doParseInstance(XContentParser parser) throws IOException {
+        return BinarySoftClassification.fromXContent(parser);
     }
 
     @Override

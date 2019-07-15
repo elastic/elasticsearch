@@ -19,7 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 
 import java.io.Closeable;

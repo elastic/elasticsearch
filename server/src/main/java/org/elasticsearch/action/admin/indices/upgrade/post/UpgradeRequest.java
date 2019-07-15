@@ -49,8 +49,6 @@ public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
         super(indices);
     }
 
-    public UpgradeRequest() {}
-
     public UpgradeRequest(StreamInput in) throws IOException {
         super(in);
         upgradeOnlyAncientSegments = in.readBoolean();

@@ -110,8 +110,6 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             return leaderIndex;
         }
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             followerCluster = in.readString();

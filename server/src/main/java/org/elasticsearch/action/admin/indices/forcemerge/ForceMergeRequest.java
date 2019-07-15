@@ -58,8 +58,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         super(indices);
     }
 
-    public ForceMergeRequest() {}
-
     public ForceMergeRequest(StreamInput in) throws IOException {
         super(in);
         maxNumSegments = in.readInt();

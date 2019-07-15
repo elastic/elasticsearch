@@ -33,10 +33,6 @@ public class ClearIndicesCacheRequest extends BroadcastRequest<ClearIndicesCache
     private boolean requestCache = false;
     private String[] fields = Strings.EMPTY_ARRAY;
 
-
-    public ClearIndicesCacheRequest() {
-    }
-
     public ClearIndicesCacheRequest(StreamInput in) throws IOException {
         super(in);
         queryCache = in.readBoolean();

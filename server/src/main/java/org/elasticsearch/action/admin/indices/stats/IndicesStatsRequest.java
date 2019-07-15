@@ -38,7 +38,9 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     private CommonStatsFlags flags = new CommonStatsFlags();
 
-    public IndicesStatsRequest() {}
+    public IndicesStatsRequest() {
+        super((String[])null);
+    }
 
     public IndicesStatsRequest(StreamInput in) throws IOException {
         super(in);

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -1471,7 +1472,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::close-index-request-indicesOptions
 
             // tag::close-index-execute
-            AcknowledgedResponse closeIndexResponse = client.indices().close(request, RequestOptions.DEFAULT);
+            CloseIndexResponse closeIndexResponse = client.indices().close(request, RequestOptions.DEFAULT);
             // end::close-index-execute
 
             // tag::close-index-response
@@ -1480,18 +1481,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::close-index-execute-listener
-            ActionListener<AcknowledgedResponse> listener =
-                    new ActionListener<AcknowledgedResponse>() {
-                @Override
-                public void onResponse(AcknowledgedResponse closeIndexResponse) {
-                    // <1>
-                }
+            ActionListener<CloseIndexResponse> listener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(CloseIndexResponse closeIndexResponse) {
+                        // <1>
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
             // end::close-index-execute-listener
 
             // Replace the empty listener by a blocking listener in test

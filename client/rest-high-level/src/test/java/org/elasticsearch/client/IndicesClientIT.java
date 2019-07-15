@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -127,6 +128,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -878,9 +880,13 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
-        AcknowledgedResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::close,
+        CloseIndexResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::close,
                 highLevelClient().indices()::closeAsync);
         assertTrue(closeIndexResponse.isAcknowledged());
+        assertTrue(closeIndexResponse.isShardsAcknowledged());
+        assertThat(closeIndexResponse.getIndices(), notNullValue());
+        assertThat(closeIndexResponse.getIndices(), hasSize(1));
+        assertThat(closeIndexResponse.getIndices().get(0).hasFailures(), is(false));
 
         ResponseException exception = expectThrows(ResponseException.class,
                 () -> client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search")));

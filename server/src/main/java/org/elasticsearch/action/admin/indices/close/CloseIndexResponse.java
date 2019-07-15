@@ -23,12 +23,17 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -37,8 +42,25 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<CloseIndexResponse, Void> PARSER = new ConstructingObjectParser<>("close_index_response",
+        true, args -> {
+            boolean acknowledged = (boolean) args[0];
+            boolean shardsAcknowledged = args[1] != null ? (boolean) args[1] : acknowledged;
+            List<IndexResult> indices = args[2] != null ? (List<IndexResult>) args[2] : emptyList();
+            return new CloseIndexResponse(acknowledged, shardsAcknowledged, indices);
+    });
+
+    static {
+        declareAcknowledgedField(PARSER);
+        PARSER.declareField(optionalConstructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
+            ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, name) -> IndexResult.fromXContent(p, name), new ParseField("indices"));
+    }
 
     private final List<IndexResult> indices;
 
@@ -86,7 +108,41 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         return Strings.toString(this);
     }
 
+    public static CloseIndexResponse fromXContent(final XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
     public static class IndexResult implements Writeable, ToXContentFragment {
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<IndexResult, String> PARSER = new ConstructingObjectParser<>("index_result", true,
+            (args, name) -> {
+                final Index index = new Index(name, "_na_");
+                Exception exception = (Exception) args[1];
+                if (exception != null) {
+                    assert (boolean) args[0] == false;
+                    return new IndexResult(index, exception);
+                }
+                ShardResult[] shardResults = args[2] != null ? ((List<ShardResult>) args[2]).toArray(new ShardResult[0]) : null;
+                if (shardResults != null) {
+                    assert (boolean) args[0] == false;
+                    return new IndexResult(index, shardResults);
+                }
+                assert (boolean) args[0];
+                return new IndexResult(index);
+            });
+        static {
+            PARSER.declareBoolean(optionalConstructorArg(), new ParseField("closed"));
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.currentToken(), p::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, p.nextToken(), p::getTokenLocation);
+                Exception e = ElasticsearchException.failureFromXContent(p);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, p.nextToken(), p::getTokenLocation);
+                return e;
+            }, new ParseField("exception"));
+            PARSER.declareNamedObjects(optionalConstructorArg(),
+                (p, c, id) -> ShardResult.fromXContent(p, id), new ParseField("failedShards"));
+        }
 
         private final Index index;
         private final @Nullable Exception exception;
@@ -179,9 +235,24 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         public String toString() {
             return Strings.toString(this);
         }
+
+        static IndexResult fromXContent(final XContentParser parser, final String name) {
+            return PARSER.apply(parser, name);
+        }
     }
 
     public static class ShardResult implements Writeable, ToXContentFragment {
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ShardResult, String> PARSER = new ConstructingObjectParser<>("shard_result", true,
+            (arg, id) -> {
+                Failure[] failures = arg[0] != null ? ((List<Failure>) arg[0]).toArray(new Failure[0]) : new Failure[0];
+                return new ShardResult(Integer.parseInt(id), failures);
+            });
+
+        static {
+            PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> Failure.PARSER.apply(p, null), new ParseField("failures"));
+        }
 
         private final int id;
         private final Failure[] failures;
@@ -234,7 +305,19 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
             return Strings.toString(this);
         }
 
+        static ShardResult fromXContent(final XContentParser parser, final String id) {
+            return PARSER.apply(parser, id);
+        }
+
         public static class Failure extends DefaultShardOperationFailedException {
+
+            static final ConstructingObjectParser<Failure, Void> PARSER = new ConstructingObjectParser<>("failure", true,
+                arg -> new Failure((String) arg[0], (int) arg[1], (Throwable) arg[2], (String) arg[3]));
+
+            static {
+                declareFields(PARSER);
+                PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("node"));
+            }
 
             private @Nullable String nodeId;
 

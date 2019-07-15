@@ -96,14 +96,17 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                     // Is it possible for valuesCount to be > 1 here? Multiple ranges are encoded into the same BytesRef in the binary doc
                     // values, so it isn't clear what we'd be iterating over.
                     final int valuesCount = values.docValueCount();
+                    assert valuesCount == 1 : "Value count for ranges should always be 1";
                     double previousKey = Double.NEGATIVE_INFINITY;
 
                     for (int i = 0; i < valuesCount; i++) {
                         BytesRef encodedRanges = values.nextValue();
-                        // This list should be sorted by start-of-range, I think?
                         List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
+                        double previousFrom = Double.NEGATIVE_INFINITY;
                         for (RangeFieldMapper.Range range : ranges) {
                             final Double from = rangeType.doubleValue(range.getFrom());
+                            // The encoding should ensure that this assert is always true.
+                            assert from >= previousFrom : "Start of range not >= previous start";
                             final Double to = rangeType.doubleValue(range.getTo());
                             final double startKey = Math.floor((from - offset) / interval);
                             final double endKey = Math.floor((to - offset) / interval);

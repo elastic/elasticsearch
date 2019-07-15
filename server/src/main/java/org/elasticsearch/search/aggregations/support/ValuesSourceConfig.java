@@ -269,7 +269,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             } else if (valueSourceType() == ValuesSourceType.ANY) {
                 vs = (VS) resolveMissingAny.apply(missing());
             } else {
-                // TODO: Do we need a missing case for Range values type?
                 throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + valueSourceType());
             }
         } else {
@@ -311,7 +310,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             if (valueSourceType() == ValuesSourceType.BYTES) {
                 return (VS) bytesScript();
             }
-            // TODO: Do we need a range script case?
             throw new AggregationExecutionException("value source of type [" + valueSourceType().name()
                     + "] is not supported by scripts");
         }

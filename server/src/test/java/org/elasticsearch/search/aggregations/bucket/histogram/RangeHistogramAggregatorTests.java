@@ -186,6 +186,44 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
 
     }
 
+    public void testMultipleRangesLotsOfOverlap() throws Exception {
+        RangeType rangeType = RangeType.LONG;
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            BytesRef encodedRange = rangeType.encodeRanges(Set.of(
+                new RangeFieldMapper.Range(rangeType, 1L, 2L, true, true), // bucket 0
+                new RangeFieldMapper.Range(rangeType, 1L, 4L, true, true), // bucket 0
+                new RangeFieldMapper.Range(rangeType, 1L, 13L, true, true), // bucket 0, 5, 10
+                new RangeFieldMapper.Range(rangeType, 1L, 5L, true, true) // bucket 0, 5
+            ));
+            doc.add(new BinaryDocValuesField("field", encodedRange));
+            w.addDocument(doc);
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field("field")
+                .interval(5);
+            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
+            fieldType.setName("field");
+
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertEquals(3, histogram.getBuckets().size());
+
+                assertEquals(0d, histogram.getBuckets().get(0).getKey());
+                assertEquals(1, histogram.getBuckets().get(0).getDocCount());
+
+                assertEquals(5d, histogram.getBuckets().get(1).getKey());
+                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
+
+                assertEquals(10d, histogram.getBuckets().get(2).getKey());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+            }
+        }
+
+    }
+
     public void testLongsIrrationalInterval() throws Exception {
         RangeType rangeType = RangeType.LONG;
         try (Directory dir = newDirectory();

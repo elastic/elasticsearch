@@ -39,12 +39,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -150,6 +152,25 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         };
     }
 
+    public void testSlowLogHasJsonFields() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+
+        assertThat(p.getValueFor("message"), equalTo("[foo][0]"));
+        assertThat(p.getValueFor("took"), equalTo("10nanos"));
+        assertThat(p.getValueFor("took_millis"), equalTo("0"));
+        assertThat(p.getValueFor("total_hits"), equalTo("-1"));
+        assertThat(p.getValueFor("stats"), equalTo("[]"));
+        assertThat(p.getValueFor("search_type"), Matchers.nullValue());
+        assertThat(p.getValueFor("total_shards"), equalTo("1"));
+        assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
+    }
+
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = createSearchContext(index);
@@ -157,11 +178,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.request().source(source);
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
-        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
-        assertThat(p.toString(), startsWith("[foo][0]"));
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
-        assertThat(p.toString(), not(containsString("\n")));
-        assertThat(p.toString(), endsWith("id[my_id], "));
+        assertThat(p.getFormattedMessage(), not(containsString("\n")));
+        assertThat(p.getFormattedMessage(), endsWith("id[my_id], "));
     }
 
     public void testLevelSetting() {

@@ -172,7 +172,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         includeGlobalState = in.readOptionalBoolean();
         final long startTime;
         final long time;
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             startTime = in.readLong();
             time = in.readLong();
         } else {
@@ -191,7 +191,7 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
             shard.writeTo(out);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeLong(stats.getStartTime());
             out.writeLong(stats.getTime());
         }

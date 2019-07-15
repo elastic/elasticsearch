@@ -49,7 +49,6 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeCollection(found, StreamOutput::writeString);
     }
 

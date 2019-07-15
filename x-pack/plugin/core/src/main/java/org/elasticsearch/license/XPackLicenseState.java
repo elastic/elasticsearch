@@ -728,6 +728,22 @@ public class XPackLicenseState {
         return licensed && localStatus.active;
     }
 
+    /**
+     * Determine if Geo features should be enabled.
+     * <p>
+     * Geo features are available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isGeoAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
     public synchronized boolean isTrialLicense() {
         return status.mode == OperationMode.TRIAL;
     }

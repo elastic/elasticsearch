@@ -45,6 +45,8 @@ public final class XPackField {
     public static final String VOTING_ONLY = "voting_only";
     /** Name constant for the frozen index feature. */
     public static final String FROZEN_INDICES = "frozen_indices";
+    /** Name constant for geo features. */
+    public static final String GEO = "geo";
 
     private XPackField() {}
 

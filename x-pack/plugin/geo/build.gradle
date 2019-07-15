@@ -1,0 +1,21 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'geo'
+    description 'A plugin for Basic Geo features'
+    classname 'org.elasticsearch.xpack.geo.Geo'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-vectors'
+
+dependencies {
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+        testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}
+
+integTest.enabled = false

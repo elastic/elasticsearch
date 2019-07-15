@@ -159,10 +159,8 @@ public class WatcherService {
 
     /**
      * shuts down the trigger service as well to make sure there are no lingering threads
-     * also no need to check anything, as this is final, we just can go to status STOPPED
      *
-     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may be a no-op assuming the
-     *                     {@link WatcherState#STOPPED} is set elsewhere or not needed to be set.
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may not be {@code null}
      */
     void shutDown(Runnable stoppedListener) {
         assert stoppedListener != null;
@@ -170,7 +168,6 @@ public class WatcherService {
         executionService.pause(stoppedListener);
         triggerService.stop();
         stopExecutor();
-        logger.debug("watch service has been shut down");
     }
 
     void stopExecutor() {

@@ -60,8 +60,10 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         this.state.set(WatcherState.STOPPING);
         shutDown = true;
         clearAllocationIds();
-        watcherService.shutDown(() -> {});
-        this.state.set(WatcherState.STOPPED);
+        watcherService.shutDown(() -> {
+            this.state.set(WatcherState.STOPPED);
+            logger.info("watcher has stopped and shutdown");
+        });
     }
 
     /**

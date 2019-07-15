@@ -21,7 +21,7 @@ package org.elasticsearch.action.support.master.info;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,7 +31,7 @@ import org.elasticsearch.transport.TransportService;
 
 
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
-        extends TransportMasterNodeReadAction<Request, Response> {
+        extends StreamableTransportMasterNodeReadAction<Request, Response> {
 
     public TransportClusterInfoAction(String actionName, TransportService transportService,
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,

@@ -62,11 +62,6 @@ public class TransportClearVotingConfigExclusionsAction
     }
 
     @Override
-    protected ClearVotingConfigExclusionsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
         return new ClearVotingConfigExclusionsResponse(in);
     }

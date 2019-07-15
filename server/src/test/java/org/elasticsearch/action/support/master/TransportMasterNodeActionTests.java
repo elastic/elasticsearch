@@ -159,7 +159,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
     }
 
-    class Action extends TransportMasterNodeAction<Request, Response> {
+    class Action extends StreamableTransportMasterNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService,
                ThreadPool threadPool) {
             super(actionName, transportService, clusterService, threadPool,

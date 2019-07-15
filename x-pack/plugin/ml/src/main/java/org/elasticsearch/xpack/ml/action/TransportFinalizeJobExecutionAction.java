@@ -61,11 +61,6 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String jobIdString = String.join(",", request.getJobIds());

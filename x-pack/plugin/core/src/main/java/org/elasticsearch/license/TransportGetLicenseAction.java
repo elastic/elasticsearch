@@ -8,7 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -19,7 +19,7 @@ import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetLicenseAction extends TransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
+public class TransportGetLicenseAction extends StreamableTransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
 
     private final LicenseService licenseService;
 

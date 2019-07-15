@@ -10,6 +10,7 @@
 // end::notable-breaking-changes[]
 
 [float]
+[[new-json-format-log-directory]]
 ==== New JSON format log files in `log` directory
 
 Elasticsearch now will produce additional log files in JSON format. They will be stored in `*.json` suffix files.
@@ -28,6 +29,7 @@ Following files should be expected now in log directory:
 Note: You can configure which of these files are written by editing `log4j2.properties`.
 
 [float]
+[[log-files-ending-log-deprecated]]
 ==== Log files ending with `*.log` deprecated
 Log files with the `.log` file extension using the old pattern layout format
 are now considered deprecated and the newly added JSON log file format with

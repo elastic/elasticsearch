@@ -11,12 +11,14 @@
 
 
 [float]
+[[removed-global-ordinals-hash-and-global-ordinals-low-cardinality-terms-agg]]
 ==== Deprecated `global_ordinals_hash` and `global_ordinals_low_cardinality` execution hints for terms aggregations have been removed
 
 These `execution_hint` are removed and should be replaced by `global_ordinals`.
 
 //tag::notable-breaking-changes[]
 [float]
+[[search-max-buckets-cluster-setting]]
 ==== `search.max_buckets` in the cluster setting
 
 The dynamic cluster setting named `search.max_buckets` now defaults
@@ -25,12 +27,14 @@ Requests that try to return more than the limit will fail with an exception.
 //end::notable-breaking-changes[]
 
 [float]
+[[missing-option-removed-composite-agg]]
 ==== `missing` option of the `composite` aggregation has been removed
 
 The `missing` option of the `composite` aggregation, deprecated in 6.x,
 has been removed. `missing_bucket` should be used instead.
 
 [float]
+[[replace-params-agg-with-state-context-variable]]
 ==== Replaced `params._agg` with `state` context variable in scripted metric aggregations
 
 The object used to share aggregation state between the scripts in a Scripted Metric
@@ -38,12 +42,14 @@ Aggregation is now a variable called `state` available in the script context, ra
 being provided via the `params` object as `params._agg`.
 
 [float]
+[[reduce-script-combine-script-params-mandatory]]
 ==== Make metric aggregation script parameters `reduce_script` and `combine_script` mandatory
 
 The metric aggregation has been changed to require these two script parameters to ensure users are
 explicitly defining how their data is processed.
 
 [float]
+[[percentiles-percentile-ranks-return-null-instead-nan]]
 ==== `percentiles` and `percentile_ranks` now return `null` instead of `NaN`
 
 The `percentiles` and `percentile_ranks` aggregations used to return `NaN` in
@@ -51,6 +57,7 @@ the response if they were applied to an empty set of values. Because `NaN` is
 not officially supported by JSON, it has been replaced with `null`.
 
 [float]
+[[stats-extended-stats-return-zero-instead-null]]
 ==== `stats` and `extended_stats` now return 0 instead of `null` for zero docs
 
 When the `stats` and `extended_stats` aggregations collected zero docs (`doc_count: 0`),

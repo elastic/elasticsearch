@@ -9,7 +9,7 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
   - do:
       indices.create:
           index: index_2
@@ -20,7 +20,7 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
   - do:
       indices.create:
           index: index_3
@@ -31,11 +31,14 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
 
 
 ---
 "pre_filter_shard_size with invalid parameter":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42679"
   - do:
       catch: /preFilterShardSize must be >= 1/
       search:
@@ -45,6 +48,9 @@ setup:
 
 ---
 "pre_filter_shard_size with shards that have no hit":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42679"
   - do:
       index:
         index: index_1

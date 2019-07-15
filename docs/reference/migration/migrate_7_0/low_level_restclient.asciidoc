@@ -10,6 +10,7 @@
 // end::notable-breaking-changes[]
 
 [float]
+[[maxretrytimeout-removed]]
 ==== Support for `maxRetryTimeout` removed from RestClient
 
 `RestClient` and `RestClientBuilder` no longer support the `maxRetryTimeout`

@@ -140,6 +140,6 @@ understands this to mean `2016-04-01` as is explained in the <<date-math-index-n
 | `date_formats`         | no        | yyyy-MM-dd+++'T'+++HH:mm:ss.SSSXX  | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a java time pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
-| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid java time pattern is expected here. Supports <<accessing-template-fields,template snippets>>.
+| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. A valid java time pattern is expected here. Supports <<accessing-template-fields,template snippets>>.
 include::common-options.asciidoc[]
 |======

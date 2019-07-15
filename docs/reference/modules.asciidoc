@@ -46,19 +46,9 @@ The modules in this section are:
 
     A Java node client joins the cluster, but doesn't hold data or act as a master node.
 
-<<modules-scripting-painless,Painless>>::
-
-    A built-in scripting language for Elasticsearch that's designed to be as secure as possible.
-
 <<modules-plugins,Plugins>>::
 
     Using plugins to extend Elasticsearch.
-
-<<modules-scripting,Scripting>>::
-
-    Custom scripting available in Lucene Expressions, ad Groovy. You can also
-    write scripts in the built-in scripting language,
-    <<modules-scripting-painless, Painless>>.
 
 <<modules-snapshots,Snapshot/Restore>>::
 
@@ -101,8 +91,6 @@ include::modules/node.asciidoc[]
 
 :edit_url:
 include::modules/plugins.asciidoc[]
-
-include::modules/scripting.asciidoc[]
 
 include::modules/snapshots.asciidoc[]
 

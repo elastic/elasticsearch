@@ -143,7 +143,11 @@ public class FieldHitExtractor implements HitExtractor {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
+        // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
+        // and BigDecimal (if Double is not enough)
+        if (values instanceof Number
+                || values instanceof String
+                || values instanceof Boolean) {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
@@ -173,7 +177,7 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
-                    if (listOfValues.size() == 1 || arrayLeniency) {
+                    if ((i < path.length - 1) && (listOfValues.size() == 1 || arrayLeniency)) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
                         // in case of being lenient about arrays, just extract the first value in the array

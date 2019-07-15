@@ -81,6 +81,7 @@ compile time, ensure you have proper test coverage for this in your
 own code.
 
 [float]
+[[parsing-gtm0-timezeone-jdk8-not-supported]]
 ==== Parsing `GMT0` timezone with JDK8 is not supported
 
 When you are running Elasticsearch 7 with Java 8, you are not able to parse

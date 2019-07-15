@@ -32,6 +32,7 @@ To check if a document is missing a value, you can use
 
 
 [float]
+[[script-errors-return-400-error-codes]]
 ==== Script errors will return as `400` error codes
 
 Malformed scripts, either in search templates, ingest pipelines or search 

@@ -20,6 +20,7 @@
 package org.elasticsearch;
 
 import org.apache.commons.codec.DecoderException;
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -182,5 +183,32 @@ public class ExceptionsHelperTests extends ESTestCase {
 
         ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
         assertThat(groupBy.length, equalTo(2));
+    }
+
+    public void testUnwrapCorruption() {
+        final Throwable corruptIndexException = new CorruptIndexException("corrupt", "resource");
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptIndexException), equalTo(corruptIndexException));
+
+        final Throwable corruptionAsCause = new RuntimeException(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionAsCause), equalTo(corruptIndexException));
+
+        final Throwable corruptionSuppressed = new RuntimeException();
+        corruptionSuppressed.addSuppressed(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionSuppressed), equalTo(corruptIndexException));
+
+        final Throwable corruptionSuppressedOnCause = new RuntimeException(new RuntimeException());
+        corruptionSuppressedOnCause.getCause().addSuppressed(corruptIndexException);
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionSuppressedOnCause), equalTo(corruptIndexException));
+
+        final Throwable corruptionCauseOnSuppressed = new RuntimeException();
+        corruptionCauseOnSuppressed.addSuppressed(new RuntimeException(corruptIndexException));
+        assertThat(ExceptionsHelper.unwrapCorruption(corruptionCauseOnSuppressed), equalTo(corruptIndexException));
+
+        assertThat(ExceptionsHelper.unwrapCorruption(new RuntimeException()), nullValue());
+        assertThat(ExceptionsHelper.unwrapCorruption(new RuntimeException(new RuntimeException())), nullValue());
+
+        final Throwable withSuppressedException = new RuntimeException();
+        withSuppressedException.addSuppressed(new RuntimeException());
+        assertThat(ExceptionsHelper.unwrapCorruption(withSuppressedException), nullValue());
     }
 }

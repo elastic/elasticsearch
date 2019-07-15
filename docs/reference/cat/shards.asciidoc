@@ -23,7 +23,7 @@ twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
 // TESTRESPONSE[s/192.168.56.10/.*/]
-// TESTRESPONSE[s/H5dfFeA/node-0/ _cat]
+// TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
 [float]
 [[index-pattern]]
@@ -49,7 +49,7 @@ twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
 // TESTRESPONSE[s/192.168.56.10/.*/]
-// TESTRESPONSE[s/H5dfFeA/node-0/ _cat]
+// TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
 
 [float]
@@ -72,7 +72,7 @@ A relocating shard will be shown as follows
 ---------------------------------------------------------------------------
 twitter 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 [float]
 [[states]]
@@ -95,7 +95,7 @@ You can get the initializing state in the response like this
 twitter 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
 twitter 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 If a shard cannot be assigned, for example you've overallocated the
 number of replicas for the number of nodes in the cluster, the shard
@@ -119,7 +119,7 @@ twitter 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE
 twitter 0 r STARTED    3014 31.1mb 192.168.56.20 I8hydUG
 twitter 0 r UNASSIGNED ALLOCATION_FAILED
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 [float]
 [[reason-unassigned]]

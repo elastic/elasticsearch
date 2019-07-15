@@ -1,5 +1,5 @@
 [[modules-scripting-security]]
-=== Scripting and security
+== Scripting and security
 
 While Elasticsearch contributors make every effort to prevent scripts from
 running amok, security is something best done in

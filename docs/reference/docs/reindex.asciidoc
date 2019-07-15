@@ -658,7 +658,7 @@ The padding time is the difference between the batch size divided by the
 [source,txt]
 --------------------------------------------------
 target_time = 1000 / 500 per second = 2 seconds
-wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
+`padding time` = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
 Since the batch is issued as a single `_bulk` request, large batch sizes will

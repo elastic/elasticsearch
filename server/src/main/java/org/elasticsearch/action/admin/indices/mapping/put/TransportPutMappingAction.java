@@ -126,10 +126,11 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             this.validators = validators;
         }
 
-        private Exception validateRequest(PutMappingRequest request, ClusterState state, Index[] indices) {
+        Exception validateRequest(PutMappingRequest request, ClusterState state, Index[] indices) {
             Exception firstException = null;
             for (MappingRequestValidator validator : validators) {
                 final Exception e = validator.validateRequest(request, state, indices);
+                if (e == null) continue;
                 if (firstException == null) {
                     firstException = e;
                 } else {

@@ -21,14 +21,10 @@ package org.elasticsearch.qa.die_with_dignity;
 
 import org.apache.http.ConnectionClosedException;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.JsonLogLine;
-import org.elasticsearch.common.logging.JsonLogsStream;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -38,19 +34,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class DieWithDignityIT extends ESRestTestCase {
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43413")
     public void testDieWithDignity() throws Exception {
         // deleting the PID file prevents stopping the cluster from failing since it occurs if and only if the PID file exists
         final Path pidFile = PathUtils.get(System.getProperty("pidfile"));
@@ -91,29 +85,29 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         });
 
+        // parse the logs and ensure that Elasticsearch died with the expected cause
+        final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
+
+        final Iterator<String> it = lines.iterator();
+
+        boolean fatalError = false;
+        boolean fatalErrorInThreadExiting = false;
         try {
-            // parse the logs and ensure that Elasticsearch died with the expected cause
-            Path path = PathUtils.get(System.getProperty("log"));
-            try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
-                final Iterator<JsonLogLine> it = stream.iterator();
-
-                boolean fatalError = false;
-                boolean fatalErrorInThreadExiting = false;
-
-                while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
-                    final JsonLogLine line = it.next();
-                    if (isFatalError(line)) {
-                        fatalError = true;
-                    } else if (isFatalErrorInThreadExiting(line) || isWarnExceptionReceived(line)) {
-                        fatalErrorInThreadExiting = true;
-                        assertThat(line.stacktrace(),
-                            hasItem(Matchers.containsString("java.lang.OutOfMemoryError: die with dignity")));
-                    }
+            while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
+                final String line = it.next();
+                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*node-0.*fatal error.*")) {
+                    fatalError = true;
+                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*node-0.*"
+                    + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
+                    fatalErrorInThreadExiting = true;
+                    assertTrue(it.hasNext());
+                    assertThat(it.next(), containsString("java.lang.OutOfMemoryError: die with dignity"));
                 }
-
-                assertTrue(fatalError);
-                assertTrue(fatalErrorInThreadExiting);
             }
+
+            assertTrue(fatalError);
+            assertTrue(fatalErrorInThreadExiting);
+
         } catch (AssertionError ae) {
             Path path = PathUtils.get(System.getProperty("log"));
             debugLogs(path);
@@ -121,32 +115,10 @@ public class DieWithDignityIT extends ESRestTestCase {
         }
     }
 
-    private boolean isWarnExceptionReceived(JsonLogLine line) {
-        return line.level().equals("WARN")
-            && line.component().equals("o.e.h.AbstractHttpServerTransport")
-            && line.nodeName().equals("node-0")
-            && line.message().contains("caught exception while handling client http traffic");
-    }
-
     private void debugLogs(Path path) throws IOException {
         try (BufferedReader reader = Files.newBufferedReader(path)) {
-            Terminal terminal = Terminal.DEFAULT;
-            reader.lines().forEach(line -> terminal.println(line));
+            reader.lines().forEach(line -> logger.info(line));
         }
-    }
-
-    private boolean isFatalErrorInThreadExiting(JsonLogLine line) {
-        return line.level().equals("ERROR")
-            && line.component().equals("o.e.b.ElasticsearchUncaughtExceptionHandler")
-            && line.nodeName().equals("node-0")
-            && line.message().matches("fatal error in thread \\[Thread-\\d+\\], exiting$");
-    }
-
-    private boolean isFatalError(JsonLogLine line) {
-        return line.level().equals("ERROR")
-            && line.component().equals("o.e.ExceptionsHelper")
-            && line.nodeName().equals("node-0")
-            && line.message().contains("fatal error");
     }
 
     @Override

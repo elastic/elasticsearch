@@ -18,7 +18,7 @@ ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master
 --------------------------------------------------
 // TESTRESPONSE[s/3.07/(\\d+\\.\\d+( \\d+\\.\\d+ (\\d+\\.\\d+)?)?)?/]
 // TESTRESPONSE[s/65          99  42/\\d+ \\d+ \\d+/]
-// TESTRESPONSE[s/[*]/[*]/ s/mJw06l1/.+/ _cat]
+// TESTRESPONSE[s/[*]/[*]/ s/mJw06l1/.+/ non_json]
 
 The first few columns (`ip`, `heap.percent`, `ram.percent`, `cpu`, `load_*`) tell
 you where your nodes live and give a quick picture of performance stats.
@@ -63,7 +63,7 @@ Might look like:
 id   ip        port  v         m
 veJR 127.0.0.1 59938 {version} *
 --------------------------------------------------
-// TESTRESPONSE[s/veJR/.+/ s/59938/\\d+/ s/[*]/[*]/ _cat]
+// TESTRESPONSE[s/veJR/.+/ s/59938/\\d+/ s/[*]/[*]/ non_json]
 
 [cols="<,<,<,<,<",options="header",subs="normal"]
 |=======================================================================

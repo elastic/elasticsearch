@@ -67,8 +67,8 @@ The `indices` array consists of objects containing two fields:
 The `shards` array consists of objects containing the following fields:
 
 `indices[].shards[].remote_cluster`::
-  (string) the <modules-remote-clusters,remote cluster>> containing the leader
-  index
+  (string) The <<modules-remote-clusters,remote cluster>> containing the leader
+  index.
 
 `indices[].shards[].leader_index`::
   (string) the name of the index in the leader cluster being followed

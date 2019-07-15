@@ -38,12 +38,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[coalesceReturnNonNull]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[coalesceReturnNull]
 ----
@@ -82,12 +82,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[greatestReturnNonNull]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[greatestReturnNull]
 ----
@@ -120,12 +120,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnSecond]
 ----
@@ -159,12 +159,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[isNullReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[isNullReturnSecond]
 ----
@@ -204,12 +204,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[leastReturnNonNull]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[leastReturnNull]
 ----
@@ -241,12 +241,12 @@ Returns `null` when the two input expressions are equal and
 if not, it returns the 1st expression.
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnNull]
 ----
@@ -280,12 +280,12 @@ If all arguments are null, then it returns `null`.
 
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[nvlReturnFirst]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[nvlReturnSecond]
 ----

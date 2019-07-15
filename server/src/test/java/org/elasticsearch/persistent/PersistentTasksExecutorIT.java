@@ -162,7 +162,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get().getTasks().get(0);
 
-        // Verifying the the task runs on the new node
+        // Verifying the task runs on the new node
         assertThat(taskInfo.getTaskId().getNodeId(), equalTo(newNodeId));
 
         internalCluster().stopRandomNode(settings -> "test".equals(settings.get("node.attr.test_attr")));
@@ -202,7 +202,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
             .get().getTasks().get(0);
 
-        // Verifying the the task can now be assigned
+        // Verifying the task can now be assigned
         assertThat(taskInfo.getTaskId().getNodeId(), notNullValue());
 
         // Remove the persistent task

@@ -25,13 +25,20 @@ Discovery and cluster formation are affected by the following settings:
     compatibility. Support for the old name will be removed in a future
     version.
 
+`discovery.type`::
+     
+    Specifies whether {es} should form a multiple-node cluster. By default, {es}
+    discovers other nodes when forming a cluster and allows other nodes to join
+    the cluster later. If `discovery.type` is set to `single-node`, {es} forms a
+    single-node cluster. For more information about when you might use this
+    setting, see <<single-node-discovery>>.
+
 `cluster.initial_master_nodes`::
 
-    Sets a list of the <<node.name,node names>> or transport addresses of the
-    initial set of master-eligible nodes in a brand-new cluster. By default
-    this list is empty, meaning that this node expects to join a cluster that
-    has already been bootstrapped. See <<initial_master_nodes>>.
-
+    Sets the initial set of master-eligible nodes in a brand-new cluster. By
+    default this list is empty, meaning that this node expects to join a cluster
+    that has already been bootstrapped. See <<initial_master_nodes>>.
+            
 [float]
 ==== Expert settings
 

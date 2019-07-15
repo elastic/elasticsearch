@@ -8,6 +8,7 @@
 //tag::notable-breaking-changes[]
 
 [float]
+[[default-node-name-now-hostname]]
 ==== The default for `node.name` is now the hostname
 
 `node.name` now defaults to the hostname at the time when Elasticsearch

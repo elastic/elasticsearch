@@ -25,17 +25,17 @@ Casts the result of the given expression to the target <<sql-data-types, data ty
 If the cast is not possible (for example because of target type is too narrow or because
 the value itself cannot be converted), the query fails.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[conversionStringToIntCast]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[conversionIntToStringCast]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateTimeCast]
 ----
@@ -66,12 +66,12 @@ Works exactly like <<sql-functions-type-conversion-cast>> with slightly differen
 Moreover, apart from the standard <<sql-data-types, data types>> it supports the corresponding
 https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/explicit-data-type-conversion-function?view=sql-server-2017[ODBC data types].
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[conversionStringToIntConvertODBCDataType]
 ----
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[conversionStringToIntConvertESDataType]
 ----

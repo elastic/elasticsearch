@@ -10,11 +10,13 @@
 // end::notable-breaking-changes[]
 
 [float]
+[[all-meta-field-removed]]
 ==== The `_all` meta field is removed
 
 The `_all` field deprecated in 6 have now been removed.
 
 [float]
+[[uid-meta-field-removed]]
 ==== The `_uid` meta field is removed
 
 This field used to index a composite key formed of the `_type` and the `_id`.
@@ -23,6 +25,7 @@ of `_id`.
 
 //tag::notable-breaking-changes[]
 [float]
+[[default-mapping-not-allowed]]
 ==== The `_default_` mapping is no longer allowed
 
 The `_default_` mapping has been deprecated in 6.0 and is now no longer allowed
@@ -31,11 +34,13 @@ an error.
 //end::notable-breaking-changes[]
 
 [float]
+[[index-options-numeric-fields-removed]]
 ==== `index_options` for numeric fields has been removed
 
 The `index_options` field for numeric  fields has been deprecated in 6 and has now been removed.
 
 [float]
+[[limit-number-nested-json-objects]]
 ==== Limiting the number of `nested` json objects
 
 To safeguard against out of memory errors, the number of nested json objects within a single
@@ -43,11 +48,13 @@ document across all fields has been limited to 10000. This default limit can be 
 the index setting `index.mapping.nested_objects.limit`.
 
 [float]
+[[update-all-types-option-removed]]
 ==== The `update_all_types` option has been removed
 
 This option is useless now that all indices have at most one type.
 
 [float]
+[[classic-similarity-removed]]
 ==== The `classic` similarity has been removed
 
 The `classic` similarity relied on coordination factors for scoring to be good
@@ -63,6 +70,7 @@ An error will now be thrown when unknown configuration options are provided
 to similarities. Such unknown parameters were ignored before.
 
 [float]
+[[changed-default-geo-shape-index-strategy]]
 ==== Changed default `geo_shape` indexing strategy
 
 `geo_shape` types now default to using a vector indexing approach based on Lucene's new
@@ -76,6 +84,7 @@ should also be changed in the template to explicitly define `tree` to one of `ge
 or `quadtree`. This will ensure compatibility with previously created indexes.
 
 [float]
+[[deprecated-geo-shape-params]]
 ==== Deprecated `geo_shape` parameters
 
 The following type parameters are deprecated for the `geo_shape` field type: `tree`,
@@ -83,6 +92,7 @@ The following type parameters are deprecated for the `geo_shape` field type: `tr
 will be removed in a future version.
 
 [float]
+[[include-type-name-defaults-false]]
 ==== `include_type_name` now defaults to `false`
 The default for `include_type_name` is now `false` for all APIs that accept
 the parameter.

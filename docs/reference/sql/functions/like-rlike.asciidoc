@@ -38,7 +38,7 @@ with the `LIKE` operator:
 The percent sign represents zero, one or multiple characters. The underscore represents a single number or character. These symbols can be
 used in combinations.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[simpleLike]
 ----
@@ -75,7 +75,7 @@ and underscore (`_`); the pattern in this case is a regular expression which all
 For more details about the regular expressions syntax, https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html[Java's Pattern class javadoc]
 is a good starting point.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[simpleRLike]
 ----

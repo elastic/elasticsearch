@@ -1,18 +1,20 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-index-patterns]]
-== Index patterns
+=== Index patterns
 
 {es-sql} supports two types of patterns for matching multiple indices or tables:
 
-* {es} multi-index
+[[sql-index-patterns-multi]]
+[float]
+==== {es} multi-index
 
 The {es} notation for enumerating, including or excluding <<multi-index,multi index syntax>>
 is supported _as long_ as it is quoted or escaped as a table identifier.
 
 For example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showTablesEsMultiIndex]
 ----
@@ -26,21 +28,23 @@ The same kind of patterns can also be used to query multiple indices or tables.
 
 For example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[fromTablePatternQuoted]
 ----
 
 NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
 
-* SQL `LIKE` notation
+[[sql-index-patterns-like]]
+[float]
+==== SQL `LIKE` notation
 
 The common `LIKE` statement (including escaping if needed) to match a wildcard pattern, based on one `_`
 or multiple `%` characters.
 
 Using `SHOW TABLES` command again:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeWildcard]
 ----
@@ -49,7 +53,7 @@ The pattern matches all tables that start with `emp`.
 
 This command supports _escaping_ as well, for example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeEscape]
 ----

@@ -133,8 +133,9 @@ public class CompositeAggregationCursor implements Cursor {
                         return;
                     }
 
-                    updateCompositeAfterKey(r, query);
-                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit, serializeQuery(query), indices);
+                    boolean hasAfterKey = updateCompositeAfterKey(r, query);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit,
+                            hasAfterKey ? serializeQuery(query) : null, indices);
                     listener.onResponse(rowSet);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
@@ -167,7 +168,7 @@ public class CompositeAggregationCursor implements Cursor {
         throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
     }
 
-    static void updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
+    static boolean updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
         CompositeAggregation composite = getComposite(r);
 
         if (composite == null) {
@@ -176,22 +177,25 @@ public class CompositeAggregationCursor implements Cursor {
 
         Map<String, Object> afterKey = composite.afterKey();
         // a null after-key means done
-        if (afterKey != null) {
-            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
-            // update after-key with the new value
-            if (aggBuilder instanceof CompositeAggregationBuilder) {
-                CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
-                comp.aggregateAfter(afterKey);
-            } else {
-                throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
-            }
+        if (afterKey == null) {
+            return false;
+        }
+
+        AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
+        // update after-key with the new value
+        if (aggBuilder instanceof CompositeAggregationBuilder) {
+            CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
+            comp.aggregateAfter(afterKey);
+            return true;
+        } else {
+            throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
         }
     }
 
     /**
      * Deserializes the search source from a byte array.
      */
-    static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
+    private static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
         try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
             return new SearchSourceBuilder(in);
         }

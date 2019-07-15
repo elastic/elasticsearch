@@ -354,7 +354,11 @@ public class NioSelector implements Closeable {
             if (context.selectorShouldClose() == false) {
                 handleWrite(context);
             }
-            eventHandler.postHandling(context);
+            try {
+                eventHandler.postHandling(context);
+            } catch (Exception e) {
+                executeFailedListener(writeOperation.getListener(), e);
+            }
         }
     }
 

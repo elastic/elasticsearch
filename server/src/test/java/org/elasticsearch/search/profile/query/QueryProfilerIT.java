@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -110,7 +111,9 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * to make sure the profiling doesn't interfere with the hits being returned
      */
     public void testProfileMatchesRegular() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder() 
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0).build());
         ensureGreen();
 
         int numDocs = randomIntBetween(100, 150);
@@ -568,7 +571,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
                 .setIndices("test")
-                .setTypes("type1")
                 .setProfile(true)
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .get();

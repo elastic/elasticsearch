@@ -233,7 +233,7 @@ The following settings are supported:
 
     Big files can be broken down into chunks during snapshotting if needed.
     The chunk size can be specified in bytes or by using size value notation,
-    i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+    e.g. , `10m` or `5k`. Defaults to `100m`, which is the maximum permitted.
 
 `compress`::
 

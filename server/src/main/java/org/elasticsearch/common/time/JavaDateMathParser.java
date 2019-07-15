@@ -59,7 +59,7 @@ public class JavaDateMathParser implements DateMathParser {
     }
 
     @Override
-    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
+    public Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId timeZone) {
         Instant time;
         String mathString;
         if (text.startsWith("now")) {
@@ -73,16 +73,16 @@ public class JavaDateMathParser implements DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone, roundUp);
+                return parseDateTime(text, timeZone, roundUpProperty);
             }
             time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return parseMath(mathString, time, roundUp, timeZone);
+        return parseMath(mathString, time, roundUpProperty, timeZone);
     }
 
-    private Instant parseMath(final String mathString, final Instant time, final boolean roundUp,
+    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty,
                            ZoneId timeZone) throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
@@ -133,78 +133,79 @@ public class JavaDateMathParser implements DateMathParser {
                 case 'y':
                     if (round) {
                         dateTime = dateTime.withDayOfYear(1).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusYears(1);
+                        }
                     } else {
                         dateTime = dateTime.plusYears(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusYears(1);
                     }
                     break;
                 case 'M':
                     if (round) {
                         dateTime = dateTime.withDayOfMonth(1).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusMonths(1);
+                        }
                     } else {
                         dateTime = dateTime.plusMonths(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusMonths(1);
                     }
                     break;
                 case 'w':
                     if (round) {
                         dateTime = dateTime.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusWeeks(1);
+                        }
                     } else {
                         dateTime = dateTime.plusWeeks(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusWeeks(1);
                     }
                     break;
                 case 'd':
                     if (round) {
                         dateTime = dateTime.with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusDays(1);
+                        }
                     } else {
                         dateTime = dateTime.plusDays(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusDays(1);
                     }
                     break;
                 case 'h':
                 case 'H':
                     if (round) {
                         dateTime = dateTime.withMinute(0).withSecond(0).withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusHours(1);
+                        }
                     } else {
                         dateTime = dateTime.plusHours(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusHours(1);
                     }
                     break;
                 case 'm':
                     if (round) {
                         dateTime = dateTime.withSecond(0).withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusMinutes(1);
+                        }
                     } else {
                         dateTime = dateTime.plusMinutes(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusMinutes(1);
                     }
                     break;
                 case 's':
                     if (round) {
                         dateTime = dateTime.withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusSeconds(1);
+                        }
                     } else {
                         dateTime = dateTime.plusSeconds(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusSeconds(1);
                     }
                     break;
                 default:
                     throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
-            if (roundUp) {
+            if (round && roundUpProperty) {
+                // subtract 1 millisecond to get the largest inclusive value
                 dateTime = dateTime.minus(1, ChronoField.MILLI_OF_SECOND.getBaseUnit());
             }
         }

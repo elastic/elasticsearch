@@ -32,7 +32,9 @@ import java.util.function.Predicate;
 public class PivotConfigTests extends AbstractXContentTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfig() {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(),
+            AggregationConfigTests.randomAggregationConfig(),
+            randomBoolean() ? null : randomIntBetween(10, 10_000));
     }
 
     @Override
@@ -58,7 +60,7 @@ public class PivotConfigTests extends AbstractXContentTestCase<PivotConfig> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

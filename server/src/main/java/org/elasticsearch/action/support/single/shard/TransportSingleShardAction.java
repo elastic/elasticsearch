@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.single.shard;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -38,8 +39,8 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,7 +51,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 
@@ -72,7 +72,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected TransportSingleShardAction(String actionName, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
                                          String executor) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
@@ -84,9 +84,9 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         this.executor = executor;
 
         if (!isSubAction()) {
-            transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
+            transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, request, new TransportHandler());
         }
-        transportService.registerRequestHandler(transportShardAction, request, ThreadPool.Names.SAME, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, request, new ShardTransportHandler());
     }
 
     /**
@@ -106,19 +106,15 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
-        threadPool.executor(getExecutor(request, shardId)).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
+        threadPool.executor(getExecutor(request, shardId)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() throws Exception {
                 listener.onResponse(shardOperation(request, shardId));
             }
         });
     }
-    protected abstract Response newResponse();
+
+    protected abstract Writeable.Reader<Response> getResponseReader();
 
     protected abstract boolean resolveIndex(Request request);
 
@@ -182,13 +178,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         public void start() {
             if (shardIt == null) {
                 // just execute it on the local node
+                final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(),
                     new TransportResponseHandler<Response>() {
                     @Override
                     public Response read(StreamInput in) throws IOException {
-                        Response response = newResponse();
-                        response.readFrom(in);
-                        return response;
+                        return reader.read(in);
                     }
 
                     @Override
@@ -251,14 +246,13 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                             node
                     );
                 }
+                final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(),
                     new TransportResponseHandler<Response>() {
 
                         @Override
                         public Response read(StreamInput in) throws IOException {
-                            Response response = newResponse();
-                            response.readFrom(in);
-                            return response;
+                            return reader.read(in);
                         }
 
                         @Override

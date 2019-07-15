@@ -110,7 +110,11 @@ public class DateFormatters {
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
         .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendLiteral(',')
+        .appendFraction(NANO_OF_SECOND, 1, 9, false)
         .optionalEnd()
         .optionalEnd()
         .optionalStart()
@@ -137,6 +141,10 @@ public class DateFormatters {
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .optionalStart()
         .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .optionalEnd()
+        .optionalStart()
+        .appendLiteral(',')
+        .appendFraction(NANO_OF_SECOND, 3, 9, false)
         .optionalEnd()
         .optionalStart()
         .appendZoneOrOffsetId()
@@ -178,7 +186,7 @@ public class DateFormatters {
     /**
      * Returns a ISO 8601 compatible date time formatter and parser.
      * This is not fully compatible to the existing spec, which would require far more edge cases, but merely compatible with the
-     * existing joda time ISO data formater
+     * existing joda time ISO date formatter
      */
     private static final DateFormatter ISO_8601 = new JavaDateFormatter("iso8601", STRICT_DATE_OPTIONAL_TIME_PRINTER,
         new DateTimeFormatterBuilder()
@@ -201,13 +209,13 @@ public class DateFormatters {
             .appendFraction(NANO_OF_SECOND, 1, 9, false)
             .optionalEnd()
             .optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
             .optionalStart()
             .appendZoneOrOffsetId()
             .optionalEnd()
             .optionalStart()
             .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .optionalEnd()
-            .optionalEnd()
             .optionalEnd()
             .optionalEnd()
             .toFormatter(Locale.ROOT));
@@ -939,6 +947,10 @@ public class DateFormatters {
             .optionalEnd()
             .optionalStart()
             .appendFraction(NANO_OF_SECOND, 1, 9, true)
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(',')
+            .appendFraction(NANO_OF_SECOND, 1, 9, false)
             .optionalEnd()
             .optionalStart().appendZoneOrOffsetId().optionalEnd()
             .optionalStart().appendOffset("+HHmm", "Z").optionalEnd()

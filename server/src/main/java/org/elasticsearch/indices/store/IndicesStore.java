@@ -412,7 +412,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             super.readFrom(in);
             clusterName = new ClusterName(in);
             indexUUID = in.readString();
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
         }
 
@@ -443,7 +443,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(shardActive);
             node.writeTo(out);
         }

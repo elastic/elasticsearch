@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -48,7 +46,7 @@ public class FileStructureOverrides {
                                    String timestampFormat, String timestampField) {
         this.charset = charset;
         this.format = format;
-        this.columnNames = (columnNames == null) ? null : Collections.unmodifiableList(new ArrayList<>(columnNames));
+        this.columnNames = (columnNames == null) ? null : List.copyOf(columnNames);
         this.hasHeaderRow = hasHeaderRow;
         this.delimiter = delimiter;
         this.quote = quote;

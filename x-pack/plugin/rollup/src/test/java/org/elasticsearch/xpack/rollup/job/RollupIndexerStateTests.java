@@ -46,7 +46,6 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 
@@ -290,7 +289,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         RollupIndexerJobStats stats = new RollupIndexerJobStats();
         RollupIndexerJobStats spyStats = spy(stats);
-        RollupJobConfig config = mock(RollupJobConfig.class);
+        RollupJobConfig config = ConfigTestHelpers.randomRollupJobConfig(random());
 
         // We call stats before a final state check, so this allows us to flip the state
         // and make sure the appropriate error is thrown

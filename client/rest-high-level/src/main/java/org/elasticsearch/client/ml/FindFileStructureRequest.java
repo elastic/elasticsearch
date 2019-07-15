@@ -37,6 +37,7 @@ import java.util.Optional;
 public class FindFileStructureRequest implements Validatable, ToXContentFragment {
 
     public static final ParseField LINES_TO_SAMPLE = new ParseField("lines_to_sample");
+    public static final ParseField LINE_MERGE_SIZE_LIMIT = new ParseField("line_merge_size_limit");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField CHARSET = FileStructure.CHARSET;
     public static final ParseField FORMAT = FileStructure.FORMAT;
@@ -52,6 +53,7 @@ public class FindFileStructureRequest implements Validatable, ToXContentFragment
     public static final ParseField EXPLAIN = new ParseField("explain");
 
     private Integer linesToSample;
+    private Integer lineMergeSizeLimit;
     private TimeValue timeout;
     private String charset;
     private FileStructure.Format format;
@@ -75,6 +77,14 @@ public class FindFileStructureRequest implements Validatable, ToXContentFragment
 
     public void setLinesToSample(Integer linesToSample) {
         this.linesToSample = linesToSample;
+    }
+
+    public Integer getLineMergeSizeLimit() {
+        return lineMergeSizeLimit;
+    }
+
+    public void setLineMergeSizeLimit(Integer lineMergeSizeLimit) {
+        this.lineMergeSizeLimit = lineMergeSizeLimit;
     }
 
     public TimeValue getTimeout() {
@@ -228,6 +238,9 @@ public class FindFileStructureRequest implements Validatable, ToXContentFragment
         if (linesToSample != null) {
             builder.field(LINES_TO_SAMPLE.getPreferredName(), linesToSample);
         }
+        if (lineMergeSizeLimit != null) {
+            builder.field(LINE_MERGE_SIZE_LIMIT.getPreferredName(), lineMergeSizeLimit);
+        }
         if (timeout != null) {
             builder.field(TIMEOUT.getPreferredName(), timeout);
         }
@@ -270,8 +283,8 @@ public class FindFileStructureRequest implements Validatable, ToXContentFragment
 
     @Override
     public int hashCode() {
-        return Objects.hash(linesToSample, timeout, charset, format, columnNames, hasHeaderRow, delimiter, grokPattern, timestampFormat,
-            timestampField, explain, sample);
+        return Objects.hash(linesToSample, lineMergeSizeLimit, timeout, charset, format, columnNames, hasHeaderRow, delimiter, grokPattern,
+            timestampFormat, timestampField, explain, sample);
     }
 
     @Override
@@ -287,6 +300,7 @@ public class FindFileStructureRequest implements Validatable, ToXContentFragment
 
         FindFileStructureRequest that = (FindFileStructureRequest) other;
         return Objects.equals(this.linesToSample, that.linesToSample) &&
+            Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit) &&
             Objects.equals(this.timeout, that.timeout) &&
             Objects.equals(this.charset, that.charset) &&
             Objects.equals(this.format, that.format) &&

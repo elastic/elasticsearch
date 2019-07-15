@@ -46,11 +46,11 @@ The following example output provides information about the "rdeniro" user:
   "metadata": { },
   "enabled": true,
   "authentication_realm": {
-    "name" : "default_file",
+    "name" : "file",
     "type" : "file"
   },
   "lookup_realm": {
-    "name" : "default_file",
+    "name" : "file",
     "type" : "file"
   }
 }

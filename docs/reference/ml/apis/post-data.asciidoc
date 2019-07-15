@@ -8,13 +8,20 @@
 
 Sends data to an anomaly detection job for analysis.
 
-
-==== Request
+[[ml-post-data-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/_data`
 
+[[ml-post-data-prereqs]]
+==== {api-prereq-title}
 
-==== Description
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-post-data-desc]]
+==== {api-description-title}
 
 The job must have a state of `open` to receive and process the data.
 
@@ -42,39 +49,32 @@ IMPORTANT:  For each job, data can only be accepted from a single connection at
 a time. It is not currently possible to post data to multiple jobs using wildcards
 or a comma-separated list.
 
+[[ml-post-data-path-parms]]
+==== {api-path-parms-title}
 
-==== Path Parameters
+`<job_id>`::
+		(Required, string) Identifier for the job.
 
-`job_id` (required)::
-		(string) Identifier for the job
-
-
-==== Query Parameters
+[[ml-post-data-query-parms]]
+==== {api-query-parms-title}
 
 `reset_start`::
-		(string) Specifies the start of the bucket resetting range
+		(Optional, string) Specifies the start of the bucket resetting range.
 
 `reset_end`::
-		(string) Specifies the end of the bucket resetting range
+		(Optional, string) Specifies the end of the bucket resetting range.
 
-
-==== Request Body
+[[ml-post-data-request-body]]
+==== {api-request-body-title}
 
 A sequence of one or more JSON documents containing the data to be analyzed.
 Only whitespace characters are permitted in between the documents.
 
+[[ml-post-data-example]]
+==== {api-examples-title}
 
-==== Authorization
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
-
-
-==== Examples
-
-The following example posts data from the it_ops_new_kpi.json file to the `it_ops_new_kpi` job:
+The following example posts data from the `it_ops_new_kpi.json` file to the
+`it_ops_new_kpi` job:
 
 [source,js]
 --------------------------------------------------
@@ -83,8 +83,8 @@ $ curl -s -H "Content-type: application/json"
 --data-binary @it_ops_new_kpi.json
 --------------------------------------------------
 
-When the data is sent, you receive information about the operational progress of the job.
-For example:
+When the data is sent, you receive information about the operational progress of
+the job. For example:
 
 [source,js]
 ----

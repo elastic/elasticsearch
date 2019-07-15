@@ -92,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.test.transport.MockTransportService.getPortRange;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,7 +117,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
+    protected abstract Transport build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
 
     protected int channelsPerNodeConnection() {
         // This is a customized profile for this test case.
@@ -175,13 +176,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private MockTransportService buildService(final String name, final Version version, @Nullable ClusterSettings clusterSettings,
                                               Settings settings, boolean acceptRequests, boolean doHandshake) {
         Settings updatedSettings = Settings.builder()
+            .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
             .build();
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
         }
-        MockTransportService service = build(updatedSettings, version, clusterSettings, doHandshake);
+        Transport transport = build(updatedSettings, version, clusterSettings, doHandshake);
+        MockTransportService service = MockTransportService.createNewService(updatedSettings, transport, version, threadPool,
+            clusterSettings, Collections.emptySet());
+        service.start();
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
@@ -993,7 +998,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @TestLogging(value = "org.elasticsearch.transport.TransportService.tracer:trace")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40586")
     public void testTracerLog() throws Exception {
         TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
         TransportRequestHandler<StringMessageRequest> handlerWithError = (request, channel, task) -> {
@@ -1048,25 +1052,24 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build());
 
         MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
         try {
             appender.start();
-
+            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
             final String requestSent = ".*\\[internal:test].*sent to.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation requestSentExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "sent request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestSent);
             final String requestReceived = ".*\\[internal:test].*received request.*";
             final MockLogAppender.LoggingExpectation requestReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "received request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestReceived);
             final String responseSent = ".*\\[internal:test].*sent response.*";
             final MockLogAppender.LoggingExpectation responseSentExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "sent response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseSent);
             final String responseReceived = ".*\\[internal:test].*received response from.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation responseReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "received response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseReceived);
 
             appender.addExpectation(requestSentExpectation);
@@ -1081,12 +1084,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             final String errorResponseSent = ".*\\[internal:testError].*sent error response.*";
             final MockLogAppender.LoggingExpectation errorResponseSentExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "sent error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseSent);
 
             final String errorResponseReceived = ".*\\[internal:testError].*received response from.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation errorResponseReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "received error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseReceived);
 
             appender.addExpectation(errorResponseSentExpectation);
@@ -1102,7 +1105,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     "not seen request sent", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenSent);
             final String notSeenReceived = ".*\\[internal:testNotSeen].*received request.*";
             final MockLogAppender.LoggingExpectation notSeenReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "not seen request received", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenReceived);
 
             appender.addExpectation(notSeenSentExpectation);
@@ -1174,7 +1177,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(message);
         }
     }
@@ -1238,7 +1240,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeInt(value1);
         }
     }
@@ -1692,7 +1693,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeOptionalString(info);
         }
 
@@ -1997,7 +1997,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+        try (MockTransportService service = buildService("TS_BAD", Version.CURRENT, Settings.EMPTY)) {
             service.addMessageListener(new TransportMessageListener() {
                 @Override
                 public void onRequestReceived(long requestId, String action) {
@@ -2657,6 +2657,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertEquals(2, profileSettings.size());
         assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
             .toSet()));
+    }
+
+    public void testBindUnavailableAddress() {
+        int port = serviceA.boundAddress().publishAddress().getPort();
+        Settings settings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
+            .put(TransportSettings.PORT.getKey(), port)
+            .build();
+        BindTransportException bindTransportException = expectThrows(BindTransportException.class,
+            () -> buildService("test", Version.CURRENT, settings));
+        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
     }
 
     public void testChannelCloseWhileConnecting() {

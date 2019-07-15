@@ -14,18 +14,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStatsTests;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -43,16 +45,13 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         for (int j = 0; j < listSize; j++) {
             String datafeedId = randomAlphaOfLength(10);
             DatafeedState datafeedState = randomFrom(DatafeedState.values());
-
-            DiscoveryNode node = null;
-            if (randomBoolean()) {
-                node = new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
-            }
-            String explanation = null;
-            if (randomBoolean()) {
-                explanation = randomAlphaOfLength(3);
-            }
-            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedState, node, explanation);
+            DiscoveryNode node =
+                randomBoolean()
+                    ? null
+                    : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+            String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
+            DatafeedTimingStats timingStats = randomBoolean() ? null : DatafeedTimingStatsTests.createRandom();
+            Response.DatafeedStats datafeedStats = new Response.DatafeedStats(datafeedId, datafeedState, node, explanation, timingStats);
             datafeedStatsList.add(datafeedStats);
         }
 
@@ -75,10 +74,12 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9000);
 
         DiscoveryNode node = new DiscoveryNode("df-node-name", "df-node-id", transportAddress, attributes,
-                EnumSet.noneOf(DiscoveryNode.Role.class),
+                Set.of(),
                 Version.CURRENT);
 
-        Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null);
+        DatafeedTimingStats timingStats = new DatafeedTimingStats("my-job-id", 5, 123.456);
+
+        Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null, timingStats);
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytes;
@@ -89,10 +90,11 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
 
-        assertThat(dfStatsMap.size(), is(equalTo(3)));
+        assertThat(dfStatsMap.size(), is(equalTo(4)));
         assertThat(dfStatsMap, hasEntry("datafeed_id", "df-id"));
         assertThat(dfStatsMap, hasEntry("state", "started"));
         assertThat(dfStatsMap, hasKey("node"));
+        assertThat(dfStatsMap, hasKey("timing_stats"));
 
         Map<String, Object> nodeMap = (Map<String, Object>) dfStatsMap.get("node");
         assertThat(nodeMap, hasEntry("id", "df-node-id"));
@@ -105,5 +107,11 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         assertThat(nodeAttributes.size(), is(equalTo(2)));
         assertThat(nodeAttributes, hasEntry("ml.enabled", "true"));
         assertThat(nodeAttributes, hasEntry("ml.max_open_jobs", "5"));
+
+        Map<String, Object> timingStatsMap = (Map<String, Object>) dfStatsMap.get("timing_stats");
+        assertThat(timingStatsMap.size(), is(equalTo(3)));
+        assertThat(timingStatsMap, hasEntry("job_id", "my-job-id"));
+        assertThat(timingStatsMap, hasEntry("search_count", 5));
+        assertThat(timingStatsMap, hasEntry("total_search_time_ms", 123.456));
     }
 }

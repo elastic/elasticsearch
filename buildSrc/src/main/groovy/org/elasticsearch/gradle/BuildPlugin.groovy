@@ -18,16 +18,27 @@
  */
 package org.elasticsearch.gradle
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import groovy.transform.CompileDynamic
+import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.elasticsearch.gradle.info.GlobalInfoExtension
+import org.elasticsearch.gradle.info.JavaHome
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -39,21 +50,35 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ArtifactRepository
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository
+import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.file.CopySpec
+import org.gradle.api.plugins.BasePlugin
+import org.gradle.api.plugins.BasePluginConvention
+import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.SourceSet
+import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.logging.TestLoggingContainer
 import org.gradle.authentication.http.HttpHeaderAuthentication
+import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
+import org.gradle.language.base.plugins.LifecycleBasePlugin
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
@@ -61,26 +86,31 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.regex.Matcher
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
+@CompileStatic
 class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        // make sure the global build info plugin is applied to the root project
+        project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
+
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
-              throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
-                + 'are mutually exclusive')
+            throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                    + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
+                    + 'are mutually exclusive')
         }
         String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
-        try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
+        try {
+            minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString())
+        } finally {
+            is.close()
+        }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
             throw new GradleException(
                     "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
@@ -102,9 +132,9 @@ class BuildPlugin implements Plugin<Project> {
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
 
         setupSeed(project)
-        globalBuildInfo(project)
         configureRepositories(project)
-        project.ext.versions = VersionProperties.versions
+        project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
+        configureInputNormalization(project)
         configureSourceSets(project)
         configureCompile(project)
         configureJavadoc(project)
@@ -113,157 +143,40 @@ class BuildPlugin implements Plugin<Project> {
         configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
+
+
+        configureFips140(project)
     }
 
-
-
-    /** Performs checks on the build environment and prints information about the build environment. */
-    static void globalBuildInfo(Project project) {
-        if (project.rootProject.ext.has('buildChecksDone') == false) {
-            JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(
-                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumRuntimeVersion").text.trim()
-            )
-            JavaVersion minimumCompilerVersion = JavaVersion.toVersion(
-                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumCompilerVersion").text.trim()
-            )
-            String compilerJavaHome = findCompilerJavaHome()
-            String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
-            File gradleJavaHome = Jvm.current().javaHome
-
-            final Map<Integer, String> javaVersions = [:]
-            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
-                if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
-                    javaVersions.put(version, findJavaHome(version.toString()));
-                }
-            }
-
-            String javaVendor = System.getProperty('java.vendor')
-            String gradleJavaVersion = System.getProperty('java.version')
-            String gradleJavaVersionDetails = "${javaVendor} ${gradleJavaVersion}" +
-                " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
-
-            String compilerJavaVersionDetails = gradleJavaVersionDetails
-            JavaVersion compilerJavaVersionEnum = JavaVersion.current()
-            if (new File(compilerJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                compilerJavaVersionDetails = findJavaVersionDetails(project, compilerJavaHome)
-                compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, compilerJavaHome))
-            }
-
-            String runtimeJavaVersionDetails = gradleJavaVersionDetails
-            JavaVersion runtimeJavaVersionEnum = JavaVersion.current()
-            if (new File(runtimeJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                runtimeJavaVersionDetails = findJavaVersionDetails(project, runtimeJavaHome)
-                runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
-            }
-
-            boolean inFipsJvm = false
-            if (new File(runtimeJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                // We don't expect Gradle to be running in a FIPS JVM
-                String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-                inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
-            }
-
-            // Build debugging info
-            println '======================================='
-            println 'Elasticsearch Build Hamster says Hello!'
-            println "  Gradle Version        : ${project.gradle.gradleVersion}"
-            println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
-            if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
-                println "  Compiler JDK Version  : ${compilerJavaVersionEnum} (${compilerJavaVersionDetails})"
-                println "  Compiler java.home    : ${compilerJavaHome}"
-                println "  Runtime JDK Version   : ${runtimeJavaVersionEnum} (${runtimeJavaVersionDetails})"
-                println "  Runtime java.home     : ${runtimeJavaHome}"
-                println "  Gradle JDK Version    : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
-                println "  Gradle java.home      : ${gradleJavaHome}"
-            } else {
-                println "  JDK Version           : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
-                println "  JAVA_HOME             : ${gradleJavaHome}"
-            }
-            println "  Random Testing Seed   : ${project.testSeed}"
-            println '======================================='
-
-            // enforce Java version
-            if (compilerJavaVersionEnum < minimumCompilerVersion) {
-                final String message =
-                        "the compiler java.home must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
-                                " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]"
-                throw new GradleException(message)
-            }
-
-            if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
-                final String message =
-                        "the runtime java.home must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
-                                " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]"
-                throw new GradleException(message)
-            }
-
-            ExecutorService exec = Executors.newFixedThreadPool(javaVersions.size())
-            Set<Future<Void>> results = new HashSet<>()
-
-            javaVersions.entrySet().stream()
-                    .filter { it.getValue() != null }
-                    .forEach { javaVersionEntry ->
-                        results.add(exec.submit {
-                            final String javaHome = javaVersionEntry.getValue()
-                            final int version = javaVersionEntry.getKey()
-                            if (project.file(javaHome).exists() == false) {
-                                throw new GradleException("Invalid JAVA${version}_HOME=${javaHome} location does not exist")
+    public static void configureFips140(Project project) {
+        // Need to do it here to support external plugins
+        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
+        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
+        globalInfo.ready {
+                ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+                // Common config when running with a FIPS-140 runtime JVM
+                if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
+                    project.tasks.withType(Test) { Test task ->
+                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                    }
+                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                        if (testClusters != null) {
+                            testClusters.all { ElasticsearchCluster cluster ->
+                                cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                                cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
                             }
-
-                            JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
-                            final JavaVersion expectedJavaVersionEnum = version < 9 ?
-                                    JavaVersion.toVersion("1." + version) :
-                                    JavaVersion.toVersion(Integer.toString(version))
-
-                            if (javaVersionEnum != expectedJavaVersionEnum) {
-                                final String message =
-                                        "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
-                                                " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
-                                throw new GradleException(message)
-                            }
-                        })
-            }
-
-            project.gradle.taskGraph.whenReady {
-                try {
-                    results.forEach { it.get() }
-                } finally {
-                    exec.shutdown();
+                        }
+                    }
                 }
-            }
-
-            project.rootProject.ext.compilerJavaHome = compilerJavaHome
-            project.rootProject.ext.runtimeJavaHome = runtimeJavaHome
-            project.rootProject.ext.compilerJavaVersion = compilerJavaVersionEnum
-            project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
-            project.rootProject.ext.isRuntimeJavaHomeSet = compilerJavaHome.equals(runtimeJavaHome) == false
-            project.rootProject.ext.javaVersions = javaVersions
-            project.rootProject.ext.buildChecksDone = true
-            project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
-            project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
-            project.rootProject.ext.inFipsJvm = inFipsJvm
-            project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
-            project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
-            project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
         }
-
-        project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
-        project.sourceCompatibility = project.rootProject.ext.minimumRuntimeVersion
-
-        // set java home for each project, so they dont have to find it in the root project
-        project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome
-        project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
-        project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
-        project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
-        project.ext.isRuntimeJavaHomeSet = project.rootProject.ext.isRuntimeJavaHomeSet
-        project.ext.javaVersions = project.rootProject.ext.javaVersions
-        project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
-        project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
-        project.ext.java9Home = project.rootProject.ext.java9Home
     }
 
     static void requireDocker(final Task task) {
         final Project rootProject = task.project.rootProject
+        ExtraPropertiesExtension ext = rootProject.extensions.getByType(ExtraPropertiesExtension)
+
         if (rootProject.hasProperty('requiresDocker') == false) {
             /*
              * This is our first time encountering a task that requires Docker. We will add an extension that will let us track the tasks
@@ -291,11 +204,11 @@ class BuildPlugin implements Plugin<Project> {
                 throw new IllegalArgumentException(
                         "expected build.docker to be unset or one of \"true\" or \"false\" but was [" + buildDockerProperty + "]")
             }
-            rootProject.rootProject.ext.buildDocker = buildDocker
-            rootProject.rootProject.ext.requiresDocker = []
+
+            ext.set('buildDocker', buildDocker)
+            ext.set('requiresDocker', [])
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                final List<String> tasks =
-                        ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}
+                final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
                 if (tasks.isEmpty() == false) {
                     /*
                      * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
@@ -348,15 +261,12 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
-        if (rootProject.buildDocker) {
-            rootProject.requiresDocker.add(task)
-        } else {
-            task.enabled = false
-        }
+
+        (ext.get('requiresDocker') as List<Task>).add(task)
     }
 
     protected static void checkDockerVersionRecent(String dockerVersion) {
-        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-[a-zA-Z0-9]+)?, build [0-9a-f]{7,40}/
         assert matcher.matches(): dockerVersion
         final dockerMajorMinorVersion = matcher.group(1)
         final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
@@ -377,130 +287,48 @@ class BuildPlugin implements Plugin<Project> {
                         + "or by passing -Dbuild.docker=false")
     }
 
-    private static String findCompilerJavaHome() {
-        String compilerJavaHome = System.getenv('JAVA_HOME')
-        final String compilerJavaProperty = System.getProperty('compiler.java')
-        if (compilerJavaProperty != null) {
-            compilerJavaHome = findJavaHome(compilerJavaProperty)
-        }
-        if (compilerJavaHome == null) {
-            // if JAVA_HOME does not set,so we use the JDK that Gradle was run with.
-            return Jvm.current().javaHome
-        }
-        return compilerJavaHome
-    }
-
-    private static String findJavaHome(String version) {
-        String versionedVarName = getJavaHomeEnvVarName(version)
-        String versionedJavaHome = System.getenv(versionedVarName);
-        if (versionedJavaHome == null) {
-            throw new GradleException(
-                    "$versionedVarName must be set to build Elasticsearch. " +
-                            "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                            "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
-            )
-        }
-        return versionedJavaHome
-    }
-
-    private static String getJavaHomeEnvVarName(String version) {
-        return 'JAVA' + version + '_HOME'
-    }
-
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
     static void requireJavaHome(Task task, int version) {
-        Project rootProject = task.project.rootProject // use root project for global accounting
+        // use root project for global accounting
+        Project rootProject = task.project.rootProject
+        ExtraPropertiesExtension ext = rootProject.extensions.getByType(ExtraPropertiesExtension)
+
         if (rootProject.hasProperty('requiredJavaVersions') == false) {
-            rootProject.rootProject.ext.requiredJavaVersions = [:]
-            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+            ext.set('requiredJavaVersions', [:])
+            rootProject.gradle.taskGraph.whenReady({ TaskExecutionGraph taskGraph ->
                 List<String> messages = []
-                for (entry in rootProject.requiredJavaVersions) {
-                    if (rootProject.javaVersions.get(entry.key) != null) {
+                Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) ext.get('requiredJavaVersions')
+                for (Map.Entry<Integer, List<Task>> entry : requiredJavaVersions) {
+                    List<JavaHome> javaVersions = ext.get('javaVersions') as List<JavaHome>
+                    if (javaVersions.find { it.version == entry.key } != null) {
                         continue
                     }
-                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}" }
+                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString() }
                     if (tasks.isEmpty() == false) {
-                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}")
+                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}".toString())
                     }
                 }
                 if (messages.isEmpty() == false) {
                     throw new GradleException(messages.join('\n'))
                 }
-                rootProject.rootProject.ext.requiredJavaVersions = null // reset to null to indicate the pre-execution checks have executed
-            }
-        } else if (rootProject.rootProject.requiredJavaVersions == null) {
+                ext.set('requiredJavaVersions', null) // reset to null to indicate the pre-execution checks have executed
+            })
+        } else if (ext.has('requiredJavaVersions') == false || ext.get('requiredJavaVersions') == null) {
             // check directly if the version is present since we are already executing
-            if (rootProject.javaVersions.get(version) == null) {
+            List<JavaHome> javaVersions = ext.get('javaVersions') as List<JavaHome>
+            if (javaVersions.find { it.version == version } == null) {
                 throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
             }
         } else {
-            rootProject.requiredJavaVersions.getOrDefault(version, []).add(task)
+            (ext.get('requiredJavaVersions') as Map<Integer, List<Task>>).getOrDefault(version, []).add(task)
         }
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
-        return task.project.javaVersions.get(version)
-    }
-
-    private static String findRuntimeJavaHome(final String compilerJavaHome) {
-        String runtimeJavaProperty = System.getProperty("runtime.java")
-        if (runtimeJavaProperty != null) {
-            return findJavaHome(runtimeJavaProperty)
-        }
-        return System.getenv('RUNTIME_JAVA_HOME') ?: compilerJavaHome
-    }
-
-    /** Finds printable java version of the given JAVA_HOME */
-    private static String findJavaVersionDetails(Project project, String javaHome) {
-        String versionInfoScript = 'print(' +
-            'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
-            '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
-        return runJavaAsScript(project, javaHome, versionInfoScript).trim()
-    }
-
-    /** Finds the parsable java specification version */
-    private static String findJavaSpecificationVersion(Project project, String javaHome) {
-        String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
-        return runJavaAsScript(project, javaHome, versionScript)
-    }
-
-    private static String findJavaVendor(Project project, String javaHome) {
-        String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
-        return runJavaAsScript(project, javaHome, vendorScript)
-    }
-
-    /** Finds the parsable java specification version */
-    private static String findJavaVersion(Project project, String javaHome) {
-        String versionScript = 'print(java.lang.System.getProperty("java.version"));'
-        return runJavaAsScript(project, javaHome, versionScript)
-    }
-
-    /** Runs the given javascript using jjs from the jdk, and returns the output */
-    private static String runJavaAsScript(Project project, String javaHome, String script) {
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream()
-        ByteArrayOutputStream stderr = new ByteArrayOutputStream()
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            // gradle/groovy does not properly escape the double quote for windows
-            script = script.replace('"', '\\"')
-        }
-        File jrunscriptPath = new File(javaHome, 'bin/jrunscript')
-        ExecResult result = project.exec {
-            executable = jrunscriptPath
-            args '-e', script
-            standardOutput = stdout
-            errorOutput = stderr
-            ignoreExitValue = true
-        }
-        if (result.exitValue != 0) {
-            project.logger.error("STDOUT:")
-            stdout.toString('UTF-8').eachLine { line -> project.logger.error(line) }
-            project.logger.error("STDERR:")
-            stderr.toString('UTF-8').eachLine { line -> project.logger.error(line) }
-            result.rethrowFailure()
-        }
-        return stdout.toString('UTF-8').trim()
+        List<JavaHome> javaVersions = task.project.property('javaVersions') as List<JavaHome>
+        return javaVersions.find { it.version == version }.javaHome.absolutePath
     }
 
     /** Return the configuration name used for finding transitive deps of the given dependency. */
@@ -526,7 +354,7 @@ class BuildPlugin implements Plugin<Project> {
      */
     static void configureConfigurations(Project project) {
         // we want to test compileOnly deps!
-        project.configurations.testCompile.extendsFrom(project.configurations.compileOnly)
+        project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME))
 
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
@@ -564,9 +392,9 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
 
-        project.configurations.compile.dependencies.all(disableTransitiveDeps)
-        project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
-        project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
+        project.configurations.getByName(JavaPlugin.COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
+        project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
+        project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
 
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
             Configuration bundle = project.configurations.create('bundle')
@@ -576,40 +404,56 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
+        project.getRepositories().all { repository ->
+            if (repository instanceof MavenArtifactRepository) {
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
+                assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(maven, project, uri) }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
+                assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
+            }
+        }
         RepositoryHandler repos = project.repositories
-        if (System.getProperty("repos.mavenLocal") != null) {
+        if (System.getProperty('repos.mavenLocal') != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
             // useful for development ie. bwc tests where we install stuff in the local repository
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
         }
         repos.jcenter()
-        repos.ivy {
-            url "https://artifacts.elastic.co/downloads"
-            patternLayout {
-                artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
+        repos.ivy { IvyArtifactRepository repo ->
+            repo.name = 'elasticsearch'
+            repo.url = 'https://artifacts.elastic.co/downloads'
+            repo.patternLayout { IvyPatternRepositoryLayout layout ->
+                layout.artifact 'elasticsearch/[module]-[revision](-[classifier]).[ext]'
             }
             // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            credentials(HttpHeaderCredentials) {
-                name = "X-Elastic-No-KPI"
-                value = "1"
-            }
-            authentication {
-                header(HttpHeaderAuthentication)
-            }
+            repo.credentials(HttpHeaderCredentials, { HttpHeaderCredentials creds ->
+                creds.name = 'X-Elastic-No-KPI'
+                creds.value = '1'
+            } as Action<HttpHeaderCredentials>)
+            repo.authentication.create('header', HttpHeaderAuthentication)
         }
-        repos.maven {
-            name "elastic"
-            url "https://artifacts.elastic.co/maven"
+        repos.maven { MavenArtifactRepository repo ->
+            repo.name = 'elastic'
+            repo.url = 'https://artifacts.elastic.co/maven'
         }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
-            String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
-            repos.maven {
-                name 'lucene-snapshots'
-                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
+            String revision = matches.get(1)
+            repos.maven { MavenArtifactRepository repo ->
+                repo.name = 'lucene-snapshots'
+                repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
+        }
+    }
+
+    private static void assertRepositoryURIUsesHttps(final ArtifactRepository repository, final Project project, final URI uri) {
+        if (uri != null && uri.toURL().getProtocol().equals("http")) {
+            throw new GradleException("repository [${repository.name}] on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
         }
     }
 
@@ -624,6 +468,7 @@ class BuildPlugin implements Plugin<Project> {
      *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)</li>
      * </ul>
      */
+    @CompileDynamic
     private static Closure fixupDependencies(Project project) {
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
@@ -684,47 +529,46 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     /**Configuration generation of maven poms. */
-    public static void configurePomGeneration(Project project) {
+    static void configurePomGeneration(Project project) {
         // Only works with  `enableFeaturePreview('STABLE_PUBLISHING')`
         // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
-        project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
-            // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
-            // just make a copy.
-            generatePOMTask.ext.pomFileName = null
-            doLast {
-                project.copy {
-                    from generatePOMTask.destination
-                    into "${project.buildDir}/distributions"
-                    rename {
-                        generatePOMTask.ext.pomFileName == null ?
-                            "${project.archivesBaseName}-${project.version}.pom" :
-                            generatePOMTask.ext.pomFileName
-                    }
-                }
-            }
-            // build poms with assemble (if the assemble task exists)
+        // dummy task to depend on the real pom generation
+        project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            Task generatePomTask = project.tasks.create("generatePom")
             Task assemble = project.tasks.findByName('assemble')
-            if (assemble && assemble.enabled) {
-                assemble.dependsOn(generatePOMTask)
+            if (assemble) {
+                assemble.dependsOn(generatePomTask)
             }
-        }
-        project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
-            project.publishing {
-                publications {
-                    all { MavenPublication publication -> // we only deal with maven
-                        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-                        publication.pom.withXml(fixupDependencies(project))
-                    }
-                }
-            }
-            project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                project.publishing {
-                    publications {
-                        nebula(MavenPublication) {
-                            artifacts = [ project.tasks.shadowJar ]
+            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom pomTask ->
+                // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
+                // just make a copy.
+                ExtraPropertiesExtension ext = pomTask.extensions.getByType(ExtraPropertiesExtension)
+                ext.set('pomFileName', null)
+                pomTask.doLast {
+                    project.copy { CopySpec spec ->
+                        spec.from pomTask.destination
+                        spec.into "${project.buildDir}/distributions"
+                        spec.rename {
+                            ext.has('pomFileName') && ext.get('pomFileName') == null ?
+                                    "${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
+                                    ext.get('pomFileName')
                         }
                     }
                 }
+            }
+            generatePomTask.dependsOn = ['generatePomFileForNebulaPublication']
+            PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
+            publishing.publications.all { MavenPublication publication -> // we only deal with maven
+                // add exclusions to the pom directly, for each of the transitive deps of this project's deps
+                publication.pom.withXml(fixupDependencies(project))
+            }
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                MavenPublication publication = publishing.publications.maybeCreate('shadow', MavenPublication)
+                publication.with {
+                    ShadowExtension shadow = project.extensions.getByType(ShadowExtension)
+                    shadow.component(publication)
+                }
+                generatePomTask.dependsOn = ['generatePomFileForShadowPublication']
             }
         }
     }
@@ -735,27 +579,40 @@ class BuildPlugin implements Plugin<Project> {
     static void configureSourceSets(Project project) {
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
             ['main', 'test'].each {name ->
-                SourceSet sourceSet = project.sourceSets.findByName(name)
+                SourceSet sourceSet = project.extensions.getByType(SourceSetContainer).findByName(name)
                 if (sourceSet != null) {
-                    sourceSet.compileClasspath += project.configurations.bundle
+                    sourceSet.compileClasspath += project.configurations.getByName('bundle')
                 }
             }
         }
     }
 
+    /**
+     * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability
+     */
+    static void configureInputNormalization(Project project) {
+        project.normalization.runtimeClasspath.ignore('META-INF/MANIFEST.MF')
+    }
+
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        project.ext.compactProfile = 'full'
+        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+        ext.set('compactProfile', 'full')
+
+        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
+        project.extensions.getByType(JavaPluginExtension).targetCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
+
         project.afterEvaluate {
-            project.tasks.withType(JavaCompile) {
-                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
-                final compilerJavaHomeFile = new File(project.compilerJavaHome)
+            File compilerJavaHome = ext.get('compilerJavaHome') as File
+
+            project.tasks.withType(JavaCompile) { JavaCompile compileTask ->
+                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(compileTask.targetCompatibility)
                 // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
-                    options.fork = false
+                if (compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
+                    compileTask.options.fork = false
                 } else {
-                    options.fork = true
-                    options.forkOptions.javaHome = compilerJavaHomeFile
+                    compileTask.options.fork = true
+                    compileTask.options.forkOptions.javaHome = compilerJavaHome
                 }
                 /*
                  * -path because gradle will send in paths that don't always exist.
@@ -764,29 +621,28 @@ class BuildPlugin implements Plugin<Project> {
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 // fail on all javac warnings
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation,-try' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                compileTask.options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation,-try' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
-                if (options.compilerArgs.contains("-processor") == false) {
-                    options.compilerArgs << '-proc:none'
+                if (compileTask.options.compilerArgs.contains("-processor") == false) {
+                    compileTask.options.compilerArgs << '-proc:none'
                 }
 
-                options.encoding = 'UTF-8'
-                options.incremental = true
+                compileTask.options.encoding = 'UTF-8'
+                compileTask.options.incremental = true
 
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
-                options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+                compileTask.options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
             }
             // also apply release flag to groovy, which is used in build-tools
-            project.tasks.withType(GroovyCompile) {
-                final compilerJavaHomeFile = new File(project.compilerJavaHome)
+            project.tasks.withType(GroovyCompile) { GroovyCompile compileTask ->
                 // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
-                    options.fork = false
+                if (compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
+                    compileTask.options.fork = false
                 } else {
-                    options.fork = true
-                    options.forkOptions.javaHome = compilerJavaHomeFile
-                    options.compilerArgs << '--release' << JavaVersion.toVersion(it.targetCompatibility).majorVersion
+                    compileTask.options.fork = true
+                    compileTask.options.forkOptions.javaHome = compilerJavaHome
+                    compileTask.options.compilerArgs << '--release' << JavaVersion.toVersion(compileTask.targetCompatibility).majorVersion
                 }
             }
         }
@@ -795,11 +651,12 @@ class BuildPlugin implements Plugin<Project> {
     static void configureJavadoc(Project project) {
         // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
         final List<File> classes = new ArrayList<>()
-        project.tasks.withType(JavaCompile) { javaCompile ->
+        project.tasks.withType(JavaCompile) { JavaCompile javaCompile ->
             classes.add(javaCompile.destinationDir)
         }
-        project.tasks.withType(Javadoc) { javadoc ->
-            javadoc.executable = new File(project.compilerJavaHome, 'bin/javadoc')
+        project.tasks.withType(Javadoc) { Javadoc javadoc ->
+            File compilerJavaHome = project.extensions.getByType(ExtraPropertiesExtension).get('compilerJavaHome') as File
+            javadoc.executable = new File(compilerJavaHome, 'bin/javadoc')
             javadoc.classpath = javadoc.getClasspath().filter { f ->
                 return classes.contains(f) == false
             }
@@ -807,49 +664,60 @@ class BuildPlugin implements Plugin<Project> {
              * Generate docs using html5 to suppress a warning from `javadoc`
              * that the default will change to html5 in the future.
              */
-            javadoc.options.addBooleanOption('html5', true)
+            (javadoc.options as CoreJavadocOptions).addBooleanOption('html5', true)
         }
         configureJavadocJar(project)
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
     static void configureJavadocJar(Project project) {
-        Jar javadocJarTask = project.task('javadocJar', type: Jar)
+        Jar javadocJarTask = project.tasks.create('javadocJar', Jar)
         javadocJarTask.classifier = 'javadoc'
         javadocJarTask.group = 'build'
         javadocJarTask.description = 'Assembles a jar containing javadocs.'
         javadocJarTask.from(project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME))
-        project.assemble.dependsOn(javadocJarTask)
+        project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn(javadocJarTask)
     }
 
     static void configureSourcesJar(Project project) {
-        Jar sourcesJarTask = project.task('sourcesJar', type: Jar)
+        Jar sourcesJarTask = project.tasks.create('sourcesJar', Jar)
         sourcesJarTask.classifier = 'sources'
         sourcesJarTask.group = 'build'
         sourcesJarTask.description = 'Assembles a jar containing source files.'
-        sourcesJarTask.from(project.sourceSets.main.allSource)
-        project.assemble.dependsOn(sourcesJarTask)
+        sourcesJarTask.from(project.extensions.getByType(SourceSetContainer).getByName(SourceSet.MAIN_SOURCE_SET_NAME).allSource)
+        project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn(sourcesJarTask)
     }
 
     /** Adds additional manifest info to jars */
     static void configureJars(Project project) {
-        project.ext.licenseFile = null
-        project.ext.noticeFile = null
+        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+        ext.set('licenseFile',  null)
+        ext.set('noticeFile', null)
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                /*
+                 * Ensure the original jar task places its output in 'libs' so that we don't overwrite it with the shadow jar. We only do
+                 * this for tasks named jar to exclude javadoc and sources jars.
+                 */
+                if (jarTask instanceof ShadowJar == false && jarTask.name == JavaPlugin.JAR_TASK_NAME) {
+                    jarTask.destinationDir = new File(project.buildDir, 'libs')
+                }
+            }
             // fixup the jar manifest
             jarTask.doFirst {
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
+                JavaVersion compilerJavaVersion = ext.get('compilerJavaVersion') as JavaVersion
                 jarTask.manifest.attributes(
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
-                        'Build-Java-Version': project.compilerJavaVersion)
+                        'Build-Java-Version': compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
-                    logger.warn('Building without git revision id.')
+                    jarTask.logger.warn('Building without git revision id.')
                     jarTask.manifest.attributes('Change': 'Unknown')
                 } else {
                     /*
@@ -863,63 +731,57 @@ class BuildPlugin implements Plugin<Project> {
                         jarTask.manifest.attributes('Change': shortHash)
                     }
                 }
-                // Force manifest entries that change by nature to a constant to be able to compare builds more effectively
-                if (System.properties.getProperty("build.compare_friendly", "false") == "true") {
-                    jarTask.manifest.getAttributes().clear()
-                }
             }
+
             // add license/notice files
             project.afterEvaluate {
-                if (project.licenseFile == null || project.noticeFile == null) {
+                if (ext.has('licenseFile') == false || ext.get('licenseFile') == null || ext.has('noticeFile') == false || ext.get('noticeFile') == null) {
                     throw new GradleException("Must specify license and notice file for project ${project.path}")
                 }
-                jarTask.metaInf {
-                    from(project.licenseFile.parent) {
-                        include project.licenseFile.name
-                        rename { 'LICENSE.txt' }
+
+                File licenseFile = ext.get('licenseFile') as File
+                File noticeFile = ext.get('noticeFile') as File
+
+                jarTask.metaInf { CopySpec spec ->
+                    spec.from(licenseFile.parent) { CopySpec from ->
+                        from.include licenseFile.name
+                        from.rename { 'LICENSE.txt' }
                     }
-                    from(project.noticeFile.parent) {
-                        include project.noticeFile.name
-                        rename { 'NOTICE.txt' }
+                    spec.from(noticeFile.parent) { CopySpec from ->
+                        from.include noticeFile.name
+                        from.rename { 'NOTICE.txt' }
                     }
                 }
             }
         }
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            /*
-             * When we use the shadow plugin we entirely replace the
-             * normal jar with the shadow jar so we no longer want to run
-             * the jar task.
-             */
-            project.tasks.jar.enabled = false
-            project.tasks.shadowJar {
+            project.tasks.getByName('shadowJar').configure { ShadowJar shadowJar ->
                 /*
                  * Replace the default "shadow" classifier with null
                  * which will leave the classifier off of the file name.
                  */
-                classifier = null
+                shadowJar.classifier = null
                 /*
                  * Not all cases need service files merged but it is
                  * better to be safe
                  */
-                mergeServiceFiles()
+                shadowJar.mergeServiceFiles()
                 /*
                  * Bundle dependencies of the "bundled" configuration.
                  */
-                configurations = [project.configurations.bundle]
+                shadowJar.configurations = [project.configurations.getByName('bundle')]
             }
             // Make sure we assemble the shadow jar
-            project.tasks.assemble.dependsOn project.tasks.shadowJar
-            project.artifacts {
-                apiElements project.tasks.shadowJar
-            }
+            project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn project.tasks.getByName('shadowJar')
         }
     }
 
     static void configureTestTasks(Project project) {
+        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+
         // Default test task should run only unit tests
-        project.tasks.withType(Test).matching { it.name == 'test' }.all {
-            include '**/*Tests.class'
+        project.tasks.withType(Test).matching { Test task -> task.name == 'test' }.all { Test task ->
+            task.include '**/*Tests.class'
         }
 
         // none of this stuff is applicable to the `:buildSrc` project tests
@@ -929,147 +791,136 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(Test) { Test test ->
                 File testOutputDir = new File(test.reports.junitXml.getDestination(), "output")
 
-                doFirst {
+                ErrorReportingTestListener listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
+                test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
+                test.addTestOutputListener(listener)
+                test.addTestListener(listener)
+
+                /*
+                 * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
+                 * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated
+                 * as task inputs and therefore Gradle attempts to snapshot them before/after task execution. This fails due
+                 * to the GStrings containing references to non-serializable objects.
+                 *
+                 * We bypass this by instead passing this system properties vi a CommandLineArgumentProvider. This has the added
+                 * side-effect that these properties are NOT treated as inputs, therefore they don't influence things like the
+                 * build cache key or up to date checking.
+                 */
+                SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider()
+
+                test.doFirst {
                     project.mkdir(testOutputDir)
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
+
+                    if (project.property('inFipsJvm')) {
+                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}FIPS")
+                    } else {
+                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}")
+                    }
                 }
 
-                def listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
-                test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
-                addTestOutputListener(listener)
-                addTestListener(listener)
+                test.jvmArgumentProviders.add(nonInputProperties)
+                test.extensions.add('nonInputProperties', nonInputProperties)
 
-                executable = "${project.runtimeJavaHome}/bin/java"
-                workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-                maxParallelForks = project.rootProject.ext.defaultParallel
+                test.executable = "${ext.get('runtimeJavaHome')}/bin/java"
+                test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
+                test.maxParallelForks = System.getProperty('tests.jvms', project.rootProject.extensions.extraProperties.get('defaultParallel').toString()) as Integer
 
-                exclude '**/*$*.class'
+                test.exclude '**/*$*.class'
 
-                jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
+                test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
                         "-Xms${System.getProperty('tests.heap.size', '512m')}",
                         '-XX:+HeapDumpOnOutOfMemoryError',
-                        "-XX:HeapDumpPath=$heapdumpDir"
+                        "-XX:HeapDumpPath=$heapdumpDir",
+                        '--illegal-access=warn'
 
-                if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                    jvmArgs '--illegal-access=warn'
-                }
 
                 if (System.getProperty('tests.jvm.argline')) {
-                    jvmArgs System.getProperty('tests.jvm.argline').split(" ")
+                    test.jvmArgs System.getProperty('tests.jvm.argline').split(" ")
                 }
 
                 if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-                    jvmArgs '-ea', '-esa'
+                    test.jvmArgs '-ea', '-esa'
                 }
 
                 // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
-                        'gradle.worker.jar': "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar",
-                        'gradle.user.home': project.gradle.getGradleUserHomeDir(),
+                test.systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
                         'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
-                        'tests.task': path,
+                        'tests.task': test.path,
                         'tests.security.manager': 'true',
-                        'tests.seed': project.testSeed,
-                        'jna.nosys': 'true',
-                        'compiler.java': project.ext.compilerJavaVersion.getMajorVersion()
+                        'jna.nosys': 'true'
 
-                if (project.ext.inFipsJvm) {
-                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
+                // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
+                if (System.getProperty('ignore.tests.seed') != null) {
+                    nonInputProperties.systemProperty('tests.seed', project.property('testSeed'))
                 } else {
-                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
+                    test.systemProperty('tests.seed', project.property('testSeed'))
                 }
+
+                // don't track these as inputs since they contain absolute paths and break cache relocatability
+                nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
+                nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
+
+                nonInputProperties.systemProperty('compiler.java', "${-> (ext.get('compilerJavaVersion') as JavaVersion).getMajorVersion()}")
+
                 // TODO: remove setting logging level via system property
-                systemProperty 'tests.logger.level', 'WARN'
+                test.systemProperty 'tests.logger.level', 'WARN'
                 System.getProperties().each { key, value ->
-                    if ((key.startsWith('tests.') || key.startsWith('es.'))) {
-                        systemProperty key, value
+                    if ((key.toString().startsWith('tests.') || key.toString().startsWith('es.'))) {
+                        test.systemProperty key.toString(), value
                     }
                 }
 
                 // TODO: remove this once ctx isn't added to update script params in 7.0
-                systemProperty 'es.scripting.update.ctx_in_params', 'false'
+                test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
-                testLogging {
-                    showExceptions = true
-                    showCauses = true
-                    exceptionFormat = 'full'
+                test.testLogging { TestLoggingContainer logging ->
+                    logging.showExceptions = true
+                    logging.showCauses = true
+                    logging.exceptionFormat = 'full'
                 }
 
                 project.plugins.withType(ShadowPlugin).whenPluginAdded {
                     // Test against a shadow jar if we made one
-                    classpath -= project.tasks.compileJava.outputs.files
-                    classpath += project.tasks.shadowJar.outputs.files
+                    test.classpath -= project.configurations.getByName('bundle')
+                    test.classpath -= project.tasks.getByName('compileJava').outputs.files
+                    test.classpath += project.tasks.getByName('shadowJar').outputs.files
 
-                    dependsOn project.tasks.shadowJar
+                    test.dependsOn project.tasks.getByName('shadowJar')
                 }
             }
         }
-    }
-
-    private static int findDefaultParallel(Project project) {
-        if (project.file("/proc/cpuinfo").exists()) {
-            // Count physical cores on any Linux distro ( don't count hyper-threading )
-            Map<String, Integer> socketToCore = [:]
-            String currentID = ""
-            project.file("/proc/cpuinfo").readLines().forEach({ line ->
-                if (line.contains(":")) {
-                    List<String> parts = line.split(":", 2).collect({it.trim()})
-                    String name = parts[0], value = parts[1]
-                    // the ID of the CPU socket
-                    if (name == "physical id") {
-                        currentID = value
-                    }
-                    // Number  of cores not including hyper-threading
-                    if (name == "cpu cores") {
-                        assert currentID.isEmpty() == false
-                        socketToCore[currentID] = Integer.valueOf(value)
-                        currentID = ""
-                    }
-                }
-            })
-            return socketToCore.values().sum()
-        } else if ('Mac OS X'.equals(System.getProperty('os.name'))) {
-            // Ask macOS to count physical CPUs for us
-            ByteArrayOutputStream stdout = new ByteArrayOutputStream()
-            project.exec {
-                executable 'sysctl'
-                args '-n', 'hw.physicalcpu'
-                standardOutput = stdout
-            }
-            return Integer.parseInt(stdout.toString('UTF-8').trim())
-        }
-        return Runtime.getRuntime().availableProcessors() / 2
     }
 
     private static configurePrecommit(Project project) {
         Task precommit = PrecommitTasks.create(project, true)
-        project.check.dependsOn(precommit)
-        project.test.mustRunAfter(precommit)
+        project.tasks.getByName(LifecycleBasePlugin.CHECK_TASK_NAME).dependsOn(precommit)
+        project.tasks.getByName(JavaPlugin.TEST_TASK_NAME).mustRunAfter(precommit)
         // only require dependency licenses for non-elasticsearch deps
-        project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
-            it.group.startsWith('org.elasticsearch') == false
-        } - project.configurations.compileOnly
+        (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).dependencies = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME).fileCollection { Dependency dependency ->
+            dependency.group.startsWith('org.elasticsearch') == false
+        } - project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            project.dependencyLicenses.dependencies += project.configurations.bundle.fileCollection {
-                it.group.startsWith('org.elasticsearch') == false
+            (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).dependencies += project.configurations.getByName('bundle').fileCollection { Dependency dependency ->
+                dependency.group.startsWith('org.elasticsearch') == false
             }
         }
     }
 
     private static configureDependenciesInfo(Project project) {
-        Task deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask.class)
-        deps.runtimeConfiguration = project.configurations.runtime
+        DependenciesInfoTask deps = project.tasks.create("dependenciesInfo", DependenciesInfoTask)
+        deps.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME)
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
             deps.runtimeConfiguration = project.configurations.create('infoDeps')
-            deps.runtimeConfiguration.extendsFrom(project.configurations.runtime, project.configurations.bundle)
+            deps.runtimeConfiguration.extendsFrom(project.configurations.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME), project.configurations.getByName('bundle'))
         }
-        deps.compileOnlyConfiguration = project.configurations.compileOnly
+        deps.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
         project.afterEvaluate {
-            deps.mappings = project.dependencyLicenses.mappings
+            deps.mappings = (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).mappings
         }
     }
 
@@ -1081,11 +932,12 @@ class BuildPlugin implements Plugin<Project> {
      * the reproduction line from one run be useful on another run.
      */
     static String setupSeed(Project project) {
-        if (project.rootProject.ext.has('testSeed')) {
+        ExtraPropertiesExtension ext = project.rootProject.extensions.getByType(ExtraPropertiesExtension)
+        if (ext.has('testSeed')) {
             /* Skip this if we've already pinned the testSeed. It is important
              * that this checks the rootProject so that we know we've only ever
              * initialized one time. */
-            return project.rootProject.ext.testSeed
+            return ext.get('testSeed')
         }
 
         String testSeed = System.getProperty('tests.seed')
@@ -1094,7 +946,7 @@ class BuildPlugin implements Plugin<Project> {
             testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
         }
 
-        project.rootProject.ext.testSeed = testSeed
+        ext.set('testSeed', testSeed)
         return testSeed
     }
 

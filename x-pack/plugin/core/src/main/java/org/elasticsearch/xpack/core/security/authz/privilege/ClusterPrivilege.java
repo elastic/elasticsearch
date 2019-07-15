@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -28,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.minusAndMinimize;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
@@ -39,6 +39,7 @@ public final class ClusterPrivilege extends Privilege {
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");
     private static final Automaton MANAGE_TOKEN_AUTOMATON = patterns("cluster:admin/xpack/security/token/*");
+    private static final Automaton MANAGE_API_KEY_AUTOMATON = patterns("cluster:admin/xpack/security/api_key/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/xpack/ml/*");
     private static final Automaton MONITOR_DATA_FRAME_AUTOMATON = patterns("cluster:monitor/data_frame/*");
@@ -84,6 +85,7 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",     MANAGE_SECURITY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SAML =           new ClusterPrivilege("manage_saml",         MANAGE_SAML_AUTOMATON);
     public static final ClusterPrivilege MANAGE_OIDC =           new ClusterPrivilege("manage_oidc", MANAGE_OIDC_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_API_KEY =        new ClusterPrivilege("manage_api_key", MANAGE_API_KEY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
     public static final ClusterPrivilege MANAGE_CCR =            new ClusterPrivilege("manage_ccr", MANAGE_CCR_AUTOMATON);
     public static final ClusterPrivilege READ_CCR =              new ClusterPrivilege("read_ccr", READ_CCR_AUTOMATON);
@@ -93,33 +95,33 @@ public final class ClusterPrivilege extends Privilege {
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
-    private static final Map<String, ClusterPrivilege> VALUES = MapBuilder.<String, ClusterPrivilege>newMapBuilder()
-            .put("none", NONE)
-            .put("all", ALL)
-            .put("monitor", MONITOR)
-            .put("monitor_ml", MONITOR_ML)
-            .put("monitor_data_frame_transforms", MONITOR_DATA_FRAME)
-            .put("monitor_watcher", MONITOR_WATCHER)
-            .put("monitor_rollup", MONITOR_ROLLUP)
-            .put("manage", MANAGE)
-            .put("manage_ml", MANAGE_ML)
-            .put("manage_data_frame_transforms", MANAGE_DATA_FRAME)
-            .put("manage_token", MANAGE_TOKEN)
-            .put("manage_watcher", MANAGE_WATCHER)
-            .put("manage_index_templates", MANAGE_IDX_TEMPLATES)
-            .put("manage_ingest_pipelines", MANAGE_INGEST_PIPELINES)
-            .put("transport_client", TRANSPORT_CLIENT)
-            .put("manage_security", MANAGE_SECURITY)
-            .put("manage_saml", MANAGE_SAML)
-            .put("manage_oidc", MANAGE_OIDC)
-            .put("manage_pipeline", MANAGE_PIPELINE)
-            .put("manage_rollup", MANAGE_ROLLUP)
-            .put("manage_ccr", MANAGE_CCR)
-            .put("read_ccr", READ_CCR)
-            .put("create_snapshot", CREATE_SNAPSHOT)
-            .put("manage_ilm", MANAGE_ILM)
-            .put("read_ilm", READ_ILM)
-            .immutableMap();
+    private static final Map<String, ClusterPrivilege> VALUES = Map.ofEntries(
+            entry("none", NONE),
+            entry("all", ALL),
+            entry("monitor", MONITOR),
+            entry("monitor_ml", MONITOR_ML),
+            entry("monitor_data_frame_transforms", MONITOR_DATA_FRAME),
+            entry("monitor_watcher", MONITOR_WATCHER),
+            entry("monitor_rollup", MONITOR_ROLLUP),
+            entry("manage", MANAGE),
+            entry("manage_ml", MANAGE_ML),
+            entry("manage_data_frame_transforms", MANAGE_DATA_FRAME),
+            entry("manage_token", MANAGE_TOKEN),
+            entry("manage_watcher", MANAGE_WATCHER),
+            entry("manage_index_templates", MANAGE_IDX_TEMPLATES),
+            entry("manage_ingest_pipelines", MANAGE_INGEST_PIPELINES),
+            entry("transport_client", TRANSPORT_CLIENT),
+            entry("manage_security", MANAGE_SECURITY),
+            entry("manage_saml", MANAGE_SAML),
+            entry("manage_oidc", MANAGE_OIDC),
+            entry("manage_api_key", MANAGE_API_KEY),
+            entry("manage_pipeline", MANAGE_PIPELINE),
+            entry("manage_rollup", MANAGE_ROLLUP),
+            entry("manage_ccr", MANAGE_CCR),
+            entry("read_ccr", READ_CCR),
+            entry("create_snapshot", CREATE_SNAPSHOT),
+            entry("manage_ilm", MANAGE_ILM),
+            entry("read_ilm", READ_ILM));
 
     private static final ConcurrentHashMap<Set<String>, ClusterPrivilege> CACHE = new ConcurrentHashMap<>();
 
@@ -173,5 +175,9 @@ public final class ClusterPrivilege extends Privilege {
             automata.add(patterns(actions));
         }
         return new ClusterPrivilege(name, Automatons.unionAndMinimize(automata));
+    }
+
+    public static Set<String> names() {
+        return Collections.unmodifiableSet(VALUES.keySet());
     }
 }

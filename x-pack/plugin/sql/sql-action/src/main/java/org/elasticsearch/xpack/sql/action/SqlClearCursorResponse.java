@@ -66,7 +66,6 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(succeeded);
     }
 

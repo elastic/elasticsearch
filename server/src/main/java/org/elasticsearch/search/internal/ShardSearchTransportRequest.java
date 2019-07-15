@@ -94,11 +94,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String[] types() {
-        return shardSearchLocalRequest.types();
-    }
-
-    @Override
     public SearchSourceBuilder source() {
         return shardSearchLocalRequest.source();
     }

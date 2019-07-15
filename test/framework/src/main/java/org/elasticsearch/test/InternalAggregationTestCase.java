@@ -172,7 +172,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     };
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+            new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
 
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 

@@ -56,9 +56,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
-    private List<SearchRequest> requests = new ArrayList<>();
+    private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    public MultiSearchRequest() {}
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -129,15 +131,20 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return this;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+
+    public MultiSearchRequest(StreamInput in) throws IOException {
+        super(in);
         maxConcurrentSearchRequests = in.readVInt();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             SearchRequest request = new SearchRequest(in);
             requests.add(request);
         }
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -170,7 +177,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
                                            String[] indices,
                                            IndicesOptions indicesOptions,
-                                           String[] types,
                                            String routing,
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
@@ -183,21 +189,12 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
-            // support first line with \n
-            if (nextMarker == 0) {
-                from = nextMarker + 1;
-                continue;
-            }
-
             SearchRequest searchRequest = new SearchRequest();
             if (indices != null) {
                 searchRequest.indices(indices);
             }
             if (indicesOptions != null) {
                 searchRequest.indicesOptions(indicesOptions);
-            }
-            if (types != null && types.length > 0) {
-                searchRequest.types(types);
             }
             if (routing != null) {
                 searchRequest.routing(routing);
@@ -225,8 +222,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
                             searchRequest.indices(nodeStringArrayValue(value));
-                        } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {
-                            searchRequest.types(nodeStringArrayValue(value));
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
@@ -325,9 +320,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
             xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
-        }
-        if (request.types() != null) {
-            xContentBuilder.field("types", request.types());
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));

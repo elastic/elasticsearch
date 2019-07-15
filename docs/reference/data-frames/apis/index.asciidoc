@@ -3,16 +3,19 @@
 [[data-frame-apis]]
 == {dataframe-cap} APIs
 
+See also {stack-ov}/ml-dataframes.html[{dataframes-cap}].
+
 [float]
 [[data-frame-transform-apis]]
 === {dataframe-transforms-cap}
 
-* <<preview-data-frame-transform,Preview {dataframe-transforms}>>
-* <<put-data-frame-transform,Create {dataframe-transforms}>>,
-<<delete-data-frame-transform,delete {dataframe-transforms}>>
-* <<get-data-frame-transform,Get {dataframe-transform} info>>,
-<<get-data-frame-transform-stats,Get {dataframe-transform} statistics>>
-* <<start-data-frame-transform,Start {dataframe-transforms}>>, <<stop-data-frame-transform,Stop {dataframe-transforms}>>
+* <<put-data-frame-transform>> 
+* <<delete-data-frame-transform>>
+* <<get-data-frame-transform>>
+* <<get-data-frame-transform-stats>>
+* <<preview-data-frame-transform>>
+* <<start-data-frame-transform>>
+* <<stop-data-frame-transform>>
 
 //CREATE
 include::put-transform.asciidoc[]

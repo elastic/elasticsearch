@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -62,10 +60,8 @@ public interface UserRoleMapper {
                         Map<String, Object> metadata, RealmConfig realm) {
             this.username = username;
             this.dn = dn;
-            this.groups = groups == null || groups.isEmpty()
-                    ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(groups));
-            this.metadata = metadata == null || metadata.isEmpty()
-                    ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+            this.groups = Set.copyOf(groups);
+            this.metadata = Map.copyOf(metadata);
             this.realm = realm;
         }
 
@@ -84,7 +80,6 @@ public interface UserRoleMapper {
                 model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
             }
             model.defineField("groups", groups, groups.stream()
-                    .filter(group -> group != null)
                     .<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
                     .reduce(Predicate::or)
                     .orElse(fieldValue -> false)

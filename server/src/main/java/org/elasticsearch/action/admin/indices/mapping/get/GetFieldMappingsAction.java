@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class GetFieldMappingsAction extends Action<GetFieldMappingsResponse> {
+public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse> {
 
     public static final GetFieldMappingsAction INSTANCE = new GetFieldMappingsAction();
     public static final String NAME = "indices:admin/mappings/fields/get";
@@ -31,7 +32,7 @@ public class GetFieldMappingsAction extends Action<GetFieldMappingsResponse> {
     }
 
     @Override
-    public GetFieldMappingsResponse newResponse() {
-        return new GetFieldMappingsResponse();
+    public Writeable.Reader<GetFieldMappingsResponse> getResponseReader() {
+        return GetFieldMappingsResponse::new;
     }
 }

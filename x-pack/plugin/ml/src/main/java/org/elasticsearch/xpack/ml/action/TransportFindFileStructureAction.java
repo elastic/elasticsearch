@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinder;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager;
 import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides;
 
+import java.io.InputStream;
+
 public class TransportFindFileStructureAction
     extends HandledTransportAction<FindFileStructureAction.Request, FindFileStructureAction.Response> {
 
@@ -25,7 +27,7 @@ public class TransportFindFileStructureAction
 
     @Inject
     public TransportFindFileStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
-        super(FindFileStructureAction.NAME, transportService, actionFilters, FindFileStructureAction.Request::new);
+        super(FindFileStructureAction.NAME, transportService, FindFileStructureAction.Request::new, actionFilters);
         this.threadPool = threadPool;
     }
 
@@ -48,9 +50,11 @@ public class TransportFindFileStructureAction
 
         FileStructureFinderManager structureFinderManager = new FileStructureFinderManager(threadPool.scheduler());
 
-        FileStructureFinder fileStructureFinder = structureFinderManager.findFileStructure(request.getLinesToSample(),
-            request.getSample().streamInput(), new FileStructureOverrides(request), request.getTimeout());
+        try (InputStream sampleStream = request.getSample().streamInput()) {
+            FileStructureFinder fileStructureFinder = structureFinderManager.findFileStructure(request.getLinesToSample(),
+                request.getLineMergeSizeLimit(), sampleStream, new FileStructureOverrides(request), request.getTimeout());
 
-        return new FindFileStructureAction.Response(fileStructureFinder.getStructure());
+            return new FindFileStructureAction.Response(fileStructureFinder.getStructure());
+        }
     }
 }

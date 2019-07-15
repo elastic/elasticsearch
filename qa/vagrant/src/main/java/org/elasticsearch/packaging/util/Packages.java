@@ -173,8 +173,6 @@ public class Packages {
             es.modules
         ).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
 
-        assertThat(es.pidDir, file(Directory, "elasticsearch", "elasticsearch", p755));
-
         Stream.of(
             es.data,
             es.logs
@@ -246,7 +244,6 @@ public class Packages {
             "elasticsearch-certgen",
             "elasticsearch-certutil",
             "elasticsearch-croneval",
-            "elasticsearch-migrate",
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",

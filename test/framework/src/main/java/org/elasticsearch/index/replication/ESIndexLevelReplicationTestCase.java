@@ -49,6 +49,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -65,7 +66,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -158,7 +159,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     protected DiscoveryNode getDiscoveryNode(String id) {
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
     }
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
@@ -293,7 +294,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             ShardRouting startedRoutingEntry = ShardRoutingHelper.moveToStarted(primary.routingEntry());
             IndexShardRoutingTable routingTable = routingTable(shr -> shr == primary.routingEntry() ? startedRoutingEntry : shr);
             primary.updateShardState(startedRoutingEntry, primary.getPendingPrimaryTerm(), null,
-                currentClusterStateVersion.incrementAndGet(), activeIds, routingTable, Collections.emptySet());
+                currentClusterStateVersion.incrementAndGet(), activeIds, routingTable);
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
             }
@@ -385,7 +386,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             IndexShardRoutingTable routingTable = routingTable(shr -> shr == replica.routingEntry() ? primaryRouting : shr);
 
             primary.updateShardState(primaryRouting, newTerm, primaryReplicaSyncer, currentClusterStateVersion.incrementAndGet(),
-                activeIds(), routingTable, Collections.emptySet());
+                activeIds(), routingTable);
         }
 
         private synchronized Set<String> activeIds() {
@@ -479,7 +480,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             if (closed == false) {
                 closed = true;
                 try {
-                    final List<DocIdSeqNoAndTerm> docsOnPrimary = getDocIdAndSeqNos(primary);
+                    final List<DocIdSeqNoAndSource> docsOnPrimary = getDocIdAndSeqNos(primary);
                     for (IndexShard replica : replicas) {
                         assertThat(replica.getMaxSeenAutoIdTimestamp(), equalTo(primary.getMaxSeenAutoIdTimestamp()));
                         assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(primary.getMaxSeqNoOfUpdatesOrDeletes()));
@@ -520,7 +521,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
                 currentClusterStateVersion.incrementAndGet(),
-                activeIds(), routingTable(Function.identity()), Collections.emptySet());
+                activeIds(), routingTable(Function.identity()));
         }
 
         private synchronized void computeReplicationTargets() {
@@ -551,7 +552,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         public void executeRetentionLeasesSyncRequestOnReplica(RetentionLeaseSyncAction.Request request, IndexShard replica) {
             final PlainActionFuture<Releasable> acquirePermitFuture = new PlainActionFuture<>();
-            replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getGlobalCheckpoint(),
+            replica.acquireReplicaOperationPermit(getPrimary().getOperationPrimaryTerm(), getPrimary().getLastKnownGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(), acquirePermitFuture, ThreadPool.Names.SAME, request);
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
                 replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
@@ -657,7 +658,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             @Override
             public long globalCheckpoint() {
-                return getPrimaryShard().getGlobalCheckpoint();
+                return getPrimaryShard().getLastSyncedGlobalCheckpoint();
+            }
+
+            @Override
+            public long computedGlobalCheckpoint() {
+                return getPrimaryShard().getLastKnownGlobalCheckpoint();
             }
 
             @Override
@@ -691,7 +697,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         try {
                             performOnReplica(request, replica);
                             releasable.close();
-                            delegatedListener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
+                            delegatedListener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(),
+                                replica.getLastKnownGlobalCheckpoint()));
                         } catch (final Exception e) {
                             Releasables.closeWhileHandlingException(releasable);
                             delegatedListener.onFailure(e);
@@ -754,7 +761,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
             executeShardBulkOnReplica(request, replica, getPrimaryShard().getPendingPrimaryTerm(),
-                getPrimaryShard().getGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
+                getPrimaryShard().getLastKnownGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
         }
     }
 
@@ -825,7 +832,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
     void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica, long term) throws Exception {
         executeShardBulkOnReplica(request, replica, term,
-            group.primary.getGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
+            group.primary.getLastKnownGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
     }
 
     /**
@@ -833,7 +840,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      */
     void deleteOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
         executeShardBulkOnReplica(request, replica, group.primary.getPendingPrimaryTerm(),
-            group.primary.getGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
+            group.primary.getLastKnownGlobalCheckpoint(), group.primary.getMaxSeqNoOfUpdatesOrDeletes());
     }
 
     class GlobalCheckpointSync extends ReplicationAction<
@@ -882,7 +889,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected void performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
             executeResyncOnReplica(replica, request, getPrimaryShard().getPendingPrimaryTerm(),
-                getPrimaryShard().getGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
+                getPrimaryShard().getLastKnownGlobalCheckpoint(), getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes());
         }
     }
 

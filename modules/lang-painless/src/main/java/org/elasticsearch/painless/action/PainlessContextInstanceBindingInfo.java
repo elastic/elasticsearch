@@ -135,4 +135,30 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
     public int hashCode() {
         return Objects.hash(declaring, name, rtn, parameters);
     }
+
+    @Override
+    public String toString() {
+        return "PainlessContextInstanceBindingInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", name='" + name + '\'' +
+                ", rtn='" + rtn + '\'' +
+                ", parameters=" + parameters +
+                '}';
+    }
+
+    public String getDeclaring() {
+        return declaring;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getRtn() {
+        return rtn;
+    }
+
+    public List<String> getParameters() {
+        return parameters;
+    }
 }

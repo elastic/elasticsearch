@@ -36,7 +36,7 @@ specific index module:
 
 `index.number_of_shards`::
 
-    The number of primary shards that an index should have.  Defaults to 5.
+    The number of primary shards that an index should have.  Defaults to 1.
     This setting can only be set at index creation time.  It cannot be
     changed on a closed index. Note: the number of shards are limited to `1024` per
     index. This limitation is a safety limit to prevent accidental creation of indices
@@ -45,26 +45,17 @@ specific index module:
     part of the cluster.
 
 `index.shard.check_on_startup`::
-+
---
+
 Whether or not shards should be checked for corruption before opening. When
-corruption is detected, it will prevent the shard from being opened. Accepts:
-
-`false`::
-
-    (default) Don't check for corruption when opening a shard.
-
-`checksum`::
-
-    Check for physical corruption.
-
-`true`::
-
-    Check for both physical and logical corruption. This is much more
-    expensive in terms of CPU and memory usage.
-
-WARNING: Expert only. Checking shards may take a lot of time on large indices.
---
+corruption is detected, it will prevent the shard from being opened.
+Accepts:
+`false`::: (default) Don't check for corruption when opening a shard.
+`checksum`::: Check for physical corruption.
+`true`::: Check for both physical and logical corruption. This is much more
+expensive in terms of CPU and memory usage.
++
+WARNING: Expert only. Checking shards may take a lot of time on large
+indices.
 
 [[index-codec]] `index.codec`::
 
@@ -208,6 +199,7 @@ specific index module:
      This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
      Defaults to `1000000`.
 
+[[index-max-terms-count]]
  `index.max_terms_count`::
 
     The maximum number of terms that can be used in Terms Query.
@@ -286,6 +278,7 @@ Other index settings are available in index modules:
     Control over the transaction log and background flush operations.
 
 [float]
+[[x-pack-index-settings]]
 === [xpack]#{xpack} index settings#
 
 <<ilm-settings,{ilm-cap}>>::

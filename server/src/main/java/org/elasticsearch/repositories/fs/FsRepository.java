@@ -66,14 +66,12 @@ public class FsRepository extends BlobStoreRepository {
 
     private final ByteSizeValue chunkSize;
 
-    private final BlobPath basePath;
-
     /**
      * Constructs a shared file system repository.
      */
     public FsRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
                         ThreadPool threadPool) {
-        super(metadata, environment.settings(), namedXContentRegistry, threadPool);
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
@@ -101,7 +99,6 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
-        this.basePath = BlobPath.cleanPath();
     }
 
     @Override
@@ -114,10 +111,5 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
     }
 }

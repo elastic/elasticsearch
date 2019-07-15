@@ -65,7 +65,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest, String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, request, actionFilters);
         this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
@@ -119,15 +119,11 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
      */
     protected abstract NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures);
 
-    protected abstract NodeRequest newNodeRequest(String nodeId, NodesRequest request);
+    protected abstract NodeRequest newNodeRequest(NodesRequest request);
 
     protected abstract NodeResponse newNodeResponse();
 
-    protected abstract NodeResponse nodeOperation(NodeRequest request);
-
-    protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        return nodeOperation(request);
-    }
+    protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     /**
      * resolve node ids to concrete nodes of the incoming request
@@ -174,7 +170,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 final DiscoveryNode node = nodes[i];
                 final String nodeId = node.getId();
                 try {
-                    TransportRequest nodeRequest = newNodeRequest(nodeId, request);
+                    TransportRequest nodeRequest = newNodeRequest(request);
                     if (task != null) {
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }

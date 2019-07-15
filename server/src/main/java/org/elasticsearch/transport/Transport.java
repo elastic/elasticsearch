@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -68,24 +67,22 @@ public interface Transport extends LifecycleComponent {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
+    TransportAddress[] addressesFromString(String address) throws UnknownHostException;
 
     /**
-     * Returns a list of all local adresses for this transport
+     * Returns a list of all local addresses for this transport
      */
-    List<String> getLocalAddresses();
+    List<String> getDefaultSeedAddresses();
 
     default CircuitBreaker getInFlightRequestBreaker() {
         return new NoopCircuitBreaker("in-flight-noop");
     }
 
     /**
-     * Opens a new connection to the given node. When the connection is fully connected, the listener is
-     * called. A {@link Releasable} is returned representing the pending connection. If the caller of this
-     * method decides to move on before the listener is called with the completed connection, they should
-     * release the pending connection to prevent hanging connections.
+     * Opens a new connection to the given node. When the connection is fully connected, the listener is called.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
      */
-    Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
+    void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Transport.Connection> listener);
 
     TransportStats getStats();
 

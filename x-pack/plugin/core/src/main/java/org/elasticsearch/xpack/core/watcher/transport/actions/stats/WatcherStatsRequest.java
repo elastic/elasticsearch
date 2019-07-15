@@ -83,8 +83,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
         public Node() {}
 
-        public Node(WatcherStatsRequest request, String nodeId) {
-            super(nodeId);
+        public Node(WatcherStatsRequest request) {
             includeCurrentWatches = request.includeCurrentWatches();
             includeQueuedWatches = request.includeQueuedWatches();
             includeStats = request.includeStats();

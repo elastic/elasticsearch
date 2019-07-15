@@ -49,12 +49,11 @@ public abstract class BroadcastShardResponse extends TransportResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardId.writeTo(out);
     }
 }

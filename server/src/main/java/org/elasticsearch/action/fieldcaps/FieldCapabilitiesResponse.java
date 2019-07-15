@@ -108,7 +108,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             indices = in.readStringArray();
         } else {
             indices = Strings.EMPTY_ARRAY;
@@ -123,8 +123,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeStringArray(indices);
         }
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);

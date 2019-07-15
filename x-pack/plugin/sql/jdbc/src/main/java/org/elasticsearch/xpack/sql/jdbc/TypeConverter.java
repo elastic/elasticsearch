@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geo.utils.StandardValidator;
+import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
+import java.io.IOException;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -50,6 +54,8 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
  * NULL, BOOLEAN, TINYINT, SMALLINT, INTEGER, BIGINT, DOUBLE, REAL, FLOAT, VARCHAR, VARBINARY and TIMESTAMP
  */
 final class TypeConverter {
+
+    private static WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     private TypeConverter() {}
 
@@ -98,6 +104,7 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
+
 
 
     static long convertFromCalendarToUTC(long value, Calendar cal) {
@@ -239,6 +246,13 @@ final class TypeConverter {
             case INTERVAL_HOUR_TO_SECOND:
             case INTERVAL_MINUTE_TO_SECOND:
                 return Duration.parse(v.toString());
+            case GEO_POINT:
+            case GEO_SHAPE:
+                try {
+                    return WKT.fromWKT(v.toString());
+                } catch (IOException | ParseException ex) {
+                    throw new SQLException("Cannot parse geo_shape", ex);
+                }
             case IP:
                 return v.toString();
             default:

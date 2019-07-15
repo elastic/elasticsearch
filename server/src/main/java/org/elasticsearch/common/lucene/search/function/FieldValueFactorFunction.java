@@ -84,8 +84,14 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 double val = value * boostFactor;
                 double result = modifier.apply(val);
                 if (result < 0f) {
-                    throw new IllegalArgumentException("field value function must not produce negative scores, but got: [" +
-                        result + "] for field value: [" + value + "]");
+                    String message = "field value function must not produce negative scores, but got: " +
+                            "[" + result + "] for field value: [" + value + "]";
+                    if (modifier == Modifier.LN) {
+                        message += "; consider using ln1p or ln2p instead of ln to avoid negative scores";
+                    } else if (modifier == Modifier.LOG) {
+                        message += "; consider using log1p or log2p instead of log to avoid negative scores";
+                    }
+                    throw new IllegalArgumentException(message);
                 }
                 return result;
             }

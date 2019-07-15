@@ -54,7 +54,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
     }
 
     @Override
-    protected void onException(HttpChannel channel, Exception e) {
+    public void onException(HttpChannel channel, Exception e) {
         securityExceptionHandler.accept(channel, e);
     }
 

@@ -44,7 +44,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
@@ -356,13 +355,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         );
 
         client().prepareIndex("test", "type", "1")
-                .setSource(jsonBuilder().startObject().field("query", commonTermsQuery("field1", "quick brown fox")).endObject())
-                .get();
-        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query", multiMatchQuery("quick brown fox", "field1", "field2")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).endObject())
                 .get();
-        client().prepareIndex("test", "type", "3")
+        client().prepareIndex("test", "type", "2")
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNearQuery(spanTermQuery("field1", "quick"), 0)
                                 .addClause(spanTermQuery("field1", "brown"))
@@ -372,7 +368,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .get();
         client().admin().indices().prepareRefresh().get();
 
-        client().prepareIndex("test", "type", "4")
+        client().prepareIndex("test", "type", "3")
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
@@ -387,7 +383,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .get();
 
         // doesn't match
-        client().prepareIndex("test", "type", "5")
+        client().prepareIndex("test", "type", "4")
                 .setSource(jsonBuilder().startObject().field("query",
                         spanNotQuery(
                                 spanNearQuery(spanTermQuery("field1", "quick"), 0)
@@ -410,15 +406,13 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
                 .addSort("_id", SortOrder.ASC)
                 .get();
-        assertHitCount(response, 4);
+        assertHitCount(response, 3);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(1).getScore(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(2).getScore(), equalTo(Float.NaN));
-        assertThat(response.getHits().getAt(3).getId(), equalTo("4"));
-        assertThat(response.getHits().getAt(3).getScore(), equalTo(Float.NaN));
     }
 
     public void testPercolatorQueryWithHighlighting() throws Exception {

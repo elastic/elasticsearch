@@ -17,18 +17,17 @@
  * under the License.
  */
 
+
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
-
-integTestCluster {
-    plugin ':plugins:repository-gcs'
-}
 
 boolean useFixture = false
 
@@ -87,14 +86,20 @@ processTestResources {
     MavenFilteringHack.filter(it, expansions)
 }
 
-integTestCluster {
-    keystoreFile 'gcs.client.integration_test.credentials_file', "${serviceAccountFile.absolutePath}"
+integTest {
+    dependsOn project(':plugins:repository-gcs').bundlePlugin
+}
+
+testClusters.integTest {
+    plugin file(project(':plugins:repository-gcs').bundlePlugin.archiveFile)
+
+    keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
 
     if (useFixture) {
-        dependsOn createServiceAccountFile, googleCloudStorageFixture
+        tasks.integTest.dependsOn createServiceAccountFile, googleCloudStorageFixture
         /* Use a closure on the string to delay evaluation until tests are executed */
-        setting 'gcs.client.integration_test.endpoint', "http://${ -> googleCloudStorageFixture.addressAndPort }"
-        setting 'gcs.client.integration_test.token_uri', "http://${ -> googleCloudStorageFixture.addressAndPort }/o/oauth2/token"
+        setting 'gcs.client.integration_test.endpoint', { "http://${googleCloudStorageFixture.addressAndPort}" }, IGNORE_VALUE
+        setting 'gcs.client.integration_test.token_uri', { "http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token" }, IGNORE_VALUE
     } else {
         println "Using an external service to test the repository-gcs plugin"
     }

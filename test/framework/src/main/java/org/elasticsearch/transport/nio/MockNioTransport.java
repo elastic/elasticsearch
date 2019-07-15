@@ -31,16 +31,18 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
+import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -56,11 +58,17 @@ import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -69,6 +77,7 @@ public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);
 
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
+    private final TransportThreadWatchdog transportThreadWatchdog;
     private volatile NioSelectorGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
@@ -76,6 +85,7 @@ public class MockNioTransport extends TcpTransport {
                             PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                             CircuitBreakerService circuitBreakerService) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        this.transportThreadWatchdog = new TransportThreadWatchdog(threadPool, settings);
     }
 
     @Override
@@ -95,7 +105,7 @@ public class MockNioTransport extends TcpTransport {
         boolean success = false;
         try {
             nioGroup = new NioSelectorGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
-                (s) -> new TestEventHandler(this::onNonChannelException, s, System::nanoTime));
+                (s) -> new TestEventHandler(this::onNonChannelException, s, transportThreadWatchdog));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new MockTcpChannelFactory(true, clientProfileSettings, "client");
@@ -124,6 +134,7 @@ public class MockNioTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         try {
+            transportThreadWatchdog.stop();
             nioGroup.close();
         } catch (Exception e) {
             logger.warn("unexpected exception while stopping nio group", e);
@@ -191,9 +202,13 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             MockSocketChannel nioChannel = new MockSocketChannel(isClient == false, profileName, channel);
-            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
-                Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
+            IntFunction<Page> pageSupplier = (length) -> {
+                if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
+                    return new Page(ByteBuffer.allocate(length), () -> {});
+                } else {
+                    Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
+                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes::close);
+                }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
@@ -214,12 +229,25 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
             MockServerChannel nioServerChannel = new MockServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
-            ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
-                exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioServerChannel, null, selector, null,
+                exceptionHandler) {
+                @Override
+                public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
+                    int acceptCount = 0;
+                    NioSocketChannel acceptedChannel;
+                    while ((acceptedChannel = MockTcpChannelFactory.this.acceptNioChannel(this, selectorSupplier)) != null) {
+                        acceptChannel(acceptedChannel);
+                        ++acceptCount;
+                        if (acceptCount % 100 == 0) {
+                            logger.warn("Accepted [{}] connections in a single select loop iteration on [{}]", acceptCount, channel);
+                        }
+                    }
+                }
+            };
             nioServerChannel.setContext(context);
             return nioServerChannel;
         }
@@ -304,6 +332,67 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
             getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        }
+    }
+
+    static final class TransportThreadWatchdog {
+        // Only check every 2s to not flood the logs on a blocked thread.
+        // We mostly care about long blocks and not random slowness anyway and in tests would randomly catch slow operations that block for
+        // less than 2s eventually.
+        private static final TimeValue CHECK_INTERVAL = TimeValue.timeValueSeconds(2);
+
+        private final long warnThreshold;
+        private final ThreadPool threadPool;
+        private final ConcurrentHashMap<Thread, Long> registry = new ConcurrentHashMap<>();
+
+        private volatile boolean stopped;
+
+        TransportThreadWatchdog(ThreadPool threadPool, Settings settings) {
+            this.threadPool = threadPool;
+            warnThreshold = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(settings).nanos() + TimeValue.timeValueMillis(100L).nanos();
+            threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
+        }
+
+        public boolean register() {
+            Long previousValue = registry.put(Thread.currentThread(), threadPool.relativeTimeInNanos());
+            return previousValue == null;
+        }
+
+        public void unregister() {
+            Long previousValue = registry.remove(Thread.currentThread());
+            assert previousValue != null;
+            maybeLogElapsedTime(previousValue);
+        }
+
+        private void maybeLogElapsedTime(long startTime) {
+            long elapsedTime = threadPool.relativeTimeInNanos() - startTime;
+            if (elapsedTime > warnThreshold) {
+                logger.warn(
+                    new ParameterizedMessage("Slow execution on network thread [{} milliseconds]",
+                        TimeUnit.NANOSECONDS.toMillis(elapsedTime)),
+                    new RuntimeException("Slow exception on network thread"));
+            }
+        }
+
+        private void logLongRunningExecutions() {
+            for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
+                final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - entry.getValue();
+                if (elapsedTimeInNanos > warnThreshold) {
+                    final Thread thread = entry.getKey();
+                    logger.warn("Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
+                        thread.getName(),
+                        thread.getState(),
+                        TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos),
+                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
+                }
+            }
+            if (stopped == false) {
+                threadPool.scheduleUnlessShuttingDown(CHECK_INTERVAL, ThreadPool.Names.GENERIC, this::logLongRunningExecutions);
+            }
+        }
+
+        public void stop() {
+            stopped = true;
         }
     }
 }

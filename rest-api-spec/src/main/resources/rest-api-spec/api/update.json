@@ -1,10 +1,17 @@
 {
   "update": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-update.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_update/{id}",
-      "paths": ["/{index}/_update/{id}", "/{index}/{type}/{id}/_update"],
+      "paths": ["/{index}/_update/{id}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}/_update",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type": "string",
@@ -41,10 +48,6 @@
         "lang": {
           "type": "string",
           "description": "The script language (default: painless)"
-        },
-        "parent": {
-          "type": "string",
-          "description": "ID of the parent document. Is is only used for routing and when for the upsert request"
         },
         "refresh": {
           "type" : "enum",

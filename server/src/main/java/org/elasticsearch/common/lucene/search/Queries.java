@@ -20,7 +20,6 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -31,7 +30,6 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
@@ -72,17 +70,9 @@ public class Queries {
 
     /**
      * Creates a new non-nested docs query
-     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNonNestedFilter(Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
-            return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-        } else {
-            return new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), Occur.FILTER)
-                .add(newNestedFilter(), Occur.MUST_NOT)
-                .build();
-        }
+    public static Query newNonNestedFilter() {
+        return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -157,8 +147,6 @@ public class Queries {
     public static Query maybeApplyMinimumShouldMatch(Query query, @Nullable String minimumShouldMatch) {
         if (query instanceof BooleanQuery) {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        } else if (query instanceof ExtendedCommonTermsQuery) {
-            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
         }
         return query;
     }

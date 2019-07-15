@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -49,8 +50,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -59,10 +60,10 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -169,17 +170,14 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
-        protected String nodeId;
         protected boolean shouldBlock;
 
         public NodeRequest() {
             super();
         }
 
-        public NodeRequest(NodesRequest request, String nodeId, boolean shouldBlock) {
-            super(nodeId);
+        public NodeRequest(NodesRequest request, boolean shouldBlock) {
             requestName = request.requestName;
-            this.nodeId = nodeId;
             this.shouldBlock = shouldBlock;
         }
 
@@ -187,7 +185,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             requestName = in.readString();
-            nodeId = in.readString();
             shouldBlock = in.readBoolean();
         }
 
@@ -195,13 +192,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(requestName);
-            out.writeString(nodeId);
             out.writeBoolean(shouldBlock);
         }
 
         @Override
         public String getDescription() {
-            return "NodeRequest[" + requestName + ", " + nodeId + "]";
+            return "NodeRequest[" + requestName + "]";
         }
 
         @Override
@@ -301,8 +297,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
 
         @Override
-        protected NodeRequest newNodeRequest(String nodeId, NodesRequest request) {
-            return new NodeRequest(request, nodeId, request.getShouldBlock());
+        protected NodeRequest newNodeRequest(NodesRequest request) {
+            return new NodeRequest(request, request.getShouldBlock());
         }
 
         @Override
@@ -333,15 +329,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             logger.info("Test task finished on the node {}", clusterService.localNode());
             return new NodeResponse(clusterService.localNode());
         }
-
-        @Override
-        protected NodeResponse nodeOperation(NodeRequest request) {
-            throw new UnsupportedOperationException("the task parameter is required");
-        }
-
     }
 
-    public static class TestTaskAction extends Action<NodesResponse> {
+    public static class TestTaskAction extends StreamableResponseActionType<NodesResponse> {
 
         public static final TestTaskAction INSTANCE = new TestTaskAction();
         public static final String NAME = "cluster:admin/tasks/test";
@@ -358,7 +348,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     public static class NodesRequestBuilder extends NodesOperationRequestBuilder<NodesRequest, NodesResponse, NodesRequestBuilder> {
 
-        protected NodesRequestBuilder(ElasticsearchClient client, Action<NodesResponse> action) {
+        protected NodesRequestBuilder(ElasticsearchClient client, ActionType<NodesResponse> action) {
             super(client, action, new NodesRequest("test"));
         }
 
@@ -416,7 +406,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends
             FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
         public UnblockTestTasksResponse(StreamInput in) throws IOException {
@@ -466,18 +456,13 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     }
 
-    public static class UnblockTestTasksAction extends Action<UnblockTestTasksResponse> {
+    public static class UnblockTestTasksAction extends ActionType<UnblockTestTasksResponse> {
 
         public static final UnblockTestTasksAction INSTANCE = new UnblockTestTasksAction();
         public static final String NAME = "cluster:admin/tasks/testunblock";
 
         private UnblockTestTasksAction() {
             super(NAME);
-        }
-
-        @Override
-        public UnblockTestTasksResponse newResponse() {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -489,7 +474,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse> {
 
         protected UnblockTestTasksRequestBuilder(ElasticsearchClient client,
-                                                 Action<UnblockTestTasksResponse> action) {
+                                                 ActionType<UnblockTestTasksResponse> action) {
             super(client, action, new UnblockTestTasksRequest());
         }
     }

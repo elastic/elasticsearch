@@ -23,6 +23,7 @@ import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+@Ignore("https://github.com/elastic/elasticsearch/issues/42453")
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
@@ -75,7 +77,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     }
 
     public void testCurrentExamplePlugin() throws IOException {
-        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot());
+        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
 
         adaptBuildScriptForTest();
 
@@ -99,6 +101,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             "buildscript {\n" +
                 "    repositories {\n" +
                 "        maven {\n" +
+                "            name = \"test\"\n" +
                 "            url = '" + getLocalTestRepoPath() + "'\n" +
                 "        }\n" +
                 "    }\n" +
@@ -117,12 +120,14 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision");
         if (luceneSnapshotRepo != null) {
             luceneSnapshotRepo =  "  maven {\n" +
-                "    url \"http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
+                "    name \"lucene-snapshots\"\n" +
+                "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
                 "  }\n";
         }
         writeBuildScript("\n" +
                 "repositories {\n" +
                 "  maven {\n" +
+                "    name \"test\"\n" +
                 "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
                 "  flatDir {\n" +
@@ -153,5 +158,4 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             throw new RuntimeException(e);
         }
     }
-
 }

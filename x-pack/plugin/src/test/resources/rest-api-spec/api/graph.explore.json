@@ -1,10 +1,17 @@
 {
   "graph.explore": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/{index}/_graph/explore",
-      "paths": ["/{index}/_graph/explore", "/{index}/{type}/_graph/explore"],
+      "paths": ["/{index}/_graph/explore"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_graph/explore",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts" : {
         "index": {
          "type" : "list",

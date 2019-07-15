@@ -54,8 +54,8 @@
 ---
 "Flush parameters validation":
   - skip:
-      version: " - 7.0.99"
-      reason: flush parameters validation is introduced in 7.1.0
+      version: " - 7.1.99"
+      reason: flush parameters validation is introduced in 7.2.0
   - do:
       indices.create:
         index: test

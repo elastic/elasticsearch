@@ -39,7 +39,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
     private final Map<String, Object> source;
     private final QueryBuilder query;
 
-    static QueryConfig matchAll() {
+    public static QueryConfig matchAll() {
         return new QueryConfig(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()),
             new MatchAllQueryBuilder());
     }

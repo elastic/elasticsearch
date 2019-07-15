@@ -20,7 +20,9 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -37,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,7 +52,7 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 /**
- * Transport client that collects snapshot shard statuses from data nodes
+ * Transport action that collects snapshot shard statuses from data nodes
  */
 public class TransportNodesSnapshotsStatus extends TransportNodesAction<TransportNodesSnapshotsStatus.Request,
                                                                         TransportNodesSnapshotsStatus.NodesSnapshotStatus,
@@ -57,6 +60,12 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                                                                         TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
     public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
+    public static final ActionType<NodesSnapshotStatus> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public NodesSnapshotStatus newResponse() {
+            return new TransportNodesSnapshotsStatus.NodesSnapshotStatus();
+        }
+    };
 
     private final SnapshotShardsService snapshotShardsService;
 
@@ -70,8 +79,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -85,7 +94,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     @Override
-    protected NodeSnapshotStatus nodeOperation(NodeRequest request) {
+    protected NodeSnapshotStatus nodeOperation(NodeRequest request, Task task) {
         Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>();
         try {
             final String nodeId = clusterService.localNode().getId();
@@ -147,6 +156,10 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
 
+        public NodesSnapshotStatus() {
+
+        }
+
         public NodesSnapshotStatus(ClusterName clusterName, List<NodeSnapshotStatus> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
@@ -170,8 +183,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesSnapshotsStatus.Request request) {
-            super(nodeId);
+        NodeRequest(TransportNodesSnapshotsStatus.Request request) {
             snapshots = Arrays.asList(request.snapshots);
         }
 
@@ -214,7 +226,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                 int numberOfShards = in.readVInt();
                 Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>(numberOfShards);
                 for (int j = 0; j < numberOfShards; j++) {
-                    ShardId shardId =  ShardId.readShardId(in);
+                    ShardId shardId =  new ShardId(in);
                     SnapshotIndexShardStatus status = SnapshotIndexShardStatus.readShardSnapshotStatus(in);
                     shardMapBuilder.put(shardId, status);
                 }

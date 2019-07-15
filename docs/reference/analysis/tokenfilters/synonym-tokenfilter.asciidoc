@@ -43,6 +43,8 @@ Additional settings are:
 * `expand` (defaults to `true`).
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
+ 
+
 
 [source,js]
 --------------------------------------------------
@@ -83,6 +85,7 @@ stop word.
 
 
 [float]
+[[synonym-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
@@ -176,3 +179,7 @@ multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
 token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
 error.
+
+If you need to build analyzers that include both multi-token filters and synonym
+filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter,
+with the multi-token filters in one branch and the synonym filter in the other.

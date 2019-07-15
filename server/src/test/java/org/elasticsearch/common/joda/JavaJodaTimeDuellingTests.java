@@ -38,6 +38,26 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
 
+    //these parsers should allow both ',' and '.' as a decimal point
+    public void testDecimalPointParsing(){
+        assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time");
+        assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time");
+
+        assertSameDate("2001-01-01T00:00:00.123Z", "date_optional_time");
+        assertSameDate("2001-01-01T00:00:00,123Z", "date_optional_time");
+
+        // only java.time has nanos parsing, but the results for 3digits should be the same
+        DateFormatter jodaFormatter = Joda.forPattern("strict_date_optional_time");
+        DateFormatter javaFormatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time_nanos", jodaFormatter, javaFormatter);
+        assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time_nanos", jodaFormatter, javaFormatter);
+
+        assertParseException("2001-01-01T00:00:00.123,456Z", "strict_date_optional_time");
+        assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time");
+        //This should fail, but java is ok with this because the field has the same value
+//        assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
+    }
+
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");
         // the following fail under java 8 but work under java 10, needs investigation
@@ -733,14 +753,21 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         JodaDateFormatter jodaFormatter = new JodaDateFormatter(format, isoFormatter, isoFormatter);
         DateFormatter javaFormatter = DateFormatter.forPattern(format);
 
+        assertSameDate("2018-10-10", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10+0430", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11-08:00", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11Z", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12+0100", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12.123", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12.123Z", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123+0000", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12,123", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12,123Z", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123+05:30", format, jodaFormatter, javaFormatter);
     }
 
     public void testParsingMissingTimezone() {

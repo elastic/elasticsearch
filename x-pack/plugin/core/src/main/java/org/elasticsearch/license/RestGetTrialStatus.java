@@ -7,17 +7,17 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetTrialStatus extends XPackRestHandler {
+public class RestGetTrialStatus extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetTrialStatus.class));
 
@@ -26,12 +26,12 @@ public class RestGetTrialStatus extends XPackRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, "/_license/trial_status", this,
-                GET, URI_BASE + "/license/trial_status", deprecationLogger);
+                GET, "/_xpack/license/trial_status", deprecationLogger);
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) {
-        return channel -> client.licensing().prepareGetStartTrial().execute(new RestToXContentListener<>(channel));
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        return channel -> new GetTrialStatusRequestBuilder(client).execute(new RestToXContentListener<>(channel));
     }
 
     @Override

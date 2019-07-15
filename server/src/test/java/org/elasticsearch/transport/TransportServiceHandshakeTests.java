@@ -20,8 +20,8 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -110,7 +110,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, TestProfiles.LIGHT_PROFILE)){
-            DiscoveryNode connectedNode = handleA.transportService.handshake(connection, timeout);
+            DiscoveryNode connectedNode = PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, fut));
             assertNotNull(connectedNode);
             // the name and version should be updated
             assertEquals(connectedNode.getName(), "TS_B");
@@ -132,7 +132,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
                 TestProfiles.LIGHT_PROFILE)) {
-                handleA.transportService.handshake(connection, timeout);
+                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
         assertThat(ex.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
@@ -153,7 +153,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
                 TestProfiles.LIGHT_PROFILE)) {
-                handleA.transportService.handshake(connection, timeout);
+                PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
         assertThat(ex.getMessage(), containsString("handshake failed, incompatible version"));
@@ -176,43 +176,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("unexpected remote node"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
-
-    public void testNodeConnectWithDifferentNodeIdSucceedsIfThisIsTransportClientOfSimpleNodeSampler() {
-        Settings.Builder settings = Settings.builder().put("cluster.name", "test");
-        Settings transportClientSettings = settings.put(Client.CLIENT_TYPE_SETTING_S.getKey(), TransportClient.CLIENT_TYPE).build();
-        NetworkHandle handleA = startServices("TS_A", transportClientSettings, Version.CURRENT);
-        NetworkHandle handleB = startServices("TS_B", settings.build(), Version.CURRENT);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            randomAlphaOfLength(10),
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            handleB.discoveryNode.getVersion());
-
-        handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE);
-        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
-    }
-
-    public void testNodeConnectWithDifferentNodeIdFailsWhenSnifferTransportClient() {
-        Settings.Builder settings = Settings.builder().put("cluster.name", "test");
-        Settings transportClientSettings = settings.put(Client.CLIENT_TYPE_SETTING_S.getKey(), TransportClient.CLIENT_TYPE)
-            .put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), true)
-            .build();
-        NetworkHandle handleA = startServices("TS_A", transportClientSettings, Version.CURRENT);
-        NetworkHandle handleB = startServices("TS_B", settings.build(), Version.CURRENT);
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            randomAlphaOfLength(10),
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            handleB.discoveryNode.getVersion());
-        ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> {
-            handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE);
-        });
-        assertThat(ex.getMessage(), containsString("unexpected remote node"));
-        assertFalse(handleA.transportService.nodeConnected(discoveryNode));
-    }
-
 
     private static class NetworkHandle {
         private TransportService transportService;

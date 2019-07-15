@@ -46,6 +46,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StGeometryType;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosql;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StX;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StY;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StZ;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -94,8 +101,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
@@ -169,7 +178,9 @@ public class FunctionRegistry {
         addToMap(def(Histogram.class, Histogram::new, "HISTOGRAM"));
         // Scalar functions
         // Conditional
-        addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
+        addToMap(def(Case.class, Case::new, "CASE"),
+                def(Coalesce.class, Coalesce::new, "COALESCE"),
+                def(Iif.class, Iif::new, "IIF"),
                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
@@ -245,11 +256,23 @@ public class FunctionRegistry {
                 def(Space.class, Space::new, "SPACE"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
                 def(UCase.class, UCase::new, "UCASE"));
+
         // DataType conversion
         addToMap(def(Cast.class, Cast::new, "CAST", "CONVERT"));
         // Scalar "meta" functions
         addToMap(def(Database.class, Database::new, "DATABASE"),
                 def(User.class, User::new, "USER"));
+
+        // Geo Functions
+        addToMap(def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
+                def(StDistance.class, StDistance::new, "ST_DISTANCE"),
+                def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
+                def(StGeometryType.class, StGeometryType::new, "ST_GEOMETRYTYPE"),
+                def(StX.class, StX::new, "ST_X"),
+                def(StY.class, StY::new, "ST_Y"),
+                def(StZ.class, StZ::new, "ST_Z")
+        );
+
         // Special
         addToMap(def(Score.class, Score::new, "SCORE"));
     }
@@ -542,10 +565,10 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            boolean isLocateFunction = function.isAssignableFrom(Locate.class);
-            if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
+            boolean hasMinimumTwo = function.isAssignableFrom(Locate.class) || function.isAssignableFrom(Iif.class);
+            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new SqlIllegalArgumentException("expects two or three arguments");
-            } else if (!isLocateFunction && children.size() != 3) {
+            } else if (!hasMinimumTwo && children.size() != 3) {
                 throw new SqlIllegalArgumentException("expects exactly three arguments");
             }
             if (distinct) {

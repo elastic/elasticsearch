@@ -40,7 +40,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     public TransportSamlAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, AuthenticationService authenticationService,
                                            TokenService tokenService) {
-        super(SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
+        super(SamlAuthenticateAction.NAME, transportService, SamlAuthenticateRequest::new, actionFilters);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
@@ -63,10 +63,9 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
                 tokenService.createOAuth2Tokens(authentication, originatingAuthentication,
                         tokenMeta, true, ActionListener.wrap(tuple -> {
-                            final String tokenString = tokenService.getAccessTokenAsString(tuple.v1());
                             final TimeValue expiresIn = tokenService.getExpirationDelay();
                             listener.onResponse(
-                                    new SamlAuthenticateResponse(authentication.getUser().principal(), tokenString, tuple.v2(), expiresIn));
+                                    new SamlAuthenticateResponse(authentication.getUser().principal(), tuple.v1(), tuple.v2(), expiresIn));
                         }, listener::onFailure));
             }, e -> {
                 logger.debug(() -> new ParameterizedMessage("SamlToken [{}] could not be authenticated", saml), e);

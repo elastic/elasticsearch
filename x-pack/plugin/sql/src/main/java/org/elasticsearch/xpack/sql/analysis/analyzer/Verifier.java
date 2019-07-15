@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
+import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
 
 /**
  * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.
@@ -131,7 +132,6 @@ public final class Verifier {
 
         // start bottom-up
         plan.forEachUp(p -> {
-
             if (p.analyzed()) {
                 return;
             }
@@ -236,6 +236,7 @@ public final class Verifier {
 
                 checkForScoreInsideFunctions(p, localFailures);
                 checkNestedUsedInGroupByOrHaving(p, localFailures);
+                checkForGeoFunctionsOnDocValues(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -718,5 +719,34 @@ public final class Verifier {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
         }
+    }
+
+    /**
+     * Makes sure that geo shapes do not appear in filter, aggregation and sorting contexts
+     */
+    private static void checkForGeoFunctionsOnDocValues(LogicalPlan p, Set<Failure> localFailures) {
+
+        p.forEachDown(f -> {
+            f.condition().forEachUp(fa -> {
+                if (fa.field().getDataType() == GEO_SHAPE) {
+                    localFailures.add(fail(fa, "geo shapes cannot be used for filtering"));
+                }
+            }, FieldAttribute.class);
+        }, Filter.class);
+
+        // geo shape fields shouldn't be used in aggregates or having (yet)
+        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(fa -> {
+            if (fa.field().getDataType() == GEO_SHAPE) {
+                localFailures.add(fail(fa, "geo shapes cannot be used in grouping"));
+            }
+        }, FieldAttribute.class)), Aggregate.class);
+
+
+        // geo shape fields shouldn't be used in order by clauses
+        p.forEachDown(o -> o.order().forEach(agg -> agg.forEachUp(fa -> {
+            if (fa.field().getDataType() == GEO_SHAPE) {
+                localFailures.add(fail(fa, "geo shapes cannot be used for sorting"));
+            }
+        }, FieldAttribute.class)), OrderBy.class);
     }
 }

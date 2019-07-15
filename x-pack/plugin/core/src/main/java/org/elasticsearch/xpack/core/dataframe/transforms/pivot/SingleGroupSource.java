@@ -7,16 +7,19 @@
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -93,6 +96,10 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     public abstract Type getType();
 
+    public abstract boolean supportsIncrementalBucketUpdate();
+
+    public abstract QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets);
+
     public String getField() {
         return field;
     }
@@ -115,5 +122,10 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(field);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

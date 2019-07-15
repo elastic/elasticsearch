@@ -110,10 +110,42 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         }
     }
 
+    /**
+     * Check that this query is generally not cacheable and explicitly testing the two conditions when it is not as well
+     */
     @Override
-    protected boolean isCacheable(TermsSetQueryBuilder queryBuilder) {
-        return queryBuilder.getMinimumShouldMatchField() != null ||
+    public void testCacheability() throws IOException {
+        TermsSetQueryBuilder queryBuilder = createTestQueryBuilder();
+        boolean isCacheable = queryBuilder.getMinimumShouldMatchField() != null ||
                 (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty());
+        QueryShardContext context = createShardContext();
+        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(queryBuilder.doToQuery(context));
+        assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
+                context.isCacheable());
+
+        // specifically trigger the two cases where query is cacheable
+        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder.setMinimumShouldMatchField("m_s_m");
+        context = createShardContext();
+        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(queryBuilder.doToQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.emptyList());
+        queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
+        context = createShardContext();
+        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(queryBuilder.doToQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        // also test one case where query is not cacheable
+        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
+        context = createShardContext();
+        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(queryBuilder.doToQuery(context));
+        assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
     @Override

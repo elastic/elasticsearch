@@ -235,8 +235,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                         "translog file doesn't exist with generation: " + i + " recovering from: " + minGenerationToRecoverFrom
                             + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive");
                 }
-                final TranslogReader reader = openReader(committedTranslogFile,
-                    i == checkpoint.generation ? checkpoint : Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))));
+                final Checkpoint readerCheckpoint = i == checkpoint.generation ? checkpoint
+                    : Checkpoint.read(location.resolve(getCommitCheckpointFileName(i)));
+                final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint);
                 assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong() :
                     "Primary terms go backwards; current term [" + primaryTermSupplier.getAsLong() + "] translog path [ "
                         + committedTranslogFile + ", existing term [" + reader.getPrimaryTerm() + "]";

@@ -123,7 +123,7 @@ public class BatchedRerouteService implements RerouteService {
                                 pendingRerouteListeners = null;
                             }
                         }
-                        currentListeners.forEach(l -> l.onFailure(new NotMasterException("delayed reroute [" + reason + "] cancelled")));
+                        ActionListener.onFailure(currentListeners, new NotMasterException("delayed reroute [" + reason + "] cancelled"));
                         // no big deal, the new master will reroute again
                     }
 
@@ -142,13 +142,13 @@ public class BatchedRerouteService implements RerouteService {
                             logger.error(() -> new ParameterizedMessage("unexpected failure during [{}], current state version [{}]",
                                 source, state.version()), e);
                         }
-                        currentListeners.forEach(l ->
-                            l.onFailure(new ElasticsearchException("delayed reroute [" + reason + "] failed", e)));
+                        ActionListener.onFailure(currentListeners,
+                            new ElasticsearchException("delayed reroute [" + reason + "] failed", e));
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        currentListeners.forEach(l -> l.onResponse(null));
+                        ActionListener.onResponse(currentListeners, null);
                     }
                 });
         } catch (Exception e) {
@@ -160,8 +160,8 @@ public class BatchedRerouteService implements RerouteService {
             }
             ClusterState state = clusterService.state();
             logger.warn(() -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
-            currentListeners.forEach(l ->
-                l.onFailure(new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)));
+            ActionListener.onFailure(currentListeners,
+                new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e));
         }
     }
 }

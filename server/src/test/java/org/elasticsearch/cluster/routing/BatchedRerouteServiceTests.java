@@ -194,7 +194,18 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(iterations);
         for (int i = 0; i < iterations; i++) {
             batchedRerouteService.reroute("iteration " + i,
-                randomFrom(EnumSet.allOf(Priority.class)), ActionListener.wrap(countDownLatch::countDown));
+                randomFrom(EnumSet.allOf(Priority.class)), ActionListener.wrap(
+                    r -> {
+                        countDownLatch.countDown();
+                        if (rarely()) {
+                            throw new ElasticsearchException("failure during notification");
+                        }
+                    }, e -> {
+                        countDownLatch.countDown();
+                        if (randomBoolean()) {
+                            throw new ElasticsearchException("failure during failure notification", e);
+                        }
+                    }));
             if (rarely()) {
                 clusterService.getMasterService().setClusterStatePublisher(
                     randomBoolean()

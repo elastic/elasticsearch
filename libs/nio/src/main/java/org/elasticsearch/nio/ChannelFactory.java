@@ -19,10 +19,14 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedRunnable;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
+import java.net.SocketException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.AccessController;
@@ -208,24 +212,28 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
 
         private static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
 
-        private void configureSocketChannel(SocketChannel channel) throws IOException {
-            channel.configureBlocking(false);
-            java.net.Socket socket = channel.socket();
+        private static void setSocketOption(CheckedRunnable<SocketException> runnable) throws SocketException {
             try {
-                socket.setTcpNoDelay(tcpNoDelay);
-            } catch (java.net.SocketException e) {
+                runnable.run();
+            } catch (SocketException e) {
                 if (MAC_OS_X == false) {
                     // ignore on Mac, see https://github.com/elastic/elasticsearch/issues/41071
                     throw e;
                 }
             }
-            socket.setKeepAlive(tcpKeepAlive);
-            socket.setReuseAddress(tcpReusedAddress);
+        }
+
+        private void configureSocketChannel(SocketChannel channel) throws IOException {
+            channel.configureBlocking(false);
+            java.net.Socket socket = channel.socket();
+            setSocketOption(() -> socket.setTcpNoDelay(tcpNoDelay));
+            setSocketOption(() -> socket.setKeepAlive(tcpKeepAlive));
+            setSocketOption(() -> socket.setReuseAddress(tcpReusedAddress));
             if (tcpSendBufferSize > 0) {
-                socket.setSendBufferSize(tcpSendBufferSize);
+                setSocketOption(() -> socket.setSendBufferSize(tcpSendBufferSize));
             }
             if (tcpReceiveBufferSize > 0) {
-                socket.setSendBufferSize(tcpReceiveBufferSize);
+                setSocketOption(() -> socket.setSendBufferSize(tcpReceiveBufferSize));
             }
         }
 

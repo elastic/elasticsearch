@@ -610,7 +610,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
                         // It increments the indexing failure, and then calls the `onFailure` logic
                         nextPhase.onFailure(
-                            new BulkIndexFailure("Bulk index experienced failures. " +
+                            new BulkIndexingException("Bulk index experienced failures. " +
                                 "See the logs of the node running the transform for details."));
                     } else {
                         auditBulkFailures = true;
@@ -819,9 +819,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     // Considered a recoverable indexing failure
-    private static class BulkIndexFailure extends Exception {
-        BulkIndexFailure(String msg) {
-            super(msg);
+    private static class BulkIndexingException extends ElasticsearchException {
+        public BulkIndexingException(String msg, Object... args) {
+            super(msg, args);
         }
     }
 }

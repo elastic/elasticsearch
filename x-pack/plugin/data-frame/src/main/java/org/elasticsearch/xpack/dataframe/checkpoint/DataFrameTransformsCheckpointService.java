@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
@@ -103,7 +104,8 @@ public class DataFrameTransformsCheckpointService {
                         IndicesStatsAction.INSTANCE,
                         new IndicesStatsRequest()
                             .indices(transformConfig.getSource().getIndex())
-                            .clear(),
+                            .clear()
+                            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
                         ActionListener.wrap(
                             response -> {
                                 if (response.getFailedShards() != 0) {

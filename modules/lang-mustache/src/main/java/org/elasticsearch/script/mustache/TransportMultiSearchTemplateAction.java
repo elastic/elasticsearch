@@ -46,7 +46,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     @Inject
     public TransportMultiSearchTemplateAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService,
                                               NamedXContentRegistry xContentRegistry, NodeClient client) {
-        super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
+        super(MultiSearchTemplateAction.NAME, transportService, MultiSearchTemplateRequest::new, actionFilters);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

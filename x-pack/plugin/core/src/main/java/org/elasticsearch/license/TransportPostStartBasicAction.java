@@ -40,11 +40,6 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
     }
 
     @Override
-    protected PostStartBasicResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected PostStartBasicResponse read(StreamInput in) throws IOException {
         return new PostStartBasicResponse(in);
     }

@@ -71,7 +71,6 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         assertThat(rsp.getStoreStatuses().size(), equalTo(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44245")
     public void testBasic() throws Exception {
         String index = "test";
         internalCluster().ensureAtLeastNumDataNodes(2);

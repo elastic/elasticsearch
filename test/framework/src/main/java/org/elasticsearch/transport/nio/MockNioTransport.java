@@ -376,14 +376,17 @@ public class MockNioTransport extends TcpTransport {
 
         private void logLongRunningExecutions() {
             for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
-                final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - entry.getValue();
+                final Long blockedSinceInNanos = entry.getValue();
+                final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - blockedSinceInNanos;
                 if (elapsedTimeInNanos > warnThreshold) {
                     final Thread thread = entry.getKey();
-                    logger.warn("Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
-                        thread.getName(),
-                        thread.getState(),
-                        TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos),
-                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
+                    final String stackTrace =
+                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
+                    final Thread.State threadState = thread.getState();
+                    if (blockedSinceInNanos == registry.get(thread)) {
+                        logger.warn("Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
+                            thread.getName(), threadState, TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos), stackTrace);
+                    }
                 }
             }
             if (stopped == false) {

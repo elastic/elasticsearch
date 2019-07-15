@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regression;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.AucRoc;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ConfusionMatrix;
@@ -28,6 +31,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         // Evaluations
         namedXContent.add(new NamedXContentRegistry.Entry(Evaluation.class, BinarySoftClassification.NAME,
             BinarySoftClassification::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(Evaluation.class, Regression.NAME, Regression::fromXContent));
 
         // Soft classification metrics
         namedXContent.add(new NamedXContentRegistry.Entry(SoftClassificationMetric.class, AucRoc.NAME, AucRoc::fromXContent));
@@ -35,6 +39,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         namedXContent.add(new NamedXContentRegistry.Entry(SoftClassificationMetric.class, Recall.NAME, Recall::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(SoftClassificationMetric.class, ConfusionMatrix.NAME,
             ConfusionMatrix::fromXContent));
+
+        // Regression metrics
+        namedXContent.add(new NamedXContentRegistry.Entry(RegressionMetric.class, MeanSquaredError.NAME, MeanSquaredError::fromXContent));
 
         return namedXContent;
     }
@@ -45,6 +52,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         // Evaluations
         namedWriteables.add(new NamedWriteableRegistry.Entry(Evaluation.class, BinarySoftClassification.NAME.getPreferredName(),
             BinarySoftClassification::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Evaluation.class, Regression.NAME.getPreferredName(), Regression::new));
 
         // Evaluation Metrics
         namedWriteables.add(new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, AucRoc.NAME.getPreferredName(),
@@ -55,6 +63,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             Recall::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, ConfusionMatrix.NAME.getPreferredName(),
             ConfusionMatrix::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class,
+            MeanSquaredError.NAME.getPreferredName(),
+            MeanSquaredError::new));
 
         // Evaluation Metrics Results
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, AucRoc.NAME.getPreferredName(),
@@ -63,6 +74,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             ScoreByThresholdResult::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, ConfusionMatrix.NAME.getPreferredName(),
             ConfusionMatrix.Result::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
+            MeanSquaredError.NAME.getPreferredName(),
+            MeanSquaredError.Result::new));
 
         return namedWriteables;
     }

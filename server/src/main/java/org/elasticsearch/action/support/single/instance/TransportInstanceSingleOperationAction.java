@@ -67,7 +67,7 @@ public abstract class TransportInstanceSingleOperationAction<
                                                      ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                      Supplier<Request> request) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, request, actionFilters);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

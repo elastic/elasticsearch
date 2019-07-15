@@ -75,7 +75,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     @Inject
     public TransportGetTaskAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, GetTaskRequest::new, actionFilters);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

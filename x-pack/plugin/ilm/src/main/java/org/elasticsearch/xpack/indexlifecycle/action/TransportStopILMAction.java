@@ -48,11 +48,6 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
                 new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {

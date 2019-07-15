@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -83,11 +83,6 @@ public final class TransportFreezeIndexAction extends
     protected void doExecute(Task task, FreezeRequest request, ActionListener<FreezeResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
-    }
-
-    @Override
-    protected FreezeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

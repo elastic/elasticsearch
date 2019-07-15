@@ -79,11 +79,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected CloseIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected CloseIndexResponse read(StreamInput in) throws IOException {
         return new CloseIndexResponse(in);
     }

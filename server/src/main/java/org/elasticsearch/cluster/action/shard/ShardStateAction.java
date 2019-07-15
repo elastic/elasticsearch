@@ -380,7 +380,7 @@ public class ShardStateAction {
                 // assign it again, even if that means putting it back on the node on which it previously failed:
                 final String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
                 logger.trace("{}, scheduling a reroute", reason);
-                rerouteService.reroute(reason, ActionListener.wrap(
+                rerouteService.reroute(reason, Priority.HIGH, ActionListener.wrap(
                     r -> logger.trace("{}, reroute completed", reason),
                     e -> logger.debug(new ParameterizedMessage("{}, reroute failed", reason), e)));
             }

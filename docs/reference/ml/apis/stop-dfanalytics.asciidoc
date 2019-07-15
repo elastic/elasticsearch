@@ -8,9 +8,9 @@
 <titleabbrev>Stop {dfanalytics-jobs}</titleabbrev>
 ++++
 
-experimental[]
-
 Stops one or more {dfanalytics-jobs}.
+
+experimental[]
 
 [[ml-stop-dfanalytics-request]]
 ==== {api-request-title}
@@ -42,24 +42,26 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 [[ml-stop-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
-`<data_frame_analytics_id>` (Required)::
-  (string) Identifier for the {dfanalytics-job}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+`<data_frame_analytics_id>`::
+  (Required, string) Identifier for the {dfanalytics-job}. This identifier can
+  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
   
-[[ml-stop-dfanalytics--query-params]]
-==== {api-query-parms-title}
+[[ml-stop-dfanalytics-query-params]]
+==== {api-query-parms-title}  
+  
+`allow_no_match`::
+  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
+  match any {dfanalytics-job} an error will be returned. The default value is
+  `true`.
 
-`allow_no_match` (Optional)::
-  (boolean) If `false` and the `data_frame_analytics_id` does not match any 
-  {dfanalytics-job} an error will be returned. The default value is `true`.
+`force`::
+  (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
   
-`force` (Optional)::
-  (boolean) If true, the {dfanalytics-job} is stopped forcefully.
-    
-`timeout` (Optional)::
-  Controls the amount of time to wait until the {dfanalytics-job} stops. 
-  The default value is 20 seconds.
+`timeout`::
+  (Optional, time) Controls the amount of time to wait until the
+  {dfanalytics-job} stops. The default value is 20 seconds.
+
 
 [[ml-stop-dfanalytics-example]]
 ==== {api-examples-title}

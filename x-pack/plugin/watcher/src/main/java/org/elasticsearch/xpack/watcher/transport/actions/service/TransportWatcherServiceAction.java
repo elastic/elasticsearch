@@ -65,11 +65,6 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(Task task, WatcherServiceRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         switch (request.getCommand()) {

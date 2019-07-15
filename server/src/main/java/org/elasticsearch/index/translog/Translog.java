@@ -231,9 +231,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             for (long i = checkpoint.generation; i >= minGenerationToRecoverFrom; i--) {
                 Path committedTranslogFile = location.resolve(getFilename(i));
                 if (Files.exists(committedTranslogFile) == false) {
-                    throw new TranslogCorruptedException(committedTranslogFile.toString(), new IllegalStateException(
-                        "translog file doesn't exist with generation: " + i + " recovering from: " +
-                        minGenerationToRecoverFrom + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive"));
+                    throw new TranslogCorruptedException(committedTranslogFile.toString(),
+                        "translog file doesn't exist with generation: " + i + " recovering from: " + minGenerationToRecoverFrom
+                            + " checkpoint: " + checkpoint.generation + " - translog ids must be consecutive");
                 }
                 final TranslogReader reader = openReader(committedTranslogFile,
                     i == checkpoint.generation ? checkpoint : Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))));
@@ -255,8 +255,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 Checkpoint checkpointFromDisk = Checkpoint.read(commitCheckpoint);
                 if (checkpoint.equals(checkpointFromDisk) == false) {
                     throw new TranslogCorruptedException(commitCheckpoint.toString(),
-                        new IllegalStateException("Checkpoint file " + commitCheckpoint.getFileName() +
-                        " already exists but has corrupted content expected: " + checkpoint + " but got: " + checkpointFromDisk));
+                        "checkpoint file " + commitCheckpoint.getFileName() + " already exists but has corrupted content: expected "
+                            + checkpoint + " but got " + checkpointFromDisk);
                 }
             } else {
                 copyCheckpointTo(commitCheckpoint);

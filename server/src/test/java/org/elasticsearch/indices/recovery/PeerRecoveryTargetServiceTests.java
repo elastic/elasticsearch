@@ -201,10 +201,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         String translogUUID = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), globalCheckpoint,
             replica.shardId(), replica.getPendingPrimaryTerm());
         replica.store().associateIndexWithNewTranslog(translogUUID);
-        long startingSeqNo = shard.store().findSafeIndexCommit(shard.shardPath().resolveTranslog())
+        long startingSeqNo = replica.store().findSafeIndexCommit(shard.shardPath().resolveTranslog())
             .map(commitInfo -> commitInfo.localCheckpoint + 1).orElse(SequenceNumbers.UNASSIGNED_SEQ_NO);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
         assertThat(getStartingSeqno.apply(replica), equalTo(startingSeqNo));
+        closeShards(replica);
     }
 }

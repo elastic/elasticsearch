@@ -57,7 +57,13 @@ This is a possible response:
     }
   },
   "upgrade_mode": false,
+  "native_code" : {
+    "version": "7.0.0",
+    "build_hash": "99a07c016d5a73"
+  },
   "limits" : { }
 }
 ----
 // TESTRESPONSE[s/"upgrade_mode": false/"upgrade_mode": $body.upgrade_mode/]
+// TESTRESPONSE[s/"version": "7.0.0",/"version": "$body.native_code.version",/]
+// TESTRESPONSE[s/"build_hash": "99a07c016d5a73"/"build_hash": "$body.native_code.build_hash"/]

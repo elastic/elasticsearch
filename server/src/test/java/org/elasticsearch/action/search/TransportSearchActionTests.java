@@ -29,6 +29,10 @@ import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
@@ -835,6 +839,77 @@ public class TransportSearchActionTests extends ESTestCase {
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+    }
+
+    public void testShouldSplitIndices() {
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            assertTrue(TransportSearchAction.shouldSplitIndices(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder());
+            assertTrue(TransportSearchAction.shouldSplitIndices(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().size(randomIntBetween(1, 100)));
+            assertTrue(TransportSearchAction.shouldSplitIndices(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.scroll("5s");
+            assertFalse(TransportSearchAction.shouldSplitIndices(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().size(0));
+            assertFalse(TransportSearchAction.shouldSplitIndices(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+            assertFalse(TransportSearchAction.shouldSplitIndices(searchRequest));
+        }
+    }
+
+    public void testSplitIndices() {
+        int numIndices = randomIntBetween(1, 10);
+        Index[] indices = new Index[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            String indexName = randomAlphaOfLengthBetween(5, 10);
+            indices[i] = new Index(indexName, indexName + "-uuid");
+        }
+        {
+            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+            List<String> writeIndices = new ArrayList<>();
+            List<String> readOnlyIndices = new ArrayList<>();
+            TransportSearchAction.splitIndices(indices, clusterState, writeIndices, readOnlyIndices);
+            assertEquals(0, readOnlyIndices.size());
+            assertEquals(numIndices, writeIndices.size());
+        }
+        {
+            List<String> expectedWrite = new ArrayList<>();
+            List<String> expectedReadOnly = new ArrayList<>();
+            ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder();
+            for (Index index : indices) {
+                if (randomBoolean()) {
+                    blocksBuilder.addIndexBlock(index.getName(), IndexMetaData.INDEX_WRITE_BLOCK);
+                    expectedReadOnly.add(index.getName());
+                } else if(randomBoolean() ){
+                    blocksBuilder.addIndexBlock(index.getName(), IndexMetaData.INDEX_READ_ONLY_BLOCK);
+                    expectedReadOnly.add(index.getName());
+                } else {
+                    expectedWrite.add(index.getName());
+                }
+            }
+            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).blocks(blocksBuilder).build();
+            List<String> writeIndices = new ArrayList<>();
+            List<String> readOnlyIndices = new ArrayList<>();
+            TransportSearchAction.splitIndices(indices, clusterState, writeIndices, readOnlyIndices);
+            assertEquals(writeIndices, expectedWrite);
+            assertEquals(readOnlyIndices, expectedReadOnly);
         }
     }
 }

@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -74,13 +72,7 @@ class QueryProvider implements Writeable, ToXContentObject {
     }
 
     static QueryProvider fromStream(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
-            return new QueryProvider(in.readMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
-        } else if (in.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
-            return new QueryProvider(in.readMap(), null, null);
-        } else { // only supports eagerly parsed objects
-            return QueryProvider.fromParsedQuery(in.readNamedWriteable(QueryBuilder.class));
-        }
+        return new QueryProvider(in.readMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
     }
 
     QueryProvider(Map<String, Object> query, QueryBuilder parsedQuery, Exception parsingException) {
@@ -95,28 +87,9 @@ class QueryProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
-            out.writeMap(query);
-            out.writeOptionalNamedWriteable(parsedQuery);
-            out.writeException(parsingException);
-        } else if (out.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
-            // We allow the lazy parsing nodes that have the bug throw any parsing errors themselves as
-            // they already have the ability to fully parse the passed Maps
-            out.writeMap(query);
-        } else { // only supports eagerly parsed objects
-            if (parsingException != null) { // Do we have a parsing error? Throw it
-                if (parsingException instanceof IOException) {
-                    throw (IOException) parsingException;
-                } else {
-                    throw new ElasticsearchException(parsingException);
-                }
-            } else if (parsedQuery == null) { // Do we have a query defined but not parsed?
-                // This is an admittedly rare case but we should fail early instead of writing null when there
-                // actually is a query defined
-                throw new ElasticsearchException("Unsupported operation: parsed query is null");
-            }
-            out.writeNamedWriteable(parsedQuery);
-        }
+        out.writeMap(query);
+        out.writeOptionalNamedWriteable(parsedQuery);
+        out.writeException(parsingException);
     }
 
     public Exception getParsingException() {

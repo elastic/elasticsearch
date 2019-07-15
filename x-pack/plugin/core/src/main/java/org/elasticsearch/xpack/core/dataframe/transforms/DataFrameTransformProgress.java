@@ -23,9 +23,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class DataFrameTransformProgress implements Writeable, ToXContentObject {
 
-    private static final ParseField TOTAL_DOCS = new ParseField("total_docs");
-    private static final ParseField DOCS_REMAINING = new ParseField("docs_remaining");
-    private static final String PERCENT_COMPLETE = "percent_complete";
+    public static final ParseField TOTAL_DOCS = new ParseField("total_docs");
+    public static final ParseField DOCS_REMAINING = new ParseField("docs_remaining");
+    public static final String PERCENT_COMPLETE = "percent_complete";
 
     public static final ConstructingObjectParser<DataFrameTransformProgress, Void> PARSER = new ConstructingObjectParser<>(
         "data_frame_transform_progress",

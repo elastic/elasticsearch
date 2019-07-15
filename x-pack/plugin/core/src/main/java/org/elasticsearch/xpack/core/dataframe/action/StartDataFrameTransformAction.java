@@ -96,33 +96,33 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
-        private final boolean started;
+        private final boolean acknowledged;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            started = in.readBoolean();
+            acknowledged = in.readBoolean();
         }
 
-        public Response(boolean started) {
+        public Response(boolean acknowledged) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.started = started;
+            this.acknowledged = acknowledged;
         }
 
-        public boolean isStarted() {
-            return started;
+        public boolean isAcknowledged() {
+            return acknowledged;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(started);
+            out.writeBoolean(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("started", started);
+            builder.field("acknowledged", acknowledged);
             builder.endObject();
             return builder;
         }
@@ -137,12 +137,12 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
                 return false;
             }
             Response response = (Response) obj;
-            return started == response.started;
+            return acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(started);
+            return Objects.hash(acknowledged);
         }
     }
 }

@@ -70,9 +70,9 @@ dependencies {
     compile "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
     compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-    compile project(path: ':client:transport', configuration: 'runtime')
+    compile project(':client:rest-high-level')
     wildfly "org.jboss:wildfly:${wildflyVersion}@zip"
-    testCompile "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}"
+    testCompile project(':test:framework')
 }
 
 task unzipWildfly(type: Sync) {
@@ -93,8 +93,7 @@ task writeElasticsearchProperties {
         final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
         elasticsearchProperties.write(
                 [
-                        "transport.uri=${-> integTest.getNodes().get(0).transportUri()}",
-                        "cluster.name=${-> integTest.getNodes().get(0).clusterName}"
+                        "http.uri=${-> integTest.getNodes().get(0).httpUri()}"
                 ].join("\n"))
     }
 }
@@ -167,7 +166,7 @@ task startWildfly {
     }
 }
 
-task configureTransportClient(type: LoggedExec) {
+task configureClient(type: LoggedExec) {
     dependsOn startWildfly
     // we skip these tests on Windows so we do not need to worry about compatibility here
     commandLine "${wildflyInstall}/bin/jboss-cli.sh",
@@ -182,7 +181,7 @@ task stopWildfly(type: LoggedExec) {
 }
 
 if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
-    integTestRunner.dependsOn(configureTransportClient)
+    integTestRunner.dependsOn(configureClient)
     final TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
         @Override
         void afterExecute(final Task task, final TaskState state) {

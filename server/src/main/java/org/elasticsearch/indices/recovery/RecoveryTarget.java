@@ -26,8 +26,8 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -288,9 +288,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener.completeWith(listener, () -> {
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
-            assert indexShard.getGlobalCheckpoint() >= indexShard.seqNoStats().getMaxSeqNo() ||
-                indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_2_0)
-                : "global checkpoint is not initialized [" + indexShard.seqNoStats() + "]";
             return null;
         });
     }
@@ -303,9 +300,17 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // Persist the global checkpoint.
             indexShard.sync();
             indexShard.persistRetentionLeases();
+            if (hasUncommittedOperations()) {
+                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            }
             indexShard.finalizeRecovery();
             return null;
         });
+    }
+
+    private boolean hasUncommittedOperations() throws IOException {
+        long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        return indexShard.estimateNumberOfHistoryOperations("peer-recovery", localCheckpointOfCommit + 1) > 0;
     }
 
     @Override
@@ -396,9 +401,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         store.incRef();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
-            assert globalCheckpoint >= Long.parseLong(sourceMetaData.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO))
-                || indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_2_0) :
-                "invalid global checkpoint[" + globalCheckpoint + "] source_meta_data [" + sourceMetaData.getCommitUserData() + "]";
             final String translogUUID = Translog.createEmptyTranslog(
                 indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);

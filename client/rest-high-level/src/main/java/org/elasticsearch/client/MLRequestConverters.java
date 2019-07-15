@@ -105,11 +105,11 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getJobRequest.getAllowNoJobs() != null) {
             params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.getAllowNoJobs()));
         }
-
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -122,10 +122,11 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getJobStatsRequest.getAllowNoJobs() != null) {
             params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.getAllowNoJobs()));
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -171,14 +172,14 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (deleteJobRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteJobRequest.getForce()));
         }
         if (deleteJobRequest.getWaitForCompletion() != null) {
             params.putParam("wait_for_completion", Boolean.toString(deleteJobRequest.getWaitForCompletion()));
         }
-
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -249,12 +250,12 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getDatafeedRequest.getAllowNoDatafeeds() != null) {
             params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
                     Boolean.toString(getDatafeedRequest.getAllowNoDatafeeds()));
         }
-
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -265,10 +266,11 @@ final class MLRequestConverters {
                 .addPathPart(deleteDatafeedRequest.getDatafeedId())
                 .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (deleteDatafeedRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteDatafeedRequest.getForce()));
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -305,10 +307,11 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getDatafeedStatsRequest.getAllowNoDatafeeds() != null) {
             params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.getAllowNoDatafeeds()));
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -331,13 +334,14 @@ final class MLRequestConverters {
             .addPathPart(Strings.collectionToCommaDelimitedString(deleteForecastRequest.getForecastIds()))
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (deleteForecastRequest.getAllowNoForecasts() != null) {
             params.putParam("allow_no_forecasts", Boolean.toString(deleteForecastRequest.getAllowNoForecasts()));
         }
         if (deleteForecastRequest.timeout() != null) {
             params.putParam("timeout", deleteForecastRequest.timeout().getStringRep());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -453,7 +457,7 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (postDataRequest.getResetStart() != null) {
             params.putParam(PostDataRequest.RESET_START.getPreferredName(), postDataRequest.getResetStart());
         }
@@ -461,6 +465,7 @@ final class MLRequestConverters {
             params.putParam(PostDataRequest.RESET_END.getPreferredName(), postDataRequest.getResetEnd());
         }
         BytesReference content = postDataRequest.getContent();
+        request.addParameters(params.asMap());
         if (content != null) {
             BytesRef source = postDataRequest.getContent().toBytesRef();
             HttpEntity byteEntity = new NByteArrayEntity(source.bytes,
@@ -594,13 +599,14 @@ final class MLRequestConverters {
             .addPathPart(getFiltersRequest.getFilterId())
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getFiltersRequest.getSize() != null) {
             params.putParam(PageParams.SIZE.getPreferredName(), getFiltersRequest.getSize().toString());
         }
         if (getFiltersRequest.getFrom() != null) {
             params.putParam(PageParams.FROM.getPreferredName(), getFiltersRequest.getFrom().toString());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -628,11 +634,12 @@ final class MLRequestConverters {
     static Request setUpgradeMode(SetUpgradeModeRequest setUpgradeModeRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "set_upgrade_mode").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.putParam(SetUpgradeModeRequest.ENABLED.getPreferredName(), Boolean.toString(setUpgradeModeRequest.isEnabled()));
         if (setUpgradeModeRequest.getTimeout() != null) {
             params.putParam(SetUpgradeModeRequest.TIMEOUT.getPreferredName(), setUpgradeModeRequest.getTimeout().toString());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -650,7 +657,7 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (findFileStructureRequest.getLinesToSample() != null) {
             params.putParam(FindFileStructureRequest.LINES_TO_SAMPLE.getPreferredName(),
                 findFileStructureRequest.getLinesToSample().toString());
@@ -695,7 +702,7 @@ final class MLRequestConverters {
         if (findFileStructureRequest.getExplain() != null) {
             params.putParam(FindFileStructureRequest.EXPLAIN.getPreferredName(), findFileStructureRequest.getExplain().toString());
         }
-
+        request.addParameters(params.asMap());
         BytesReference sample = findFileStructureRequest.getSample();
         BytesRef source = sample.toBytesRef();
         HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));

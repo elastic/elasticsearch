@@ -41,7 +41,7 @@ public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent 
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MockDeprecatedQueryBuilder.NAME,

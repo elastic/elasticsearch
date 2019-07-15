@@ -1,8 +1,8 @@
 {
   "ml.info": {
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ml/info",
       "paths": [ "/_ml/info" ],
       "parts": {},
       "body": null

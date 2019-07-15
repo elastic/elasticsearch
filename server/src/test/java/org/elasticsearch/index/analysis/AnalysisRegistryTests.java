@@ -123,9 +123,9 @@ public class AnalysisRegistryTests extends ESTestCase {
         Analyzer analyzer = new CustomAnalyzer("tokenizerName", null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
         MapperException ex = expectThrows(MapperException.class,
                 () -> emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
-                        singletonMap("default", new PreBuiltAnalyzerProvider("my_analyzer", AnalyzerScope.INDEX, analyzer)), emptyMap(),
+                        singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)), emptyMap(),
                         emptyMap(), emptyMap(), emptyMap()));
-        assertEquals("analyzer [my_analyzer] contains filters [my_filter] that are not allowed to run in all mode.", ex.getMessage());
+        assertEquals("analyzer [default] contains filters [my_filter] that are not allowed to run in all mode.", ex.getMessage());
     }
 
     public void testOverrideDefaultIndexAnalyzerIsUnsupported() {

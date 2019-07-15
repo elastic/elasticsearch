@@ -82,10 +82,11 @@ final class DataFrameRequestConverters {
                 .addPathPartAsIs("_start")
                 .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (startRequest.getTimeout() != null) {
             params.withTimeout(startRequest.getTimeout());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -96,13 +97,14 @@ final class DataFrameRequestConverters {
                     .addPathPartAsIs("_stop")
                     .build();
             Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-            RequestConverters.Params params = new RequestConverters.Params(request);
+            RequestConverters.Params params = new RequestConverters.Params();
             if (stopRequest.getWaitForCompletion() != null) {
                 params.withWaitForCompletion(stopRequest.getWaitForCompletion());
             }
             if (stopRequest.getTimeout() != null) {
                 params.withTimeout(stopRequest.getTimeout());
             }
+            request.addParameters(params.asMap());
             return request;
     }
 

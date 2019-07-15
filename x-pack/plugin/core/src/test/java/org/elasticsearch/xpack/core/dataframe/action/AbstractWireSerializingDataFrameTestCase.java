@@ -27,7 +27,7 @@ public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeab
 
     @Before
     public void registerNamedObjects() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();

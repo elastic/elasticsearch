@@ -12,7 +12,7 @@ PUT twitter
 --------------------------------------------------
 // CONSOLE
 
-This create an index named `twitter` with all default setting.
+This creates an index named `twitter` with all default setting.
 
 [NOTE]
 .Index name limitations

@@ -76,11 +76,21 @@ to be the most efficient by using the internal mechanisms.
 --------------------------------------------------
 // NOTCONSOLE
 
+[role="xpack"]
+[testenv="basic"]
 [[vector-functions]]
 ===== Functions for vector fields
+
+experimental[]
+
 These functions are used for
 for <<dense-vector,`dense_vector`>>  and
 <<sparse-vector,`sparse_vector`>> fields.
+
+NOTE: During vector functions' calculation, all matched documents are
+linearly scanned. Thus, expect the query time grow linearly 
+with the number of matched documents. For this reason, we recommend
+to limit the number of matched documents with a `query` parameter.
 
 For dense_vector fields, `cosineSimilarity` calculates the measure of
 cosine similarity between a given query vector and document vectors.

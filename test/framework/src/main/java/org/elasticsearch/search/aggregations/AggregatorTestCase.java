@@ -86,6 +86,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -153,7 +154,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
             .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
 
-        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField, new String[]{TYPE_NAME});
+        SearchLookup searchLookup = new SearchLookup(mapperService, ifds::getForField);
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = queryShardContextMock(mapperService);
@@ -161,6 +162,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
         Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
         fieldNameToType.putAll(Arrays.stream(fieldTypes)
+            .filter(Objects::nonNull)
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 

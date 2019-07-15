@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.common.Nullable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -68,6 +70,20 @@ public class BlobPath implements Iterable<String> {
         return p + SEPARATOR;
     }
 
+    /**
+     * Returns this path's parent path.
+     *
+     * @return Parent path or {@code null} if there is none
+     */
+    @Nullable
+    public BlobPath parent() {
+        if (paths.isEmpty()) {
+            return null;
+        } else {
+            return new BlobPath(List.copyOf(paths.subList(0, paths.size() - 1)));
+        }
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -75,21 +91,5 @@ public class BlobPath implements Iterable<String> {
             sb.append('[').append(path).append(']');
         }
         return sb.toString();
-    }
-
-    @Override
-    public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        return paths.equals(((BlobPath) o).paths);
-    }
-
-    @Override
-    public int hashCode() {
-        return paths.hashCode();
     }
 }

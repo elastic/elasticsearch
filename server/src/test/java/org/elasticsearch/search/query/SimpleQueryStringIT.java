@@ -233,7 +233,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(
+        searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo bar baz").field("body")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
@@ -243,7 +243,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(
+        searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");

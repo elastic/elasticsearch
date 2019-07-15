@@ -69,7 +69,7 @@ sourceSets {
 }
 
 dependencies {
-  docCompile "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+  docCompile project(':server')
   docCompile project(':modules:lang-painless')
 }
 

@@ -61,7 +61,7 @@ public class PivotTests extends ESTestCase {
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -105,6 +105,16 @@ public class PivotTests extends ESTestCase {
         Pivot pivot = new Pivot(getValidPivotConfig());
 
         assertInvalidTransform(client, source, pivot);
+    }
+
+    public void testInitialPageSize() throws Exception {
+        int expectedPageSize = 1000;
+
+        Pivot pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize));
+        assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
+
+        pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
+        assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
     }
 
     public void testSearchFailure() throws Exception {
@@ -177,11 +187,11 @@ public class PivotTests extends ESTestCase {
     }
 
     private PivotConfig getValidPivotConfig() throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null);
     }
 
     private PivotConfig getValidPivotConfig(AggregationConfig aggregationConfig) throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig);
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig, null);
     }
 
     private AggregationConfig getValidAggregationConfig() throws IOException {
@@ -204,6 +214,16 @@ public class PivotTests extends ESTestCase {
                 "\"bucket_script\":{" +
                 "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
                 "\"script\":\"return params.param_1\"}}}");
+        }
+        if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
+            return parseAggregations("{\n" +
+                "\"pivot_weighted_avg\": {\n" +
+                "  \"weighted_avg\": {\n" +
+                "   \"value\": {\"field\": \"values\"},\n" +
+                "   \"weight\": {\"field\": \"weights\"}\n" +
+                "  }\n" +
+                "}\n" +
+                "}");
         }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");

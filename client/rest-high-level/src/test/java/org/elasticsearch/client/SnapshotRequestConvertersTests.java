@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -148,15 +147,16 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
     public void testGetSnapshots() {
         Map<String, String> expectedParams = new HashMap<>();
-        String repository = RequestConvertersTests.randomIndicesNames(1, 1)[0];
+        String repository1 = randomAlphaOfLength(10);
+        String repository2 = randomAlphaOfLength(10);
         String snapshot1 = "snapshot1-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
         String snapshot2 = "snapshot2-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
 
-        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s/%s,%s", repository, snapshot1, snapshot2);
+        String endpoint = String.format(Locale.ROOT, "/_snapshot/%s,%s/%s,%s", repository1, repository2, snapshot1, snapshot2);
 
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
-        getSnapshotsRequest.repository(repository);
-        getSnapshotsRequest.snapshots(Arrays.asList(snapshot1, snapshot2).toArray(new String[0]));
+        getSnapshotsRequest.repositories(repository1, repository2);
+        getSnapshotsRequest.snapshots(new String[]{snapshot1, snapshot2});
         RequestConvertersTests.setRandomMasterTimeout(getSnapshotsRequest, expectedParams);
 
         if (randomBoolean()) {

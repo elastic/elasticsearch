@@ -21,47 +21,57 @@ package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
- * Mock Repository that simulates the eventually consistent behaviour of AWS S3 as documented in the
+ * Mock Repository that allows testing the eventually consistent behaviour of AWS S3 as documented in the
  * <a href="https://docs.aws.amazon.com/AmazonS3/latest/dev/Introduction.html#ConsistencyModel">AWS S3 docs</a>.
- * Specifically this implementation simulates:
- * <ul>
- *     <li>First read after write is consistent for each blob. (see S3 docs for specifics)</li>
- *     <li>Deletes and updates to a blob can become visible with a delay.</li>
- *     <li>Blobs can become visible to list operations with a delay.</li>
- * </ul>
+ * Currently, the repository asserts that no inconsistent reads are made.
+ * TODO: Resolve todos on list and overwrite operation consistency to fully cover S3's behavior.
  */
-public class MockEventuallyConsistentRepository extends FsRepository {
-
-    private final DeterministicTaskQueue deterministicTaskQueue;
+public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private final Context context;
 
     public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry, DeterministicTaskQueue deterministicTaskQueue, Context context) {
-        super(metadata, environment, namedXContentRegistry, deterministicTaskQueue.getThreadPool());
-        this.deterministicTaskQueue = deterministicTaskQueue;
+        NamedXContentRegistry namedXContentRegistry, DeterministicTaskQueue deterministicTaskQueue, Context context) {
+        super(metadata, environment.settings(), namedXContentRegistry, deterministicTaskQueue.getThreadPool(), BlobPath.cleanPath());
         this.context = context;
+    }
+
+    // Filters out all actions that are super-seeded by subsequent actions
+    // TODO: Remove all usages of this method, snapshots should not depend on consistent list operations
+    private static List<BlobStoreAction> consistentView(List<BlobStoreAction> actions) {
+        final Map<String, BlobStoreAction> lastActions = new HashMap<>();
+        for (BlobStoreAction action : actions) {
+            if (action.operation == Operation.PUT) {
+                lastActions.put(action.path, action);
+            } else if (action.operation == Operation.DELETE) {
+                lastActions.remove(action.path);
+            }
+        }
+        return List.copyOf(lastActions.values());
     }
 
     @Override
@@ -70,8 +80,8 @@ public class MockEventuallyConsistentRepository extends FsRepository {
     }
 
     @Override
-    protected BlobStore createBlobStore() throws Exception {
-        return new MockBlobStore(super.createBlobStore());
+    protected BlobStore createBlobStore() {
+        return new MockBlobStore();
     }
 
     /**
@@ -79,122 +89,205 @@ public class MockEventuallyConsistentRepository extends FsRepository {
      */
     public static final class Context {
 
-        private final Map<BlobPath, Set<String>> cachedMisses = new HashMap<>();
+        private final List<BlobStoreAction> actions = new ArrayList<>();
 
-        private final Map<BlobPath, Map<String, Runnable>> pendingWriteActions = new HashMap<>();
-
-        private Map<String, Runnable> pendingActions(BlobPath path) {
-            return pendingWriteActions.computeIfAbsent(path, p -> new HashMap<>());
-        }
-
-        private Set<String> cachedMisses(BlobPath path) {
-            return cachedMisses.computeIfAbsent(path, p -> new HashSet<>());
+        /**
+         * Force the repository into a consistent end state so that its eventual state can be examined.
+         */
+        public void forceConsistent() {
+            synchronized (actions) {
+                final List<BlobStoreAction> consistentActions = consistentView(actions);
+                actions.clear();
+                actions.addAll(consistentActions);
+            }
         }
     }
 
-    private class MockBlobStore extends BlobStoreWrapper {
+    private enum Operation {
+        PUT, GET, DELETE
+    }
 
-        MockBlobStore(BlobStore delegate) {
-            super(delegate);
+    private static final class BlobStoreAction {
+
+        private final Operation operation;
+
+        @Nullable
+        private final byte[] data;
+
+        private final String path;
+
+        private BlobStoreAction(Operation operation, String path, byte[] data) {
+            this.operation = operation;
+            this.path = path;
+            this.data = data;
         }
+
+        private BlobStoreAction(Operation operation, String path) {
+            this(operation, path, null);
+        }
+    }
+
+    private class MockBlobStore implements BlobStore {
+
+        private AtomicBoolean closed = new AtomicBoolean(false);
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            return new MockBlobContainer(super.blobContainer(path), context.cachedMisses(path), context.pendingActions(path));
+            return new MockBlobContainer(path);
         }
 
-        private class MockBlobContainer extends BlobContainerWrapper {
+        @Override
+        public void close() {
+            closed.set(true);
+        }
 
-            private final Set<String> cachedMisses;
+        private class MockBlobContainer implements BlobContainer {
 
-            private final Map<String, Runnable> pendingWrites;
+            private final BlobPath path;
 
-            MockBlobContainer(BlobContainer delegate, Set<String> cachedMisses, Map<String, Runnable> pendingWrites) {
-                super(delegate);
-                this.cachedMisses = cachedMisses;
-                this.pendingWrites = pendingWrites;
+            MockBlobContainer(BlobPath path) {
+                this.path = path;
+            }
+
+            @Override
+            public BlobPath path() {
+                return path;
             }
 
             @Override
             public boolean blobExists(String blobName) {
-                if (cachedMisses.contains(blobName)) {
+                if (closed.get()) {
+                    throw new AssertionError("Blobstore is closed already");
+                }
+                try {
+                    readBlob(blobName);
+                    return true;
+                } catch (NoSuchFileException e) {
                     return false;
                 }
-                ensureReadAfterWrite(blobName);
-                final boolean result = super.blobExists(blobName);
-                if (result == false) {
-                    cachedMisses.add(blobName);
-                }
-                return result;
             }
 
             @Override
-            public InputStream readBlob(String name) throws IOException {
-                if (cachedMisses.contains(name)) {
-                    throw new NoSuchFileException(name);
+            public InputStream readBlob(String name) throws NoSuchFileException {
+                if (closed.get()) {
+                    throw new AssertionError("Blobstore is closed already");
                 }
-                ensureReadAfterWrite(name);
-                return super.readBlob(name);
-            }
-
-            private void ensureReadAfterWrite(String blobName) {
-                if (cachedMisses.contains(blobName) == false && pendingWrites.containsKey(blobName)) {
-                    pendingWrites.remove(blobName).run();
+                final String blobPath = path.buildAsString() + name;
+                synchronized (context.actions) {
+                    context.actions.add(new BlobStoreAction(Operation.GET, blobPath));
+                    final List<BlobStoreAction> relevantActions =
+                        context.actions.stream().filter(action -> blobPath.equals(action.path)).collect(Collectors.toList());
+                    final List<byte[]> writes = new ArrayList<>();
+                    boolean readBeforeWrite = false;
+                    for (BlobStoreAction relevantAction : relevantActions) {
+                        if (relevantAction.operation == Operation.PUT) {
+                            writes.add(relevantAction.data);
+                        }
+                        if (writes.isEmpty() && relevantAction.operation == Operation.GET) {
+                            readBeforeWrite = true;
+                        }
+                    }
+                    if (writes.isEmpty()) {
+                        throw new NoSuchFileException(blobPath);
+                    }
+                    if (readBeforeWrite == false && writes.size() == 1) {
+                        // Consistent read after write
+                        return new ByteArrayInputStream(writes.get(0));
+                    }
+                    if ("incompatible-snapshots".equals(blobPath) == false && "index.latest".equals(blobPath) == false) {
+                        throw new AssertionError("Inconsistent read on [" + blobPath + ']');
+                    }
+                    return consistentView(relevantActions).stream()
+                        .filter(action -> action.path.equals(blobPath) && action.operation == Operation.PUT)
+                        .findAny().map(
+                            action -> new ByteArrayInputStream(action.data)).orElseThrow(() -> new NoSuchFileException(blobPath));
                 }
             }
 
             @Override
             public void deleteBlob(String blobName) {
-                ensureReadAfterWrite(blobName);
-                // TODO: simulate longer delays here once the S3 blob store implementation can handle them
-                deterministicTaskQueue.scheduleNow(() -> {
-                    try {
-                        super.deleteBlob(blobName);
-                    } catch (DirectoryNotEmptyException | NoSuchFileException e) {
-                        // ignored since neither of these exceptions would occur on S3
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                });
+                if (closed.get()) {
+                    throw new AssertionError("Blobstore is closed already");
+                }
+                synchronized (context.actions) {
+                    context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
+                }
+            }
+
+            @Override
+            public void delete() {
+                if (closed.get()) {
+                    throw new AssertionError("Blobstore is closed already");
+                }
+                final String thisPath = path.buildAsString();
+                synchronized (context.actions) {
+                    consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath))
+                        .forEach(a -> context.actions.add(new BlobStoreAction(Operation.DELETE, a.path)));
+                }
+            }
+
+            @Override
+            public Map<String, BlobMetaData> listBlobs() {
+                if (closed.get()) {
+                    throw new AssertionError("Blobstore is closed already");
+                }
+                final String thisPath = path.buildAsString();
+                synchronized (context.actions) {
+                    return consistentView(context.actions).stream()
+                        .filter(
+                            action -> action.path.startsWith(thisPath) && action.path.substring(thisPath.length()).indexOf('/') == -1
+                                && action.operation == Operation.PUT)
+                        .collect(
+                            Collectors.toMap(
+                                action -> action.path.substring(thisPath.length()),
+                                action -> new PlainBlobMetaData(action.path.substring(thisPath.length()), action.data.length)));
+                }
+            }
+
+            @Override
+            public Map<String, BlobContainer> children() {
+                if (closed.get()) {
+                    throw new AssertionError("Blobstore is closed already");
+                }
+                final String thisPath = path.buildAsString();
+                synchronized (context.actions) {
+                    return consistentView(context.actions).stream()
+                        .filter(action ->
+                            action.operation == Operation.PUT
+                                && action.path.startsWith(thisPath) && action.path.substring(thisPath.length()).indexOf('/') != -1)
+                        .map(action -> action.path.substring(thisPath.length()).split("/")[0])
+                        .distinct()
+                        .collect(Collectors.toMap(Function.identity(), name -> new MockBlobContainer(path.add(name))));
+                }
+            }
+
+            @Override
+            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
+                return Maps.ofEntries(
+                    listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix)).collect(Collectors.toList())
+                );
             }
 
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                    throws IOException {
-                // TODO: Add an assertion that no blob except index.latest is ever written to twice with different data here
-                //       Currently this is not possible because master failovers in SnapshotResiliencyTests.testSnapshotWithNodeDisconnects
-                //       will lead to snap-{uuid}.dat being written two repeatedly with different content during snapshot finalization
-                //       which should be fixed.
-                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                Streams.copy(inputStream, baos);
-                pendingWrites.put(blobName, () -> {
-                    try {
-                        super.writeBlob(blobName, new ByteArrayInputStream(baos.toByteArray()), blobSize, failIfAlreadyExists);
-                        if (cachedMisses.contains(blobName)) {
-                            // Remove cached missing blob later to simulate inconsistency between list and get calls.
-                            // Just scheduling at the current time since we get randomized future execution from the deterministic
-                            // task queue's jitter anyway.
-                            deterministicTaskQueue.scheduleAt(
-                                deterministicTaskQueue.getCurrentTimeMillis(), () -> cachedMisses.remove(blobName));
-                        }
-                    } catch (NoSuchFileException | FileAlreadyExistsException e) {
-                        // Ignoring, assuming a previous concurrent delete removed the parent path and that overwrites are not
-                        // detectable with this kind of store
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                });
-                // TODO: simulate longer delays here once the S3 blob store implementation can handle them
-                deterministicTaskQueue.scheduleNow(() -> {
-                    if (pendingWrites.containsKey(blobName)) {
-                        pendingWrites.remove(blobName).run();
-                    }
-                });
+                throws IOException {
+                if (closed.get()) {
+                    throw new AssertionError("Blobstore is closed already");
+                }
+                // TODO: Throw if we try to overwrite any blob other than incompatible_snapshots or index.latest with different content
+                //       than it already contains.
+                assert blobSize < Integer.MAX_VALUE;
+                final byte[] data = new byte[(int) blobSize];
+                final int read = inputStream.read(data);
+                assert read == data.length;
+                synchronized (context.actions) {
+                    context.actions.add(new BlobStoreAction(Operation.PUT, path.buildAsString() + blobName, data));
+                }
             }
 
             @Override
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
-                                        final boolean failIfAlreadyExists) throws IOException {
+                final boolean failIfAlreadyExists) throws IOException {
                 writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
             }
         }

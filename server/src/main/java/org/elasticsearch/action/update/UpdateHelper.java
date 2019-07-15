@@ -306,7 +306,7 @@ public class UpdateHelper {
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
         return new GetResult(concreteIndex, request.type(), request.id(), seqNo, primaryTerm, version, true, sourceFilteredAsBytes,
-            Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptyMap());
     }
 
     public static class Result {

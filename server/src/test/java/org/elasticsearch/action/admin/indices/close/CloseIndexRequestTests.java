@@ -28,8 +28,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-
 public class CloseIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
@@ -54,7 +52,8 @@ public class CloseIndexRequestTests extends ESTestCase {
         {
             final CloseIndexRequest request = randomRequest();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                out.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousVersion(Version.V_7_2_0)));
                 request.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -77,7 +76,8 @@ public class CloseIndexRequestTests extends ESTestCase {
 
                 final CloseIndexRequest deserializedRequest = new CloseIndexRequest();
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                    in.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+                        VersionUtils.getPreviousVersion(Version.V_7_2_0)));
                     deserializedRequest.readFrom(in);
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());

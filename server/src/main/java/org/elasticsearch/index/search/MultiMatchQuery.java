@@ -182,12 +182,12 @@ public class MultiMatchQuery extends MatchQuery {
             for (int i = 0; i < terms.length; i++) {
                 values[i] = terms[i].bytes();
             }
-            return blendTerms(context, values, commonTermsCutoff, tieBreaker, lenient, blendedFields);
+            return blendTerms(context, values, tieBreaker, lenient, blendedFields);
         }
 
         @Override
         protected Query newTermQuery(Term term) {
-            return blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, lenient, blendedFields);
+            return blendTerm(context, term.bytes(), tieBreaker, lenient, blendedFields);
         }
 
         @Override
@@ -230,13 +230,13 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
-    static Query blendTerm(QueryShardContext context, BytesRef value, Float commonTermsCutoff, float tieBreaker,
+    static Query blendTerm(QueryShardContext context, BytesRef value, float tieBreaker,
                            boolean lenient, List<FieldAndBoost> blendedFields) {
 
-        return blendTerms(context, new BytesRef[] {value}, commonTermsCutoff, tieBreaker, lenient, blendedFields);
+        return blendTerms(context, new BytesRef[] {value}, tieBreaker, lenient, blendedFields);
     }
 
-    static Query blendTerms(QueryShardContext context, BytesRef[] values, Float commonTermsCutoff, float tieBreaker,
+    static Query blendTerms(QueryShardContext context, BytesRef[] values, float tieBreaker,
                             boolean lenient, List<FieldAndBoost> blendedFields) {
 
         List<Query> queries = new ArrayList<>();
@@ -276,11 +276,7 @@ public class MultiMatchQuery extends MatchQuery {
         if (i > 0) {
             terms = Arrays.copyOf(terms, i);
             blendedBoost = Arrays.copyOf(blendedBoost, i);
-            if (commonTermsCutoff != null) {
-                queries.add(BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, commonTermsCutoff));
-            } else {
-                queries.add(BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker));
-            }
+            queries.add(BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker));
         }
         if (queries.size() == 1) {
             return queries.get(0);

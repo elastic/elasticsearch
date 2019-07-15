@@ -83,8 +83,8 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, mapperService, null,
-                null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, null, mapperService,
+                null, null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
@@ -206,8 +206,8 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, mapperService, null,
-                null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, null, mapperService,
+                null, null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {

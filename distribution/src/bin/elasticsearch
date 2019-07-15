@@ -16,6 +16,10 @@
 
 source "`dirname "$0"`"/elasticsearch-env
 
+if [ -z "$ES_TMPDIR" ]; then
+  ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
+fi
+
 ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
 ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR}"

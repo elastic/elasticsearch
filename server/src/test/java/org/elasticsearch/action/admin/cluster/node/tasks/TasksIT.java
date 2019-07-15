@@ -105,7 +105,7 @@ import static org.hamcrest.Matchers.startsWith;
  * <p>
  * We need at least 2 nodes so we have a master node a non-master node
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2, transportClientRatio = 0.0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends ESIntegTestCase {
 
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
@@ -120,11 +120,6 @@ public class TasksIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, TestTaskPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     @Override
@@ -359,12 +354,12 @@ public class TasksIT extends ESIntegTestCase {
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(
-            client().filterWithHeader(headers).prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get());
+                client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get());
 
         // the search operation should produce one main task
         List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
         assertEquals(1, mainTask.size());
-        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], types[doc], search_type["));
+        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], search_type["));
         assertThat(mainTask.get(0).getDescription(), containsString("\"query\":{\"match_all\""));
         assertTaskHeaders(mainTask.get(0));
 
@@ -752,13 +747,12 @@ public class TasksIT extends ESIntegTestCase {
         assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
-            .setTypes(TaskResultsService.TASK_TYPE)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.getAction())))
             .get();
 
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
-        searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX).setTypes(TaskResultsService.TASK_TYPE)
+        searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
                 .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
                 .get();
 

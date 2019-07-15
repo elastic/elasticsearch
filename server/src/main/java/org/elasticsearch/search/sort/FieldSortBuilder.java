@@ -373,8 +373,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return SORT_DOC;
             }
         } else {
+            boolean isUnmapped = false;
             MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
+                isUnmapped = true;
                 if (unmappedType != null) {
                     fieldType = context.getMapperService().unmappedFieldType(unmappedType);
                 } else {
@@ -392,20 +394,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
             }
 
-            final Nested nested;
-            if (nestedSort != null) {
-                if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-                    throw new QueryShardException(context,
-                        "max_children is only supported on v6.5.0 or higher");
+            Nested nested = null;
+            if (isUnmapped == false) {
+                if (nestedSort != null) {
+                    if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                        throw new QueryShardException(context,
+                            "max_children is only supported on last level of nested sort");
+                    }
+                    // new nested sorts takes priority
+                    nested = resolveNested(context, nestedSort);
+                } else {
+                    nested = resolveNested(context, nestedPath, nestedFilter);
                 }
-                if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-                    throw new QueryShardException(context,
-                        "max_children is only supported on last level of nested sort");
-                }
-                // new nested sorts takes priority
-                nested = resolveNested(context, nestedSort);
-            } else {
-                nested = resolveNested(context, nestedPath, nestedFilter);
             }
 
             IndexFieldData<?> fieldData = context.getForField(fieldType);

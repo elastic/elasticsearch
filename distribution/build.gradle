@@ -241,7 +241,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from { project(':server').jar }
         from { project(':server').configurations.runtime }
-        from { project(':libs:plugin-classloader').jar }
+        from { project(':libs:elasticsearch-plugin-classloader').jar }
         from { project(':distribution:tools:java-version-checker').jar }
         from { project(':distribution:tools:launchers').jar }
         into('tools/plugin-cli') {
@@ -381,6 +381,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755
           }
+          if (details.name == 'src.zip') {
+            details.exclude()
+          }
         }
       }
     }
@@ -397,11 +400,11 @@ task run(type: RunTask) {
       setting 'xpack.graph.enabled', 'true'
       setting 'xpack.watcher.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
-      setupCommand 'setupTestAdmin',
-        'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     } else if (licenseType != 'basic') {
       throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
     }
+    setupCommand 'setupTestAdmin',
+            'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'true'
     setting 'xpack.sql.enabled', 'true'

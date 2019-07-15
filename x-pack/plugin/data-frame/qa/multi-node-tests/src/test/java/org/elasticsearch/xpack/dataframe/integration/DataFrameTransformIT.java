@@ -6,16 +6,19 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.core.IndexerState;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.junit.After;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,17 +27,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
     @After
-    public void cleanTransforms() {
+    public void cleanTransforms() throws IOException {
         cleanUp();
     }
 
     public void testDataFrameTransformCrud() throws Exception {
-        createReviewsIndex();
+        String indexName = "basic-crud-reviews";
+        createReviewsIndex(indexName, 100);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSource("timestamp", DateHistogramInterval.DAY, null, null));
-        groups.put("by-user", new TermsGroupSource("user_id"));
-        groups.put("by-business", new TermsGroupSource("business_id"));
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null, null));
+        groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
+        groups.put("by-business", TermsGroupSource.builder().setField("business_id").build());
 
         AggregatorFactories.Builder aggs = AggregatorFactories.builder()
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
@@ -44,17 +48,24 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             groups,
             aggs,
             "reviews-by-user-business-day",
-            REVIEWS_INDEX_NAME);
+            indexName);
 
-        assertTrue(putDataFrameTransform(config).isAcknowledged());
-        assertTrue(startDataFrameTransform(config.getId()).isStarted());
+        assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
 
-        DataFrameTransformStateAndStats stats = getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0);
+        // It will eventually be stopped
+        assertBusy(() ->
+            assertThat(getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0).getTransformState().getIndexerState(),
+                equalTo(IndexerState.STOPPED)));
+        stopDataFrameTransform(config.getId());
 
-        assertThat(stats.getTransformState().getIndexerState(), equalTo(IndexerState.STARTED));
+        DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
+        assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
+        Instant now = Instant.now();
+        assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
+        deleteDataFrameTransform(config.getId());
     }
-
 
 }

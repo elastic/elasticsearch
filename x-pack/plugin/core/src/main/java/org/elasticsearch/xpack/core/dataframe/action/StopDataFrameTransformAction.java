@@ -158,40 +158,40 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private final boolean stopped;
+        private final boolean acknowledged;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            stopped = in.readBoolean();
+            acknowledged = in.readBoolean();
         }
 
-        public Response(boolean stopped) {
+        public Response(boolean acknowledged) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.stopped = stopped;
+            this.acknowledged = acknowledged;
         }
 
         public Response(List<TaskOperationFailure> taskFailures,
                         List<? extends ElasticsearchException> nodeFailures,
-                        boolean stopped) {
+                        boolean acknowledged) {
             super(taskFailures, nodeFailures);
-            this.stopped = stopped;
+            this.acknowledged = acknowledged;
         }
 
-        public boolean isStopped() {
-            return stopped;
+        public boolean isAcknowledged() {
+            return acknowledged;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(stopped);
+            out.writeBoolean(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("stopped", stopped);
+            builder.field("acknowledged", acknowledged);
             builder.endObject();
             return builder;
         }
@@ -203,12 +203,12 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             if (o == null || getClass() != o.getClass())
                 return false;
             Response response = (Response) o;
-            return stopped == response.stopped;
+            return acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(stopped);
+            return Objects.hash(acknowledged);
         }
     }
 }

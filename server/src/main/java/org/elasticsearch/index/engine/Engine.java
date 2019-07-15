@@ -793,9 +793,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * @return the local checkpoint for this Engine
+     * @return the persisted local checkpoint for this Engine
      */
-    public abstract long getLocalCheckpoint();
+    public abstract long getPersistedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -911,7 +911,7 @@ public abstract class Engine implements Closeable {
             map.put(extension, length);
         }
 
-        if (useCompoundFile && directory != null) {
+        if (useCompoundFile) {
             try {
                 directory.close();
             } catch (IOException e) {
@@ -933,7 +933,7 @@ public abstract class Engine implements Closeable {
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
-    protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
@@ -954,15 +954,14 @@ public abstract class Engine implements Closeable {
 
         // now, correlate or add the committed ones...
         if (lastCommittedSegmentInfos != null) {
-            SegmentInfos infos = lastCommittedSegmentInfos;
-            for (SegmentCommitInfo info : infos) {
+            for (SegmentCommitInfo info : lastCommittedSegmentInfos) {
                 Segment segment = segments.get(info.info.name);
                 if (segment == null) {
                     segment = new Segment(info.info.name);
                     segment.search = false;
                     segment.committed = true;
-                    segment.docCount = info.info.maxDoc();
-                    segment.delDocCount = info.getDelCount();
+                    segment.delDocCount = info.getDelCount() + info.getSoftDelCount();
+                    segment.docCount = info.info.maxDoc() - segment.delDocCount;
                     segment.version = info.info.getVersion();
                     segment.compound = info.info.getUseCompoundFile();
                     try {
@@ -1143,7 +1142,7 @@ public abstract class Engine implements Closeable {
      */
     @SuppressWarnings("finally")
     private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
+        ExceptionsHelper.maybeError(maybeFatal).ifPresent(error -> {
             try {
                 logger.error(maybeMessage, error);
             } finally {
@@ -1717,6 +1716,8 @@ public abstract class Engine implements Closeable {
                     close(); // double close is not a problem
                 }
             }
+        } else {
+            logger.trace("skipping flushAndClose as already closed");
         }
         awaitPendingClose();
     }
@@ -1783,11 +1784,8 @@ public abstract class Engine implements Closeable {
 
             CommitId commitId = (CommitId) o;
 
-            if (!Arrays.equals(id, commitId.id)) {
-                return false;
-            }
+            return Arrays.equals(id, commitId.id);
 
-            return true;
         }
 
         @Override

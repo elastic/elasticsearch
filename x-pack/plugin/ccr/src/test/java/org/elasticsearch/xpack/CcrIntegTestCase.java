@@ -46,7 +46,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -155,7 +154,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
             numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null, true), 0, "leader", mockPlugins,
             Function.identity());
-        leaderCluster.beforeTest(random(), 0.0D);
+        leaderCluster.beforeTest(random());
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
@@ -168,7 +167,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             mockPlugins, Function.identity());
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 
-        followerCluster.beforeTest(random(), 0.0D);
+        followerCluster.beforeTest(random());
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
@@ -213,7 +212,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     private NodeConfigurationSource createNodeConfigurationSource(final String leaderSeedAddress, final boolean leaderCluster) {
         Settings.Builder builder = Settings.builder();
-        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
@@ -258,16 +256,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                         Stream.of(LocalStateCcr.class, CommonAnalysisPlugin.class),
                         CcrIntegTestCase.this.nodePlugins().stream())
                         .collect(Collectors.toList());
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return super.transportClientSettings();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                return Arrays.asList(LocalStateCcr.class, getTestTransportPlugin());
             }
         };
     }

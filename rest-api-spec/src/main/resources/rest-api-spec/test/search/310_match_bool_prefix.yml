@@ -345,19 +345,3 @@ setup:
               type: bool_prefix
               fields: [ "my_field1", "my_field2" ]
               slop: 1
-
----
-"multi_match multiple fields with cutoff_frequency throws exception":
-
-  - do:
-      catch: /\[cutoff_frequency\] not allowed for type \[bool_prefix\]/
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          query:
-            multi_match:
-              query: "brown"
-              type: bool_prefix
-              fields: [ "my_field1", "my_field2" ]
-              cutoff_frequency: 0.001

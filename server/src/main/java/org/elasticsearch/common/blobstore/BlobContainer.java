@@ -110,6 +110,12 @@ public interface BlobContainer {
     void deleteBlob(String blobName) throws IOException;
 
     /**
+     * Deletes this container and all its contents from the repository.
+     * @throws IOException on failure
+     */
+    void delete() throws IOException;
+
+    /**
      * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception
      * when one or multiple of the given blobs don't exist and simply ignore this case.
      *
@@ -157,6 +163,16 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetaData> listBlobs() throws IOException;
+
+    /**
+     * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
+     * a path that has this containers {@link #path()} return as its prefix and has one more path element than the current
+     * container's path.
+     *
+     * @return Map of name of the child container to child container
+     * @throws IOException on failure to list child containers
+     */
+    Map<String, BlobContainer> children() throws IOException;
 
     /**
      * Lists all blobs in the container that match the specified prefix.

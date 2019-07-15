@@ -22,7 +22,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}"
+  testCompile project(":client:rest-high-level")
 }
 
 task remoteClusterTest(type: RestIntegTestTask) {

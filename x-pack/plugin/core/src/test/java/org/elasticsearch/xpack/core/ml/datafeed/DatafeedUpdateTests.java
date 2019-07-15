@@ -135,13 +135,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -317,14 +317,14 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                     .filter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
         DatafeedUpdate datafeedUpdate = datafeedUpdateBuilder.build();
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             datafeedUpdate.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(Version.CURRENT);
                 DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
                 assertEquals(datafeedUpdate, streamedDatafeedUpdate);
 

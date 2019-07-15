@@ -17,6 +17,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -53,7 +54,12 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
 
     @Override
     public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return AcknowledgedResponse::new;
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -195,10 +201,8 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             startTime = in.readVLong();
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                jobId = in.readOptionalString();
-                datafeedIndices = in.readStringList();
-            }
+            jobId = in.readOptionalString();
+            datafeedIndices = in.readStringList();
         }
 
         DatafeedParams() {
@@ -272,10 +276,8 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             out.writeVLong(startTime);
             out.writeOptionalLong(endTime);
             out.writeVLong(timeout.millis());
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeOptionalString(jobId);
-                out.writeStringCollection(datafeedIndices);
-            }
+            out.writeOptionalString(jobId);
+            out.writeStringCollection(datafeedIndices);
         }
 
         @Override

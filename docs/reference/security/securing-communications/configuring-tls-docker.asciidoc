@@ -2,10 +2,8 @@
 [[configuring-tls-docker]]
 === Encrypting communications in an {es} Docker Container
 
-Starting with version 6.0.0, {stack} {security-features}
-(Gold, Platinum or Enterprise subscriptions)
-https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[require SSL/TLS]
-encryption for the transport networking layer.
+Unless you are using a trial license, {stack} {security-features} require
+SSL/TLS encryption for the transport networking layer.
 
 This section demonstrates an easy path to get started with SSL/TLS for both
 HTTPS and transport using the {es} Docker image. The example uses

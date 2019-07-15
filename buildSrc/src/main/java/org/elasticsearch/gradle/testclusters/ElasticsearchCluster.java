@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -70,10 +71,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
-                path, clusterName + "-1",
+                path, clusterName + "-0",
                 services, artifactsExtractDir, workingDirBase
             )
         );
+        // configure the cluster name eagerly so nodes know about it
+        this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
     }
@@ -91,7 +94,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             );
         }
 
-        for (int i = nodes.size() + 1 ; i <= numberOfNodes; i++) {
+        for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
                 path, clusterName + "-" + i, services, artifactsExtractDir, workingDirBase
             ));
@@ -99,7 +102,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     private ElasticsearchNode getFirstNode() {
-        return nodes.getAt(clusterName + "-1");
+        return nodes.getAt(clusterName + "-0");
     }
 
     public int getNumberOfNodes() {
@@ -186,6 +189,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void jvmArgs(String... values) {
+        nodes.all(each -> each.jvmArgs(values));
+    }
+
+    @Override
+    public void jvmArgs(Supplier<String[]> valueSupplier) {
+        nodes.all(each -> each.jvmArgs(valueSupplier));
+    }
+
+    @Override
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);
         configurationFrozen.set(true);
@@ -206,13 +219,17 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     public void start() {
         String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
         for (ElasticsearchNode node : nodes) {
-            node.defaultConfig.put("cluster.name", safeName(clusterName));
             if (Version.fromString(node.getVersion()).getMajor() >= 7) {
                 node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                 node.defaultConfig.put("discovery.seed_providers", "file");
             }
             node.start();
         }
+    }
+
+    @Override
+    public void restart() {
+        nodes.forEach(ElasticsearchNode::restart);
     }
 
     @Override
@@ -277,6 +294,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void setNameCustomization(Function<String, String> nameCustomization) {
+        nodes.all(each -> each.setNameCustomization(nameCustomization));
+    }
+
+    @Override
     public boolean isProcessAlive() {
         return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
     }
@@ -299,9 +321,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
+                boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
                 WaitForHttpResource wait = new WaitForHttpResource(
-                    "http", getFirstNode().getHttpSocketURI(), nodes.size()
+                    httpSslEnabled ? "https" : "http",
+                    getFirstNode().getHttpSocketURI(),
+                    nodes.size()
                 );
+                if (httpSslEnabled) {
+
+                    getFirstNode().configureHttpWait(wait);
+                }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {
                     wait.setUsername(credentials.get(0).get("useradd"));
@@ -309,7 +338,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 }
                 return wait.wait(500);
             } catch (IOException e) {
-                throw new IllegalStateException("Connection attempt to " + this + " failed", e);
+                throw new UncheckedIOException("IO error while waiting cluster", e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new TestClustersException("Interrupted while waiting for " + this, e);

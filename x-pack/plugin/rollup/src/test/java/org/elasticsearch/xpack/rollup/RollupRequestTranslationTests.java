@@ -49,7 +49,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);

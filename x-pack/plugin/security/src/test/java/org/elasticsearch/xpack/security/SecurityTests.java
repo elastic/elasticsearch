@@ -54,7 +54,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -66,9 +65,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -119,8 +117,8 @@ public class SecurityTests extends ESTestCase {
         };
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
-        settings = Security.additionalSettings(settings, true, false);
-        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false, null));
+        settings = Security.additionalSettings(settings, true);
+        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -181,7 +179,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testHttpSettingDefaults() throws Exception {
-        final Settings defaultSettings = Security.additionalSettings(Settings.EMPTY, true, false);
+        final Settings defaultSettings = Security.additionalSettings(Settings.EMPTY, true);
         assertThat(SecurityField.NAME4, equalTo(NetworkModule.TRANSPORT_TYPE_SETTING.get(defaultSettings)));
         assertThat(SecurityField.NAME4, equalTo(NetworkModule.HTTP_TYPE_SETTING.get(defaultSettings)));
     }
@@ -190,7 +188,7 @@ public class SecurityTests extends ESTestCase {
         Settings both4 = Security.additionalSettings(Settings.builder()
             .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
             .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
-            .build(), true, false);
+            .build(), true);
         assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(both4));
         assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(both4));
     }
@@ -199,13 +197,13 @@ public class SecurityTests extends ESTestCase {
         final String badType = randomFrom("netty4", "other", "security1");
         Settings settingsTransport = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, badType).build();
         IllegalArgumentException badTransport = expectThrows(IllegalArgumentException.class,
-            () -> Security.additionalSettings(settingsTransport, true, false));
+            () -> Security.additionalSettings(settingsTransport, true));
         assertThat(badTransport.getMessage(), containsString(SecurityField.NAME4));
         assertThat(badTransport.getMessage(), containsString(NetworkModule.TRANSPORT_TYPE_KEY));
 
         Settings settingsHttp = Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, badType).build();
         IllegalArgumentException badHttp = expectThrows(IllegalArgumentException.class,
-            () -> Security.additionalSettings(settingsHttp, true, false));
+            () -> Security.additionalSettings(settingsHttp, true));
         assertThat(badHttp.getMessage(), containsString(SecurityField.NAME4));
         assertThat(badHttp.getMessage(), containsString(NetworkModule.HTTP_TYPE_KEY));
     }
@@ -244,33 +242,6 @@ public class SecurityTests extends ESTestCase {
         assertNull(joinValidator);
     }
 
-    public void testTLSJoinValidator() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        joinValidator.accept(node, ClusterState.builder(ClusterName.DEFAULT).build());
-        int numIters = randomIntBetween(1, 10);
-        for (int i = 0; i < numIters; i++) {
-            boolean tlsOn = randomBoolean();
-            String discoveryType = randomFrom("single-node", ZEN2_DISCOVERY_TYPE, randomAlphaOfLength(4));
-            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
-            MetaData.Builder builder = MetaData.builder();
-            License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
-            TestUtils.putLicense(builder, license);
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
-            EnumSet<License.OperationMode> productionModes = EnumSet.of(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
-                License.OperationMode.STANDARD);
-            if (productionModes.contains(license.operationMode()) && tlsOn == false && "single-node".equals(discoveryType) == false) {
-                IllegalStateException ise = expectThrows(IllegalStateException.class, () -> validator.accept(node, state));
-                assertEquals("TLS setup is required for license type [" + license.operationMode().name() + "]", ise.getMessage());
-            } else {
-                validator.accept(node, state);
-            }
-            validator.accept(node, ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
-        }
-    }
-
     public void testJoinValidatorForFIPSLicense() throws Exception {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
@@ -291,26 +262,6 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT - 1))
-            .numberOfShards(1).numberOfReplicas(0)
-            .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> joinValidator.accept(node, clusterState));
-        assertThat(e.getMessage(), equalTo("Security index is not on the current version [6] - " +
-            "The Upgrade API must be run for 7.x nodes to join the cluster"));
-    }
-
     public void testIndexJoinValidator_FullyCurrentCluster() throws Exception {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
@@ -318,7 +269,7 @@ public class SecurityTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
+            .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -333,7 +284,7 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        Version version = randomBoolean() ? Version.CURRENT : Version.V_6_1_0;
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
@@ -352,7 +303,8 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
+        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(),
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes).build();

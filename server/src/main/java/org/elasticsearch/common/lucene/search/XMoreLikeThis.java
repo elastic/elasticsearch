@@ -97,7 +97,7 @@ import java.util.Set;
  * above.  The frequency and length thresholds could be parameters, etc.
  * Doug
  * </pre>
- * <h3>Initial Usage</h3>
+ * <h2>Initial Usage</h2>
  * <p>
  * This class has lots of options to try to make it efficient and flexible.
  * The simplest possible usage is as follows. The bold

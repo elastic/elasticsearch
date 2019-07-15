@@ -42,7 +42,11 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         original.setRequestsPerSecond(
                 randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat));
         if (randomBoolean()) {
-            original.setSize(between(0, Integer.MAX_VALUE));
+            if (randomBoolean()) {
+                original.setMaxDocs(between(0, Integer.MAX_VALUE));
+            } else {
+                original.setSize(between(0, Integer.MAX_VALUE));
+            }
         }
 
         // it's not important how many slices there are, we just need a number for forSlice
@@ -64,8 +68,10 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         assertEquals("slice requests always have a single worker", 1, forSliced.getSlices());
         assertEquals("requests_per_second is split between all workers", original.getRequestsPerSecond() / actualSlices,
                 forSliced.getRequestsPerSecond(), Float.MIN_NORMAL);
-        assertEquals("size is split evenly between all workers", original.getSize() == AbstractBulkByScrollRequest.SIZE_ALL_MATCHES
-                ? AbstractBulkByScrollRequest.SIZE_ALL_MATCHES : original.getSize() / actualSlices, forSliced.getSize());
+        assertEquals("max_docs is split evenly between all workers",
+            original.getMaxDocs() == AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
+                ? AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES : original.getMaxDocs() / actualSlices,
+            forSliced.getMaxDocs());
         assertEquals(slicingTask, forSliced.getParentTask());
 
         extraForSliceAssertions(original, forSliced);

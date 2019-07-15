@@ -65,5 +65,4 @@ transport.profiles.client.xpack.security.ssl.client_authentication: none
 
 This setting keeps certificate authentication active for node-to-node traffic,
 but removes the requirement to distribute a signed certificate to transport
-clients. For more information, see
-{stack-ov}/java-clients.html#transport-client[Configuring the Transport Client to work with a Secured Cluster].
+clients.

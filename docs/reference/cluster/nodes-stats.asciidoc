@@ -125,11 +125,6 @@ information that concern the file system:
 `fs.data.available_in_bytes`::
   Total number of bytes available to this Java virtual machine on this file store
 
-`fs.data.spins` (Linux only)::
-  Indicates if the file store is backed by spinning storage.
-  `null` means we could not determine it, `true` means the device possibly spins
-   and `false` means it does not (ex: solid-state disks).
-
 `fs.io_stats.devices` (Linux only)::
     Array of disk metrics for each device that is backing an
     Elasticsearch data path. These disk metrics are probed periodically

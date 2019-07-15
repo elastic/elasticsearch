@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
  / Additional properties can be specified either through the Properties object or in the URL. In case of duplicates, the URL wins.
  */
 //TODO: beef this up for Security/SSL
-class JdbcConfiguration extends ConnectionConfiguration {
+public class JdbcConfiguration extends ConnectionConfiguration {
     static final String URL_PREFIX = "jdbc:es://";
     public static URI DEFAULT_URI = URI.create("http://localhost:9200/");
 
@@ -47,7 +47,7 @@ class JdbcConfiguration extends ConnectionConfiguration {
     // can be out/err/url
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
-    static final String TIME_ZONE = "timezone";
+    public static final String TIME_ZONE = "timezone";
     // follow the JDBC spec and use the JVM default...
     // to avoid inconsistency, the default is picked up once at startup and reused across connections
     // to cater to the principle of least surprise

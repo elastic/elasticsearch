@@ -8,18 +8,25 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
+import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.text.ParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
+import java.util.TimeZone;
 
 import static java.lang.String.format;
 import static java.sql.Types.BIGINT;
@@ -29,6 +36,8 @@ import static java.sql.Types.INTEGER;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -38,8 +47,11 @@ import static org.junit.Assert.fail;
  * Utility class for doing JUnit-style asserts over JDBC.
  */
 public class JdbcAssert {
+    private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
+
+    private static final WellKnownText WKT = new WellKnownText(true, true);
 
     static {
         for (EsType type : EsType.values()) {
@@ -137,6 +149,11 @@ public class JdbcAssert {
             // since H2 cannot use a fixed timezone, the data is stored in UTC (and thus with timezone)
             if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
                 expectedType = Types.TIMESTAMP;
+            }
+
+            // H2 treats GEOMETRY as OTHER
+            if (expectedType == Types.OTHER && nameOf(actualType).startsWith("GEO_") ) {
+                actualType = Types.OTHER;
             }
 
             // since csv doesn't support real, we use float instead.....
@@ -251,6 +268,24 @@ public class JdbcAssert {
                         assertEquals(msg, (double) expectedObject, (double) actualObject, lenientFloatingNumbers ? 1d : 0.0d);
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
+                    } else if (type == Types.OTHER) {
+                        if (actualObject instanceof Geometry) {
+                            // We need to convert the expected object to libs/geo Geometry for comparision
+                            try {
+                                expectedObject = WKT.fromWKT(expectedObject.toString());
+                            } catch (IOException | ParseException ex) {
+                                fail(ex.getMessage());
+                            }
+                        }
+                        if (actualObject instanceof Point) {
+                            // geo points are loaded form doc values where they are stored as long-encoded values leading
+                            // to lose in precision
+                            assertThat(expectedObject, instanceOf(Point.class));
+                            assertEquals(((Point) expectedObject).getLat(), ((Point) actualObject).getLat(), 0.000001d);
+                            assertEquals(((Point) expectedObject).getLon(), ((Point) actualObject).getLon(), 0.000001d);
+                        } else {
+                            assertEquals(msg, expectedObject, actualObject);
+                        }
                     }
                     // intervals
                     else if (type == Types.VARCHAR && actualObject instanceof TemporalAmount) {

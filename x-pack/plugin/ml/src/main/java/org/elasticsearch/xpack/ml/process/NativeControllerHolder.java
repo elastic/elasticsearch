@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 import java.io.IOException;
 
 /**
- * Manages a singleton NativeController so that both the MachineLearningFeatureSet and MachineLearning classes can
+ * Manages a singleton NativeController so that both the MachineLearningInfoTransportAction and MachineLearning classes can
  * get access to the same one.
  */
 public class NativeControllerHolder {
@@ -32,12 +32,12 @@ public class NativeControllerHolder {
      *
      * Calls may throw an exception if initial connection to the C++ process fails.
      */
-    public static NativeController getNativeController(Environment environment) throws IOException {
+    public static NativeController getNativeController(String localNodeName, Environment environment) throws IOException {
 
         if (MachineLearningField.AUTODETECT_PROCESS.get(environment.settings())) {
             synchronized (lock) {
                 if (nativeController == null) {
-                    nativeController = new NativeController(environment, new NamedPipeHelper());
+                    nativeController = new NativeController(localNodeName, environment, new NamedPipeHelper());
                     nativeController.tailLogsInThread();
                 }
             }

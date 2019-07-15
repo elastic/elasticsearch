@@ -64,14 +64,20 @@ public final class GeoJson {
     private static final ParseField FIELD_ORIENTATION = new ParseField("orientation");
     private static final ParseField FIELD_RADIUS = new ParseField("radius");
 
-    private GeoJson() {
+    private final boolean rightOrientation;
+    private final boolean coerce;
+    private final boolean ignoreZValue;
 
+    public GeoJson(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
+        this.rightOrientation = rightOrientation;
+        this.coerce = coerce;
+        this.ignoreZValue = ignoreZValue;
     }
 
-    public static Geometry fromXContent(XContentParser parser, boolean rightOrientation, boolean coerce, boolean ignoreZValue)
+    public Geometry fromXContent(XContentParser parser)
         throws IOException {
         try (XContentSubParser subParser = new XContentSubParser(parser)) {
-            return PARSER.apply(subParser, new ParserContext(rightOrientation, coerce, ignoreZValue));
+            return PARSER.apply(subParser, this);
         }
     }
 
@@ -197,26 +203,14 @@ public final class GeoJson {
         return builder.endObject();
     }
 
-    private static class ParserContext {
-        public final boolean defaultOrientation;
-        public final boolean coerce;
-        public final boolean ignoreZValue;
-
-        ParserContext(boolean defaultOrientation, boolean coerce, boolean ignoreZValue) {
-            this.defaultOrientation = defaultOrientation;
-            this.coerce = coerce;
-            this.ignoreZValue = ignoreZValue;
-        }
-    }
-
-    private static ConstructingObjectParser<Geometry, ParserContext> PARSER =
+    private static ConstructingObjectParser<Geometry, GeoJson> PARSER =
         new ConstructingObjectParser<>("geojson", true, (a, c) -> {
             String type = (String) a[0];
             CoordinateNode coordinates = (CoordinateNode) a[1];
             @SuppressWarnings("unchecked") List<Geometry> geometries = (List<Geometry>) a[2];
             Boolean orientation = orientationFromString((String) a[3]);
             DistanceUnit.Distance radius = (DistanceUnit.Distance) a[4];
-            return createGeometry(type, geometries, coordinates, orientation, c.defaultOrientation, c.coerce, radius);
+            return createGeometry(type, geometries, coordinates, orientation, c.rightOrientation, c.coerce, radius);
         });
 
     static {

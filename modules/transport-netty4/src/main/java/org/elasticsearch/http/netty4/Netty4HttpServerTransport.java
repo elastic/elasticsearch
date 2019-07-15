@@ -23,8 +23,8 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
@@ -95,10 +95,6 @@ import static org.elasticsearch.http.netty4.cors.Netty4CorsHandler.ANY_ORIGIN;
 
 public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
-
-    static {
-        Netty4Utils.setup();
-    }
 
     /*
      * Size in bytes of an individual message received by io.netty.handler.codec.MessageAggregator which accumulates the content for an
@@ -351,7 +347,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @ChannelHandler.Sharable
-    private static class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+    private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
 
         private final Netty4HttpServerTransport transport;
 

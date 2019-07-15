@@ -25,7 +25,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -62,7 +61,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37117")
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
@@ -90,7 +88,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         ensureStableClusterOnAllNodes(2);
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
-            internalCluster().stopRandomNode(settings -> settings.getAsBoolean("node.master", false));
+            Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
+            internalCluster().stopCurrentMasterNode();
             assertBusy(() -> {
                 ClusterState state = client(mlAndDataNode).admin().cluster().prepareState()
                         .setLocal(true).get().getState();
@@ -98,6 +97,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             });
             logger.info("Restarting dedicated master node");
             internalCluster().startNode(Settings.builder()
+                    .put(masterDataPathSettings)
                     .put("node.master", true)
                     .put("node.data", false)
                     .put("node.ml", false)
@@ -106,7 +106,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37117")
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
@@ -179,7 +178,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         assertTrue(closeJobResponse.isClosed());
     }
 
-    @TestLogging("org.elasticsearch.xpack.ml.action:TRACE,org.elasticsearch.xpack.ml.process:TRACE")
     public void testJobRelocationIsMemoryAware() throws Exception {
 
         internalCluster().ensureAtLeastNumDataNodes(1);

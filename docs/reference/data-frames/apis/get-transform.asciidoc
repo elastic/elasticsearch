@@ -8,6 +8,8 @@
 <titleabbrev>Get {dataframe-transforms}</titleabbrev>
 ++++
 
+beta[]
+
 Retrieves configuration information for {dataframe-transforms}.
 
 
@@ -33,29 +35,39 @@ Retrieves configuration information for {dataframe-transforms}.
   specify one of these options, the API returns information for all
   {dataframe-transforms}.
 
-////
-==== Request Body
-
-  `page`::
-  `from`:::
+`from`::
       (integer) Skips the specified number of {dataframe-transforms}. The
       default value is `0`.
 
-  `size`:::
-      (integer) Specifies the maximum number of {dataframe-transforms} to obtain.
-      The default value is `100`.
-////
+`size`::
+      (integer) Specifies the maximum number of {dataframe-transforms} to obtain. The default value is `100`.
 
 ==== Results
 
 The API returns the following information:
 
 `transforms`::
-  (array) An array of transform resources.
+  (array) An array of transform resources, which are sorted by the `id` value in
+  ascending order.
 
-//==== Authorization
+==== Authorization
+
+If the {es} {security-features} are enabled, you must have
+`monitor_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_user` role has these privileges. For more information,
+see {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
 ==== Examples
+
+The following example retrieves information about a maximum of ten transforms:
+
+[source,js]
+--------------------------------------------------
+GET _data_frame/transforms?size=10
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup kibana sample data]
 
 The following example gets configuration information for the
 `ecommerce_transform` {dataframe-transform}:
@@ -75,10 +87,20 @@ The API returns the following results:
   "transforms" : [
     {
       "id" : "ecommerce_transform",
-      "source" : "kibana_sample_data_ecommerce",
-      "dest" : "kibana_sample_data_ecommerce_transform",
-      "query" : {
-        "match_all" : { }
+      "source" : {
+        "index" : [
+          "kibana_sample_data_ecommerce"
+        ],
+        "query" : {
+          "term" : {
+            "geoip.continent_name" : {
+              "value" : "Asia"
+            }
+          }
+        }
+      },
+      "dest" : {
+        "index" : "kibana_sample_data_ecommerce_transform"
       },
       "pivot" : {
         "group_by" : {
@@ -95,7 +117,8 @@ The API returns the following results:
             }
           }
         }
-      }
+      },
+      "description" : "Maximum priced ecommerce data by customer_id in Asia"
     }
   ]
 }

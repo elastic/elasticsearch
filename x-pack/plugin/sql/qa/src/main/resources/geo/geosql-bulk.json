@@ -1,0 +1,33 @@
+{"index":{"_id": "1"}}
+{"region": "Americas", "city": "Mountain View", "location": {"lat":"37.386483", "lon":"-122.083843"}, "location_no_dv": {"lat":"37.386483", "lon":"-122.083843"}, "shape": "POINT (-122.083843 37.386483 30)", "region_point": "POINT(-105.2551 54.5260)"}
+{"index":{"_id": "2"}}
+{"region": "Americas", "city": "Chicago", "location": [-87.637874, 41.888783], "location_no_dv": [-87.637874, 41.888783], "shape": {"type" : "point", "coordinates" : [-87.637874, 41.888783, 181]}, "region_point": "POINT(-105.2551 54.5260)"}
+{"index":{"_id": "3"}}
+{"region": "Americas", "city": "New York", "location": "40.745171,-73.990027", "location_no_dv": "40.745171,-73.990027", "shape": "POINT (-73.990027 40.745171 10)", "region_point": "POINT(-105.2551 54.5260)"}
+{"index":{"_id": "4"}}
+{"region": "Americas", "city": "San Francisco", "location": "37.789541,-122.394228", "location_no_dv": "37.789541,-122.394228", "shape": "POINT (-122.394228 37.789541 16)", "region_point": "POINT(-105.2551 54.5260)"}
+{"index":{"_id": "5"}}
+{"region": "Americas", "city": "Phoenix", "location": "33.376242,-111.973505", "location_no_dv": "33.376242,-111.973505", "shape": "POINT (-111.973505 33.376242 331)", "region_point": "POINT(-105.2551 54.5260)"}
+{"index":{"_id": "6"}}
+{"region": "Europe", "city": "Amsterdam", "location": "52.347557,4.850312", "location_no_dv": "52.347557,4.850312", "shape": "POINT (4.850312 52.347557 2)", "region_point": "POINT(15.2551 54.5260)"}
+{"index":{"_id": "7"}}
+{"region": "Europe", "city": "Berlin", "location": "52.486701,13.390889", "location_no_dv": "52.486701,13.390889", "shape": "POINT (13.390889 52.486701 34)", "region_point": "POINT(15.2551 54.5260)"}
+{"index":{"_id": "8"}}
+{"region": "Europe", "city": "Munich", "location": "48.146321,11.537505", "location_no_dv": "48.146321,11.537505", "shape": "POINT (11.537505 48.146321 519)", "region_point": "POINT(15.2551 54.5260)"}
+{"index":{"_id": "9"}}
+{"region": "Europe", "city": "London", "location": "51.510871,-0.121672", "location_no_dv": "51.510871,-0.121672", "shape": "POINT (-0.121672 51.510871 11)", "region_point": "POINT(15.2551 54.5260)"}
+{"index":{"_id": "10"}}
+{"region": "Europe", "city": "Paris", "location": "48.845538,2.351773", "location_no_dv": "48.845538,2.351773", "shape": "POINT (2.351773 48.845538 35)", "region_point": "POINT(15.2551 54.5260)"}
+{"index":{"_id": "11"}}
+{"region": "Asia", "city": "Singapore", "location": "1.295868,103.855535", "location_no_dv": "1.295868,103.855535", "shape": "POINT (103.855535 1.295868 15)", "region_point": "POINT(100.6197 34.0479)"}
+{"index":{"_id": "12"}}
+{"region": "Asia", "city": "Hong Kong", "location": "22.281397,114.183925", "location_no_dv": "22.281397,114.183925", "shape": "POINT (114.183925 22.281397 552)", "region_point": "POINT(100.6197 34.0479)"}
+{"index":{"_id": "13"}}
+{"region": "Asia", "city": "Seoul", "location": "37.509132,127.060851", "location_no_dv": "37.509132,127.060851", "shape": "POINT (127.060851 37.509132 38)", "region_point": "POINT(100.6197 34.0479)"}
+{"index":{"_id": "14"}}
+{"region": "Asia", "city": "Tokyo", "location": "35.669616,139.76402225", "location_no_dv": "35.669616,139.76402225", "shape": "POINT (139.76402225 35.669616 40)", "region_point": "POINT(100.6197 34.0479)"}
+{"index":{"_id": "15"}}
+{"region": "Asia", "city": "Sydney", "location": "-33.863385,151.208629", "location_no_dv": "-33.863385,151.208629", "shape": "POINT (151.208629 -33.863385 100)", "region_point": "POINT(100.6197 34.0479)"}
+
+
+

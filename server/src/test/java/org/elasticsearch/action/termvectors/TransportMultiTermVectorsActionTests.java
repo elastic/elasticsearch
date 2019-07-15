@@ -168,8 +168,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
-        request.add(new TermVectorsRequest("index1", "_doc", "1"));
-        request.add(new TermVectorsRequest("index2", "_doc", "2"));
+        request.add(new TermVectorsRequest("index1", "1"));
+        request.add(new TermVectorsRequest("index2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
         transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,
@@ -193,8 +193,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
-        request.add(new TermVectorsRequest("index2", "_doc", "1").routing("1"));
-        request.add(new TermVectorsRequest("index2", "_doc", "2"));
+        request.add(new TermVectorsRequest("index2", "1").routing("1"));
+        request.add(new TermVectorsRequest("index2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
         transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,

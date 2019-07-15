@@ -19,6 +19,7 @@ import java.io.IOException;
 public class MlLifeCycleService {
 
     private final Environment environment;
+    private final ClusterService clusterService;
     private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
     private final MlMemoryTracker memoryTracker;
@@ -26,6 +27,7 @@ public class MlLifeCycleService {
     public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedManager datafeedManager,
                               AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker) {
         this.environment = environment;
+        this.clusterService = clusterService;
         this.datafeedManager = datafeedManager;
         this.autodetectProcessManager = autodetectProcessManager;
         this.memoryTracker = memoryTracker;
@@ -39,14 +41,14 @@ public class MlLifeCycleService {
 
     public synchronized void stop() {
         try {
-            if (MachineLearningFeatureSet.isRunningOnMlPlatform(false)) {
+            if (MachineLearningInfoTransportAction.isRunningOnMlPlatform(false)) {
                 // This prevents datafeeds from sending data to autodetect processes WITHOUT stopping the
                 // datafeeds, so they get reallocated.  We have to do this first, otherwise the datafeeds
                 // could fail if they send data to a dead autodetect process.
                 if (datafeedManager != null) {
                     datafeedManager.isolateAllDatafeedsOnThisNodeBeforeShutdown();
                 }
-                NativeController nativeController = NativeControllerHolder.getNativeController(environment);
+                NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
                 if (nativeController != null) {
                     // This kills autodetect processes WITHOUT closing the jobs, so they get reallocated.
                     if (autodetectProcessManager != null) {

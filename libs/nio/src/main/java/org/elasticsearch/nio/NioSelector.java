@@ -340,22 +340,32 @@ public class NioSelector implements Closeable {
     private void writeToChannel(WriteOperation writeOperation) {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
-        // If the channel does not currently have anything that is ready to flush, we should flush after
-        // the write operation is queued.
-        boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
-        try {
-            context.queueWriteOperation(writeOperation);
-        } catch (Exception e) {
-            shouldFlushAfterQueuing = false;
-            executeFailedListener(writeOperation.getListener(), e);
+
+        if (context.isOpen() == false) {
+            executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
+        } else if (context.getSelectionKey() == null) {
+            // This should very rarely happen. The only times a channel is exposed outside the event loop,
+            // but might not registered is through the exception handler and channel accepted callbacks.
+            executeFailedListener(writeOperation.getListener(), new IllegalStateException("Channel not registered"));
+        } else {
+            // If the channel does not currently have anything that is ready to flush, we should flush after
+            // the write operation is queued.
+            boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
+            try {
+                context.queueWriteOperation(writeOperation);
+            } catch (Exception e) {
+                shouldFlushAfterQueuing = false;
+                executeFailedListener(writeOperation.getListener(), e);
+            }
+
+            if (shouldFlushAfterQueuing) {
+                if (context.selectorShouldClose() == false) {
+                    handleWrite(context);
+                }
+                eventHandler.postHandling(context);
+            }
         }
 
-        if (shouldFlushAfterQueuing) {
-            if (context.selectorShouldClose() == false) {
-                handleWrite(context);
-            }
-            eventHandler.postHandling(context);
-        }
     }
 
     /**
@@ -438,11 +448,22 @@ public class NioSelector implements Closeable {
                 if (newChannel instanceof SocketChannelContext) {
                     attemptConnect((SocketChannelContext) newChannel, false);
                 }
+                channelActive(newChannel);
             } else {
                 eventHandler.registrationException(newChannel, new ClosedChannelException());
+                closeChannel(newChannel);
             }
         } catch (Exception e) {
             eventHandler.registrationException(newChannel, e);
+            closeChannel(newChannel);
+        }
+    }
+
+    private void channelActive(ChannelContext<?> newChannel) {
+        try {
+            eventHandler.handleActive(newChannel);
+        } catch (IOException e) {
+            eventHandler.activeException(newChannel, e);
         }
     }
 
@@ -464,11 +485,7 @@ public class NioSelector implements Closeable {
     private void handleQueuedWrites() {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
-            if (writeOperation.getChannel().isOpen()) {
-                writeToChannel(writeOperation);
-            } else {
-                executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
-            }
+            writeToChannel(writeOperation);
         }
     }
 

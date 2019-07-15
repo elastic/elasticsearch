@@ -57,7 +57,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TransportPutDataFrameTransformAction
-        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, AcknowledgedResponse> {
+        extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -89,11 +89,6 @@ public class TransportPutDataFrameTransformAction
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

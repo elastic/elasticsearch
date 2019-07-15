@@ -95,11 +95,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
-    protected RolloverResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected RolloverResponse read(StreamInput in) throws IOException {
         return new RolloverResponse(in);
     }

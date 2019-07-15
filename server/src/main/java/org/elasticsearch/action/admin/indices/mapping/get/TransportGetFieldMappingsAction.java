@@ -47,7 +47,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            NodeClient client) {
-        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+        super(GetFieldMappingsAction.NAME, transportService, GetFieldMappingsRequest::new, actionFilters);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;

@@ -126,6 +126,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));

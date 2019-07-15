@@ -82,11 +82,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     }
 
     @Override
-    protected ClusterRerouteResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterRerouteResponse read(StreamInput in) throws IOException {
         return new ClusterRerouteResponse(in);
     }

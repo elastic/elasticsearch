@@ -26,37 +26,38 @@ privileges. See {stack-ov}/security-privileges.html[Security privileges] and
 [[ml-get-influencer-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job.
+`<job_id>`::
+  (Required, string) Identifier for the job.
 
 [[ml-get-influencer-request-body]]
 ==== {api-request-body-title}
 
-`desc` (Optional)::
-  (boolean) If true, the results are sorted in descending order.
+`desc`::
+  (Optional, boolean) If true, the results are sorted in descending order.
 
-`end` (Optional)::
-  (string) Returns influencers with timestamps earlier than this time.
+`end`::
+  (Optional, string) Returns influencers with timestamps earlier than this time.
 
-`exclude_interim` (Optional)::
-  (boolean) If true, the output excludes interim results.
-  By default, interim results are included.
+`exclude_interim`::
+  (Optional, boolean) If true, the output excludes interim results. By default,
+  interim results are included.
 
-`influencer_score` (Optional)::
-  (double) Returns influencers with anomaly scores greater or equal than this value.
+`influencer_score`::
+  (Optional, double) Returns influencers with anomaly scores greater than or
+  equal to this value.
 
-`page` (Optional)::
+`page`::
 `from`:::
-    (integer) Skips the specified number of influencers.
+    (Optional, integer) Skips the specified number of influencers.
 `size`:::
-  (integer) Specifies the maximum number of influencers to obtain.
+  (Optional, integer) Specifies the maximum number of influencers to obtain.
 
-`sort` (Optional)::
-  (string) Specifies the sort field for the requested influencers.
-  By default the influencers are sorted by the `influencer_score` value.
+`sort`::
+  (Optional, string) Specifies the sort field for the requested influencers. By
+  default, the influencers are sorted by the `influencer_score` value.
 
-`start` (Optional)::
-  (string) Returns influencers with timestamps after this time.
+`start`::
+  (Optional, string) Returns influencers with timestamps after this time.
 
 [[ml-get-influencer-results]]
 ==== {api-response-body-title}

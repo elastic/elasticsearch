@@ -49,11 +49,6 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
     }
 
     @Override
-    protected Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected Response read(StreamInput in) throws IOException {
         return new Response(in);
     }

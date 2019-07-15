@@ -32,8 +32,11 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -130,8 +133,9 @@ public abstract class AbstractRepository implements Repository {
                     "This action is NOT REVERSIBLE");
 
             terminal.println(Terminal.Verbosity.NORMAL, "Removing " + orphanedIndexIds.size() + " orphaned indices");
-            PlainActionFuture<Collection<Tuple<Integer, Long>>> removalFuture = new PlainActionFuture<>();
-            GroupedActionListener<Tuple<Integer, Long>> groupedRemovalListener =
+            PlainActionFuture<Collection<Void>> removalFuture = new PlainActionFuture<>();
+            final List<Tuple<Integer, Long>> results = Collections.synchronizedList(new ArrayList<>());
+            GroupedActionListener<Void> groupedRemovalListener =
                     new GroupedActionListener<>(removalFuture, orphanedIndexIds.size());
             for (final String indexId : orphanedIndexIds) {
                 executor.submit(new ActionRunnable<>(groupedRemovalListener) {
@@ -141,16 +145,26 @@ public abstract class AbstractRepository implements Repository {
                         Tuple<Integer, Long> countSize = deleteIndex(indexId);
                         terminal.println("Index directory " + indexId + ", files removed " + countSize.v1() +
                                 ", bytes freed " + countSize.v2());
-                        groupedRemovalListener.onResponse(countSize);
+                        results.add(countSize);
+                        groupedRemovalListener.onResponse(null);
                     }
                 });
             }
-            Collection<Tuple<Integer, Long>> removeResults = removalFuture.actionGet();
-            int totalFilesRemoved = removeResults.stream().mapToInt(Tuple::v1).sum();
-            long totalSpaceFreed = removeResults.stream().mapToLong(Tuple::v2).sum();
+            Exception ex = null;
+            try {
+                removalFuture.actionGet();
+            } catch (Exception e) {
+                ex = e;
+            }
+            int totalFilesRemoved = results.stream().mapToInt(Tuple::v1).sum();
+            long totalSpaceFreed = results.stream().mapToLong(Tuple::v2).sum();
             terminal.println(Terminal.Verbosity.NORMAL, "Total files removed: " + totalFilesRemoved);
             terminal.println(Terminal.Verbosity.NORMAL, "Total bytes freed: " + totalSpaceFreed);
-            terminal.println(Terminal.Verbosity.NORMAL, "Finished removing " + orphanedIndexIds.size() + " orphaned indices");
+            terminal.println(Terminal.Verbosity.NORMAL,
+                "Finished removing " + results.size() + "/" + orphanedIndexIds.size() + " orphaned indices");
+            if (ex != null) {
+                throw new ElasticsearchException(ex);
+            }
         } finally {
             executor.shutdown();
             try {

@@ -33,6 +33,7 @@ public class JavaVersionTests extends ESTestCase {
         assertThat(1, is(version.get(0)));
         assertThat(7, is(version.get(1)));
         assertThat(0, is(version.get(2)));
+        assertThat(13, is(JavaVersion.parse("13-ea").getVersion().get(0)));
     }
 
     public void testToString() {

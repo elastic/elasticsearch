@@ -45,12 +45,15 @@ public class JavaVersion implements Comparable<JavaVersion> {
     public static JavaVersion parse(String value) {
         Objects.requireNonNull(value);
         if (!isValid(value)) {
-            throw new IllegalArgumentException("value");
+            throw new IllegalArgumentException(value);
         }
 
         List<Integer> version = new ArrayList<>();
-        String[] components = value.split("\\.");
+        String[] components = value.split("[.-]");
         for (String component : components) {
+            if (component.equals("ea")) {
+                continue;
+            }
             version.add(Integer.valueOf(component));
         }
 
@@ -58,7 +61,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
     }
 
     public static boolean isValid(String value) {
-        return value.matches("^0*[0-9]+(\\.[0-9]+)*$");
+        return value.matches("^0*[0-9]+(\\.[0-9]+)*(-ea)?$");
     }
 
     private static final JavaVersion CURRENT = parse(System.getProperty("java.specification.version"));

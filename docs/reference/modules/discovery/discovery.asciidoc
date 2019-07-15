@@ -145,11 +145,11 @@ seed nodes.
 ===== Azure Classic hosts provider
 
 The {plugins}/discovery-azure-classic.html[Azure Classic discovery plugin] adds
-a hosts provider that uses the Azure Classic API find a list of seed nodes.
+a hosts provider that uses the Azure Classic API to find a list of seed nodes.
 
 [float]
 [[gce-hosts-provider]]
 ===== Google Compute Engine hosts provider
 
 The {plugins}/discovery-gce.html[GCE discovery plugin] adds a hosts provider
-that uses the GCE API find a list of seed nodes.
+that uses the GCE API to find a list of seed nodes.

@@ -622,10 +622,6 @@ without any configuration, if the total number of hits is not tracked.
 
 {es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
 
-[role="exclude",id="index-apis"]
-=== Index APIs
-{es} index APIs are now documented in <<indices>>.
-
 [role="exclude",id="ml-calendar-resource"]]
 === Calendar resources
 
@@ -643,3 +639,4 @@ See <<ml-get-filter>> and
 
 See <<ml-get-calendar-event>> and 
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
+

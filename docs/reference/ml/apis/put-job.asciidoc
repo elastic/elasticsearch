@@ -120,7 +120,6 @@ PUT _ml/anomaly_detectors/total-requests
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip: https://github.com/elastic/elasticsearch/issues/43271]
 
 When the job is created, you receive the following results:
 [source,js]

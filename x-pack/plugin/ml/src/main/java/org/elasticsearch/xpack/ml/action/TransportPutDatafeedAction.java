@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,6 +38,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -56,7 +60,9 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
+public class TransportPutDatafeedAction extends StreamableTransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPutDatafeedAction.class);
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -111,7 +117,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 .indices(indices);
 
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, r, listener),
+                r -> handlePrivsResponse(username, request, r, state, listener),
                 listener::onFailure);
 
             ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
@@ -145,15 +151,17 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             }
 
         } else {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), state, listener);
         }
     }
 
-    private void handlePrivsResponse(String username, PutDatafeedAction.Request request,
+    private void handlePrivsResponse(String username,
+                                     PutDatafeedAction.Request request,
                                      HasPrivilegesResponse response,
+                                     ClusterState clusterState,
                                      ActionListener<PutDatafeedAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
-            putDatafeed(request, threadPool.getThreadContext().getHeaders(), listener);
+            putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
@@ -169,7 +177,9 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         }
     }
 
-    private void putDatafeed(PutDatafeedAction.Request request, Map<String, String> headers,
+    private void putDatafeed(PutDatafeedAction.Request request,
+                             Map<String, String> headers,
+                             ClusterState clusterState,
                              ActionListener<PutDatafeedAction.Response> listener) {
 
         String datafeedId = request.getDatafeed().getId();
@@ -181,11 +191,28 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         }
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
 
-        CheckedConsumer<Boolean, Exception> validationOk = ok -> {
-            datafeedConfigProvider.putDatafeedConfig(request.getDatafeed(), headers, ActionListener.wrap(
+        CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> {
+            datafeedConfigProvider.putDatafeedConfig(
+                request.getDatafeed(),
+                headers,
+                ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
                     listener::onFailure
             ));
+        };
+
+        CheckedConsumer<Boolean, Exception> validationOk = ok -> {
+            if (clusterState == null) {
+                logger.warn("Cannot update doc mapping because clusterState == null");
+                mappingsUpdated.accept(false);
+                return;
+            }
+            ElasticsearchMappings.addDocMappingIfMissing(
+                AnomalyDetectorsIndex.configIndexName(),
+                ElasticsearchMappings::configMapping,
+                client,
+                clusterState,
+                ActionListener.wrap(mappingsUpdated, listener::onFailure));
         };
 
         CheckedConsumer<Boolean, Exception> jobOk = ok ->

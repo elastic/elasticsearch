@@ -186,11 +186,15 @@ public final class IOUtils {
     public static void rm(final Path... locations) throws IOException {
         final LinkedHashMap<Path,Throwable> unremoved = rm(new LinkedHashMap<>(), locations);
         if (!unremoved.isEmpty()) {
-            final IOException ioException = new IOException("could not remove all files");
+            final StringBuilder b = new StringBuilder("could not remove the following files (in the order of attempts):\n");
             for (final Map.Entry<Path,Throwable> kv : unremoved.entrySet()) {
-                ioException.addSuppressed(new IOException(kv.getKey().toAbsolutePath().toString(), kv.getValue()));
+                b.append("   ")
+                        .append(kv.getKey().toAbsolutePath())
+                        .append(": ")
+                        .append(kv.getValue())
+                        .append("\n");
             }
-            throw ioException;
+            throw new IOException(b.toString());
         }
     }
 

@@ -60,6 +60,10 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     @Before
     public void waitForMlTemplates() throws Exception {
         List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        // If upgrading from a version prior to v6.6.0 the set of templates to wait for is different
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_6_0) ) {
+            templatesToWaitFor = XPackRestTestConstants.ML_PRE_V660_TEMPLATES;
+        }
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
@@ -68,14 +72,10 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             assertThatMlConfigIndexDoesNotExist();
             // trigger .ml-config index creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
-            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
-                // .ml-config has correct mappings from the start
-                assertThat(mappingsForDataFrameAnalysis(), is(equalTo(EXPECTED_DATA_FRAME_ANALYSIS_MAPPINGS)));
-            } else {
-                // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
-                assertThat(mappingsForDataFrameAnalysis(), is(nullValue()));
-            }
+            // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
+            assertThat(mappingsForDataFrameAnalysis(), is(nullValue()));
         } else {
+            assertThat(mappingsForDataFrameAnalysis(), is(nullValue()));
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
             // assert that the mappings are updated

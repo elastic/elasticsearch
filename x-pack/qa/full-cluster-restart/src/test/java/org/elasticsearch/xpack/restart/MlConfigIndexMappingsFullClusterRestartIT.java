@@ -57,17 +57,8 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             .build();
     }
 
-    @Before
-    public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
-        // If upgrading from a version prior to v6.6.0 the set of templates to wait for is different
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_6_0) ) {
-            templatesToWaitFor = XPackRestTestConstants.ML_PRE_V660_TEMPLATES;
-        }
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
-    }
-
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
+        assumeTrue("This test only makes sense in version 6.6.0 and above", getOldClusterVersion().onOrAfter(Version.V_6_6_0));
         if (isRunningAgainstOldCluster()) {
             assertThatMlConfigIndexDoesNotExist();
             // trigger .ml-config index creation

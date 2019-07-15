@@ -61,22 +61,21 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         // Build the internal request
         StartReindexJobAction.Request internal = new StartReindexJobAction.Request(setCommonOptions(request, buildRequest(request)),
             waitForCompletion);
+        /*
+         * Let's try and validate before forking so the user gets some error. The
+         * task can't totally validate until it starts but this is better than
+         * nothing.
+         */
+        ActionRequestValidationException validationException = internal.getReindexRequest().validate();
+        if (validationException != null) {
+            throw validationException;
+        }
 
         // Executes the request and waits for completion
         if (waitForCompletion) {
             Map<String, String> params = new HashMap<>();
             params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(true));
             params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(true));
-
-            /*
-             * Let's try and validate before forking so the user gets some error. The
-             * task can't totally validate until it starts but this is better than
-             * nothing.
-             */
-            ActionRequestValidationException validationException = internal.getReindexRequest().validate();
-            if (validationException != null) {
-                throw validationException;
-            }
 
             return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new ActionListener<>() {
 
@@ -93,16 +92,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
                 }
             });
         } else {
-            /*
-             * Let's try and validate before forking so the user gets some error. The
-             * task can't totally validate until it starts but this is better than
-             * nothing.
-             */
-            ActionRequestValidationException validationException = internal.getReindexRequest().validate();
-            if (validationException != null) {
-                throw validationException;
-            }
-
             return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(StartReindexJobAction.Response response, XContentBuilder builder) throws Exception {

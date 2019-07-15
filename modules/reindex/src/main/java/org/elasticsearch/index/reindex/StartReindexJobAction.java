@@ -20,10 +20,10 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,16 +96,15 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
+    public static class Response extends ActionResponse {
 
         static final ParseField TASK_ID = new ParseField("task_id");
         static final ParseField REINDEX_RESPONSE = new ParseField("reindex_response");
 
         private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-            "start_reindex_response", true, args -> new Response((boolean) args[0], (String) args[1], (BulkByScrollResponse) args[2]));
+            "start_reindex_response", true, args -> new Response((String) args[0], (BulkByScrollResponse) args[1]));
 
         static {
-            declareAcknowledgedField(PARSER);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TASK_ID);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                 (parser, context) -> BulkByScrollResponse.fromXContent(parser), REINDEX_RESPONSE);
@@ -114,13 +113,11 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
         private String taskId;
         private BulkByScrollResponse reindexResponse;
 
-        public Response(boolean acknowledged, String taskId) {
-            super(acknowledged);
+        public Response(String taskId) {
             this.taskId = taskId;
         }
 
-        public Response(boolean acknowledged, String taskId, BulkByScrollResponse reindexResponse) {
-            super(acknowledged);
+        public Response(String taskId, BulkByScrollResponse reindexResponse) {
             this.taskId = taskId;
             this.reindexResponse = reindexResponse;
         }
@@ -138,7 +135,6 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(taskId);
             out.writeOptionalWriteable(reindexResponse);
         }

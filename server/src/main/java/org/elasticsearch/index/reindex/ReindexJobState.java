@@ -54,23 +54,24 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
             new ParseField(REINDEX_EXCEPTION));
     }
 
-    private final TaskId taskId;
+    private final TaskId ephemeralTaskId;
     private final BulkByScrollResponse reindexResponse;
     private final ElasticsearchException jobException;
 
-    private ReindexJobState(String taskId, BulkByScrollResponse reindexResponse, ElasticsearchException jobException) {
-        this(new TaskId(taskId), reindexResponse, jobException);
+    private ReindexJobState(String ephemeralTaskId, BulkByScrollResponse reindexResponse, ElasticsearchException jobException) {
+        this(new TaskId(ephemeralTaskId), reindexResponse, jobException);
     }
 
-    ReindexJobState(TaskId taskId, @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException jobException) {
-        this.taskId = taskId;
+    ReindexJobState(TaskId ephemeralTaskId, @Nullable BulkByScrollResponse reindexResponse,
+                    @Nullable ElasticsearchException jobException) {
+        this.ephemeralTaskId = ephemeralTaskId;
         assert (reindexResponse == null) || (jobException == null) : "Either response or exception must be null";
         this.reindexResponse = reindexResponse;
         this.jobException = jobException;
     }
 
     public ReindexJobState(StreamInput in) throws IOException {
-        taskId = TaskId.readFromStream(in);
+        ephemeralTaskId = TaskId.readFromStream(in);
         reindexResponse = in.readOptionalWriteable((input) -> {
             BulkByScrollResponse response = new BulkByScrollResponse();
             response.readFrom(input);
@@ -86,7 +87,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        taskId.writeTo(out);
+        ephemeralTaskId.writeTo(out);
         out.writeOptionalWriteable(reindexResponse);
         out.writeException(jobException);
     }
@@ -94,7 +95,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(EPHEMERAL_TASK_ID, taskId.toString());
+        builder.field(EPHEMERAL_TASK_ID, ephemeralTaskId.toString());
         if (reindexResponse != null) {
             builder.field(REINDEX_RESPONSE);
             builder.startObject();
@@ -118,8 +119,8 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
         return jobException;
     }
 
-    public TaskId getTaskId() {
-        return taskId;
+    public TaskId getEphemeralTaskId() {
+        return ephemeralTaskId;
     }
 
     public static ReindexJobState fromXContent(XContentParser parser) {

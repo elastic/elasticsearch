@@ -62,11 +62,6 @@ public class TransportStartReindexJobAction
     }
 
     @Override
-    protected StartReindexJobAction.Response newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     protected StartReindexJobAction.Response read(StreamInput in) throws IOException {
         return new StartReindexJobAction.Response(in);
     }
@@ -109,7 +104,7 @@ public class TransportStartReindexJobAction
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
                     ReindexJobState state = (ReindexJobState) task.getState();
                     if (state.getJobException() == null) {
-                        listener.onResponse(new StartReindexJobAction.Response(true, taskId, state.getReindexResponse()));
+                        listener.onResponse(new StartReindexJobAction.Response(taskId, state.getReindexResponse()));
                     } else {
                         listener.onFailure(state.getJobException());
                     }
@@ -129,7 +124,7 @@ public class TransportStartReindexJobAction
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
                     ReindexJobState state = (ReindexJobState) task.getState();
-                    listener.onResponse(new StartReindexJobAction.Response(true, state.getTaskId().toString()));
+                    listener.onResponse(new StartReindexJobAction.Response(state.getEphemeralTaskId().toString()));
                 }
 
                 @Override

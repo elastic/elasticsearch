@@ -24,6 +24,7 @@ import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXContentTestCase<
         DataFrameTransformCheckpointingInfo,
@@ -66,5 +67,10 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.contains("position");
     }
 }

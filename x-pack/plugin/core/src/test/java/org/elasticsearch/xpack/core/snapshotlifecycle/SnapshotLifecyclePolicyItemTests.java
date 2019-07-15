@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadataTests.createRandomPolicy;
+import static org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadataTests.createRandomPolicyMetadata;
 
 public class SnapshotLifecyclePolicyItemTests extends AbstractWireSerializingTestCase<SnapshotLifecyclePolicyItem> {
@@ -25,7 +25,7 @@ public class SnapshotLifecyclePolicyItemTests extends AbstractWireSerializingTes
         switch (between(0, 4)) {
             case 0:
                 String newPolicyId = randomValueOtherThan(instance.getPolicy().getId(), () -> randomAlphaOfLengthBetween(5, 10));
-                return new SnapshotLifecyclePolicyItem(createRandomPolicy(newPolicyId),
+                return new SnapshotLifecyclePolicyItem(randomSnapshotLifecyclePolicy(newPolicyId),
                     instance.getVersion(),
                     instance.getModifiedDate(),
                     instance.getLastSuccess(),

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 
 import java.util.ArrayList;
@@ -328,7 +329,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         indices.add("foo-*");
         indices.add(randomAlphaOfLength(4));
         config.put("indices", indices);
-        return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), schedule, randomAlphaOfLength(4), config);
+        return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), schedule, randomAlphaOfLength(4), config,
+            SnapshotRetentionConfiguration.EMPTY);
     }
 
     public static String randomSchedule() {

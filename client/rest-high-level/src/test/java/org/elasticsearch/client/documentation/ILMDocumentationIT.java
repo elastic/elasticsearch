@@ -63,6 +63,7 @@ import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequ
 import org.elasticsearch.client.snapshotlifecycle.SnapshotInvocationRecord;
 import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.client.snapshotlifecycle.SnapshotRetentionConfiguration;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -773,8 +774,11 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::slm-put-snapshot-lifecycle-policy
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("idx"));
+        SnapshotRetentionConfiguration retention =
+            new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30));
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
-            "policy_id", "name", "1 2 3 * * ?", "my_repository", config);
+            "policy_id", "name", "1 2 3 * * ?",
+            "my_repository", config, retention);
         PutSnapshotLifecyclePolicyRequest request =
             new PutSnapshotLifecyclePolicyRequest(policy);
         // end::slm-put-snapshot-lifecycle-policy

@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class PutCalendarActionResponseTests extends AbstractResponseTestCase<PutCalendarAction.Response, PutCalendarResponse> {
 
     @Override
@@ -53,6 +55,9 @@ public class PutCalendarActionResponseTests extends AbstractResponseTestCase<Put
 
     @Override
     protected void assertInstances(PutCalendarAction.Response serverTestInstance, PutCalendarResponse clientInstance) {
-
+        org.elasticsearch.client.ml.calendars.Calendar hlrcCalendar = clientInstance.getCalendar();
+        Calendar internalCalendar = new Calendar(hlrcCalendar.getId(), hlrcCalendar.getJobIds(), hlrcCalendar.getDescription());
+        PutCalendarAction.Response convertedServerTestInstance =new PutCalendarAction.Response(internalCalendar);
+        assertThat(convertedServerTestInstance, equalTo(serverTestInstance));
     }
 }

@@ -190,11 +190,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
-        repository.writeIndexGen(repositoryData, repositoryData.getGenId());
+        final long startingGeneration = repositoryData.getGenId();
+        repository.writeIndexGen(repositoryData, startingGeneration);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
-        expectThrows(RepositoryException.class, () -> repository.writeIndexGen(repositoryData, repositoryData.getGenId()));
+        expectThrows(RepositoryException.class, () -> repository.writeIndexGen(
+            repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId()));
     }
 
     public void testBadChunksize() throws Exception {

@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
@@ -39,7 +38,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     @Inject
     public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters,
                                  ClusterService clusterService, Environment env) {
-        super(MlInfoAction.NAME, transportService, actionFilters, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
+        super(MlInfoAction.NAME, transportService, MlInfoAction.Request::new, actionFilters);
         this.clusterService = clusterService;
 
         try {

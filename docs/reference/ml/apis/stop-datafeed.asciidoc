@@ -39,18 +39,18 @@ comma-separated list of {dfeeds} or a wildcard expression. You can close all
 [[ml-stop-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`<feed_id>` (Required)::
-  (string) Identifier for the {dfeed}. It can be a {dfeed} identifier or a
-  wildcard expression.
+`<feed_id>`::
+  (Required, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
+  or a wildcard expression.
 
 [[ml-stop-datafeed-request-body]]
 ==== {api-request-body-title}
 
-`force` (Optional)::
-  (boolean) If true, the {dfeed} is stopped forcefully.
+`force`::
+  (Optional, boolean) If true, the {dfeed} is stopped forcefully.
 
-`timeout` (Optional)::
-  (time) Controls the amount of time to wait until a {dfeed} stops.
+`timeout`::
+  (Optional, time) Controls the amount of time to wait until a {dfeed} stops.
   The default value is 20 seconds.
 
 [[ml-stop-datafeed-example]]

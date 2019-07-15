@@ -304,7 +304,12 @@ public class SnapshotStats implements Streamable, ToXContentObject {
             processedSize);
     }
 
-    void add(SnapshotStats stats) {
+    /**
+     * Add stats instance to the total
+     * @param stats Stats instance to add
+     * @param updateTimestamps Whether or not start time and duration should be updated
+     */
+    void add(SnapshotStats stats, boolean updateTimestamps) {
         incrementalFileCount += stats.incrementalFileCount;
         totalFileCount += stats.totalFileCount;
         processedFileCount += stats.processedFileCount;
@@ -317,7 +322,7 @@ public class SnapshotStats implements Streamable, ToXContentObject {
             // First time here
             startTime = stats.startTime;
             time = stats.time;
-        } else {
+        } else if (updateTimestamps) {
             // The time the last snapshot ends
             long endTime = Math.max(startTime + time, stats.startTime + stats.time);
 

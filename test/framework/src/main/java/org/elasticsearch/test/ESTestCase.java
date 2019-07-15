@@ -187,14 +187,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // Allows distinguishing between parallel test processes
-    public static final int TEST_WORKER_VM;
+    public static final String TEST_WORKER_VM_ID;
 
-    protected static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
+    public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
+
+    public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
     static {
-        // org.gradle.test.worker starts counting at 1, but we want to start counting at 0 here
-        // in case system property is not defined (e.g. when running test from IDE), just use 0
-        TEST_WORKER_VM = RandomizedTest.systemPropertyAsInt(TEST_WORKER_SYS_PROPERTY, 1) - 1;
+        TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 

@@ -108,13 +108,6 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns an immutable collection of all the snapshot ids in the repository.
-     */
-    public Collection<SnapshotId> getAllSnapshotIds() {
-        return new ArrayList<>(snapshotIds.values());
-    }
-
-    /**
      * Returns the {@link SnapshotState} for the given snapshot.  Returns {@code null} if
      * there is no state for the snapshot.
      */
@@ -163,6 +156,19 @@ public final class RepositoryData {
             }
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots);
+    }
+
+    /**
+     * Create a new instance with the given generation and all other fields equal to this instance.
+     *
+     * @param newGeneration New Generation
+     * @return New instance
+     */
+    public RepositoryData withGenId(long newGeneration) {
+        if (newGeneration == genId) {
+            return this;
+        }
+        return new RepositoryData(newGeneration, this.snapshotIds, this.snapshotStates, this.indexSnapshots);
     }
 
     /**

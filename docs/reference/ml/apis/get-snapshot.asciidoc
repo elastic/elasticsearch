@@ -25,34 +25,34 @@ Retrieves information about model snapshots.
 [[ml-get-snapshot-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job.
+`<job_id>`::
+  (Required, string) Identifier for the job.
 
-`<snapshot_id>` (Optional)::
-  (string) Identifier for the model snapshot. If you do not specify this
-  optional parameter, the API returns information about all model snapshots.
+`<snapshot_id>`::
+  (Optional, string) Identifier for the model snapshot. If you do not specify
+  this optional parameter, the API returns information about all model snapshots.
 
 [[ml-get-snapshot-request-body]]
 ==== {api-request-body-title}
 
-`desc` (Optional)::
-  (boolean) If true, the results are sorted in descending order.
+`desc`::
+  (Optional, boolean) If true, the results are sorted in descending order.
 
-`end` (Optional)::
-  (date) Returns snapshots with timestamps earlier than this time.
+`end`::
+  (Optional, date) Returns snapshots with timestamps earlier than this time.
 
-`from` (Optional)::
-  (integer) Skips the specified number of snapshots.
+`from`::
+  (Optional, integer) Skips the specified number of snapshots.
 
-`size` (Optional)::
-  (integer) Specifies the maximum number of snapshots to obtain.
+`size`::
+  (Optional, integer) Specifies the maximum number of snapshots to obtain.
 
-`sort` (Optional)::
-  (string) Specifies the sort field for the requested snapshots.
-  By default, the snapshots are sorted by their timestamp.
+`sort`::
+  (Optional, string) Specifies the sort field for the requested snapshots. By
+  default, the snapshots are sorted by their timestamp.
 
-`start` (Optional)::
-  (string) Returns snapshots with timestamps after this time.
+`start`::
+  (Optional, string) Returns snapshots with timestamps after this time.
 
 [[ml-get-snapshot-results]]
 ==== {api-response-body-title}
@@ -65,9 +65,6 @@ The API returns the following information:
 
 [[ml-get-snapshot-example]]
 ==== {api-examples-title}
-
-The following example gets model snapshot information for the
-`it_ops_new_logs` job:
 
 [source,js]
 --------------------------------------------------

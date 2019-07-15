@@ -35,7 +35,7 @@ public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTranspor
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         int numFrozenIndices = 0;
         for (IndexMetaData indexMetaData : state.metaData()) {
-            if (FrozenEngine.INDEX_FROZEN.exists(indexMetaData.getSettings())) {
+            if (FrozenEngine.INDEX_FROZEN.get(indexMetaData.getSettings())) {
                 numFrozenIndices++;
             }
         }

@@ -428,13 +428,13 @@ public class DatafeedManagerTests extends ESTestCase {
         return builder;
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private static DatafeedTask createDatafeedTask(String datafeedId, long startTime, Long endTime) {
         DatafeedTask task = mock(DatafeedTask.class);
         when(task.getDatafeedId()).thenReturn(datafeedId);
         when(task.getDatafeedStartTime()).thenReturn(startTime);
         when(task.getEndTime()).thenReturn(endTime);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;
@@ -447,10 +447,10 @@ public class DatafeedManagerTests extends ESTestCase {
         return mock(Consumer.class);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private DatafeedTask spyDatafeedTask(DatafeedTask task) {
         task = spy(task);
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;

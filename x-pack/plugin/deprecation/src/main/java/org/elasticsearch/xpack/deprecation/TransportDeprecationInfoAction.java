@@ -10,7 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETT
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.ML_SETTINGS_CHECKS;
 
-public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
+public class TransportDeprecationInfoAction extends StreamableTransportMasterNodeReadAction<DeprecationInfoAction.Request,
         DeprecationInfoAction.Response> {
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 

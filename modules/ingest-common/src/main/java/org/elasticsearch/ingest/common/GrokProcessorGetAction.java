@@ -94,7 +94,6 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(grokPatterns, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
@@ -103,7 +102,7 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, Request::new, actionFilters);
         }
 
         @Override

@@ -139,39 +139,25 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState createInitialClusterState(AllocationService service, Settings settings) {
-        RecoverySource.Type recoveryType = randomFrom(FilterAllocationDecider.INITIAL_RECOVERY_TYPES);
         MetaData.Builder metaData = MetaData.builder();
         final Settings.Builder indexSettings = settings(Version.CURRENT).put(settings);
         final IndexMetaData sourceIndex;
-        if (recoveryType == RecoverySource.Type.LOCAL_SHARDS) {
-            //put a fake closed source index
-            sourceIndex = IndexMetaData.builder("sourceIndex")
-                .settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0)
-                .putInSyncAllocationIds(0, Collections.singleton("aid0"))
-                .putInSyncAllocationIds(1, Collections.singleton("aid1"))
-                .build();
-            metaData.put(sourceIndex, false);
-            indexSettings.put(INDEX_RESIZE_SOURCE_UUID.getKey(), sourceIndex.getIndexUUID());
-            indexSettings.put(INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex.getIndex().getName());
-        } else {
-            sourceIndex = null;
-        }
+        //put a fake closed source index
+        sourceIndex = IndexMetaData.builder("sourceIndex")
+            .settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0)
+            .putInSyncAllocationIds(0, Collections.singleton("aid0"))
+            .putInSyncAllocationIds(1, Collections.singleton("aid1"))
+            .build();
+        metaData.put(sourceIndex, false);
+        indexSettings.put(INDEX_RESIZE_SOURCE_UUID.getKey(), sourceIndex.getIndexUUID());
+        indexSettings.put(INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex.getIndex().getName());
         final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("idx").settings(indexSettings)
             .numberOfShards(1).numberOfReplicas(1);
         final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
         metaData.put(indexMetaData, false);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        switch (recoveryType) {
-            case EMPTY_STORE:
-                routingTableBuilder.addAsNew(indexMetaData);
-                break;
-            case LOCAL_SHARDS:
-                routingTableBuilder.addAsFromCloseToOpen(sourceIndex);
-                routingTableBuilder.addAsNew(indexMetaData);
-                break;
-            default:
-                throw new UnsupportedOperationException(recoveryType + " is not supported");
-        }
+        routingTableBuilder.addAsFromCloseToOpen(sourceIndex);
+        routingTableBuilder.addAsNew(indexMetaData);
 
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING

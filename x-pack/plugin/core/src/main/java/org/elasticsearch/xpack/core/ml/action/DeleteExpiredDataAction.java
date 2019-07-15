@@ -71,7 +71,6 @@ public class DeleteExpiredDataAction extends StreamableResponseActionType<Delete
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(deleted);
         }
 

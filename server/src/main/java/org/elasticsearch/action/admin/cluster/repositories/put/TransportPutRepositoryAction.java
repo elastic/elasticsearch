@@ -64,11 +64,6 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(PutRepositoryRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }

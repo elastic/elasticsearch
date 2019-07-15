@@ -26,7 +26,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -112,7 +112,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         static class Response extends ActionResponse {
-
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {}
         }
 
         @Override
@@ -123,7 +124,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
     }
 
     public static class TransportUpdateInternalOrPrivateAction
-            extends TransportMasterNodeAction<UpdateInternalOrPrivateAction.Request, UpdateInternalOrPrivateAction.Response> {
+            extends StreamableTransportMasterNodeAction<UpdateInternalOrPrivateAction.Request, UpdateInternalOrPrivateAction.Response> {
 
         @Inject
         public TransportUpdateInternalOrPrivateAction(

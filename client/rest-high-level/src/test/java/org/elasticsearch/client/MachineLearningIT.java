@@ -123,6 +123,8 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
@@ -164,6 +166,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1438,7 +1441,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new StartDataFrameAnalyticsRequest(configId),
             machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
         assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
-        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STARTED));
+        assertThat(getAnalyticsState(configId), anyOf(equalTo(DataFrameAnalyticsState.STARTED),
+            equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING)));
 
         StopDataFrameAnalyticsResponse stopDataFrameAnalyticsResponse = execute(
             new StopDataFrameAnalyticsRequest(configId),
@@ -1576,6 +1580,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(curvePointAtThreshold1.getTruePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getFalsePositiveRate(), equalTo(0.0));
         assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
+
+        String regressionIndex = "evaluate-regression-test-index";
+        createIndex(regressionIndex, mappingForRegression());
+        BulkRequest regressionBulk = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(docForRegression(regressionIndex, 0.3, 0.1))  // #0
+            .add(docForRegression(regressionIndex, 0.3, 0.2))  // #1
+            .add(docForRegression(regressionIndex, 0.3, 0.3))  // #2
+            .add(docForRegression(regressionIndex, 0.3, 0.4))  // #3
+            .add(docForRegression(regressionIndex, 0.3, 0.7))  // #4
+            .add(docForRegression(regressionIndex, 0.5, 0.2))  // #5
+            .add(docForRegression(regressionIndex, 0.5, 0.3))  // #6
+            .add(docForRegression(regressionIndex, 0.5, 0.4))  // #7
+            .add(docForRegression(regressionIndex, 0.5, 0.8))  // #8
+            .add(docForRegression(regressionIndex, 0.5, 0.9));  // #9
+        highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
+
+        evaluateDataFrameRequest = new EvaluateDataFrameRequest(regressionIndex, new Regression(actualRegression, probabilityRegression));
+
+        evaluateDataFrameResponse =
+            execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+
+        MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
+        assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
+        assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
     }
 
     private static XContentBuilder defaultMappingForTest() throws IOException {
@@ -1611,6 +1642,28 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         return new IndexRequest()
             .index(indexName)
             .source(XContentType.JSON, actualField, Boolean.toString(isTrue), probabilityField, p);
+    }
+
+    private static final String actualRegression = "regression_actual";
+    private static final String probabilityRegression = "regression_prob";
+
+    private static XContentBuilder mappingForRegression() throws IOException {
+        return XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject(actualRegression)
+            .field("type", "double")
+            .endObject()
+            .startObject(probabilityRegression)
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject();
+    }
+
+    private static IndexRequest docForRegression(String indexName, double act, double p) {
+        return new IndexRequest()
+            .index(indexName)
+            .source(XContentType.JSON, actualRegression, act, probabilityRegression, p);
     }
 
     private void createIndex(String indexName, XContentBuilder mapping) throws IOException {

@@ -33,7 +33,7 @@ Updates the description of a filter, adds items, or removes items.
   (Optional, array of strings) The items to add to the filter.
 
 `description`::
-  (Optional, string) A description for the filter. See <<ml-filter-resource>>.
+  (Optional, string) A description for the filter.
 	
 `remove_items`::
   (Optional, array of strings) The items to remove from the filter.

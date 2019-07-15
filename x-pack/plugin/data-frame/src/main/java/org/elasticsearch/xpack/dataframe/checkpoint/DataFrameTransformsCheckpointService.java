@@ -93,7 +93,8 @@ public class DataFrameTransformsCheckpointService {
         // 1st get index to see the indexes the user has access to
         GetIndexRequest getIndexRequest = new GetIndexRequest()
             .indices(transformConfig.getSource().getIndex())
-            .features(new GetIndexRequest.Feature[0]);
+            .features(new GetIndexRequest.Feature[0])
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
         ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, GetIndexAction.INSTANCE,
                 getIndexRequest, ActionListener.wrap(getIndexResponse -> {

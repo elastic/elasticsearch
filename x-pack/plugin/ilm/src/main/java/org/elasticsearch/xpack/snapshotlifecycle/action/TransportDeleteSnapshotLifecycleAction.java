@@ -46,12 +46,6 @@ public class TransportDeleteSnapshotLifecycleAction extends
     }
 
     @Override
-    protected DeleteSnapshotLifecycleAction.Response newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-
-    @Override
     protected DeleteSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
         return new DeleteSnapshotLifecycleAction.Response(in);
     }

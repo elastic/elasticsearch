@@ -56,11 +56,6 @@ public class TransportExecuteSnapshotLifecycleAction
     }
 
     @Override
-    protected ExecuteSnapshotLifecycleAction.Response newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     protected ExecuteSnapshotLifecycleAction.Response read(StreamInput in) throws IOException {
         return new ExecuteSnapshotLifecycleAction.Response(in);
     }

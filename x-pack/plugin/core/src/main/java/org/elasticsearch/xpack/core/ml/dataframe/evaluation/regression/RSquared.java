@@ -30,7 +30,7 @@ import java.util.Objects;
 /**
  * Calculates R-Squared between two known numerical fields.
  *
- * equation: mse = 1 - SSres/SStot
+ * equation: R-Squared = 1 - SSres/SStot
  * such that,
  * SSres = Σ(y - y´)^2, The residual sum of squares
  * SStot =  Σ(y - y_mean)^2, The total sum of squares
@@ -77,6 +77,7 @@ public class RSquared implements RegressionMetric {
     public EvaluationMetricResult evaluate(Aggregations aggs) {
         NumericMetricsAggregation.SingleValue residualSumOfSquares = aggs.get(SS_RES);
         ExtendedStats extendedStats = aggs.get(ExtendedStatsAggregationBuilder.NAME + "_actual");
+        // extendedStats.getVariance() is the statistical sumOfSquares divided by count
         return residualSumOfSquares == null || extendedStats == null || extendedStats.getCount() == 0 ?
             null :
             new Result(1 - (residualSumOfSquares.value() / (extendedStats.getVariance() * extendedStats.getCount())));

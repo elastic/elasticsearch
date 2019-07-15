@@ -32,7 +32,7 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
-  (string) Required. Identifier for the {dataframe-transform}.
+  (Required, string) Identifier for the {dataframe-transform}.
 
 
 [[delete-data-frame-transform-examples]]

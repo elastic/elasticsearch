@@ -5898,4 +5898,28 @@ public class InternalEngineTests extends EngineTestCase {
             .filter(e -> e.getValue() instanceof DeleteVersionValue)
             .collect(Collectors.toMap(e -> e.getKey(), e -> (DeleteVersionValue) e.getValue()));
     }
+
+    public void testHandleDocumentFailureOnReplica() throws Exception {
+        AtomicReference<IOException> addDocException = new AtomicReference<>();
+        IndexWriterFactory indexWriterFactory = (dir, iwc) -> new IndexWriter(dir, iwc) {
+            @Override
+            public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                final IOException ex = addDocException.getAndSet(null);
+                if (ex != null) {
+                    throw ex;
+                }
+                return super.addDocument(doc);
+            }
+        };
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
+            final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+            Engine.Index index = new Engine.Index(newUid(doc), doc, randomNonNegativeLong(), primaryTerm.get(),
+                randomNonNegativeLong(), null, REPLICA, System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+            addDocException.set(new IOException("simulated"));
+            expectThrows(IOException.class, () -> engine.index(index));
+            assertTrue(engine.isClosed.get());
+            assertNotNull(engine.failedEngine.get());
+        }
+    }
 }

@@ -21,8 +21,8 @@ send your data to that job.
 The results of {ml} analysis are stored in {es} and you can use {kib} to help
 you visualize and explore the results.
 
-For a tutorial that walks you through these configuration steps,
-see <<ml-getting-started>>.
+//For a tutorial that walks you through these configuration steps,
+//see <<ml-getting-started>>.
 
 Though it is quite simple to analyze your data and provide quick {ml} results,
 gaining deep insights might require some additional planning and configuration.

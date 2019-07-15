@@ -56,39 +56,39 @@ overall buckets with a span equal to the largest job's `bucket_span`.
 [[ml-get-overall-buckets-path-parms]]
 ==== {api-path-parms-title}
 
-`<job_id>` (Required)::
-  (string) Identifier for the job. It can be a job identifier, a group name, a
-  comma-separated list of jobs or groups, or a wildcard expression.
+`<job_id>`::
+  (Required, string) Identifier for the job. It can be a job identifier, a group
+  name, a comma-separated list of jobs or groups, or a wildcard expression.
 
 [[ml-get-overall-buckets-request-body]]
 ==== {api-request-body-title}
 
-`allow_no_jobs` (Optional)::
-  (boolean) If `false` and the `job_id` does not match any job an error will
-  be returned. The default value is `true`.
+`allow_no_jobs`::
+  (Optional, boolean) If `false` and the `job_id` does not match any job, an
+  error occurs. The default value is `true`.
 
-`bucket_span` (Optional)::
-  (string) The span of the overall buckets. Must be greater or equal
+`bucket_span`::
+  (Optional, string) The span of the overall buckets. Must be greater or equal
   to the largest job's `bucket_span`. Defaults to the largest job's `bucket_span`.
 
-`end` (Optional)::
-  (string) Returns overall buckets with timestamps earlier than this time.
+`end`::
+  (Optional, string) Returns overall buckets with timestamps earlier than this
+  time.
 
-`exclude_interim` (Optional)::
-  (boolean) If `true`, the output excludes interim overall buckets.
-  Overall buckets are interim if any of the job buckets within
-  the overall bucket interval are interim.
-  By default, interim results are included.
+`exclude_interim`::
+  (Optional, boolean) If `true`, the output excludes interim overall buckets.
+  Overall buckets are interim if any of the job buckets within the overall
+  bucket interval are interim. By default, interim results are included.
 
-`overall_score` (Optional)::
-  (double) Returns overall buckets with overall scores greater or equal than
-  this value.
+`overall_score`::
+  (Optional, double) Returns overall buckets with overall scores greater or
+  equal than this value.
 
-`start` (Optional)::
-  (string) Returns overall buckets with timestamps after this time.
+`start`::
+  (Optional, string) Returns overall buckets with timestamps after this time.
 
-`top_n` (Optional)::
-  (integer) The number of top job bucket scores to be used in the
+`top_n`::
+  (Optional, integer) The number of top job bucket scores to be used in the
   `overall_score` calculation. The default value is `1`.
 
 [[ml-get-overall-buckets-results]]

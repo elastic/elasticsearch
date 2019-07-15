@@ -63,8 +63,8 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                          PersistentTasksClusterService persistentTasksClusterService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                          PersistentTasksService persistentTasksService) {
-        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            SetUpgradeModeAction.Request::new);
+        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, SetUpgradeModeAction.Request::new,
+            indexNameExpressionResolver);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
         this.client = client;

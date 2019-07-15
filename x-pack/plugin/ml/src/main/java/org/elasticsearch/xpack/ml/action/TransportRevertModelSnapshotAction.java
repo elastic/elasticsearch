@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,10 +34,11 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
+import java.io.IOException;
 import java.util.Date;
 import java.util.function.Consumer;
 
-public class TransportRevertModelSnapshotAction extends StreamableTransportMasterNodeAction<RevertModelSnapshotAction.Request,
+public class TransportRevertModelSnapshotAction extends TransportMasterNodeAction<RevertModelSnapshotAction.Request,
         RevertModelSnapshotAction.Response> {
 
     private final Client client;
@@ -51,7 +53,7 @@ public class TransportRevertModelSnapshotAction extends StreamableTransportMaste
                                               JobManager jobManager, JobResultsProvider jobResultsProvider,
                                               ClusterService clusterService, Client client, JobDataCountsPersister jobDataCountsPersister) {
         super(RevertModelSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, RevertModelSnapshotAction.Request::new);
+            RevertModelSnapshotAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
@@ -65,8 +67,8 @@ public class TransportRevertModelSnapshotAction extends StreamableTransportMaste
     }
 
     @Override
-    protected RevertModelSnapshotAction.Response newResponse() {
-        return new RevertModelSnapshotAction.Response();
+    protected RevertModelSnapshotAction.Response read(StreamInput in) throws IOException {
+        return new RevertModelSnapshotAction.Response(in);
     }
 
     @Override

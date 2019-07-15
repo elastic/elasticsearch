@@ -8,12 +8,13 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
-public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -61,8 +62,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 
     @SuppressWarnings("unchecked")

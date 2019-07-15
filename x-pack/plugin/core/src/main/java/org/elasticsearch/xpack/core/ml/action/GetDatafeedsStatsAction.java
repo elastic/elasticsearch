@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -32,7 +32,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.Version.V_7_4_0;
 
-public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDatafeedsStatsAction.Response> {
+public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/datafeeds/stats/get";
@@ -41,12 +41,7 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
     private static final String STATE = "state";
 
     private GetDatafeedsStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -248,7 +243,9 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
             super(datafeedsStats);
         }
 
-        public Response() {}
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
         public QueryPage<DatafeedStats> getResponse() {
             return getResources();

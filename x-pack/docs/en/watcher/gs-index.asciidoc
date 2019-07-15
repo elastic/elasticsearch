@@ -37,10 +37,10 @@ All of these use-cases share a few key properties:
   3rd party system is notified, or the query results are stored.
 
 [float]
-=== How Watches Work
+=== How watches work
 
-{xpack} provides an API for creating, managing and testing _watches_. A watch
-describes a single alert and can contain multiple notification actions.
+The {alert-features} provide an API for creating, managing and testing _watches_.
+A watch describes a single alert and can contain multiple notification actions.
 
 A watch is constructed from four simple building blocks:
 

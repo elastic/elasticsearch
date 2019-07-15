@@ -206,10 +206,19 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             return serverSocketChannel;
         }
 
+        private static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS X");
+
         private void configureSocketChannel(SocketChannel channel) throws IOException {
             channel.configureBlocking(false);
             java.net.Socket socket = channel.socket();
-            socket.setTcpNoDelay(tcpNoDelay);
+            try {
+                socket.setTcpNoDelay(tcpNoDelay);
+            } catch (java.net.SocketException e) {
+                if (MAC_OS_X == false) {
+                    // ignore on Mac, see https://github.com/elastic/elasticsearch/issues/41071
+                    throw e;
+                }
+            }
             socket.setKeepAlive(tcpKeepAlive);
             socket.setReuseAddress(tcpReusedAddress);
             if (tcpSendBufferSize > 0) {

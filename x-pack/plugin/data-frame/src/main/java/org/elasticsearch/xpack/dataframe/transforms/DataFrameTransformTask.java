@@ -820,7 +820,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     // Considered a recoverable indexing failure
     private static class BulkIndexFailure extends Exception {
-        public BulkIndexFailure(String msg) {
+        BulkIndexFailure(String msg) {
             super(msg);
         }
     }

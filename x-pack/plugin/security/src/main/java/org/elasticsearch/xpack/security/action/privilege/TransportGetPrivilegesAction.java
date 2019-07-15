@@ -34,7 +34,7 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
     @Inject
     public TransportGetPrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
                                         TransportService transportService) {
-        super(GetPrivilegesAction.NAME, transportService, actionFilters, GetPrivilegesRequest::new);
+        super(GetPrivilegesAction.NAME, transportService, GetPrivilegesRequest::new, actionFilters);
         this.privilegeStore = privilegeStore;
     }
 

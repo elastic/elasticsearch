@@ -40,8 +40,8 @@ it to ensure it is returning the expected data.
 [[ml-preview-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`<datafeed_id>` (Required)::
-  (string) Identifier for the {dfeed}.
+`<datafeed_id>`::
+  (Required, string) Identifier for the {dfeed}.
 
 [[ml-preview-datafeed-example]]
 ==== {api-examples-title}

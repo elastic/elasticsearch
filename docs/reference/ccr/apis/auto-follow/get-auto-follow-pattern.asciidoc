@@ -68,9 +68,9 @@ This API will return the specified auto-follow pattern collection.
 [[ccr-get-auto-follow-pattern-path-parms]]
 ==== {api-path-parms-title}
 
-`<auto_follow_pattern_name>` (Optional)::
-  (string) Specifies the auto-follow pattern collection that you want to
-  retrieve. If you do not specify a name, the API returns information for all
+`<auto_follow_pattern_name>`::
+  (Optional, string) Specifies the auto-follow pattern collection that you want
+  to retrieve. If you do not specify a name, the API returns information for all
   collections.
 
 [[ccr-get-auto-follow-pattern-examples]]

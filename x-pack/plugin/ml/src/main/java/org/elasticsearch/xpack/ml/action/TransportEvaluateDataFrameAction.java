@@ -30,7 +30,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
     @Inject
     public TransportEvaluateDataFrameAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
                                             Client client) {
-        super(EvaluateDataFrameAction.NAME, transportService, actionFilters, EvaluateDataFrameAction.Request::new);
+        super(EvaluateDataFrameAction.NAME, transportService, EvaluateDataFrameAction.Request::new, actionFilters);
         this.threadPool = threadPool;
         this.client = client;
     }

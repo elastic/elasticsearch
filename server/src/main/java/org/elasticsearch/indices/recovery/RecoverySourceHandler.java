@@ -708,7 +708,7 @@ public class RecoverySourceHandler {
                     currentInput = new InputStreamIndexInput(indexInput, md.length()) {
                         @Override
                         public void close() throws IOException {
-                            indexInput.close(); // InputStreamIndexInput's close is a noop
+                            IOUtils.close(indexInput, super::close); // InputStreamIndexInput's close is a noop
                         }
                     };
                 }

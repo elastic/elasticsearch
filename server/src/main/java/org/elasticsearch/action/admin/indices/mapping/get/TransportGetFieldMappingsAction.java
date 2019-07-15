@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,17 +40,17 @@ import static java.util.Collections.unmodifiableMap;
 public class TransportGetFieldMappingsAction extends HandledTransportAction<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     private final ClusterService clusterService;
-    private final TransportGetFieldMappingsIndexAction shardAction;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NodeClient client;
 
     @Inject
     public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
-                                           TransportGetFieldMappingsIndexAction shardAction,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                           NodeClient client) {
+        super(GetFieldMappingsAction.NAME, transportService, GetFieldMappingsRequest::new, actionFilters);
         this.clusterService = clusterService;
-        this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.client = client;
     }
 
     @Override
@@ -66,7 +67,8 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
             boolean probablySingleFieldRequest = concreteIndices.length == 1 && request.types().length == 1 && request.fields().length == 1;
             for (final String index : concreteIndices) {
                 GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index, probablySingleFieldRequest);
-                shardAction.execute(shardRequest, new ActionListener<GetFieldMappingsResponse>() {
+
+                client.executeLocally(TransportGetFieldMappingsIndexAction.TYPE, shardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(GetFieldMappingsResponse result) {
                         indexResponses.set(indexCounter.getAndIncrement(), result);

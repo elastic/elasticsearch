@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -49,16 +50,15 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -83,7 +83,6 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     private final TransportService transportService;
     private final ConnectionManager connectionManager;
-    private final ConnectedNodes connectedNodes;
     private final String clusterAlias;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
@@ -122,7 +121,6 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
         this.connectionManager = connectionManager;
-        this.connectedNodes = new ConnectedNodes(clusterAlias);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
             .getConcreteSettingForNamespace(clusterAlias).get(settings);
@@ -175,8 +173,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     @Override
     public void onNodeDisconnected(DiscoveryNode node) {
-        boolean remove = connectedNodes.remove(node);
-        if (remove && connectedNodes.size() < maxNumRemoteConnections) {
+        if (connectionManager.size() < maxNumRemoteConnections) {
             // try to reconnect and fill up the slot of the disconnected node
             connectHandler.forceConnect();
         }
@@ -187,7 +184,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * will invoke the listener immediately.
      */
     void ensureConnected(ActionListener<Void> voidActionListener) {
-        if (connectedNodes.size() == 0) {
+        if (connectionManager.size() == 0) {
             connectHandler.connect(voidActionListener);
         } else {
             voidActionListener.onResponse(null);
@@ -448,14 +445,16 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                         logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
                             proxyAddress);
                         final TransportService.HandshakeResponse handshakeResponse;
-                        ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
-                        Transport.Connection connection = manager.openConnection(seedNode, profile);
+                        final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
+                        final Transport.Connection connection = PlainActionFuture.get(
+                            fut -> manager.openConnection(seedNode, profile, fut));
                         boolean success = false;
                         try {
                             try {
                                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
-                                handshakeResponse = transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                                    (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
+                                handshakeResponse = PlainActionFuture.get(fut ->
+                                    transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
+                                        (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()), fut));
                             } catch (IllegalStateException ex) {
                                 logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
                                     "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
@@ -463,13 +462,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                             }
 
                             final DiscoveryNode handshakeNode = maybeAddProxyAddress(proxyAddress, handshakeResponse.getDiscoveryNode());
-                            if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
-                                manager.connectToNode(handshakeNode, null, transportService.connectionValidator(handshakeNode));
+                            if (nodePredicate.test(handshakeNode) && manager.size() < maxNumRemoteConnections) {
+                                PlainActionFuture.get(fut -> manager.connectToNode(handshakeNode, null,
+                                    transportService.connectionValidator(handshakeNode), ActionListener.map(fut, x -> null)));
                                 if (remoteClusterName.get() == null) {
                                     assert handshakeResponse.getClusterName().value() != null;
                                     remoteClusterName.set(handshakeResponse.getClusterName());
                                 }
-                                connectedNodes.add(handshakeNode);
                             }
                             ClusterStateRequest request = new ClusterStateRequest();
                             request.clear();
@@ -576,11 +575,11 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                             Iterable<DiscoveryNode> nodesIter = nodes.getNodes()::valuesIt;
                             for (DiscoveryNode n : nodesIter) {
                                 DiscoveryNode node = maybeAddProxyAddress(proxyAddress, n);
-                                if (nodePredicate.test(node) && connectedNodes.size() < maxNumRemoteConnections) {
+                                if (nodePredicate.test(node) && connectionManager.size() < maxNumRemoteConnections) {
                                     try {
-                                        connectionManager.connectToNode(node, null,
-                                            transportService.connectionValidator(node)); // noop if node is connected
-                                        connectedNodes.add(node);
+                                        // noop if node is connected
+                                        PlainActionFuture.get(fut -> connectionManager.connectToNode(node, null,
+                                            transportService.connectionValidator(node), ActionListener.map(fut, x -> null)));
                                     } catch (ConnectTransportException | IllegalStateException ex) {
                                         // ISE if we fail the handshake with an version incompatible node
                                         // fair enough we can't connect just move on
@@ -623,15 +622,20 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     boolean isNodeConnected(final DiscoveryNode node) {
-        return connectedNodes.contains(node);
+        return connectionManager.nodeConnected(node);
     }
+
+    private final AtomicLong nextNodeId = new AtomicLong();
 
     DiscoveryNode getAnyConnectedNode() {
-        return connectedNodes.getAny();
-    }
-
-    void addConnectedNode(DiscoveryNode node) {
-        connectedNodes.add(node);
+        List<DiscoveryNode> nodes = new ArrayList<>(connectionManager.connectedNodes());
+        if (nodes.isEmpty()) {
+            throw new NoSuchRemoteClusterException(clusterAlias);
+        } else {
+            long curr;
+            while ((curr = nextNodeId.incrementAndGet()) == Long.MIN_VALUE);
+            return nodes.get(Math.floorMod(curr, nodes.size()));
+        }
     }
 
     /**
@@ -642,67 +646,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                 clusterAlias,
                 seedNodes.stream().map(Tuple::v1).collect(Collectors.toList()),
                 maxNumRemoteConnections,
-                connectedNodes.size(),
+                getNumNodesConnected(),
                 initialConnectionTimeout,
                 skipUnavailable);
     }
 
     int getNumNodesConnected() {
-        return connectedNodes.size();
-    }
-
-    private static final class ConnectedNodes {
-
-        private final Set<DiscoveryNode> nodeSet = new HashSet<>();
-        private final String clusterAlias;
-
-        private Iterator<DiscoveryNode> currentIterator = null;
-
-        private ConnectedNodes(String clusterAlias) {
-            this.clusterAlias = clusterAlias;
-        }
-
-        public synchronized DiscoveryNode getAny() {
-            ensureIteratorAvailable();
-            if (currentIterator.hasNext()) {
-                return currentIterator.next();
-            } else {
-                throw new NoSuchRemoteClusterException(clusterAlias);
-            }
-        }
-
-        synchronized boolean remove(DiscoveryNode node) {
-            final boolean setRemoval = nodeSet.remove(node);
-            if (setRemoval) {
-                currentIterator = null;
-            }
-            return setRemoval;
-        }
-
-        synchronized boolean add(DiscoveryNode node) {
-            final boolean added = nodeSet.add(node);
-            if (added) {
-                currentIterator = null;
-            }
-            return added;
-        }
-
-        synchronized int size() {
-            return nodeSet.size();
-        }
-
-        synchronized boolean contains(DiscoveryNode node) {
-            return nodeSet.contains(node);
-        }
-
-        private synchronized void ensureIteratorAvailable() {
-            if (currentIterator == null) {
-                currentIterator = nodeSet.iterator();
-            } else if (currentIterator.hasNext() == false && nodeSet.isEmpty() == false) {
-                // iterator rollover
-                currentIterator = nodeSet.iterator();
-            }
-        }
+        return connectionManager.size();
     }
 
     private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {

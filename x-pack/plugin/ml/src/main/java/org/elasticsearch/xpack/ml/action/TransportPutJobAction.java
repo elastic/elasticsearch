@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-public class TransportPutJobAction extends TransportMasterNodeAction<PutJobAction.Request, PutJobAction.Response> {
+public class TransportPutJobAction extends StreamableTransportMasterNodeAction<PutJobAction.Request, PutJobAction.Response> {
 
     private final JobManager jobManager;
     private final XPackLicenseState licenseState;
@@ -53,7 +53,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
     }
 
     @Override
-    protected void masterOperation(PutJobAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, PutJobAction.Request request, ClusterState state,
                                    ActionListener<PutJobAction.Response> listener) throws Exception {
         jobManager.putJob(request, analysisRegistry, state, listener);
     }

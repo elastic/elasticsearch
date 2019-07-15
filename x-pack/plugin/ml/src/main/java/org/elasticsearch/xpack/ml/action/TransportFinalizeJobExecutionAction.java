@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
@@ -61,12 +62,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected void masterOperation(FinalizeJobExecutionAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, FinalizeJobExecutionAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         String jobIdString = String.join(",", request.getJobIds());
         logger.debug("finalizing jobs [{}]", jobIdString);

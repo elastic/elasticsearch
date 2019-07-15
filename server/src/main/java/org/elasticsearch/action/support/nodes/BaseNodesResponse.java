@@ -110,7 +110,6 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         clusterName.writeTo(out);
         writeNodesTo(out, nodes);
         out.writeList(failures);

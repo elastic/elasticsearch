@@ -21,8 +21,9 @@ package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -41,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -50,6 +50,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -61,11 +62,15 @@ import java.util.concurrent.TimeUnit;
 public class TransportNodesListShardStoreMetaData extends TransportNodesAction<TransportNodesListShardStoreMetaData.Request,
     TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData,
     TransportNodesListShardStoreMetaData.NodeRequest,
-    TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
-    implements AsyncShardFetch.Lister<TransportNodesListShardStoreMetaData.NodesStoreFilesMetaData,
     TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> {
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
+    public static final ActionType<NodesStoreFilesMetaData> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
+        @Override
+        public NodesStoreFilesMetaData newResponse() {
+            return new NodesStoreFilesMetaData();
+        }
+    };
 
     private final Settings settings;
     private final IndicesService indicesService;
@@ -86,13 +91,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    public void list(ShardId shardId, DiscoveryNode[] nodes, ActionListener<NodesStoreFilesMetaData> listener) {
-        execute(new Request(shardId, nodes), listener);
-    }
-
-    @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId, request);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest(request);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request, Task task) {
         try {
             return new NodeStoreFilesMetaData(clusterService.localNode(), listStoreMetaData(request.shardId));
         } catch (IOException e) {
@@ -267,6 +267,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     public static class NodesStoreFilesMetaData extends BaseNodesResponse<NodeStoreFilesMetaData> {
 
+        public NodesStoreFilesMetaData() {}
+
         public NodesStoreFilesMetaData(ClusterName clusterName, List<NodeStoreFilesMetaData> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
@@ -290,8 +292,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
-            super(nodeId);
+        NodeRequest(TransportNodesListShardStoreMetaData.Request request) {
             this.shardId = request.shardId;
         }
 

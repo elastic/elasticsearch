@@ -79,11 +79,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     }
 
     @Override
-    protected CloseIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected CloseIndexResponse read(StreamInput in) throws IOException {
         return new CloseIndexResponse(in);
     }
@@ -102,13 +97,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
             indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    @Override
-    protected void masterOperation(final CloseIndexRequest request,
-                                   final ClusterState state,
-                                   final ActionListener<CloseIndexResponse> listener) {
-        throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override

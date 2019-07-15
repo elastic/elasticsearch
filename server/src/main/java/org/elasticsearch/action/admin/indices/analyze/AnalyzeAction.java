@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -45,7 +46,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class AnalyzeAction extends Action<AnalyzeAction.Response> {
+public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();
     public static final String NAME = "indices:admin/analyze";
@@ -57,11 +58,6 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
     @Override
     public Writeable.Reader<Response> getResponseReader() {
         return Response::new;
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     /**
@@ -297,21 +293,28 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         private final List<AnalyzeToken> tokens;
 
         public Response(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
+            if (tokens == null && detail == null) {
+                throw new IllegalArgumentException("Neither token nor detail set on AnalysisAction.Response");
+            }
             this.tokens = tokens;
             this.detail = detail;
         }
 
         public Response(StreamInput in) throws IOException {
             super.readFrom(in);
-            int size = in.readVInt();
-            if (size > 0) {
-                tokens = new ArrayList<>(size);
-                for (int i = 0; i < size; i++) {
-                    tokens.add(new AnalyzeToken(in));
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+                tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
+            } else {
+                int size = in.readVInt();
+                if (size > 0) {
+                    tokens = new ArrayList<>(size);
+                    for (int i = 0; i < size; i++) {
+                        tokens.add(new AnalyzeToken(in));
+                    }
+                } else {
+                    tokens = null;
                 }
-            }
-            else {
-                tokens = null;
             }
             detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
         }
@@ -351,22 +354,33 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (tokens != null) {
-                out.writeVInt(tokens.size());
-                for (AnalyzeToken token : tokens) {
-                    token.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                AnalyzeToken[] tokenArray = null;
+                if (tokens != null) {
+                    tokenArray = tokens.toArray(new AnalyzeToken[0]);
                 }
+                out.writeOptionalArray(tokenArray);
             } else {
-                out.writeVInt(0);
+                if (tokens != null) {
+                    out.writeVInt(tokens.size());
+                    for (AnalyzeToken token : tokens) {
+                        token.writeTo(out);
+                    }
+                } else {
+                    out.writeVInt(0);
+                }
             }
             out.writeOptionalWriteable(detail);
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             Response that = (Response) o;
             return Objects.equals(detail, that.detail) &&
                 Objects.equals(tokens, that.tokens);
@@ -407,8 +421,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AnalyzeToken that = (AnalyzeToken) o;
             return startOffset == that.startOffset &&
                 endOffset == that.endOffset &&
@@ -588,8 +606,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
             return customAnalyzer == that.customAnalyzer &&
                 Objects.equals(analyzer, that.analyzer) &&
@@ -675,8 +697,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AnalyzeTokenList that = (AnalyzeTokenList) o;
             return Objects.equals(name, that.name) &&
                 Arrays.equals(tokens, that.tokens);
@@ -696,15 +722,18 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         AnalyzeTokenList(StreamInput in) throws IOException {
             name = in.readString();
-            int size = in.readVInt();
-            if (size > 0) {
-                tokens = new AnalyzeToken[size];
-                for (int i = 0; i < size; i++) {
-                    tokens[i] = new AnalyzeToken(in);
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                tokens = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+            } else {
+                int size = in.readVInt();
+                if (size > 0) {
+                    tokens = new AnalyzeToken[size];
+                    for (int i = 0; i < size; i++) {
+                        tokens[i] = new AnalyzeToken(in);
+                    }
+                } else {
+                    tokens = null;
                 }
-            }
-            else {
-                tokens = null;
             }
         }
 
@@ -738,13 +767,17 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            if (tokens != null) {
-                out.writeVInt(tokens.length);
-                for (AnalyzeToken token : tokens) {
-                    token.writeTo(out);
-                }
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeOptionalArray(tokens);
             } else {
-                out.writeVInt(0);
+                if (tokens != null) {
+                    out.writeVInt(tokens.length);
+                    for (AnalyzeToken token : tokens) {
+                        token.writeTo(out);
+                    }
+                } else {
+                    out.writeVInt(0);
+                }
             }
         }
     }
@@ -795,8 +828,12 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             CharFilteredText that = (CharFilteredText) o;
             return Objects.equals(name, that.name) &&
                 Arrays.equals(texts, that.texts);

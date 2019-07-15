@@ -47,7 +47,7 @@ public final class TransportSamlInvalidateSessionAction
     @Inject
     public TransportSamlInvalidateSessionAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService,
                                                 Realms realms) {
-        super(SamlInvalidateSessionAction.NAME, transportService, actionFilters, SamlInvalidateSessionRequest::new);
+        super(SamlInvalidateSessionAction.NAME, transportService, SamlInvalidateSessionRequest::new, actionFilters);
         this.tokenService = tokenService;
         this.realms = realms;
     }

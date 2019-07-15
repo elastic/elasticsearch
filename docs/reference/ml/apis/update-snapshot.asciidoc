@@ -8,45 +8,45 @@
 
 Updates certain properties of a snapshot.
 
-==== Request
+[[ml-update-snapshot-request]]
+==== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
+[[ml-update-snapshot-prereqs]]
+==== {api-prereq-title}
 
-//==== Description
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
 
-==== Path Parameters
 
-`job_id` (required)::
-  (string) Identifier for the job
+[[ml-update-snapshot-path-parms]]
+==== {api-path-parms-title}
 
-`snapshot_id` (required)::
-  (string) Identifier for the model snapshot
+`<job_id>`::
+  (Required, string) Identifier for the job.
 
-==== Request Body
+`<snapshot_id>`::
+  (Required, string) Identifier for the model snapshot.
+
+[[ml-update-snapshot-request-body]]
+==== {api-request-body-title}
 
 The following properties can be updated after the model snapshot is created:
 
 `description`::
-  (string) An optional description of the model snapshot. For example,
+  (Optional, string) A description of the model snapshot. For example,
   "Before black friday".
 
 `retain`::
-  (boolean) If true, this snapshot will not be deleted during automatic cleanup
-  of snapshots older than `model_snapshot_retention_days`.
+  (Optional, boolean) If true, this snapshot will not be deleted during
+  automatic cleanup of snapshots older than `model_snapshot_retention_days`.
   Note that this snapshot will still be deleted when the job is deleted.
   The default value is false.
 
-
-==== Authorization
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
-
-
-==== Examples
+[[ml-update-snapshot-example]]
+==== {api-examples-title}
 
 The following example updates the snapshot identified as `1491852978`:
 

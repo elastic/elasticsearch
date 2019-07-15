@@ -47,7 +47,6 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         resources.writeTo(out);
     }
 

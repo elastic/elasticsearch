@@ -6,21 +6,16 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class StartILMAction extends Action<AcknowledgedResponse> {
+public class StartILMAction extends ActionType<AcknowledgedResponse> {
     public static final StartILMAction INSTANCE = new StartILMAction();
     public static final String NAME = "cluster:admin/ilm/start";
 
     protected StartILMAction() {
         super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

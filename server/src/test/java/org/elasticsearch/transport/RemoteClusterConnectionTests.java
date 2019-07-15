@@ -34,6 +34,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -478,9 +479,10 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testRemoteConnectionVersionMatchesTransportConnectionVersion() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        final Version previousVersion = VersionUtils.getPreviousVersion();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, previousVersion);
-             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+        final Version previousVersion = randomValueOtherThan(Version.CURRENT, () -> VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT));
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, previousVersion)) {
 
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             assertThat(seedNode, notNullValue());
@@ -519,12 +521,10 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                         seedNodes(seedNode), service, Integer.MAX_VALUE, n -> true, null, connectionManager)) {
-                    connection.addConnectedNode(seedNode);
-                    for (DiscoveryNode node : knownNodes) {
-                        final Transport.Connection transportConnection = connection.getConnection(node);
-                        assertThat(transportConnection.getVersion(), equalTo(previousVersion));
-                    }
+                    PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
                     assertThat(knownNodes, iterableWithSize(2));
+                    assertThat(connection.getConnection(seedNode).getVersion(), equalTo(Version.CURRENT));
+                    assertThat(connection.getConnection(oldVersionNode).getVersion(), equalTo(previousVersion));
                 }
             }
         }
@@ -979,7 +979,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 discoverableTransports.add(transportService);
             }
 
-            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = randomSubsetOf(discoverableNodes);
+            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(discoverableNodes));
             Collections.shuffle(seedNodes, random());
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
@@ -1020,11 +1020,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 barrier.await();
                                 for (int j = 0; j < numDisconnects; j++) {
                                     if (randomBoolean()) {
+                                        String node = "discoverable_node_added" + counter.incrementAndGet();
                                         MockTransportService transportService =
-                                            startTransport("discoverable_node_added" + counter.incrementAndGet(), knownNodes,
+                                            startTransport(node, knownNodes,
                                                 Version.CURRENT);
                                         discoverableTransports.add(transportService);
-                                        connection.addConnectedNode(transportService.getLocalDiscoNode());
+                                        seedNodes.add(Tuple.tuple(node, () -> transportService.getLocalDiscoNode()));
+                                        PlainActionFuture.get(fut -> connection.updateSeedNodes(null, seedNodes,
+                                            ActionListener.map(fut, x -> null)));
                                     } else {
                                         DiscoveryNode node = randomFrom(discoverableNodes).v2().get();
                                         connection.onNodeDisconnected(node);
@@ -1133,8 +1136,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
-                connectionManager.addNodeConnectedBehavior(connectedNode.getAddress(), (cm, discoveryNode)
-                    -> discoveryNode.equals(connectedNode));
+                connectionManager.setDefaultNodeConnectedBehavior(cm -> Collections.singleton(connectedNode));
 
                 connectionManager.addConnectBehavior(connectedNode.getAddress(), (cm, discoveryNode) -> {
                     if (discoveryNode == connectedNode) {
@@ -1146,7 +1148,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                     seedNodes(connectedNode), service, Integer.MAX_VALUE, n -> true, null, connectionManager)) {
-                    connection.addConnectedNode(connectedNode);
+                    PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected
                         Transport.Connection remoteConnection = connection.getConnection(connectedNode);
@@ -1261,35 +1263,35 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-            return t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(
-                    new Transport.Connection() {
-                        @Override
-                        public DiscoveryNode getNode() {
-                            return node;
-                        }
+                t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
+                    (delegatedListener, connection) -> delegatedListener.onResponse(
+                        new Transport.Connection() {
+                            @Override
+                            public DiscoveryNode getNode() {
+                                return node;
+                            }
 
-                        @Override
-                        public void sendRequest(long requestId, String action, TransportRequest request,
-                                                TransportRequestOptions options) throws IOException {
-                            connection.sendRequest(requestId, action, request, options);
-                        }
+                            @Override
+                            public void sendRequest(long requestId, String action, TransportRequest request,
+                                                    TransportRequestOptions options) throws IOException {
+                                connection.sendRequest(requestId, action, request, options);
+                            }
 
-                        @Override
-                        public void addCloseListener(ActionListener<Void> listener) {
-                            connection.addCloseListener(listener);
-                        }
+                            @Override
+                            public void addCloseListener(ActionListener<Void> listener) {
+                                connection.addCloseListener(listener);
+                            }
 
-                        @Override
-                        public boolean isClosed() {
-                            return connection.isClosed();
-                        }
+                            @Override
+                            public boolean isClosed() {
+                                return connection.isClosed();
+                            }
 
-                        @Override
-                        public void close() {
-                            connection.close();
-                        }
-                    })));
+                            @Override
+                            public void close() {
+                                connection.close();
+                            }
+                        })));
         });
         return stubbableTransport;
     }

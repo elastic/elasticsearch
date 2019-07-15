@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -86,11 +86,6 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected FreezeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected FreezeResponse read(StreamInput in) throws IOException {
         return new FreezeResponse(in);
     }
@@ -112,11 +107,6 @@ public final class TransportFreezeIndexAction extends
             throw new ResourceNotFoundException("no index found to " + (request.freeze() ? "freeze" : "unfreeze"));
         }
         return indices.toArray(Index.EMPTY_ARRAY);
-    }
-
-    @Override
-    protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
-        throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
@@ -232,18 +222,13 @@ public final class TransportFreezeIndexAction extends
         }
     }
 
-    public static class FreezeIndexAction extends Action<FreezeResponse> {
+    public static class FreezeIndexAction extends ActionType<FreezeResponse> {
 
         public static final FreezeIndexAction INSTANCE = new FreezeIndexAction();
         public static final String NAME = "indices:admin/freeze";
 
         private FreezeIndexAction() {
             super(NAME);
-        }
-
-        @Override
-        public FreezeResponse newResponse() {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,18 +49,13 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(DeleteLicenseRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void masterOperation(final DeleteLicenseRequest request, ClusterState state, final ActionListener<AcknowledgedResponse>
-            listener) throws ElasticsearchException {
+    protected void masterOperation(Task task, final DeleteLicenseRequest request, ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) throws ElasticsearchException {
         licenseService.removeLicense(request, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {

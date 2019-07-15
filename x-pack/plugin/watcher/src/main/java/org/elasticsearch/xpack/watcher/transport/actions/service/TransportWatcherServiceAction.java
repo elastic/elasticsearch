@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -64,12 +65,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected void masterOperation(WatcherServiceRequest request, ClusterState state,
+    protected void masterOperation(Task task, WatcherServiceRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         switch (request.getCommand()) {
             case STOP:

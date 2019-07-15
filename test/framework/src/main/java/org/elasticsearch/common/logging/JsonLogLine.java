@@ -30,7 +30,7 @@ import java.util.List;
  * Parsing log lines with this class confirms the json format of logs
  */
 public class JsonLogLine {
-    public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(false);
+    public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(true);
 
     private String type;
     private String timestamp;

@@ -61,7 +61,6 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(tokenString);
         out.writeTimeValue(expiresIn);
         out.writeOptionalString(scope);

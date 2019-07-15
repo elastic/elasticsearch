@@ -156,8 +156,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setId("reviewer-avg-rating") // <1>
             .setSource(sourceConfig) // <2>
             .setDest(destConfig) // <3>
-            .setPivotConfig(pivotConfig) // <4>
-            .setDescription("This is my test transform") // <5>
+            .setFrequency(TimeValue.timeValueSeconds(15)) // <4>
+            .setPivotConfig(pivotConfig) // <5>
+            .setDescription("This is my test transform") // <6>
             .build();
         // end::put-data-frame-transform-config
 

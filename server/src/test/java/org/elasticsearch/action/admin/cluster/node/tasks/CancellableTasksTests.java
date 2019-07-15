@@ -65,14 +65,13 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             super();
         }
 
-        public CancellableNodeRequest(CancellableNodesRequest request) {
-            requestName = request.requestName;
+        public CancellableNodeRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
+        public CancellableNodeRequest(CancellableNodesRequest request) {
+            requestName = request.requestName;
         }
 
         @Override
@@ -100,19 +99,14 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
         private String requestName;
 
-        private CancellableNodesRequest() {
-            super();
+        private CancellableNodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
         }
 
         @Override

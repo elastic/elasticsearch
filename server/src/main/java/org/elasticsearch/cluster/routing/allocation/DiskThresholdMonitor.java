@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -201,7 +202,7 @@ public class DiskThresholdMonitor {
 
         if (reroute) {
             logger.info("rerouting shards: [{}]", explanation);
-            rerouteService.reroute("disk threshold monitor", ActionListener.wrap(r -> {
+            rerouteService.reroute("disk threshold monitor", Priority.HIGH, ActionListener.wrap(r -> {
                 setLastRunTimeMillis();
                 listener.onResponse(r);
             }, e -> {

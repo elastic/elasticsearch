@@ -44,9 +44,9 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 [[ml-get-datafeed-stats-path-parms]]
 ==== {api-path-parms-title}
 
-`<feed_id>` (Optional)::
-  (string) Identifier for the {dfeed}. It can be a {dfeed} identifier or a
-  wildcard expression. If you do not specify one of these options, the API
+`<feed_id>`::
+  (Optional, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
+  or a wildcard expression. If you do not specify one of these options, the API
   returns statistics for all {dfeeds}.
 
 [[ml-get-datafeed-stats-results]]
@@ -90,7 +90,12 @@ The API returns the following results:
           "ml.max_open_jobs": "20"
         }
       },
-      "assignment_explanation": ""
+      "assignment_explanation": "",
+      "timing_stats": {
+        "job_id": "job-total-requests",
+        "search_count": 20,
+        "total_search_time_ms": 120.5
+      }
     }
   ]
 }

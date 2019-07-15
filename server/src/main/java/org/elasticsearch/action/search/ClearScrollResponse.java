@@ -104,7 +104,6 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(succeeded);
         out.writeVInt(numFreed);
     }

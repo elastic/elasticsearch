@@ -42,7 +42,11 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     long timestamp;
     String clusterUUID;
 
-    ClusterStatsResponse() {
+    public ClusterStatsResponse(StreamInput in) throws IOException {
+        super(in);
+        timestamp = in.readVLong();
+        // it may be that the master switched on us while doing the operation. In this case the status may be null.
+        status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
     }
 
     public ClusterStatsResponse(long timestamp,
@@ -82,14 +86,6 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
     public ClusterStatsIndices getIndicesStats() {
         return indicesStats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        timestamp = in.readVLong();
-        // it may be that the master switched on us while doing the operation. In this case the status may be null.
-        status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
     }
 
     @Override

@@ -34,7 +34,8 @@ import java.util.List;
 
 public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements ToXContentFragment {
 
-    NodesStatsResponse() {
+    public NodesStatsResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public NodesStatsResponse(ClusterName clusterName, List<NodeStats> nodes, List<FailedNodeException> failures) {
@@ -43,7 +44,7 @@ public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements 
 
     @Override
     protected List<NodeStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeStats::readNodeStats);
+        return in.readList(NodeStats::new);
     }
 
     @Override

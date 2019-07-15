@@ -109,8 +109,8 @@ public class MiniHDFS {
         String haNameService = System.getProperty("ha-nameservice");
         boolean haEnabled = haNameService != null;
         if (haEnabled) {
-            MiniDFSNNTopology.NNConf nn1 = new MiniDFSNNTopology.NNConf("nn1").setIpcPort(10001);
-            MiniDFSNNTopology.NNConf nn2 = new MiniDFSNNTopology.NNConf("nn2").setIpcPort(10002);
+            MiniDFSNNTopology.NNConf nn1 = new MiniDFSNNTopology.NNConf("nn1").setIpcPort(0);
+            MiniDFSNNTopology.NNConf nn2 = new MiniDFSNNTopology.NNConf("nn2").setIpcPort(0);
             MiniDFSNNTopology.NSConf nameservice = new MiniDFSNNTopology.NSConf(haNameService).addNN(nn1).addNN(nn2);
             MiniDFSNNTopology namenodeTopology = new MiniDFSNNTopology().addNameservice(nameservice);
             builder.nnTopology(namenodeTopology);

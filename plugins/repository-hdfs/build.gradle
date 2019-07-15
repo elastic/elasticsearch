@@ -91,13 +91,13 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = new File(project.runtimeJavaHome, 'bin/java')
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
-    onlyIf {  project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled }
+    maxWaitInSeconds 60
+    onlyIf { project(':test:fixtures:krb5kdc-fixture').buildFixture.enabled && project.inFipsJvm == false }
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
     }
-
     final List<String> miniHDFSArgs = []
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
@@ -125,21 +125,46 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
   }
 }
 
-Set disabledIntegTestTaskNames = ['integTestSecure', 'integTestSecureHa']
+Set disabledIntegTestTaskNames = []
 
 for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
   task "${integTestTaskName}"(type: RestIntegTestTask) {
     description = "Runs rest tests against an elasticsearch cluster with HDFS."
     dependsOn(project.bundlePlugin)
 
-    if (disabledIntegTestTaskNames.contains(integTestTaskName)) {
+    if ((project.ext.has('inFipsJvm') && project.ext.inFipsJvm) || disabledIntegTestTaskNames.contains(integTestTaskName)) {
       enabled = false;
     }
 
+    if (integTestTaskName.contains("Secure")) {
+      if (integTestTaskName.contains("Ha")) {
+        dependsOn secureHaHdfsFixture
+      } else {
+        dependsOn secureHdfsFixture
+      }
+    }
+
     runner {
+      if (integTestTaskName.contains("Ha")) {
+        if (integTestTaskName.contains("Secure")) {
+          Path path = buildDir.toPath()
+                  .resolve("fixtures")
+                  .resolve("secureHaHdfsFixture")
+                  .resolve("ports")
+          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
+          classpath += files(path)
+        } else {
+          Path path = buildDir.toPath()
+                  .resolve("fixtures")
+                  .resolve("haHdfsFixture")
+                  .resolve("ports")
+          nonInputProperties.systemProperty "test.hdfs-fixture.ports", path
+          classpath += files(path)
+        }
+      }
+
       if (integTestTaskName.contains("Secure")) {
         if (disabledIntegTestTaskNames.contains(integTestTaskName) == false) {
-            dependsOn secureHdfsFixture
             nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
             nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
             jvmArgs "-Djava.security.krb5.conf=${krb5conf}"

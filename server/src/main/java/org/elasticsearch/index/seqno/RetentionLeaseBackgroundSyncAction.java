@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -58,12 +57,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
-    public static ActionType<ReplicationResponse> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
-        @Override
-        public ReplicationResponse newResponse() {
-            return new ReplicationResponse();
-        }
-    };
+    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
 
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
@@ -150,7 +144,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
         @Override
         public String toString() {
-            return "Request{" +
+            return "RetentionLeaseBackgroundSyncAction.Request{" +
                     "retentionLeases=" + retentionLeases +
                     ", shardId=" + shardId +
                     ", timeout=" + timeout +
@@ -162,8 +156,8 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
 }

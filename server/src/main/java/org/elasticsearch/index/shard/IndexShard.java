@@ -1506,9 +1506,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
                 translogRecoveryStats::incrementRecoveredOperations);
         };
-        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+        maybeVerifyIndex();
         innerOpenEngineAndTranslog();
-        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
@@ -1517,23 +1516,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The translog is kept but its operations won't be replayed.
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
-        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+        maybeVerifyIndex();
         innerOpenEngineAndTranslog();
-        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         getEngine().skipTranslogRecovery();
     }
 
     private void innerOpenEngineAndTranslog() throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
-        }
-        // also check here, before we apply the translog
-        if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
-            try {
-                checkIndex();
-            } catch (IOException ex) {
-                throw new RecoveryFailedException(recoveryState, "check index failed", ex);
-            }
         }
         final EngineConfig config = newEngineConfig();
 
@@ -2331,6 +2321,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void noopUpdate(String type) {
         internalIndexingStats.noopUpdate(type);
+    }
+
+    private void maybeVerifyIndex() {
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+        if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
+            try {
+                checkIndex();
+            } catch (IOException ex) {
+                throw new RecoveryFailedException(recoveryState, "check index failed", ex);
+            }
+        }
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
     }
 
     void checkIndex() throws IOException {

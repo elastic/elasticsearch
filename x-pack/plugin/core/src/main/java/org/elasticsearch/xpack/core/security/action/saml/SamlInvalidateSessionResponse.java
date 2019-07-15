@@ -20,7 +20,11 @@ public final class SamlInvalidateSessionResponse extends ActionResponse {
     private int count;
     private String redirectUrl;
 
-    public SamlInvalidateSessionResponse() {
+    public SamlInvalidateSessionResponse(StreamInput in) throws IOException {
+        super(in);
+        realmName = in.readString();
+        count = in.readInt();
+        redirectUrl = in.readString();
     }
 
     public SamlInvalidateSessionResponse(String realmName, int count, String redirectUrl) {
@@ -50,10 +54,7 @@ public final class SamlInvalidateSessionResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realmName = in.readString();
-        count = in.readInt();
-        redirectUrl = in.readString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
 }

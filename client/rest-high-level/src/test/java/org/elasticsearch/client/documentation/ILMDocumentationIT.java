@@ -791,7 +791,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-put-snapshot-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> putListener =
-                new ActionListener<>() {
+                new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse resp) {
                 boolean acknowledged = resp.isAcknowledged(); // <1>
@@ -826,7 +826,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-get-snapshot-lifecycle-policy-execute-listener
         ActionListener<GetSnapshotLifecyclePolicyResponse> getListener =
-                new ActionListener<>() {
+                new ActionListener<GetSnapshotLifecyclePolicyResponse>() {
             @Override
             public void onResponse(GetSnapshotLifecyclePolicyResponse resp) {
                 Map<String, SnapshotLifecyclePolicyMetadata> policies =
@@ -889,7 +889,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
         ActionListener<ExecuteSnapshotLifecyclePolicyResponse> executeListener =
-                new ActionListener<>() {
+                new ActionListener<ExecuteSnapshotLifecyclePolicyResponse>() {
             @Override
             public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
                 String snapshotName = r.getSnapshotName(); // <1>
@@ -905,7 +905,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // We need a listener that will actually wait for the snapshot to be created
         CountDownLatch latch = new CountDownLatch(1);
         executeListener =
-            new ActionListener<>() {
+            new ActionListener<ExecuteSnapshotLifecyclePolicyResponse>() {
                 @Override
                 public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
                     try {
@@ -943,7 +943,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-delete-snapshot-lifecycle-policy-execute
         assertTrue(deleteResp.isAcknowledged());
 
-        ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<>() {
+        ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse resp) {
                 // no-op
@@ -966,10 +966,10 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void assertSnapshotExists(final RestHighLevelClient client, final String repo, final String snapshotName) throws Exception {
         assertBusy(() -> {
-            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(new String[]{repo}, new String[]{snapshotName});
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repo, new String[]{snapshotName});
             try {
                 final GetSnapshotsResponse snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
-                Optional<SnapshotInfo> info = snaps.getSnapshots(repo).stream().findFirst();
+                Optional<SnapshotInfo> info = snaps.getSnapshots().stream().findFirst();
                 if (info.isPresent()) {
                     info.ifPresent(si -> {
                         assertThat(si.snapshotId().getName(), equalTo(snapshotName));

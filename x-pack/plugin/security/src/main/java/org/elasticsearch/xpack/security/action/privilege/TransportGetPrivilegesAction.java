@@ -34,7 +34,7 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
     @Inject
     public TransportGetPrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
                                         TransportService transportService) {
-        super(GetPrivilegesAction.NAME, transportService, actionFilters, GetPrivilegesRequest::new);
+        super(GetPrivilegesAction.NAME, transportService, GetPrivilegesRequest::new, actionFilters);
         this.privilegeStore = privilegeStore;
     }
 
@@ -46,10 +46,12 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
         } else {
             names = new HashSet<>(Arrays.asList(request.privileges()));
         }
+
         final Collection<String> applications = isNullOrEmpty(request.application()) ? null : Collections.singleton(request.application());
         this.privilegeStore.getPrivileges(applications, names, ActionListener.wrap(
-                privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)),
-                listener::onFailure
+            privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)),
+            listener::onFailure
         ));
     }
+
 }

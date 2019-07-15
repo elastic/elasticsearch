@@ -42,7 +42,7 @@ public final class TransportSamlLogoutAction
     @Inject
     public TransportSamlLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms,
                                      TokenService tokenService) {
-        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
+        super(SamlLogoutAction.NAME, transportService, SamlLogoutRequest::new, actionFilters);
         this.realms = realms;
         this.tokenService = tokenService;
     }

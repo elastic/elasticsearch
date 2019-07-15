@@ -82,12 +82,6 @@ public class TransportClusterUpdateSettingsAction extends
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-
-    @Override
-    protected ClusterUpdateSettingsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     @Override
     protected ClusterUpdateSettingsResponse read(StreamInput in) throws IOException {
         return new ClusterUpdateSettingsResponse(in);

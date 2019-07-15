@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
@@ -37,36 +38,28 @@ import java.util.function.Supplier;
 public class DatafeedJobBuilder {
 
     private final Client client;
-    private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private final Auditor auditor;
     private final Supplier<Long> currentTimeSupplier;
+    private final JobConfigProvider jobConfigProvider;
+    private final JobResultsProvider jobResultsProvider;
+    private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobResultsPersister jobResultsPersister;
 
-    public DatafeedJobBuilder(Client client, Settings settings, NamedXContentRegistry xContentRegistry,
-                              Auditor auditor, Supplier<Long> currentTimeSupplier) {
+    public DatafeedJobBuilder(Client client, NamedXContentRegistry xContentRegistry, Auditor auditor, Supplier<Long> currentTimeSupplier,
+                              JobConfigProvider jobConfigProvider, JobResultsProvider jobResultsProvider,
+                              DatafeedConfigProvider datafeedConfigProvider, JobResultsPersister jobResultsPersister) {
         this.client = client;
-        this.settings = Objects.requireNonNull(settings);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
         this.auditor = Objects.requireNonNull(auditor);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
+        this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
+        this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
+        this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
     }
 
     void build(String datafeedId, ActionListener<DatafeedJob> listener) {
-
-        JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
-        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
-
-        build(datafeedId, jobResultsProvider, jobConfigProvider, datafeedConfigProvider, listener);
-    }
-
-    /**
-     * For testing only.
-     * Use {@link #build(String, ActionListener)} instead
-     */
-    void build(String datafeedId, JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider,
-               DatafeedConfigProvider datafeedConfigProvider, ActionListener<DatafeedJob> listener) {
-
         AtomicReference<Job> jobHolder = new AtomicReference<>();
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
 
@@ -98,11 +91,21 @@ public class DatafeedJobBuilder {
         );
 
         // Create data extractor factory
+        Consumer<DatafeedTimingStats> datafeedTimingStatsHandler = timingStats -> {
+            DataExtractorFactory.create(
+                client,
+                datafeedConfigHolder.get(),
+                jobHolder.get(),
+                xContentRegistry,
+                new DatafeedTimingStatsReporter(timingStats, jobResultsPersister),
+                dataExtractorFactoryHandler);
+        };
+
         Consumer<DataCounts> dataCountsHandler = dataCounts -> {
             if (dataCounts.getLatestRecordTimeStamp() != null) {
                 context.latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
-            DataExtractorFactory.create(client, datafeedConfigHolder.get(), jobHolder.get(), xContentRegistry, dataExtractorFactoryHandler);
+            jobResultsProvider.datafeedTimingStats(jobHolder.get().getId(), datafeedTimingStatsHandler, listener::onFailure);
         };
 
         // Collect data counts
@@ -118,7 +121,8 @@ public class DatafeedJobBuilder {
         Consumer<String> jobIdConsumer = jobId -> {
             BucketsQueryBuilder latestBucketQuery = new BucketsQueryBuilder()
                     .sortField(Result.TIMESTAMP.getPreferredName())
-                    .sortDescending(true).size(1)
+                    .sortDescending(true)
+                    .size(1)
                     .includeInterim(false);
             jobResultsProvider.bucketsViaInternalClient(jobId, latestBucketQuery, bucketsHandler, e -> {
                 if (e instanceof ResourceNotFoundException) {

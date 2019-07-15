@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client.dataframe.transforms.hlrc;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 
@@ -64,7 +64,10 @@ public class DataFrameTransformStateAndStatsTests extends AbstractHlrcXContentTe
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.equals("state.current_position");
+        return field -> field.equals("state.position.indexer_position") ||
+                field.equals("state.position.bucket_position") ||
+                field.equals("state.node") ||
+                field.equals("state.node.attributes");
     }
 }
 

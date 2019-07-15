@@ -66,7 +66,4 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
         return field -> !field.isEmpty();
     }
 
-    public void testExplained() throws IOException {
-        testFromXContent();
-    }
 }

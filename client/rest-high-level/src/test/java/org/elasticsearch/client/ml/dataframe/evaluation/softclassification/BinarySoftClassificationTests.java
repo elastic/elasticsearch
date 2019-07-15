@@ -82,7 +82,4 @@ public class BinarySoftClassificationTests extends AbstractXContentTestCase<Bina
         return field -> !field.isEmpty();
     }
 
-    public void testExplained() throws IOException {
-        testFromXContent();
-    }
 }

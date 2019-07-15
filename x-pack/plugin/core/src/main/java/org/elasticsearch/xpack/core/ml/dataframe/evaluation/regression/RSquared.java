@@ -42,7 +42,7 @@ public class RSquared implements RegressionMetric {
     private static final String PAINLESS_TEMPLATE = "def diff = doc[''{0}''].value - doc[''{1}''].value;return diff * diff;";
     private static final String SS_RES = "residual_sum_of_squares";
 
-    private static String buildScript(Object...args) {
+    private static String buildScript(Object... args) {
         return new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args);
     }
 

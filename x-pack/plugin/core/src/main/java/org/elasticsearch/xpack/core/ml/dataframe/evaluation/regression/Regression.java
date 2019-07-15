@@ -94,8 +94,9 @@ public class Regression implements Evaluation {
     }
 
     private static List<RegressionMetric> defaultMetrics() {
-        List<RegressionMetric> defaultMetrics = new ArrayList<>(1);
+        List<RegressionMetric> defaultMetrics = new ArrayList<>(2);
         defaultMetrics.add(new MeanSquaredError());
+        defaultMetrics.add(new RSquared());
         return defaultMetrics;
     }
 

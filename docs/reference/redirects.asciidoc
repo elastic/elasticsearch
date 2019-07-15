@@ -775,3 +775,11 @@ See <<explain-analyze-api>>.
 [role="exclude",id="indices-synced-flush"]
 === Synced flush API
 See <<synced-flush-api>>.
+
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.

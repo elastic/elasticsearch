@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
@@ -91,7 +92,7 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
 
     private void handleItems(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
         if (status != Status.PROCESSING) {
-            assert status != Status.SUCCESS : "must not receive any response after the transfer was completed";
+            assert status == Status.FAILED : "must not receive any response after the transfer was completed";
             // These exceptions will be ignored as we record only the first failure, log them for debugging purpose.
             items.stream().filter(item -> item.v1().failure != null).forEach(item ->
                 logger.debug(new ParameterizedMessage("failed to transfer a file chunk request {}", item.v1().md), item.v1().failure));
@@ -135,19 +136,17 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
     }
 
     private void onCompleted(Exception failure) {
-        assert status == Status.PROCESSING : "status [" + status + "] failure [" + failure + "]";
+        if (Assertions.ENABLED && status != Status.PROCESSING) {
+            throw new AssertionError("invalid status: expected [" + Status.PROCESSING + "] actual [" + status + "]", failure);
+        }
         status = failure == null ? Status.SUCCESS : Status.FAILED;
         try {
-            try {
-                IOUtils.close(failure, this);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            listener.onResponse(null);
-        } catch (Exception ignored) {
-            // we can safely ignore this exception as it happens after we have released the resource and notified the caller.
+            IOUtils.close(failure, this);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
         }
+        listener.onResponse(null);
     }
 
     private Tuple<StoreFileMetaData, Request> getNextRequest() throws Exception {

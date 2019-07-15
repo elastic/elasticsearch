@@ -7,7 +7,7 @@
 /**
  * This is the Snapshot Lifecycle Management (SLM) core package. This package contains the core classes for SLM, including all of the
  * custom cluster state metadata objects, execution history storage facilities, and the action definitions. For the main SLM service
- * implementation classes, please see the <tt>ilm</tt> module's <tt>org.elasticsearch.xpack.snapshotlifecycle</tt> package.
+ * implementation classes, please see the {@code ilm}ilm module's {@code org.elasticsearch.xpack.snapshotlifecycle} package.
  *
  * <p>Contained within this specific package are the custom metadata objects and models used through out the SLM service. The names can
  * be confusing, so it's important to know the differences between each metadata object.

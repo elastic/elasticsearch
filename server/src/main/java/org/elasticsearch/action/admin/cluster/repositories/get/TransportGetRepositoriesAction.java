@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.repositories.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -46,7 +45,8 @@ import java.util.Set;
 /**
  * Transport action for get repositories operation
  */
-public class TransportGetRepositoriesAction extends StreamableTransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
+public class TransportGetRepositoriesAction extends
+    StreamableTransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     @Inject
     public TransportGetRepositoriesAction(TransportService transportService, ClusterService clusterService,

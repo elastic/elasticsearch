@@ -99,13 +99,18 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public Request(String[] indices) {
             super(indices);
         }
     }
 
     public static class Response extends BroadcastResponse {
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
@@ -138,9 +143,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         @Override
         protected Request readRequestFrom(StreamInput in) throws IOException {
-            final Request request = new Request();
-            request.readFrom(in);
-            return request;
+            return new Request(in);
         }
 
         @Override

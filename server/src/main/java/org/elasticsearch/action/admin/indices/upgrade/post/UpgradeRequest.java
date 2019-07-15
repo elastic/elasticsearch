@@ -49,13 +49,10 @@ public class UpgradeRequest extends BroadcastRequest<UpgradeRequest> {
         super(indices);
     }
 
-    public UpgradeRequest() {
+    public UpgradeRequest() {}
 
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public UpgradeRequest(StreamInput in) throws IOException {
+        super(in);
         upgradeOnlyAncientSegments = in.readBoolean();
     }
 

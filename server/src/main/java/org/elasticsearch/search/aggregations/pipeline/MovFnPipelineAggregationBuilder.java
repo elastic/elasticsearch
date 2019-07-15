@@ -54,6 +54,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
     private int window;
+    private int shift;
 
     private static final Function<String, ConstructingObjectParser<MovFnPipelineAggregationBuilder, Void>> PARSER
         = name -> {
@@ -168,9 +169,13 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         this.window = window;
     }
 
+    public void setShift(int shift) {
+        this.shift = shift;
+    }
+
     @Override
     public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-                           Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
+                           Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         if (window <= 0) {
             throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }
@@ -180,7 +185,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
 
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new MovFnPipelineAggregator(name, bucketsPathString, script, window, formatter(), gapPolicy, metaData);
+        return new MovFnPipelineAggregator(name, bucketsPathString, script, window, shift, formatter(), gapPolicy, metaData);
     }
 
     @Override

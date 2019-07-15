@@ -46,13 +46,9 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -79,25 +75,42 @@ public class MovFnUnitTests extends AggregatorTestCase {
     private static final List<Integer> datasetValues = Arrays.asList(1,2,3,4,5,6,7,8,9,10);
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
-        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        test(0, List.of(Double.NaN, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0));
+    }
 
+    public void testShift() throws IOException {
+        test(1, List.of(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0));
+        test(5, List.of(5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 10.0, 10.0, Double.NaN, Double.NaN));
+        test(-5, List.of(Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, 1.0, 2.0, 3.0, 4.0));
+    }
+
+    public void testWideWindow() throws IOException {
+        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 100);
+        builder.setShift(50);
+        test(builder, script, List.of(10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0));
+    }
+
+    private void test(int shift, List<Double> expected) throws IOException {
+        Script script = new Script(Script.DEFAULT_SCRIPT_TYPE, "painless", "test", Collections.emptyMap());
+        MovFnPipelineAggregationBuilder builder = new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3);
+        builder.setShift(shift);
+        test(builder, script, expected);
+    }
+
+    private void test(MovFnPipelineAggregationBuilder builder, Script script, List<Double> expected) throws IOException {
+        Query query = new MatchAllDocsQuery();
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(DATE_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("avg").field(VALUE_FIELD));
-        aggBuilder.subAggregation(new MovFnPipelineAggregationBuilder("mov_fn", "avg", script, 3));
+        aggBuilder.subAggregation(builder);
 
         executeTestCase(query, aggBuilder, histogram -> {
-                assertEquals(10, histogram.getBuckets().size());
                 List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                for (int i = 0; i < buckets.size(); i++) {
-                    if (i == 0) {
-                        assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("mov_fn"))).value(), equalTo(Double.NaN));
-                    } else {
-                        assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("mov_fn"))).value(), equalTo(((double) i)));
-                    }
-
-                }
+                List<Double> actual = buckets.stream()
+                    .map(bucket -> ((InternalSimpleValue) (bucket.getAggregations().get("mov_fn"))).value())
+                    .collect(Collectors.toList());
+                assertThat(actual, equalTo(expected));
             }, 1000, script);
     }
 

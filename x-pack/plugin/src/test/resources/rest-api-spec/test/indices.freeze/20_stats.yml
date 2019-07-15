@@ -52,7 +52,7 @@ setup:
 
   # unfreeze index
   - do:
-      indices.unfreeze:
+      indices.freeze:
         index: test
         wait_for_active_shards: 1
   - is_true: acknowledged

@@ -15,8 +15,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
@@ -113,21 +111,18 @@ public class DataFrameTransformsCheckpointService {
                                         new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards"));
                                     return;
                                 }
-                                try {
-                                    Map<String, long[]> checkpointsByIndex = extractIndexCheckPoints(response.getShards(), userIndices);
-                                    listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(),
-                                        timestamp,
-                                        checkpoint,
-                                        checkpointsByIndex,
-                                        timeUpperBound));
-                                } catch (CheckpointException checkpointException) {
-                                    listener.onFailure(checkpointException);
-                                }
+
+                                Map<String, long[]> checkpointsByIndex = extractIndexCheckPoints(response.getShards(), userIndices);
+                                listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(),
+                                    timestamp,
+                                    checkpoint,
+                                    checkpointsByIndex,
+                                    timeUpperBound));
                             },
-                            listener::onFailure
+                            e-> listener.onFailure(new CheckpointException("Failed to create checkpoint", e))
                         ));
                 },
-                listener::onFailure
+                e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e))
             ));
 
     }
@@ -223,35 +218,41 @@ public class DataFrameTransformsCheckpointService {
 
         for (ShardStats shard : shards) {
             String indexName = shard.getShardRouting().getIndexName();
+
             if (userIndices.contains(indexName)) {
-                SeqNoStats seqNoStats = shard.getSeqNoStats();
-                // SeqNoStats could be `null`. This indicates that an `AlreadyClosed` exception was thrown somewhere down the stack
-                // Indicates that the index COULD be closed, or at least that the shard is not fully recovered yet.
-                if (seqNoStats == null) {
-                    logger.warn("failure gathering checkpoint information for index [{}] as seq_no_stats were null. Shard Stats [{}]",
-                        indexName,
-                        Strings.toString(shard));
-                    throw new CheckpointException(
-                        "Unable to gather checkpoint information for index [" + indexName + "]. seq_no_stats are missing.");
-                }
+                // SeqNoStats could be `null`, assume the global checkpoint to be 0 in this case
+                long globalCheckpoint = shard.getSeqNoStats() == null ? 0 : shard.getSeqNoStats().getGlobalCheckpoint();
                 if (checkpointsByIndex.containsKey(indexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);
                     if (checkpoints.containsKey(shard.getShardRouting().getId())) {
                         // there is already a checkpoint entry for this index/shard combination, check if they match
-                        if (checkpoints.get(shard.getShardRouting().getId()) != shard.getSeqNoStats().getGlobalCheckpoint()) {
+                        if (checkpoints.get(shard.getShardRouting().getId()) != globalCheckpoint) {
                             throw new CheckpointException("Global checkpoints mismatch for index [" + indexName + "] between shards of id ["
                                     + shard.getShardRouting().getId() + "]");
                         }
                     } else {
                         // 1st time we see this shard for this index, add the entry for the shard
-                        checkpoints.put(shard.getShardRouting().getId(), shard.getSeqNoStats().getGlobalCheckpoint());
+                        checkpoints.put(shard.getShardRouting().getId(), globalCheckpoint);
                     }
                 } else {
                     // 1st time we see this index, create an entry for the index and add the shard checkpoint
                     checkpointsByIndex.put(indexName, new TreeMap<>());
-                    checkpointsByIndex.get(indexName).put(shard.getShardRouting().getId(), shard.getSeqNoStats().getGlobalCheckpoint());
+                    checkpointsByIndex.get(indexName).put(shard.getShardRouting().getId(), globalCheckpoint);
                 }
+            }
+        }
+
+        // checkpoint extraction is done in 2 steps:
+        // 1. GetIndexRequest to retrieve the indices the user has access to
+        // 2. IndicesStatsRequest to retrieve stats about indices
+        // between 1 and 2 indices could get deleted or created
+        if (logger.isDebugEnabled()) {
+            Set<String> userIndicesClone = new HashSet<>(userIndices);
+
+            userIndicesClone.removeAll(checkpointsByIndex.keySet());
+            if (userIndicesClone.isEmpty() == false) {
+                logger.debug("Original set of user indices contained more indexes [{}]", userIndicesClone);
             }
         }
 

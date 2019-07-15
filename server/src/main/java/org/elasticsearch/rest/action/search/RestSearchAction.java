@@ -19,7 +19,11 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
@@ -40,6 +44,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskListener;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,6 +69,8 @@ public class RestSearchAction extends BaseRestHandler {
     public static final String TYPED_KEYS_PARAM = "typed_keys";
     private static final Set<String> RESPONSE_PARAMS;
 
+    private final HttpChannelTaskHandler httpChannelTaskHandler;
+
     static {
         final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
@@ -73,6 +82,14 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
         controller.registerHandler(POST, "/{index}/_search", this);
+        this.httpChannelTaskHandler = new HttpChannelTaskHandler((client, taskId) -> {
+            CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+            cancelTasksRequest.setTaskId(taskId);
+            //TODO Note that cancel tasks fails if the user does not have the permissions to call it.
+            // It may make sense to cancel the task directly from task manager without an api call, but cancellation of children tasks
+            // is part of TransportCancelTasksAction. Maybe we should move that part to TaskManager?
+            client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
+        });
     }
 
     @Override
@@ -99,7 +116,34 @@ public class RestSearchAction extends BaseRestHandler {
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(searchRequest, request, parser, setSize));
 
-        return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> {
+            RestStatusToXContentListener<SearchResponse> listener = new RestStatusToXContentListener<>(channel);
+            Task task = client.executeLocally(SearchAction.INSTANCE, searchRequest, new TaskListener<>() {
+                //TODO verify that the order in which listeners get notified is guaranteed: this action listener needs to be notified
+                // BEFORE the on close listener (in case the underlying connection gets closed at completion), otherwise we end up
+                // cancelling tasks for requests that are about to return a response.
+                @Override
+                public void onResponse(Task task, SearchResponse response) {
+                    TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
+                    //TODO this may be called even before the channel is linked with the task
+                    httpChannelTaskHandler.unlinkChannelFromTask(request.getHttpChannel(), taskId);
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Task task, Throwable e) {
+                    TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
+                    httpChannelTaskHandler.unlinkChannelFromTask(request.getHttpChannel(), taskId);
+                    if (e instanceof Exception) {
+                        listener.onFailure((Exception)e);
+                    } else {
+                        listener.onFailure(new RuntimeException(e));
+                    }
+                }
+            });
+            TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
+            httpChannelTaskHandler.linkChannelWithTask(request.getHttpChannel(), client, taskId);
+        };
     }
 
     /**

@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
@@ -62,26 +61,19 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          * this method.
          */
         Task task = taskManager.register("transport", actionName, request);
-        final ActionListener<Response> wrappedListener;
-        if (listener instanceof RestActionListener) {
-            wrappedListener = RestActionListener.runBefore((RestActionListener<Response>) listener, () -> taskManager.unregister(task));
-        } else {
-            wrappedListener = new ActionListener<>() {
-                @Override
-                public void onResponse(Response response) {
-                    taskManager.unregister(task);
-                    listener.onResponse(response);
-                }
+        execute(task, request, new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                taskManager.unregister(task);
+                listener.onResponse(response);
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    taskManager.unregister(task);
-                    listener.onFailure(e);
-                }
-            };
-        }
-
-        execute(task, request, wrappedListener);
+            @Override
+            public void onFailure(Exception e) {
+                taskManager.unregister(task);
+                listener.onFailure(e);
+            }
+        });
         return task;
     }
 

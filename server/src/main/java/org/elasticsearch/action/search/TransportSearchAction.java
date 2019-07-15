@@ -102,14 +102,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final HttpChannelTaskHandler httpChannelTaskHandler;
-    private final NodeClient client;
 
     @Inject
     public TransportSearchAction(ThreadPool threadPool, TransportService transportService, SearchService searchService,
                                  SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
                                  ClusterService clusterService, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
+                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.threadPool = threadPool;
         this.searchPhaseController = searchPhaseController;
@@ -119,15 +117,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.client = client;
-        this.httpChannelTaskHandler = new HttpChannelTaskHandler(taskId -> {
-            CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-            cancelTasksRequest.setTaskId(taskId);
-            //TODO Note that cancel tasks fails if the user does not have the permissions to call it.
-            // It may make sense to cancel the task directly from task manager without an api call, but cancellation of children tasks
-            // is part of TransportCancelTasksAction. Maybe we should move that part to TaskManager?
-            client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
-        });
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
@@ -211,31 +200,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        final ActionListener<SearchResponse> wrappedListener;
-        if (listener instanceof RestActionListener) {
-            HttpChannel httpChannel = ((RestActionListener) listener).getHttpChannel();
-            TaskId currentTaskId = new TaskId(client.getLocalNodeId(), task.getId());
-            httpChannelTaskHandler.linkChannelWithTask(httpChannel, currentTaskId);
-            wrappedListener = new ActionListener<>() {
-                //TODO verify that the order in which listeners get notified is guaranteed: this action listener needs to be notified
-                // BEFORE the on close listener (in case the underlying connection gets closed at completion), otherwise we end up
-                // cancelling tasks for requests that are about to return a response.
-                @Override
-                public void onResponse(SearchResponse searchResponse) {
-                    httpChannelTaskHandler.unlinkChannelFromTask(httpChannel, currentTaskId);
-                    listener.onResponse(searchResponse);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    httpChannelTaskHandler.unlinkChannelFromTask(httpChannel, currentTaskId);
-                    listener.onFailure(e);
-                }
-            };
-        } else {
-            wrappedListener = listener;
-        }
-
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
             new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);
@@ -250,11 +214,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.indices());
             OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             if (remoteClusterIndices.isEmpty()) {
-                executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, wrappedListener);
+                executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
             } else {
                 if (shouldMinimizeRoundtrips(searchRequest)) {
                     ccsRemoteReduce(searchRequest, localIndices, remoteClusterIndices, timeProvider, searchService::createReduceContext,
-                        remoteClusterService, threadPool, wrappedListener,
+                        remoteClusterService, threadPool, listener,
                         (r, l) -> executeLocalSearch(task, timeProvider, r, localIndices, clusterState, l));
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
@@ -270,13 +234,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 int totalClusters = remoteClusterIndices.size() + localClusters;
                                 int successfulClusters = searchShardsResponses.size() + localClusters;
                                 executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices,
-                                    remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, wrappedListener,
+                                    remoteShardIterators, clusterNodeLookup, clusterState, remoteAliasFilters, listener,
                                     new SearchResponse.Clusters(totalClusters, successfulClusters, skippedClusters.get()));
                             },
-                            wrappedListener::onFailure));
+                            listener::onFailure));
                 }
             }
-        }, wrappedListener::onFailure);
+        }, listener::onFailure);
         if (searchRequest.source() == null) {
             rewriteListener.onResponse(searchRequest.source());
         } else {

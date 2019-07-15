@@ -83,14 +83,10 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         }
     }
 
-    private void assertThatMlConfigIndexDoesNotExist() throws IOException {
+    private void assertThatMlConfigIndexDoesNotExist() {
         Request getIndexRequest = new Request("GET", ".ml-config");
-        try {
-            client().performRequest(getIndexRequest);
-            fail("Expected exception");
-        } catch (ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        }
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getIndexRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     private void createAnomalyDetectorJob(String jobId) throws IOException {

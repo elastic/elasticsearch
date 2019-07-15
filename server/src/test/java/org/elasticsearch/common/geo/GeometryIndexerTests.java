@@ -55,7 +55,27 @@ public class GeometryIndexerTests extends ESTestCase {
 
     public void testCollection() {
         assertEquals(GeometryCollection.EMPTY, indexer.prepareForIndexing(GeometryCollection.EMPTY));
-        // TODO: Add other cases
+
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(Collections.singletonList(
+            new Point(1, 2)
+        ));
+
+        Geometry indexed = new Point(1, 2);
+        assertEquals(indexed, indexer.prepareForIndexing(collection));
+
+        collection = new GeometryCollection<>(Arrays.asList(
+            new Point(1, 2), new Point(3, 4), new Line(new double[]{10, 20}, new double[]{160, 200})
+        ));
+
+        indexed = new GeometryCollection<>(Arrays.asList(
+            new Point(1, 2), new Point(3, 4),
+            new MultiLine(Arrays.asList(
+                new Line(new double[]{10, 15}, new double[]{160, 180}),
+                new Line(new double[]{15, 20}, new double[]{180, -160}))
+            ))
+        );
+        assertEquals(indexed, indexer.prepareForIndexing(collection));
+
     }
 
     public void testLine() {
@@ -68,7 +88,7 @@ public class GeometryIndexerTests extends ESTestCase {
             new Line(new double[]{10, 15}, new double[]{160, 180}),
             new Line(new double[]{15, 20}, new double[]{180, -160}))
         );
-        logger.info(WKT.toWKT(indexed));
+
         assertEquals(indexed, indexer.prepareForIndexing(line));
     }
 
@@ -159,7 +179,7 @@ public class GeometryIndexerTests extends ESTestCase {
             actual(polygon(false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true));
 
         assertEquals(expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
-            actual(polygon(randomBoolean()? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean()));
+            actual(polygon(randomBoolean() ? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean()));
     }
 
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {

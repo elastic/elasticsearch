@@ -87,7 +87,11 @@ public final class GeometryIndexer {
                     shapes.add(shape.visit(this));
                 }
 
-                return new org.elasticsearch.geo.geometry.GeometryCollection<>(shapes);
+                if (shapes.size() == 1) {
+                    return shapes.get(0);
+                } else {
+                    return new GeometryCollection<>(shapes);
+                }
             }
 
             @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -126,20 +127,12 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return toXContent(builder, false);
-    }
-
-    public XContentBuilder toXContentWithCalculatedFields(XContentBuilder builder) throws IOException {
-        return toXContent(builder, true);
-    }
-
-    private XContentBuilder toXContent(XContentBuilder builder, boolean includeCalculatedFields) throws IOException {
         builder.startObject();
         builder.field(JOB_ID.getPreferredName(), jobId);
         builder.field(SEARCH_COUNT.getPreferredName(), searchCount);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
         builder.field(TOTAL_SEARCH_TIME_MS.getPreferredName(), totalSearchTimeMs);
-        if (includeCalculatedFields) {
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_CALCULATED_FIELDS, false)) {
             Double avgSearchTimePerBucket = getAvgSearchTimePerBucketMs();
             if (avgSearchTimePerBucket != null) {
                 builder.field(AVG_SEARCH_TIME_PER_BUCKET_MS.getPreferredName(), getAvgSearchTimePerBucketMs());

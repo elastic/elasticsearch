@@ -920,9 +920,6 @@ public class ElasticsearchMappings {
     private static void addTimingStatsExceptBucketCountMapping(XContentBuilder builder) throws IOException {
         builder
             // re-used: BUCKET_COUNT
-            .startObject(TimingStats.TOTAL_BUCKET_PROCESSING_TIME_MS.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject()
             .startObject(TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject()
@@ -950,9 +947,6 @@ public class ElasticsearchMappings {
             .endObject()
             // re-used: BUCKET_COUNT
             .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
-                .field(TYPE, DOUBLE)
-            .endObject()
-            .startObject(DatafeedTimingStats.AVG_SEARCH_TIME_PER_BUCKET_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject();
     }

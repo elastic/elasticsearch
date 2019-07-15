@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -193,18 +194,10 @@ public class TimingStats implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, false);
-    }
-
-    public XContentBuilder toXContentWithCalculatedFields(XContentBuilder builder) throws IOException {
-        return toXContent(builder, true);
-    }
-
-    private XContentBuilder toXContent(XContentBuilder builder, boolean includeCalculatedFields) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
-        if (includeCalculatedFields) {
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_CALCULATED_FIELDS, false)) {
             builder.field(TOTAL_BUCKET_PROCESSING_TIME_MS.getPreferredName(), getTotalBucketProcessingTimeMs());
         }
         if (minBucketProcessingTimeMs != null) {

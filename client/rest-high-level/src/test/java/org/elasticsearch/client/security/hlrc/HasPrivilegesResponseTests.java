@@ -128,7 +128,8 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse serverTestInstance, HasPrivilegesResponse hlrc) {
+    protected void assertInstances(org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse serverTestInstance,
+                                   HasPrivilegesResponse hlrc) {
         org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse other =
             new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(
                 hlrc.getUsername(),

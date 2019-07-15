@@ -70,6 +70,10 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
             info = in.readMap();
         }
 
+        public Map<String, Object> getInfo() {
+            return info;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");

@@ -63,7 +63,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
 
     protected AbstractTransportGetResourcesAction(String actionName, TransportService transportService, ActionFilters actionFilters,
                                                   Supplier<Request> request, Client client, NamedXContentRegistry xContentRegistry) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, request, actionFilters);
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }

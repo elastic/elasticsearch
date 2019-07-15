@@ -33,8 +33,8 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     @Inject
     public TransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters, LicenseService licenseService,
                                     NodeClient client) {
-        super(XPackInfoAction.NAME, transportService, actionFilters,
-            XPackInfoRequest::new);
+        super(XPackInfoAction.NAME, transportService, XPackInfoRequest::new, actionFilters
+        );
         this.licenseService = licenseService;
         this.client = client;
         this.infoActions = infoActions();

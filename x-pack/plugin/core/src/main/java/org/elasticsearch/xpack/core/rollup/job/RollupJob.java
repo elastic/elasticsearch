@@ -114,6 +114,6 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements XPackPlugi
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_3_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 }

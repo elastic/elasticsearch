@@ -720,6 +720,7 @@ fail.
 ==== Limitations
 
 [float]
+[[parent-child]]
 ===== Parent/child
 
 Because the `percolate` query is processing one document at a time, it doesn't support queries and filters that run

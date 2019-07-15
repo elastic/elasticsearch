@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.hash.MessageDigests;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -35,6 +38,7 @@ public class MockSecureSettings implements SecureSettings {
 
     private Map<String, SecureString> secureStrings = new HashMap<>();
     private Map<String, byte[]> files = new HashMap<>();
+    private Map<String, byte[]> sha256Digests = new HashMap<>();
     private Set<String> settingNames = new HashSet<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -44,6 +48,7 @@ public class MockSecureSettings implements SecureSettings {
     private MockSecureSettings(MockSecureSettings source) {
         secureStrings.putAll(source.secureStrings);
         files.putAll(source.files);
+        sha256Digests.putAll(source.sha256Digests);
         settingNames.addAll(source.settingNames);
     }
 
@@ -69,15 +74,22 @@ public class MockSecureSettings implements SecureSettings {
         return new ByteArrayInputStream(files.get(setting));
     }
 
+    @Override
+    public byte[] getSHA256Digest(String setting) {
+        return sha256Digests.get(setting);
+    }
+
     public void setString(String setting, String value) {
         ensureOpen();
         secureStrings.put(setting, new SecureString(value.toCharArray()));
+        sha256Digests.put(setting, MessageDigests.sha256().digest(value.getBytes(StandardCharsets.UTF_8)));
         settingNames.add(setting);
     }
 
     public void setFile(String setting, byte[] value) {
         ensureOpen();
         files.put(setting, value);
+        sha256Digests.put(setting, MessageDigests.sha256().digest(value));
         settingNames.add(setting);
     }
 
@@ -90,6 +102,7 @@ public class MockSecureSettings implements SecureSettings {
         }
         settingNames.addAll(secureSettings.settingNames);
         secureStrings.putAll(secureSettings.secureStrings);
+        sha256Digests.putAll(secureSettings.sha256Digests);
         files.putAll(secureSettings.files);
     }
 

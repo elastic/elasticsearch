@@ -110,26 +110,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
-        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, TestILMPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     @Before
@@ -186,7 +168,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
         assertBusy(() -> {
-            assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
+            assertTrue(indexExists("test"));
         });
         IndexLifecycleService indexLifecycleService = internalCluster().getInstance(IndexLifecycleService.class, server_1);
         assertThat(indexLifecycleService.getScheduler().jobCount(), equalTo(1));
@@ -285,9 +267,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node2);
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
 
-        assertBusy(() -> {
-            assertEquals(true, client().admin().indices().prepareExists("test").get().isExists());
-        });
+        assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
                 .prepareState().execute().actionGet().getState().getMetaData().index("test"));

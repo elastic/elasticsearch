@@ -26,8 +26,6 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -50,7 +48,7 @@ public final class SettingsFilter {
                 throw new IllegalArgumentException("invalid pattern: " + pattern);
             }
         }
-        this.patterns = Collections.unmodifiableSet(new HashSet<>(patterns));
+        this.patterns = Set.copyOf(patterns);
         patternString = Strings.collectionToDelimitedString(patterns, ",");
     }
 

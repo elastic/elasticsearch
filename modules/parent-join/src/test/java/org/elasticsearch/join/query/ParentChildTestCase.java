@@ -51,11 +51,6 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
     public Settings indexSettings() {
         Settings.Builder builder =  Settings.builder().put(super.indexSettings())
             // aggressive filter caching so that we can assert on the filter cache size

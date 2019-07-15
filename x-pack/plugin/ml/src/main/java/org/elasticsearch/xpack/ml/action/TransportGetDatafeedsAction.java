@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -32,7 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
+public class TransportGetDatafeedsAction extends
+    StreamableTransportMasterNodeReadAction<GetDatafeedsAction.Request, GetDatafeedsAction.Response> {
 
     private final DatafeedConfigProvider datafeedConfigProvider;
 
@@ -59,7 +61,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
     }
 
     @Override
-    protected void masterOperation(GetDatafeedsAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, GetDatafeedsAction.Request request, ClusterState state,
                                    ActionListener<GetDatafeedsAction.Response> listener) {
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 

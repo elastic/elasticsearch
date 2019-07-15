@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -43,7 +45,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -484,6 +485,13 @@ public class AuthenticationService {
                     final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";
                     logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
                 });
+                List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
+                if (unlicensedRealms.isEmpty() == false) {
+                    logger.warn("Authentication failed using realms [{}]." +
+                            " Realms [{}] were skipped because they are not permitted on the current license",
+                        Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
+                        Strings.collectionToCommaDelimitedString(unlicensedRealms));
+                }
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
                 threadContext.putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, authenticationResult);

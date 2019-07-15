@@ -8,48 +8,59 @@
 
 Retrieves job results for one or more influencers.
 
-
-==== Request
+[[ml-get-influencer-request]]
+==== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/influencers`
 
-//===== Description
+[[ml-get-influencer-prereqs]]
+==== {api-prereq-title}
 
-==== Path Parameters
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 
-`job_id`::
-  (string) Identifier for the job.
+[[ml-get-influencer-path-parms]]
+==== {api-path-parms-title}
 
-==== Request Body
+`<job_id>`::
+  (Required, string) Identifier for the job.
+
+[[ml-get-influencer-request-body]]
+==== {api-request-body-title}
 
 `desc`::
-  (boolean) If true, the results are sorted in descending order.
+  (Optional, boolean) If true, the results are sorted in descending order.
 
 `end`::
-  (string) Returns influencers with timestamps earlier than this time.
+  (Optional, string) Returns influencers with timestamps earlier than this time.
 
 `exclude_interim`::
-  (boolean) If true, the output excludes interim results.
-  By default, interim results are included.
+  (Optional, boolean) If true, the output excludes interim results. By default,
+  interim results are included.
 
 `influencer_score`::
-  (double) Returns influencers with anomaly scores greater or equal than this value.
+  (Optional, double) Returns influencers with anomaly scores greater than or
+  equal to this value.
 
 `page`::
 `from`:::
-    (integer) Skips the specified number of influencers.
+    (Optional, integer) Skips the specified number of influencers.
 `size`:::
-  (integer) Specifies the maximum number of influencers to obtain.
+  (Optional, integer) Specifies the maximum number of influencers to obtain.
 
 `sort`::
-  (string) Specifies the sort field for the requested influencers.
-  By default the influencers are sorted by the `influencer_score` value.
+  (Optional, string) Specifies the sort field for the requested influencers. By
+  default, the influencers are sorted by the `influencer_score` value.
 
 `start`::
-  (string) Returns influencers with timestamps after this time.
+  (Optional, string) Returns influencers with timestamps after this time.
 
-
-==== Results
+[[ml-get-influencer-results]]
+==== {api-response-body-title}
 
 The API returns the following information:
 
@@ -57,19 +68,8 @@ The API returns the following information:
   (array) An array of influencer objects.
   For more information, see <<ml-results-influencers,Influencers>>.
 
-
-==== Authorization
-
-You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. You also need `read` index privilege on the index
-that stores the results. The `machine_learning_admin` and `machine_learning_user`
-roles provide these privileges. For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges] and
-{xpack-ref}/built-in-roles.html[Built-in Roles].
-//<<security-privileges>> and <<built-in-roles>>.
-
-
-==== Examples
+[[ml-get-influencer-example]]
+==== {api-examples-title}
 
 The following example gets influencer information for the `it_ops_new_kpi` job:
 

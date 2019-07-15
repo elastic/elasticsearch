@@ -22,6 +22,7 @@ package org.elasticsearch.geo.geometry;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.test.AbstractWireTestCase;
 
@@ -53,9 +54,10 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
     @SuppressWarnings("unchecked")
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        String text = WellKnownText.toWKT(instance);
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
+        String text = wkt.toWKT(instance);
         try {
-            return (T) WellKnownText.fromWKT(text);
+            return (T) wkt.fromWKT(text);
         } catch (ParseException e) {
             throw new ElasticsearchException(e);
         }
@@ -67,7 +69,7 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
 
     public static void testVisitor(Geometry geom) {
         AtomicBoolean called = new AtomicBoolean(false);
-        Object result = geom.visit(new GeometryVisitor<Object>() {
+        Object result = geom.visit(new GeometryVisitor<Object, RuntimeException>() {
             private Object verify(Geometry geometry, String expectedClass) {
                 assertFalse("Visitor should be called only once", called.getAndSet(true));
                 assertSame(geom, geometry);

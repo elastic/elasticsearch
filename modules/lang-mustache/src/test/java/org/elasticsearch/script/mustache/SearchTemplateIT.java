@@ -185,7 +185,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         templateParams.put("fieldParam", "foo");
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
-                .setRequest(new SearchRequest("test").types("type"))
+                .setRequest(new SearchRequest("test"))
                 .setScript("testTemplate").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 4);
@@ -235,7 +235,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         templateParams.put("fieldParam", "foo");
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
-                .setRequest(new SearchRequest().indices("test").types("type"))
+                .setRequest(new SearchRequest().indices("test"))
                 .setScript("1a")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams)
@@ -243,7 +243,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertHitCount(searchResponse.getResponse(), 4);
 
         expectThrows(ResourceNotFoundException.class, () -> new SearchTemplateRequestBuilder(client())
-                .setRequest(new SearchRequest().indices("test").types("type"))
+                .setRequest(new SearchRequest().indices("test"))
                 .setScript("1000")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams)
@@ -251,7 +251,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         templateParams.put("fieldParam", "bar");
         searchResponse = new SearchTemplateRequestBuilder(client())
-                .setRequest(new SearchRequest("test").types("type"))
+                .setRequest(new SearchRequest("test"))
                 .setScript("2").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
@@ -297,7 +297,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             templateParams.put("P_Keyword1", "dev");
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
-                    .setRequest(new SearchRequest("testindex").types("test"))
+                    .setRequest(new SearchRequest("testindex"))
                     .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                     .get());
             assertThat(e.getMessage(), containsString("No negative slop allowed"));
@@ -308,7 +308,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             );
 
             SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
-                    .setRequest(new SearchRequest("testindex").types("test"))
+                    .setRequest(new SearchRequest("testindex"))
                     .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                     .get();
             assertHitCount(searchResponse.getResponse(), 1);
@@ -352,7 +352,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         arrayTemplateParams.put("fieldParam", fieldParams);
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
-                .setRequest(new SearchRequest("test").types("type"))
+                .setRequest(new SearchRequest("test"))
                 .setScript("4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 5);

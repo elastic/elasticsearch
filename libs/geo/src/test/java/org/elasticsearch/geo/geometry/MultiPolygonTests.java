@@ -19,6 +19,8 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -40,14 +42,27 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         assertEquals("multipolygon (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))",
-            WellKnownText.toWKT(new MultiPolygon(Collections.singletonList(
+            wkt.toWKT(new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))))));
         assertEquals(new MultiPolygon(Collections.singletonList(
             new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})))),
-            WellKnownText.fromWKT("multipolygon (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))"));
+            wkt.fromWKT("multipolygon (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))"));
 
-        assertEquals("multipolygon EMPTY", WellKnownText.toWKT(MultiPolygon.EMPTY));
-        assertEquals(MultiPolygon.EMPTY, WellKnownText.fromWKT("multipolygon EMPTY)"));
+        assertEquals("multipolygon EMPTY", wkt.toWKT(MultiPolygon.EMPTY));
+        assertEquals(MultiPolygon.EMPTY, wkt.fromWKT("multipolygon EMPTY)"));
+    }
+
+    public void testValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new MultiPolygon(Collections.singletonList(
+                new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}))
+            ))));
+        assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(
+            new MultiPolygon(Collections.singletonList(
+                new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})))));
     }
 }

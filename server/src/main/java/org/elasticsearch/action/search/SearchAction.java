@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class SearchAction extends Action<SearchResponse> {
+public class SearchAction extends ActionType<SearchResponse> {
 
     public static final SearchAction INSTANCE = new SearchAction();
     public static final String NAME = "indices:data/read/search";
@@ -31,7 +32,7 @@ public class SearchAction extends Action<SearchResponse> {
     }
 
     @Override
-    public SearchResponse newResponse() {
-        return new SearchResponse();
+    public Writeable.Reader<SearchResponse> getResponseReader() {
+        return SearchResponse::new;
     }
 }

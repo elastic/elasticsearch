@@ -30,7 +30,7 @@ twitter 0     13ms store done  n/a         n/a         127.0.0.1   node-0      n
 // TESTRESPONSE[s/100%/0.0%/]
 // TESTRESPONSE[s/9928/0/]
 // TESTRESPONSE[s/13ms/\\d+m?s/]
-// TESTRESPONSE[s/13/\\d+/ _cat]
+// TESTRESPONSE[s/13/\\d+/ non_json]
 
 In the above case, the source and target nodes are the same because the recovery
 type was store, i.e. they were read from local storage on node start.
@@ -57,7 +57,7 @@ twitter 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0 100.0%
 // TESTRESPONSE[s/192.168.1.2/127.0.0.1/]
 // TESTRESPONSE[s/192.168.1.1/n\/a/]
 // TESTRESPONSE[s/100.0%/0.0%/]
-// TESTRESPONSE[s/1252/\\d+/ _cat]
+// TESTRESPONSE[s/1252/\\d+/ non_json]
 
 We can see in the above listing that our thw twitter shard was recovered from another node.
 Notice that the recovery type is shown as `peer`. The files and bytes copied are
@@ -81,4 +81,4 @@ This will show a recovery of type snapshot in the response
 i       s t      ty       st    rep     snap   f  fp   b     bp
 twitter 0 1978ms snapshot done  twitter snap_1 79 8.0% 12086 9.0%
 --------------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]

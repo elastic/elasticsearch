@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -30,13 +30,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
  * Transport action for verifying repository operation
  */
-public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
+public class TransportVerifyRepositoryAction extends
+    StreamableTransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
 
@@ -66,7 +68,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
     }
 
     @Override
-    protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state,
+    protected void masterOperation(Task task, final VerifyRepositoryRequest request, ClusterState state,
                                    final ActionListener<VerifyRepositoryResponse> listener) {
         repositoriesService.verifyRepository(request.name(), ActionListener.delegateFailure(listener,
             (delegatedListener, verifyResponse) ->

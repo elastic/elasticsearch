@@ -19,6 +19,8 @@
 
 package org.elasticsearch.geo.geometry;
 
+import java.util.Locale;
+
 /**
  * Shape types supported by elasticsearch
  */
@@ -33,4 +35,8 @@ public enum ShapeType {
     LINEARRING, // not serialized by itself in WKT or WKB
     ENVELOPE, // not part of the actual WKB spec
     CIRCLE; // not part of the actual WKB spec
+
+    public static ShapeType forName(String shapeName) {
+        return ShapeType.valueOf(shapeName.toUpperCase(Locale.ROOT));
+    }
 }

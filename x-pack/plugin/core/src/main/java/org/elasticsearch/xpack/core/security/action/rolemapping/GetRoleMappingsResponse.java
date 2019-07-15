@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+
+import java.io.IOException;
 
 /**
  * Response to {@link GetRoleMappingsAction get role-mappings API}.
@@ -45,7 +45,6 @@ public class GetRoleMappingsResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(mappings.length);
         for (ExpressionRoleMapping mapping : mappings) {
             mapping.writeTo(out);

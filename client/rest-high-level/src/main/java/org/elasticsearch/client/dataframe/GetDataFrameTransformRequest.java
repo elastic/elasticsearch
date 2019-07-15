@@ -21,6 +21,7 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.client.core.PageParams;
 
 import java.util.Arrays;
 import java.util.List;
@@ -29,10 +30,7 @@ import java.util.Optional;
 
 public class GetDataFrameTransformRequest implements Validatable {
 
-    private final List<String> ids;
-    private Integer from;
-    private Integer size;
-
+    public static final String ALLOW_NO_MATCH = "allow_no_match";
     /**
      * Helper method to create a request that will get ALL Data Frame Transforms
      * @return new {@link GetDataFrameTransformRequest} object for the id "_all"
@@ -40,6 +38,10 @@ public class GetDataFrameTransformRequest implements Validatable {
     public static GetDataFrameTransformRequest getAllDataFrameTransformsRequest() {
         return new GetDataFrameTransformRequest("_all");
     }
+
+    private final List<String> ids;
+    private PageParams pageParams;
+    private Boolean allowNoMatch;
 
     public GetDataFrameTransformRequest(String... ids) {
         this.ids = Arrays.asList(ids);
@@ -49,20 +51,20 @@ public class GetDataFrameTransformRequest implements Validatable {
         return ids;
     }
 
-    public Integer getFrom() {
-        return from;
+    public PageParams getPageParams() {
+        return pageParams;
     }
 
-    public void setFrom(Integer from) {
-        this.from = from;
+    public void setPageParams(PageParams pageParams) {
+        this.pageParams = pageParams;
     }
 
-    public Integer getSize() {
-        return size;
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
     }
 
-    public void setSize(Integer size) {
-        this.size = size;
+    public void setAllowNoMatch(Boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
@@ -78,7 +80,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids);
+        return Objects.hash(ids, pageParams, allowNoMatch);
     }
 
     @Override
@@ -91,6 +93,8 @@ public class GetDataFrameTransformRequest implements Validatable {
             return false;
         }
         GetDataFrameTransformRequest other = (GetDataFrameTransformRequest) obj;
-        return Objects.equals(ids, other.ids);
+        return Objects.equals(ids, other.ids)
+            && Objects.equals(pageParams, other.pageParams)
+            && Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 }

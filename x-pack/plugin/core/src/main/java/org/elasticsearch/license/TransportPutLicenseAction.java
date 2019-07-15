@@ -15,9 +15,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
@@ -38,8 +42,8 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     }
 
     @Override
-    protected PutLicenseResponse newResponse() {
-        return new PutLicenseResponse();
+    protected PutLicenseResponse read(StreamInput in) throws IOException {
+        return new PutLicenseResponse(in);
     }
 
     @Override
@@ -48,8 +52,8 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     }
 
     @Override
-    protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse>
-            listener) throws ElasticsearchException {
+    protected void masterOperation(Task task, final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse>
+        listener) throws ElasticsearchException {
         licenseService.registerLicense(request, listener);
     }
 

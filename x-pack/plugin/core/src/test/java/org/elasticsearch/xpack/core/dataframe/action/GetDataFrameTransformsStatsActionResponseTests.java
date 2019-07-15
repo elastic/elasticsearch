@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
@@ -18,11 +21,18 @@ public class GetDataFrameTransformsStatsActionResponseTests extends AbstractWire
     @Override
     protected Response createTestInstance() {
         List<DataFrameTransformStateAndStats> stats = new ArrayList<>();
-        for (int i = 0; i < randomInt(10); ++i) {
+        int totalStats = randomInt(10);
+        for (int i = 0; i < totalStats; ++i) {
             stats.add(DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats());
         }
-
-        return new Response(stats);
+        int totalErrors = randomInt(10);
+        List<TaskOperationFailure> taskFailures = new ArrayList<>(totalErrors);
+        List<ElasticsearchException> nodeFailures = new ArrayList<>(totalErrors);
+        for (int i = 0; i < totalErrors; i++) {
+            taskFailures.add(new TaskOperationFailure("node1", randomLongBetween(1, 10), new Exception("error")));
+            nodeFailures.add(new FailedNodeException("node1", "message", new Exception("error")));
+        }
+        return new Response(stats, randomLongBetween(stats.size(), 10_000_000L), taskFailures, nodeFailures);
     }
 
     @Override

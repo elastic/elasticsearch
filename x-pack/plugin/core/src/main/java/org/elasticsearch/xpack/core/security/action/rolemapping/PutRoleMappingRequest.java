@@ -137,7 +137,7 @@ public class PutRoleMappingRequest extends ActionRequest
         this.name = in.readString();
         this.enabled = in.readBoolean();
         this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             this.roleTemplates = in.readList(TemplateRoleName::new);
         }
         this.rules = ExpressionParser.readExpression(in);
@@ -151,7 +151,7 @@ public class PutRoleMappingRequest extends ActionRequest
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(rules, out);

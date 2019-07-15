@@ -22,6 +22,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -32,6 +33,10 @@ public class RoutingMissingException extends ElasticsearchException {
     private final String type;
 
     private final String id;
+
+    public RoutingMissingException(String index, String id) {
+        this(index, MapperService.SINGLE_MAPPING_NAME, id);
+    }
 
     public RoutingMissingException(String index, String type, String id) {
         super("routing is required for [" + index + "]/[" + type + "]/[" + id + "]");

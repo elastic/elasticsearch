@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -24,8 +25,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -64,8 +64,8 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     @Inject
     public TransportGetOverallBucketsAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                             ClusterService clusterService, JobManager jobManager, Client client) {
-        super(GetOverallBucketsAction.NAME, transportService, actionFilters,
-            (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
+        super(GetOverallBucketsAction.NAME, transportService, GetOverallBucketsAction.Request::new, actionFilters
+        );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
@@ -278,7 +278,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .field(Result.IS_INTERIM.getPreferredName());
         return AggregationBuilders.dateHistogram(Result.TIMESTAMP.getPreferredName())
                 .field(Result.TIMESTAMP.getPreferredName())
-                .interval(maxBucketSpanMillis)
+                .fixedInterval(new DateHistogramInterval(maxBucketSpanMillis + "ms"))
                 .subAggregation(jobsAgg)
                 .subAggregation(interimAgg);
     }

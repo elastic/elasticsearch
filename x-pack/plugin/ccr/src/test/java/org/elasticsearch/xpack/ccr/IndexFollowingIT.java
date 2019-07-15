@@ -17,10 +17,11 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -41,10 +42,13 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,10 +68,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -84,6 +90,7 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -98,23 +105,30 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexFollowingIT extends CcrIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41037")
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(PrivateSettingPlugin.class)).collect(Collectors.toList());
+    }
+
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         int numberOfReplicas = between(0, 1);
@@ -412,6 +426,43 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().indices().putMapping(putMappingRequest).actionGet());
     }
 
+    public void testDoNotAllowAddAliasToFollower() throws Exception {
+        final String leaderIndexSettings =
+                getIndexSettings(between(1, 2), between(0, 1), singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        final IndicesAliasesRequest request = new IndicesAliasesRequest()
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
+        final ElasticsearchStatusException e =
+                expectThrows(ElasticsearchStatusException.class, () -> followerClient().admin().indices().aliases(request).actionGet());
+        assertThat(
+                e,
+                hasToString(containsString("can't modify aliases on indices [follower]; "
+                        + "aliases of following indices are self-replicated from their leader indices")));
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+    }
+
+    public void testAddAliasAfterUnfollow() throws Exception {
+        final String leaderIndexSettings =
+                getIndexSettings(between(1, 2), between(0, 1), singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        pauseFollow("follower");
+        followerClient().admin().indices().close(new CloseIndexRequest("follower")).actionGet();
+        assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("follower")).actionGet());
+        followerClient().admin().indices().open(new OpenIndexRequest("follower")).actionGet();
+        final IndicesAliasesRequest request = new IndicesAliasesRequest()
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("follower").alias("follower_alias"));
+        assertAcked(followerClient().admin().indices().aliases(request).actionGet());
+        final GetAliasesResponse response =
+                followerClient().admin().indices().getAliases(new GetAliasesRequest("follower_alias")).actionGet();
+        assertThat(response.getAliases().keys().size(), equalTo(1));
+        assertThat(response.getAliases().keys().iterator().next().value, equalTo("follower"));
+        final List<AliasMetaData> aliasMetaData = response.getAliases().get("follower");
+        assertThat(aliasMetaData, hasSize(1));
+        assertThat(aliasMetaData.get(0).alias(), equalTo("follower_alias"));
+    }
+
     public void testFollowIndex_backlog() throws Exception {
         int numberOfShards = between(1, 5);
         String leaderIndexSettings = getIndexSettings(numberOfShards, between(0, 1),
@@ -620,7 +671,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().readExceptions().size(), equalTo(1));
             ElasticsearchException exception = response.getStatsResponses().get(0).status()
                 .readExceptions().entrySet().iterator().next().getValue().v2();
-            assertThat(exception.getRootCause().getMessage(), equalTo("blocked by: [FORBIDDEN/4/index closed];"));
+            assertThat(exception.getRootCause().getMessage(), equalTo("index [index1] blocked by: [FORBIDDEN/4/index closed];"));
         });
 
         leaderClient().admin().indices().open(new OpenIndexRequest("index1")).actionGet();
@@ -782,9 +833,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
             assertThat(e.getMessage(), equalTo("no index stats available for the leader index"));
 
-            IndicesExistsResponse existsResponse = followerClient().admin().indices().exists(new IndicesExistsRequest("index2"))
-                .actionGet();
-            assertThat(existsResponse.isExists(), is(false));
+            assertThat(ESIntegTestCase.indexExists("index2", followerClient()), is(false));
         } finally {
             // Always unset allocation enable setting to avoid other assertions from failing too when this test fails:
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -968,6 +1017,46 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
         });
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(true));
+    }
+
+    public void testDoNotReplicatePrivateSettings() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(
+            getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")), XContentType.JSON));
+        ensureLeaderGreen("leader");
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final IndexMetaData indexMetaData = currentState.metaData().index("leader");
+                Settings.Builder settings = Settings.builder()
+                    .put(indexMetaData.getSettings())
+                    .put("index.max_ngram_diff", 2);
+                if (randomBoolean()) {
+                    settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "private-value");
+                }
+                if (randomBoolean()) {
+                    settings.put(PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey(), "interval-value");
+                }
+                final MetaData.Builder metadata = MetaData.builder(currentState.metaData())
+                    .put(IndexMetaData.builder(indexMetaData)
+                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                        .settings(settings).build(), true);
+                return ClusterState.builder(currentState).metaData(metadata).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        assertBusy(() -> {
+            GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+            assertThat(resp.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
+            assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
+            assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
+        });
     }
 
     public void testMustCloseIndexAndPauseToRestartWithPutFollowing() throws Exception {
@@ -1337,4 +1426,15 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         return settings;
     }
 
+    public static class PrivateSettingPlugin extends Plugin {
+        static final Setting<String> INDEX_INTERNAL_SETTING =
+            Setting.simpleString("index.internal", Setting.Property.IndexScope, Setting.Property.InternalIndex);
+        static final Setting<String> INDEX_PRIVATE_SETTING =
+            Setting.simpleString("index.private", Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
+        }
+    }
 }

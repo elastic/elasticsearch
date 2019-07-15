@@ -7,7 +7,6 @@
         "offsets":false,
         "positions":false,
         "fields":["a","b","c"],
-        "_index": "testidx",
-        "_type":"test"
+        "_index": "testidx"
     }
 }

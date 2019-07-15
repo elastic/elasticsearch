@@ -24,7 +24,7 @@ import joptsimple.OptionSpec;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.bouncycastle.bcpg.ArmoredInputStream;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
@@ -44,6 +44,8 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
@@ -52,6 +54,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -82,7 +85,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -130,36 +132,28 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     static final int PLUGIN_MALFORMED = 2;
 
     /** The builtin modules, which are plugins, but cannot be installed or removed. */
-    static final Set<String> MODULES;
+    private static final Set<String> MODULES;
     static {
-        try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/modules.txt");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            Set<String> modules = new HashSet<>();
-            String line = reader.readLine();
-            while (line != null) {
-                modules.add(line.trim());
-                line = reader.readLine();
-            }
-            MODULES = Collections.unmodifiableSet(modules);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        try (var stream = InstallPluginCommand.class.getResourceAsStream("/modules.txt")) {
+            MODULES = Streams.readAllLines(stream)
+                .stream()
+                .map(String::trim)
+                .collect(Collectors.toUnmodifiableSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
     /** The official plugins that can be installed simply by name. */
     static final Set<String> OFFICIAL_PLUGINS;
     static {
-        try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/plugins.txt");
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            Set<String> plugins = new TreeSet<>(); // use tree set to get sorting for help command
-            String line = reader.readLine();
-            while (line != null) {
-                plugins.add(line.trim());
-                line = reader.readLine();
-            }
-            OFFICIAL_PLUGINS = Collections.unmodifiableSet(plugins);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        try (var stream = InstallPluginCommand.class.getResourceAsStream("/plugins.txt")) {
+            OFFICIAL_PLUGINS = Streams.readAllLines(stream)
+                .stream()
+                .map(String::trim)
+                .collect(Sets.toUnmodifiableSortedSet());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -557,7 +551,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             // compute the signature of the downloaded plugin zip
             final PGPPublicKeyRingCollection collection = new PGPPublicKeyRingCollection(ain, new JcaKeyFingerprintCalculator());
             final PGPPublicKey key = collection.getPublicKey(signature.getKeyID());
-            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleProvider()), key);
+            signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(new BouncyCastleFipsProvider()), key);
             final byte[] buffer = new byte[1024];
             int read;
             while ((read = fin.read(buffer)) != -1) {

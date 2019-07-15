@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -177,12 +176,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         if (content.isEmpty()) {
             return;
         }
-        SecurityClient securityClient = securityClient();
         Map<String, ActionFuture<PutRoleMappingResponse>> futures = new LinkedHashMap<>(content.size());
         for (int i = 0; i < content.size(); i++) {
             final String name = "external_" + i;
-            final PutRoleMappingRequestBuilder builder = securityClient.preparePutRoleMapping(
-                    name, new BytesArray(content.get(i)), XContentType.JSON);
+            final PutRoleMappingRequestBuilder builder = new PutRoleMappingRequestBuilder(client())
+                .source(name, new BytesArray(content.get(i)), XContentType.JSON);
             futures.put(name, builder.execute());
         }
         for (String mappingName : futures.keySet()) {
@@ -199,7 +197,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     @Override
     public Set<String> excludeTemplates() {
         Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityIndexManager.SECURITY_TEMPLATE_NAME); // don't remove the security index template
+        templates.add(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7); // don't remove the security index template
         return templates;
     }
 

@@ -54,6 +54,4 @@ specialized code may define new ways to use a Painless script.
                                     | {xpack-ref}/transform-script.html[Elasticsearch Documentation]
 |====
 
-include::painless-contexts/painless-context-examples.asciidoc[]
-
 include::painless-contexts/index.asciidoc[]

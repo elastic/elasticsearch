@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -76,7 +77,7 @@ public class LocalAllocateDangledIndices {
             new AllocateDangledRequestHandler());
     }
 
-    public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
+    public void allocateDangled(Collection<IndexMetaData> indices, ActionListener<AllocateDangledResponse> listener) {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
@@ -88,9 +89,7 @@ public class LocalAllocateDangledIndices {
         transportService.sendRequest(masterNode, ACTION_NAME, request, new TransportResponseHandler<AllocateDangledResponse>() {
             @Override
             public AllocateDangledResponse read(StreamInput in) throws IOException {
-                final AllocateDangledResponse response = new AllocateDangledResponse();
-                response.readFrom(in);
-                return response;
+                return new AllocateDangledResponse(in);
             }
 
             @Override
@@ -108,12 +107,6 @@ public class LocalAllocateDangledIndices {
                 return ThreadPool.Names.SAME;
             }
         });
-    }
-
-    public interface Listener {
-        void onResponse(AllocateDangledResponse response);
-
-        void onFailure(Throwable e);
     }
 
     class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
@@ -203,7 +196,7 @@ public class LocalAllocateDangledIndices {
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     try {
-                        channel.sendResponse(new AllocateDangledResponse(true));
+                        channel.sendResponse(new AllocateDangledResponse());
                     } catch (IOException e) {
                         logger.warn("failed send response for allocating dangled", e);
                     }
@@ -248,29 +241,20 @@ public class LocalAllocateDangledIndices {
 
     public static class AllocateDangledResponse extends TransportResponse {
 
-        private boolean ack;
-
-        AllocateDangledResponse() {
+        private AllocateDangledResponse(StreamInput in) throws IOException {
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readBoolean();
+            }
         }
 
-        AllocateDangledResponse(boolean ack) {
-            this.ack = ack;
-        }
-
-        public boolean ack() {
-            return ack;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            ack = in.readBoolean();
+        private AllocateDangledResponse() {
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBoolean(ack);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeBoolean(true);
+            }
         }
     }
 }

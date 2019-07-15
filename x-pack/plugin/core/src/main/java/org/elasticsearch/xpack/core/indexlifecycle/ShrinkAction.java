@@ -112,22 +112,6 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     @Override
-    public List<StepKey> toStepKeys(String phase) {
-        StepKey conditionalSkipKey = new StepKey(phase, NAME, BranchingStep.NAME);
-        StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
-        StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
-        StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
-        StepKey checkShrinkReadyKey = new StepKey(phase, NAME, CheckShrinkReadyStep.NAME);
-        StepKey shrinkKey = new StepKey(phase, NAME, ShrinkStep.NAME);
-        StepKey enoughShardsKey = new StepKey(phase, NAME, ShrunkShardsAllocatedStep.NAME);
-        StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
-        StepKey aliasKey = new StepKey(phase, NAME, ShrinkSetAliasStep.NAME);
-        StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
-        return Arrays.asList(conditionalSkipKey, waitForNoFollowerStepKey, readOnlyKey, setSingleNodeKey, checkShrinkReadyKey, shrinkKey,
-            enoughShardsKey, copyMetadataKey, aliasKey, isShrunkIndexKey);
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

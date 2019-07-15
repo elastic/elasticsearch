@@ -56,7 +56,7 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskActio
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
 
 /**
- * Action to get a single task. If the task isn't running then it'll try to request the status from request index.
+ * ActionType to get a single task. If the task isn't running then it'll try to request the status from request index.
  *
  * The general flow is:
  * <ul>
@@ -75,7 +75,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     @Inject
     public TransportGetTaskAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, GetTaskRequest::new, actionFilters);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -203,27 +203,15 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
 
-        client.get(get, new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                try {
-                    onGetFinishedTaskFromIndex(getResponse, listener);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+        client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
+            if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
+                // We haven't yet created the index for the task results so it can't be found.
+                listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
+                    request.getTaskId()));
+            } else {
+                listener.onFailure(e);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                    // We haven't yet created the index for the task results so it can't be found.
-                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
-                        request.getTaskId()));
-                } else {
-                    listener.onFailure(e);
-                }
-            }
-        });
+        }));
     }
 
     /**

@@ -72,7 +72,7 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
     public void readFrom(final StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         primaryContext = new ReplicationTracker.PrimaryContext(in);
     }
 

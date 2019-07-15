@@ -5,7 +5,7 @@
 If you want to use {ml-features}, there must be at least one {ml} node in
 your cluster and all master-eligible nodes must have {ml} enabled. By default,
 all nodes are {ml} nodes. For more information about these settings, see 
-{ref}/modules-node.html#modules-node-xpack[{ml} nodes].
+{ref}/modules-node.html#ml-node[{ml} nodes].
 
 To use the {ml-features} to analyze your data, you must create a job and
 send your data to that job.
@@ -21,8 +21,8 @@ send your data to that job.
 The results of {ml} analysis are stored in {es} and you can use {kib} to help
 you visualize and explore the results.
 
-For a tutorial that walks you through these configuration steps,
-see <<ml-getting-started>>.
+//For a tutorial that walks you through these configuration steps,
+//see <<ml-getting-started>>.
 
 Though it is quite simple to analyze your data and provide quick {ml} results,
 gaining deep insights might require some additional planning and configuration.

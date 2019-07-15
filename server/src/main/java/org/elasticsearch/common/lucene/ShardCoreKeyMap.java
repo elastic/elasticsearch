@@ -141,7 +141,7 @@ public final class ShardCoreKeyMap {
             return Collections.emptySet();
         }
         // we have to copy otherwise we risk ConcurrentModificationException
-        return Collections.unmodifiableSet(new HashSet<>(objects));
+        return Set.copyOf(objects);
     }
 
     /**

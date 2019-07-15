@@ -2,47 +2,33 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
-apply plugin: 'base'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 configurations {
   dockerPlugins
   dockerSource
   ossDockerSource
+  restSpec
 }
 
 dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar")
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
+  restSpec project(':rest-api-spec')
 }
 
-ext.expansions = { oss ->
+ext.expansions = { oss, local ->
   final String classifier = 'linux-x86_64'            
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
     'elasticsearch'       : elasticsearch,
     'license'             : oss ? 'Apache-2.0' : 'Elastic License',
-    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
+    'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch
   ]
-}
-
-/*
- * We need to be able to render a Dockerfile that references the official artifacts on https://artifacts.elastic.co. For this, we use a
- * substitution in the Dockerfile template where we can either replace source_elasticsearch with a COPY from the Docker build context, or
- * a RUN curl command to retrieve the artifact from https://artifacts.elastic.co. The system property build.docker.source, which can be
- * either "local" (default) or "remote" controls which version of the Dockerfile is produced.
- */
-private static boolean local() {
-  final String buildDockerSource = System.getProperty("build.docker.source")
-  if (buildDockerSource == null || "local".equals(buildDockerSource)) {
-    return true
-  } else if ("remote".equals(buildDockerSource)) {
-    return false
-  } else {
-    throw new IllegalArgumentException("expected build.docker.source to be [local] or [remote] but was [" + buildDockerSource + "]")
-  }
 }
 
 private static String files(final boolean oss) {
@@ -53,58 +39,109 @@ private static String taskName(final String prefix, final boolean oss, final Str
   return "${prefix}${oss ? 'Oss' : ''}${suffix}"
 }
 
-void addCopyDockerContextTask(final boolean oss) {
-  task(taskName("copy", oss, "DockerContext"), type: Sync) {
-    into files(oss)
-
-    into('bin') {
-      from 'src/docker/bin'
-    }
-
-    into('config') {
-      from 'src/docker/config'
-    }
-
-    if (local()) {
-      if (oss) {
-        from configurations.ossDockerSource
-      } else {
-        from configurations.dockerSource
+project.ext {
+  dockerBuildContext = { boolean oss, boolean local ->
+    copySpec {
+      into('bin') {
+        from project.projectDir.toPath().resolve("src/docker/bin")
       }
 
-      from configurations.dockerPlugins
+      into('config') {
+        /*
+         * Oss and default distribution can have different configuration, therefore we want to allow overriding the default configuration
+         * by creating config files in oss or default build-context sub-modules. 
+         */
+        from project.projectDir.toPath().resolve("src/docker/config")
+        from project.projectDir.toPath().resolve(oss ? "oss-docker-build-context" : "docker-build-context").resolve("src/docker/config")
+      }
+
+      from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
+        MavenFilteringHack.filter(it, expansions(oss, local))
+      }
     }
   }
 }
 
-void addCopyDockerfileTask(final boolean oss) {
-  task(taskName("copy", oss, "Dockerfile"), type: Copy) {
-    dependsOn taskName("copy", oss, "DockerContext")
-    inputs.properties(expansions(oss)) // ensure task is run when ext.expansions is changed
+void addCopyDockerContextTask(final boolean oss) {
+  task(taskName("copy", oss, "DockerContext"), type: Sync) {
+    inputs.properties(expansions(oss, true))
     into files(oss)
 
-    from('src/docker/Dockerfile') {
-      MavenFilteringHack.filter(it, expansions(oss))
+    with dockerBuildContext(oss, true)
+
+    if (oss) {
+      from configurations.ossDockerSource
+    } else {
+      from configurations.dockerSource
     }
+
+    from configurations.dockerPlugins
+  }
+}
+
+def createAndSetWritable (Object... locations) {
+  locations.each { location ->
+    File file = file(location)
+    file.mkdirs()
+    file.setWritable(true, false)
+  }
+}
+
+task copyKeystore(type: Sync) {
+  from project(':x-pack:plugin:core')
+          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  into "${buildDir}/certs"
+  doLast {
+    file("${buildDir}/certs").setReadable(true, false)
+    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
   }
 }
 
 preProcessFixture {
-  dependsOn assemble
+  if (TestFixturesPlugin.dockerComposeSupported()) {
+    dependsOn assemble
+  }
+  dependsOn copyKeystore
+  doLast {
+    // tests expect to have an empty repo
+    project.delete(
+            "${buildDir}/repo",
+            "${buildDir}/oss-repo"
+    )
+    createAndSetWritable(
+            "${buildDir}/repo",
+            "${buildDir}/oss-repo",
+            "${buildDir}/logs/default-1",
+            "${buildDir}/logs/default-2",
+            "${buildDir}/logs/oss-1",
+            "${buildDir}/logs/oss-2"
+    )
+  }
 }
 
-postProcessFixture.doLast {
-  println "docker default distro is on port: ${ext."test.fixtures.elasticsearch-default.tcp.9200"}, " +
-          "oss is on: ${ext."test.fixtures.elasticsearch-oss.tcp.9200"}"
+processTestResources {
+  from ({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
+  from project(':x-pack:plugin:core')
+          .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  dependsOn configurations.restSpec
+  // don't add the tasks to build the docker images if we have no way of testing them
+  if (TestFixturesPlugin.dockerComposeSupported()) {
+    dependsOn assemble
+  }
 }
 
-// TODO: Add some actual tests, this will just check that the TPC port in the container is up
-check.dependsOn postProcessFixture
+task integTest(type: Test) {
+  maxParallelForks = '1'
+  include '**/*IT.class'
+}
+
+check.dependsOn integTest
 
 void addBuildDockerImage(final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
     dependsOn taskName("copy", oss, "DockerContext")
-    dependsOn taskName("copy", oss, "Dockerfile")
     List<String> tags
     if (oss) {
       tags = [ 
@@ -132,7 +169,6 @@ void addBuildDockerImage(final boolean oss) {
 
 for (final boolean oss : [false, true]) {
   addCopyDockerContextTask(oss)
-  addCopyDockerfileTask(oss)
   addBuildDockerImage(oss)
 }
 
@@ -142,4 +178,6 @@ assemble.dependsOn "buildDockerImage"
 // We build the images used in compose locally, but the pull command insists on using a repository
 // thus we must disable it to prevent it from doing so. 
 // Everything will still be pulled since we will build the local images on a pull
-tasks.matching { name == "composePull" }.all { enabled = false }
+if (tasks.findByName("composePull")) {
+    tasks.composePull.enabled = false 
+}

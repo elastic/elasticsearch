@@ -18,16 +18,14 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
@@ -41,13 +39,17 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -62,14 +64,21 @@ import java.util.stream.Stream;
  */
 public class ReadOnlyEngine extends Engine {
 
+    /**
+     * Reader attributes used for read only engines. These attributes prevent loading term dictionaries on-heap even if the field is an
+     * ID field if we are reading form memory maps.
+     */
+    public static final Map<String, String> OFF_HEAP_READER_ATTRIBUTES = Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY,
+        BlockTreeTermsReader.FSTLoadMode.AUTO.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
-    private final TranslogStats translogStats;
-    private final SearcherManager searcherManager;
+    private final ElasticsearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
     private final DocsStats docsStats;
-    private final RamAccountingSearcherFactory searcherFactory;
+    private final RamAccountingRefreshListener refreshListener;
+
+    protected volatile TranslogStats translogStats;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -86,11 +95,11 @@ public class ReadOnlyEngine extends Engine {
     public ReadOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) {
         super(config);
-        this.searcherFactory = new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService());
+        this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         try {
             Store store = config.getStore();
             store.incRef();
-            DirectoryReader reader = null;
+            ElasticsearchDirectoryReader reader = null;
             Directory directory = store.directory();
             Lock indexWriterLock = null;
             boolean success = false;
@@ -99,17 +108,17 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-                this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
-                reader = open(indexCommit);
-                reader = wrapReader(reader, readerWrapperFunction);
-                searcherManager = new SearcherManager(reader, searcherFactory);
+                reader = wrapReader(open(indexCommit), readerWrapperFunction);
+                readerManager = new ElasticsearchReaderManager(reader, refreshListener);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
+                assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
+                this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {
@@ -130,14 +139,14 @@ public class ReadOnlyEngine extends Engine {
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
         final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_7_1_0) ||
-            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
+            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
+            assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
                 throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
                     + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
             }
         }
-        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getMaxSeqNo());
     }
 
     protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
@@ -155,17 +164,17 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
-    protected final DirectoryReader wrapReader(DirectoryReader reader,
+    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
-        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
-        return readerWrapperFunction.apply(reader);
+        reader = readerWrapperFunction.apply(reader);
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
-        return DirectoryReader.open(commit);
+        return DirectoryReader.open(commit, OFF_HEAP_READER_ATTRIBUTES);
     }
 
     private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {
@@ -190,9 +199,9 @@ public class ReadOnlyEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                IOUtils.close(searcherManager, indexWriterLock, store::decRef);
+                IOUtils.close(readerManager, indexWriterLock, store::decRef);
             } catch (Exception ex) {
-                logger.warn("failed to close searcher", ex);
+                logger.warn("failed to close reader", ex);
             } finally {
                 closedLatch.countDown();
             }
@@ -207,14 +216,34 @@ public class ReadOnlyEngine extends Engine {
         return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
     }
 
+    private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
+        final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        if (translogUuid == null) {
+            throw new IllegalStateException("commit doesn't contain translog unique id");
+        }
+        final long translogGenOfLastCommit = Long.parseLong(infos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        final TranslogConfig translogConfig = config.getTranslogConfig();
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+            config.getIndexSettings().getTranslogRetentionSize().getBytes(),
+            config.getIndexSettings().getTranslogRetentionAge().getMillis()
+        );
+        translogDeletionPolicy.setTranslogGenerationOfLastCommit(translogGenOfLastCommit);
+
+        try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
+                config.getPrimaryTermSupplier(), seqNo -> {})
+        ) {
+            return translog.stats();
+        }
+    }
+
     @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory) throws EngineException {
         return getFromSearcher(get, searcherFactory, SearcherScope.EXTERNAL);
     }
 
     @Override
-    protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
-        return searcherManager;
+    protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+        return readerManager;
     }
 
     @Override
@@ -300,7 +329,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return false;
+        // we can do operation-based recovery if we don't have to replay any operation.
+        return startingSeqNo > seqNoStats.getMaxSeqNo();
     }
 
     @Override
@@ -319,7 +349,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getLocalCheckpoint() {
+    public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
     }
 
@@ -345,7 +375,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void refresh(String source) {
-        // we could allow refreshes if we want down the road the searcher manager will then reflect changes to a rw-engine
+        // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side
     }
 
@@ -456,13 +486,8 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    @Override
-    public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
-        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
-    }
-
-    protected void processReaders(IndexReader reader, IndexReader previousReader) {
-        searcherFactory.processReaders(reader, previousReader);
+    protected void processReader(ElasticsearchDirectoryReader reader) {
+        refreshListener.accept(reader, null);
     }
 
     @Override
@@ -486,5 +511,16 @@ public class ReadOnlyEngine extends Engine {
                 return null;
             }
         };
+    }
+
+    @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return seqNoStats.getMaxSeqNo();
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+        assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
+            maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 }

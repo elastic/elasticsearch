@@ -31,7 +31,8 @@ public class RestStartDataFrameTransformAction extends BaseRestHandler {
         boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
         StartDataFrameTransformAction.Request request = new StartDataFrameTransformAction.Request(id, force);
         request.timeout(restRequest.paramAsTime(DataFrameField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
-        return channel -> client.execute(StartDataFrameTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(StartDataFrameTransformAction.INSTANCE, request,
+                new RestToXContentListener<>(channel));
     }
 
     @Override

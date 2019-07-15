@@ -35,7 +35,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -63,8 +62,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-// The random usage of meta fields such as _timestamp add noise to the test, so disable random index templates:
-@ESIntegTestCase.ClusterScope
 public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());
@@ -73,11 +70,6 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateSecurity.class, CommonAnalysisPlugin.class, ParentJoinPlugin.class,
                 InternalSettingsPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     @Override
@@ -547,8 +539,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         MultiSearchResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -562,8 +554,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -577,8 +569,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -594,8 +586,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -607,8 +599,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -626,8 +618,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -645,8 +637,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -664,8 +656,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -1172,7 +1164,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         boolean realtime = randomBoolean();
         TermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
@@ -1180,7 +1172,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getFields().terms("field1").size(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
@@ -1188,7 +1180,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getFields().terms("field2").size(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
@@ -1197,14 +1189,14 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getFields().terms("field2").size(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
         assertThat(response.getFields().size(), equalTo(0));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
@@ -1214,7 +1206,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getFields().terms("field3").size(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
@@ -1224,7 +1216,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getFields().terms("field3").size(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
@@ -1234,7 +1226,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getFields().terms("field3").size(), equalTo(1L));
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
-                .prepareTermVectors("test", "type1", "1")
+                .prepareTermVectors("test", "1")
                 .setRealtime(realtime)
                 .get();
         assertThat(response.isExists(), is(true));
@@ -1257,7 +1249,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         MultiTermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -1266,7 +1258,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -1275,7 +1267,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -1285,7 +1277,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -1293,7 +1285,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -1304,7 +1296,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -1315,7 +1307,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));
@@ -1326,7 +1318,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user8", USERS_PASSWD)))
                 .prepareMultiTermVectors()
-                .add(new TermVectorsRequest("test", "type1", "1").realtime(realtime))
+                .add(new TermVectorsRequest("test", "1").realtime(realtime))
                 .get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(true));

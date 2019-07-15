@@ -99,14 +99,6 @@ public class ForceMergeAction implements LifecycleAction {
     }
 
     @Override
-    public List<StepKey> toStepKeys(String phase) {
-        StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
-        StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
-        StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
-        return Arrays.asList(readOnlyKey, forceMergeKey, countKey);
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(maxNumSegments);
     }

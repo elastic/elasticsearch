@@ -19,6 +19,8 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -40,12 +42,22 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        assertEquals("multilinestring ((3.0 1.0, 4.0 2.0))", WellKnownText.toWKT(
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
+        assertEquals("multilinestring ((3.0 1.0, 4.0 2.0))", wkt.toWKT(
             new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4})))));
         assertEquals(new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4}))),
-            WellKnownText.fromWKT("multilinestring ((3 1, 4 2))"));
+            wkt.fromWKT("multilinestring ((3 1, 4 2))"));
 
-        assertEquals("multilinestring EMPTY", WellKnownText.toWKT(MultiLine.EMPTY));
-        assertEquals(MultiLine.EMPTY, WellKnownText.fromWKT("multilinestring EMPTY)"));
+        assertEquals("multilinestring EMPTY", wkt.toWKT(MultiLine.EMPTY));
+        assertEquals(MultiLine.EMPTY, wkt.fromWKT("multilinestring EMPTY)"));
+    }
+
+    public void testValidation() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4}, new double[]{6, 5})))));
+        assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(
+            new MultiLine(Collections.singletonList(new Line(new double[]{1, 2}, new double[]{3, 4}, new double[]{6, 5}))));
     }
 }

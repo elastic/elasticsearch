@@ -84,6 +84,10 @@ executing.
 
 The below list shows the actions which are available in each phase.
 
+NOTE: The order that configured actions are performed in within each phase is
+determined by automatically by {ilm-init}, and cannot be changed by changing the
+policy definition.
+
 * Hot
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-rollover-action,Rollover>>
@@ -116,9 +120,9 @@ configuring allocation rules is optional. When configuring allocation rules,
 setting number of replicas is optional. Although this action can be treated as
 two separate index settings updates, both can be configured at once.
 
-Read more about index replicas <<getting-started-shards-and-replicas,here>>.
-Read more about shard allocation filtering in
-the <<shard-allocation-filtering,Shard allocation filtering documentation>>.
+For more information about how {es} uses replicas for scaling, see
+<<scalability>>. See <<shard-allocation-filtering>> for more information about
+controlling where Elasticsearch allocates shards of a particular index.
 
 [[ilm-allocate-options]]
 .Allocate Options

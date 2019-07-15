@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FindFileStructureAction extends Action<FindFileStructureAction.Response> {
+public class FindFileStructureAction extends StreamableResponseActionType<FindFileStructureAction.Response> {
 
     public static final FindFileStructureAction INSTANCE = new FindFileStructureAction();
     public static final String NAME = "cluster:monitor/xpack/ml/findfilestructure";
@@ -74,7 +75,6 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             fileStructure.writeTo(out);
         }
 
@@ -113,6 +113,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
     public static class Request extends ActionRequest {
 
         public static final ParseField LINES_TO_SAMPLE = new ParseField("lines_to_sample");
+        public static final ParseField LINE_MERGE_SIZE_LIMIT = new ParseField("line_merge_size_limit");
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField CHARSET = FileStructure.CHARSET;
         public static final ParseField FORMAT = FileStructure.FORMAT;
@@ -130,6 +131,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
             "[%s] may only be specified if [" + FORMAT.getPreferredName() + "] is [%s]";
 
         private Integer linesToSample;
+        private Integer lineMergeSizeLimit;
         private TimeValue timeout;
         private String charset;
         private FileStructure.Format format;
@@ -152,6 +154,14 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
 
         public void setLinesToSample(Integer linesToSample) {
             this.linesToSample = linesToSample;
+        }
+
+        public Integer getLineMergeSizeLimit() {
+            return lineMergeSizeLimit;
+        }
+
+        public void setLineMergeSizeLimit(Integer lineMergeSizeLimit) {
+            this.lineMergeSizeLimit = lineMergeSizeLimit;
         }
 
         public TimeValue getTimeout() {
@@ -291,6 +301,10 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
                 validationException =
                     addValidationError("[" + LINES_TO_SAMPLE.getPreferredName() + "] must be positive if specified", validationException);
             }
+            if (lineMergeSizeLimit != null && lineMergeSizeLimit <= 0) {
+                validationException = addValidationError("[" + LINE_MERGE_SIZE_LIMIT.getPreferredName() + "] must be positive if specified",
+                    validationException);
+            }
             if (format != FileStructure.Format.DELIMITED) {
                 if (columnNames != null) {
                     validationException = addIncompatibleArgError(COLUMN_NAMES, FileStructure.Format.DELIMITED, validationException);
@@ -324,6 +338,9 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             linesToSample = in.readOptionalVInt();
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                lineMergeSizeLimit = in.readOptionalVInt();
+            }
             timeout = in.readOptionalTimeValue();
             charset = in.readOptionalString();
             format = in.readBoolean() ? in.readEnum(FileStructure.Format.class) : null;
@@ -342,6 +359,9 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalVInt(linesToSample);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeOptionalVInt(lineMergeSizeLimit);
+            }
             out.writeOptionalTimeValue(timeout);
             out.writeOptionalString(charset);
             if (format == null) {
@@ -378,8 +398,8 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
 
         @Override
         public int hashCode() {
-            return Objects.hash(linesToSample, timeout, charset, format, columnNames, hasHeaderRow, delimiter, grokPattern, timestampFormat,
-                timestampField, sample);
+            return Objects.hash(linesToSample, lineMergeSizeLimit, timeout, charset, format, columnNames, hasHeaderRow, delimiter,
+                grokPattern, timestampFormat, timestampField, sample);
         }
 
         @Override
@@ -395,6 +415,7 @@ public class FindFileStructureAction extends Action<FindFileStructureAction.Resp
 
             Request that = (Request) other;
             return Objects.equals(this.linesToSample, that.linesToSample) &&
+                Objects.equals(this.lineMergeSizeLimit, that.lineMergeSizeLimit) &&
                 Objects.equals(this.timeout, that.timeout) &&
                 Objects.equals(this.charset, that.charset) &&
                 Objects.equals(this.format, that.format) &&

@@ -450,7 +450,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     private Query getVectorQueryFromShape(QueryShardContext context, Geometry queryShape) {
-        return queryShape.visit(new GeometryVisitor<Query>() {
+        return queryShape.visit(new GeometryVisitor<Query, RuntimeException>() {
             @Override
             public Query visit(Circle circle) {
                 throw new QueryShardException(context, "Field [" + fieldName + "] found and unknown shape Circle");

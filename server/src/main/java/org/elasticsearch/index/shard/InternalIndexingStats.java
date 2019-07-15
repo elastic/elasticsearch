@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.engine.Engine;
 
 import java.util.HashMap;
@@ -155,7 +155,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 stats = typesStats.get(type);
                 if (stats == null) {
                     stats = new StatsHolder();
-                    typesStats = MapBuilder.newMapBuilder(typesStats).put(type, stats).immutableMap();
+                    typesStats = Maps.copyMapWithAddedEntry(typesStats, type, stats);
                 }
             }
         }
@@ -175,11 +175,6 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
                 deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
                 noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
-        }
-
-        void clear() {
-            indexMetric.clear();
-            deleteMetric.clear();
         }
     }
 }

@@ -57,7 +57,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
                         ", action: cluster:monitor/nodes/hot_threads\\[n\\]\\]" +
                         " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
         final String readPattern =
@@ -69,7 +69,7 @@ public class NioTransportLoggingIT extends NioIntegTestCase {
                         " READ: \\d+B";
 
         final MockLogAppender.LoggingExpectation readExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                         "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
 
         appender.addExpectation(writeExpectation);

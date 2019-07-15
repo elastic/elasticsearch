@@ -26,6 +26,11 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
 
     protected AbstractGetResourcesResponse() {}
 
+    protected AbstractGetResourcesResponse(StreamInput in) throws IOException {
+        super(in);
+        resources = new QueryPage<>(in, getReader());
+    }
+
     protected AbstractGetResourcesResponse(QueryPage<T> resources) {
         this.resources = Objects.requireNonNull(resources);
     }
@@ -42,7 +47,6 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         resources.writeTo(out);
     }
 

@@ -37,8 +37,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -136,7 +134,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
     public RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
         stage = Stage.fromId(in.readByte());
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
@@ -713,7 +711,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         public synchronized List<File> fileDetails() {
-            return Collections.unmodifiableList(new ArrayList<>(fileDetails.values()));
+            return List.copyOf(fileDetails.values());
         }
 
         public synchronized void reset() {
@@ -929,7 +927,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             builder.field(Fields.REUSED, reusedFileCount());
             builder.field(Fields.RECOVERED, recoveredFileCount());
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
-            if (params.paramAsBoolean("details", false)) {
+            if (params.paramAsBoolean("detailed", false)) {
                 builder.startArray(Fields.DETAILS);
                 for (File file : fileDetails.values()) {
                     file.toXContent(builder, params);
@@ -956,7 +954,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             }
         }
 
-        public File getFileDetails(String dest) {
+        public synchronized File getFileDetails(String dest) {
             return fileDetails.get(dest);
         }
     }

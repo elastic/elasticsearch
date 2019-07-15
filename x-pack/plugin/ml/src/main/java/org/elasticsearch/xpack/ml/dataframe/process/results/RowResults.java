@@ -20,6 +20,7 @@ public class RowResults implements ToXContentObject {
     public static final ParseField CHECKSUM = new ParseField("checksum");
     public static final ParseField RESULTS = new ParseField("results");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RowResults, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
             a -> new RowResults((Integer) a[0], (Map<String, Object>) a[1]));
 

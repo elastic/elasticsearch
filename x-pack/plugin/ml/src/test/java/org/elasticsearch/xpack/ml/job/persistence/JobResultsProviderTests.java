@@ -263,7 +263,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(1.0);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
         provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
         QueryPage<Bucket> buckets = holder[0];
@@ -297,7 +297,7 @@ public class JobResultsProviderTests extends ESTestCase {
         BucketsQueryBuilder bq = new BucketsQueryBuilder().from(from).size(size).anomalyScoreThreshold(5.1)
                 .includeInterim(true);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
         provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
         QueryPage<Bucket> buckets = holder[0];
@@ -333,7 +333,7 @@ public class JobResultsProviderTests extends ESTestCase {
         bq.anomalyScoreThreshold(5.1);
         bq.includeInterim(true);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] holder = new QueryPage[1];
         provider.buckets(jobId, bq, r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
         QueryPage<Bucket> buckets = holder[0];
@@ -379,7 +379,7 @@ public class JobResultsProviderTests extends ESTestCase {
         BucketsQueryBuilder bq = new BucketsQueryBuilder();
         bq.timestamp(Long.toString(now.getTime()));
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Bucket>[] bucketHolder = new QueryPage[1];
         provider.buckets(jobId, bq, q -> bucketHolder[0] = q, e -> {}, client);
         assertThat(bucketHolder[0].count(), equalTo(1L));
@@ -420,7 +420,7 @@ public class JobResultsProviderTests extends ESTestCase {
                 .epochEnd(String.valueOf(now.getTime())).includeInterim(true).sortField(sortfield)
                 .recordScore(2.2);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
         provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
         QueryPage<AnomalyRecord> recordPage = holder[0];
@@ -473,7 +473,7 @@ public class JobResultsProviderTests extends ESTestCase {
         rqb.sortField(sortfield);
         rqb.recordScore(2.2);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
         provider.records(jobId, rqb, page -> holder[0] = page, RuntimeException::new, client);
         QueryPage<AnomalyRecord> recordPage = holder[0];
@@ -518,7 +518,7 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(qb -> {}, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
         provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, page -> holder[0] = page, RuntimeException::new,
                 client);
@@ -579,7 +579,7 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> {}, response);
 
         JobResultsProvider provider = createProvider(client);
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
         provider.categoryDefinitions(jobId, null, false, from, size, r -> holder[0] = r,
                 e -> {throw new RuntimeException(e);}, client);
@@ -601,7 +601,7 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(Collections.singletonList(source));
         Client client = getMockedClient(q -> {}, response);
         JobResultsProvider provider = createProvider(client);
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
         provider.categoryDefinitions(jobId, categoryId, false, null, null,
                 r -> holder[0] = r, e -> {throw new RuntimeException(e);}, client);
@@ -643,7 +643,7 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Influencer>[] holder = new QueryPage[1];
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).includeInterim(false).build();
         provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new, client);
@@ -703,7 +703,7 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<Influencer>[] holder = new QueryPage[1];
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).start("0").end("0").sortField("sort")
                 .sortDescending(true).influencerScoreThreshold(0.0).includeInterim(true).build();
@@ -758,7 +758,7 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getMockedClient(qb -> {}, response);
         JobResultsProvider provider = createProvider(client);
 
-        @SuppressWarnings({"unchecked"})
+        @SuppressWarnings({"unchecked", "rawtypes"})
         QueryPage<ModelSnapshot>[] holder = new QueryPage[1];
         provider.modelSnapshots(jobId, from, size, r -> holder[0] = r, RuntimeException::new);
         QueryPage<ModelSnapshot> page = holder[0];
@@ -861,7 +861,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 
@@ -882,7 +882,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 
@@ -949,7 +949,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).threadPool();
         verify(client).prepareMultiSearch();
-        verify(client).multiSearch(any(MultiSearchRequest.class), any(ActionListener.class));
+        verify(client).multiSearch(any(MultiSearchRequest.class), any());
         verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
         verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"));
         verifyNoMoreInteractions(client);
@@ -976,7 +976,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 
@@ -997,7 +997,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
-        verify(client).search(any(SearchRequest.class), any(ActionListener.class));
+        verify(client).search(any(SearchRequest.class), any());
         verifyNoMoreInteractions(client);
     }
 

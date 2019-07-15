@@ -67,7 +67,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(row)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -97,7 +97,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         IntStream.range(0, 1000).forEach(i -> firstBatch.add(newRow(newHit(dataDoc), dataValues, i)));
         List<DataFrameDataExtractor.Row> secondBatch = new ArrayList<>(1);
         secondBatch.add(newRow(newHit(dataDoc), dataValues, 1000));
-        givenDataFrameBatches(firstBatch, secondBatch);
+        givenDataFrameBatches(Arrays.asList(firstBatch, secondBatch));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -118,7 +118,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(row)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -136,7 +136,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row normalRow = newRow(newHit(dataDoc), dataValues, 2);
-        givenDataFrameBatches(Arrays.asList(skippedRow, normalRow));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(skippedRow, normalRow)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -166,7 +166,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         DataFrameDataExtractor.Row normalRow2 = newRow(newHit(dataDoc), dataValues, 2);
         DataFrameDataExtractor.Row skippedRow = newRow(newHit("{}"), null, 3);
         DataFrameDataExtractor.Row normalRow3 = newRow(newHit(dataDoc), dataValues, 4);
-        givenDataFrameBatches(Arrays.asList(normalRow1, normalRow2, skippedRow), Arrays.asList(normalRow3));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(normalRow1, normalRow2, skippedRow), Arrays.asList(normalRow3)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -195,7 +195,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(row)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -214,7 +214,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row row1 = newRow(newHit(dataDoc), dataValues, 1);
         DataFrameDataExtractor.Row row2 = newRow(newHit(dataDoc), dataValues, 1);
-        givenDataFrameBatches(Arrays.asList(row1), Arrays.asList(row2));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(row1), Arrays.asList(row2)));
 
         givenProcessResults(Collections.emptyList());
 
@@ -229,8 +229,8 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         }
     }
 
-    private void givenDataFrameBatches(List<DataFrameDataExtractor.Row>... batches) throws IOException {
-        DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(Arrays.asList(batches));
+    private void givenDataFrameBatches(List<List<DataFrameDataExtractor.Row>> batches) throws IOException {
+        DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(batches);
         when(dataExtractor.hasNext()).thenAnswer(a -> delegateStubDataExtractor.hasNext());
         when(dataExtractor.next()).thenAnswer(a -> delegateStubDataExtractor.next());
     }
@@ -254,6 +254,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
+        @SuppressWarnings("unchecked")
         ActionFuture<BulkResponse> responseFuture = mock(ActionFuture.class);
         when(responseFuture.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
         when(client.execute(same(BulkAction.INSTANCE), bulkRequestCaptor.capture())).thenReturn(responseFuture);

@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -88,8 +87,7 @@ public final class TransportLogger {
                 if (isRequest) {
                     if (TransportStatus.isCompress(status)) {
                         Compressor compressor;
-                        final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-                        compressor = CompressorFactory.compressor(message.slice(bytesConsumed, message.length() - bytesConsumed));
+                        compressor = InboundMessage.getCompressor(message);
                         if (compressor == null) {
                             throw new IllegalStateException(new NotCompressedException());
                         }

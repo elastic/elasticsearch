@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction.Request;
 
-public class UpdateModelSnapshotActionRequestTests
-        extends AbstractStreamableXContentTestCase<Request> {
+public class UpdateModelSnapshotActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
@@ -31,12 +31,12 @@ public class UpdateModelSnapshotActionRequestTests
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }

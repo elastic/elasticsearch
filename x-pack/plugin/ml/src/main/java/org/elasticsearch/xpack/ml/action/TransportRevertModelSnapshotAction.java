@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -39,7 +39,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.function.Consumer;
 
-public class TransportRevertModelSnapshotAction extends StreamableTransportMasterNodeAction<RevertModelSnapshotAction.Request,
+public class TransportRevertModelSnapshotAction extends TransportMasterNodeAction<RevertModelSnapshotAction.Request,
         RevertModelSnapshotAction.Response> {
 
     private final Client client;
@@ -65,11 +65,6 @@ public class TransportRevertModelSnapshotAction extends StreamableTransportMaste
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected RevertModelSnapshotAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

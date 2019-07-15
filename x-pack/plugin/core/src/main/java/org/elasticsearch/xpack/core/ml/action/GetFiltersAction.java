@@ -39,6 +39,10 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
             super(null, null, true);
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public void setFilterId(String filterId) {
             setResourceId(filterId);
         }

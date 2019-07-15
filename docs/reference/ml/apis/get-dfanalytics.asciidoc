@@ -7,9 +7,9 @@
 <titleabbrev>Get {dfanalytics-jobs}</titleabbrev>
 ++++
 
-experimental[]
-
 Retrieves configuration information for {dfanalytics-jobs}.
+
+experimental[]
 
 [[ml-get-dfanalytics-request]]
 ==== {api-request-title}
@@ -41,25 +41,37 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 [[ml-get-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
-`<data_frame_analytics_id>` (Optional)::
-  (string) Identifier for the {dfanalytics-job}. If you do not specify one of 
-  these options, the API returns information for the first hundred
+`<data_frame_analytics_id>`::
+  (Optional, string) Identifier for the {dfanalytics-job}. If you do not specify
+  one of these options, the API returns information for the first hundred
   {dfanalytics-jobs}.
-
-[[ml-get-dfanalytics-query-params]]
-==== {api-query-parms-title}
-
+  
 `allow_no_match` (Optional)::
   (boolean) If `false` and the `data_frame_analytics_id` does not match any 
   {dfanalytics-job} an error will be returned. The default value is `true`.
 
-`from` (Optional)::
-  (integer) Skips the specified number of {dfanalytics-jobs}. The default value 
-  is `0`.
+[[ml-get-dfanalytics-query-params]]
+==== {api-query-parms-title}
 
-`size` (Optional)::
-  (integer) Specifies the maximum number of {dfanalytics-jobs} to obtain. The 
+`allow_no_match`::
+  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
+  match any {dfanalytics-job} an error will be returned. The default value is
+  `true`.
+
+`from`::
+  (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The
+  default value is `0`.
+
+`size`::
+  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to obtain. The 
   default value is `100`.
+  
+[[ml-get-dfanalytics-results]]
+==== {api-response-body-title}
+
+`data_frame_analytics`::
+  (array) An array of {dfanalytics-job} resources. For more information, see
+  <<ml-dfanalytics-resources>>.
 
 [[ml-get-dfanalytics-example]]
 ==== {api-examples-title}

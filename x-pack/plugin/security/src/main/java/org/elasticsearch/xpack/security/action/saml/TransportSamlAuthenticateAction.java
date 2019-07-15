@@ -40,7 +40,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     public TransportSamlAuthenticateAction(ThreadPool threadPool, TransportService transportService,
                                            ActionFilters actionFilters, AuthenticationService authenticationService,
                                            TokenService tokenService) {
-        super(SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
+        super(SamlAuthenticateAction.NAME, transportService, SamlAuthenticateRequest::new, actionFilters);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;

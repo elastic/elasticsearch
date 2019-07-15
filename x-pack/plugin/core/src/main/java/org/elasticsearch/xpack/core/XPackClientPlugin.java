@@ -208,6 +208,11 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -373,6 +378,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE,
+                PutSnapshotLifecycleAction.INSTANCE,
+                GetSnapshotLifecycleAction.INSTANCE,
+                DeleteSnapshotLifecycleAction.INSTANCE,
+                ExecuteSnapshotLifecycleAction.INSTANCE,
+                // Freeze
                 TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
                 // Data Frame
                 PutDataFrameTransformAction.INSTANCE,
@@ -469,6 +479,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, IndexLifecycleMetadata.TYPE,
                     IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, SnapshotLifecycleMetadata.TYPE,
+                    SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new),
                 // ILM - LifecycleTypes
                 new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
                     (in) -> TimeseriesLifecycleType.INSTANCE),

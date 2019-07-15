@@ -17,6 +17,7 @@ not be included yet.
 * <<index-apis>>
 * <<indices-reload-analyzers,Reload Search Analyzers API>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
+* <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<licensing-apis,Licensing APIs>>
 * <<ml-apis,Machine Learning APIs>>
 * <<security-api,Security APIs>>
@@ -31,6 +32,7 @@ include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
+include::{es-repo-dir}/ilm/apis/slm-api.asciidoc[]
 include::{es-repo-dir}/indices/apis/index.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]

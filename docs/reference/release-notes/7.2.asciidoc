@@ -200,7 +200,6 @@ Cluster Coordination::
 Data Frame::
 * Persist and restore checkpoint and position {pull}41942[#41942] (issue: {issue}41752[#41752])
 * Complete the Data Frame task on stop {pull}41752[#41752]
-* Add sync api {pull}41491[#41491]
 * Data Frame stop all {pull}41156[#41156]
 * Data Frame HLRC Get Stats API {pull}40327[#40327]
 * Data Frame HLRC Get API {pull}40209[#40209]

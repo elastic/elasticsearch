@@ -84,21 +84,34 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         return result;
     }
 
+    private String dumpLogs() {
+        Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
+            "Write-Output $files; " +
+            "foreach ($file in $files) {" +
+            "Write-Output \"$file\"; " +
+            "Get-Content \"$file\" " +
+            "}");
+        return logs.stdout;
+    }
+
     private void assertExit(Result result, String script, int exitCode) {
         if (result.exitCode != exitCode) {
             logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
-            Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
-                "Write-Output $files; " +
-                "foreach ($file in $files) {" +
-                    "Write-Output \"$file\"; " +    
-                    "Get-Content \"$file\" " +
-                "}");
-            logger.error(logs.stdout);
+            logger.error(dumpLogs());
             fail();
         } else {
             logger.info("\nscript: " + script + "\nstdout: " + result.stdout + "\nstderr: " + result.stderr);
+        }
+    }
+
+    private void assertNoErrorInLogs() {
+        String logs = dumpLogs();
+        if (logs.contains("[ERROR]")) {
+            logger.error("Log file contained ERROR:\n");
+            logger.error(logs);
+            fail();
         }
     }
 
@@ -163,6 +176,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     public void assertStartedAndStop() throws IOException {
         ServerUtils.waitForElasticsearch();
         ServerUtils.runElasticsearchTests();
+        assertNoErrorInLogs();
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);

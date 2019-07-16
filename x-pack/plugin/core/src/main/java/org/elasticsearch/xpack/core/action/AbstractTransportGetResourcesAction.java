@@ -61,7 +61,8 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
     private final NamedXContentRegistry xContentRegistry;
 
     protected AbstractTransportGetResourcesAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                                                  Writeable.Reader<Request> request, Client client, NamedXContentRegistry xContentRegistry) {
+                                                  Writeable.Reader<Request> request, Client client,
+                                                  NamedXContentRegistry xContentRegistry) {
         super(actionName, transportService, actionFilters, request);
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);

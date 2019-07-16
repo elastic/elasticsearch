@@ -365,7 +365,6 @@ public class NioSelector implements Closeable {
                 eventHandler.postHandling(context);
             }
         }
-
     }
 
     /**

@@ -24,11 +24,9 @@ import org.mockito.stubbing.Answer;
 import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.nio.channels.spi.AbstractSelectionKey;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -76,7 +74,7 @@ public class SSLChannelContextTests extends ESTestCase {
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
         context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
-        context.setSelectionKey(new TestSelectionKey());
+        context.setSelectionKey(mock(SelectionKey.class));
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         when(selector.getTaskScheduler()).thenReturn(nioTimer);
@@ -426,34 +424,6 @@ public class SSLChannelContextTests extends ESTestCase {
         @Override
         public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
             return fn.apply(channelBuffer);
-        }
-    }
-
-    private static class TestSelectionKey extends AbstractSelectionKey {
-
-        @Override
-        public SelectableChannel channel() {
-            return null;
-        }
-
-        @Override
-        public Selector selector() {
-            return null;
-        }
-
-        @Override
-        public int interestOps() {
-            return 0;
-        }
-
-        @Override
-        public SelectionKey interestOps(int ops) {
-            return null;
-        }
-
-        @Override
-        public int readyOps() {
-            return 0;
         }
     }
 }

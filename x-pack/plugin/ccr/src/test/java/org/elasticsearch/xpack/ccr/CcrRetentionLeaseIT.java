@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -949,6 +950,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         "leader_cluster",
                         leaderIndex)).actionGet();
 
+        logger.info(Strings.toString(forgetFollowerResponse));
         assertThat(forgetFollowerResponse.getTotalShards(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.getSuccessfulShards(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.getFailedShards(), equalTo(0));

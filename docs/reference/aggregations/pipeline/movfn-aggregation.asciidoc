@@ -24,7 +24,9 @@ A `moving_fn` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[moving-avg-params]]
 .`moving_avg` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
@@ -188,7 +190,9 @@ The functions are available from the `MovingFunctions` namespace.  E.g. `MovingF
 This function accepts a collection of doubles and returns the maximum value in that window. `null` and `NaN` values are ignored; the maximum
 is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
+[[max-params]]
 .`max(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the maximum
@@ -229,7 +233,9 @@ POST /_search
 This function accepts a collection of doubles and returns the minimum value in that window.  `null` and `NaN` values are ignored; the minimum
 is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
+[[min-params]]
 .`min(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the minimum
@@ -270,7 +276,9 @@ POST /_search
 This function accepts a collection of doubles and returns the sum of the values in that window.  `null` and `NaN` values are ignored;
 the sum is only calculated over the real values.  If the window is empty, or all values are `null`/`NaN`, `0.0` is returned as the result.
 
+[[sum-params]]
 .`sum(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -312,7 +320,9 @@ This function accepts a collection of doubles and average, then returns the stan
 `null` and `NaN` values are ignored; the sum is only calculated over the real values.  If the window is empty, or all values are
 `null`/`NaN`, `0.0` is returned as the result.
 
+[[stddev-params]]
 .`stdDev(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the standard deviation of
@@ -363,7 +373,9 @@ the values from a `simple` moving average tend to "lag" behind the real data.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[unweightedavg-params]]
 .`unweightedAvg(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -407,7 +419,9 @@ the "lag" behind the data's mean, since older points have less influence.
 
 If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
+[[linearweightedavg-params]]
 .`linearWeightedAvg(double[] values)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -456,7 +470,9 @@ moving average.  This tends to make the moving average track the data more close
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[ewma-params]]
 .`ewma(double[] values, double alpha)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -511,7 +527,9 @@ Values are produced by multiplying the level and trend components.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[holt-params]]
 .`holt(double[] values, double alpha)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -572,7 +590,9 @@ for future enhancements.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
+[[holtwinters-params]]
 .`holtWinters(double[] values, double alpha)` Parameters
+[options="header"]
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of

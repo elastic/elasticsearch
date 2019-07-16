@@ -198,7 +198,7 @@ POST /sales/_search?size=0
                "time_zone": "CET",
                "ranges": [
                   { "to": "2016/02/01" }, <1>
-                  { "from": "2016/02/01", "to" : "now/d" <2>},
+                  { "from": "2016/02/01", "to" : "now/d" }, <2>
                   { "from": "now/d" }
               ]
           }

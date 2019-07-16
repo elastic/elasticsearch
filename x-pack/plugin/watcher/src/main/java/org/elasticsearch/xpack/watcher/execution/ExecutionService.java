@@ -10,11 +10,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
@@ -31,19 +34,25 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
+import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
+import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -64,12 +73,14 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class ExecutionService extends AbstractComponent {
@@ -278,8 +289,10 @@ public class ExecutionService extends AbstractComponent {
                         if (resp.isExists() == false) {
                             throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
                         }
-                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON,
-                            resp.getSeqNo(), resp.getPrimaryTerm());
+                        Watch watch =  parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(),
+                            XContentType.JSON, resp.getSeqNo(), resp.getPrimaryTerm());
+                        watch.version(resp.getVersion());
+                        return watch;
                     });
                 } catch (ResourceNotFoundException e) {
                     String message = "unable to find watch for record [" + ctx.id() + "]";
@@ -350,9 +363,14 @@ public class ExecutionService extends AbstractComponent {
 
         UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
         updateRequest.doc(source);
-        updateRequest.setIfSeqNo(watch.getSourceSeqNo());
-        updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        boolean useSeqNoForCAS = clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
+        if (useSeqNoForCAS) {
+            updateRequest.setIfSeqNo(watch.getSourceSeqNo());
+            updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
+        } else {
+            updateRequest.version(watch.version());
+        }
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
             // do not rethrow this exception, otherwise the watch history will contain an exception
@@ -395,22 +413,67 @@ public class ExecutionService extends AbstractComponent {
         try {
             executor.execute(new WatchExecutionTask(ctx, () -> execute(ctx)));
         } catch (EsRejectedExecutionException e) {
-            String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
-            WatchRecord record = ctx.abortBeforeExecution(ExecutionState.THREADPOOL_REJECTION, message);
-            try {
-                if (ctx.overrideRecordOnConflict()) {
-                    historyStore.forcePut(record);
-                } else {
-                    historyStore.put(record);
+            //Using the generic pool here since this can happen from a write thread and we don't want to block a write
+            //thread to kick off these additional write/delete requests.
+            //Intentionally not using the HistoryStore or TriggerWatchStore to avoid re-using the same synchronous
+            //BulkProcessor which can cause a deadlock see #41390
+            genericExecutor.execute(new WatchExecutionTask(ctx, () -> {
+                String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
+                logger.warn(message);
+                WatchRecord record = ctx.abortBeforeExecution(ExecutionState.THREADPOOL_REJECTION, message);
+                try {
+                    forcePutHistory(record);
+                } catch (Exception exc) {
+                    logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage(
+                            "Error storing watch history record for watch [{}] after thread pool rejection",
+                            triggeredWatch.id()), exc);
                 }
-            } catch (Exception exc) {
-                logger.error((Supplier<?>) () ->
-                    new ParameterizedMessage("Error storing watch history record for watch [{}] after thread pool rejection",
-                        triggeredWatch.id()), exc);
-            }
-
-            triggeredWatchStore.delete(triggeredWatch.id());
+                deleteTrigger(triggeredWatch.id());
+            }));
         }
+    }
+
+    /**
+     * Stores the specified watchRecord.
+     * Any existing watchRecord will be overwritten.
+     */
+    private void forcePutHistory(WatchRecord watchRecord) {
+        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
+        try {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder();
+                 ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+                watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
+                IndexRequest request = new IndexRequest(index, "doc")
+                    .id(watchRecord.id().value())
+                    .source(builder)
+                    .opType(IndexRequest.OpType.CREATE);
+                client.index(request).get(30, TimeUnit.SECONDS);
+                logger.debug("indexed watch history record [{}]", watchRecord.id().value());
+            } catch (VersionConflictEngineException vcee) {
+                watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
+                    "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
+                     ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+                    IndexRequest request = new IndexRequest(index)
+                        .id(watchRecord.id().value())
+                        .source(xContentBuilder.value(watchRecord));
+                    client.index(request).get(30, TimeUnit.SECONDS);
+                }
+                logger.debug("overwrote watch history record [{}]", watchRecord.id().value());
+            }
+        } catch (InterruptedException | ExecutionException | TimeoutException | IOException ioe) {
+            final WatchRecord wr = watchRecord;
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
+        }
+    }
+
+    private void deleteTrigger(Wid watcherId) {
+        DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME, "doc", watcherId.value());
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+            client.delete(request).actionGet(30, TimeUnit.SECONDS);
+        }
+        logger.trace("successfully deleted triggered watch with id [{}]", watcherId);
     }
 
     WatchRecord executeInner(WatchExecutionContext ctx) {
@@ -496,7 +559,7 @@ public class ExecutionService extends AbstractComponent {
      * @return The GetResponse of calling the get API of this watch
      */
     private GetResponse getWatch(String id) {
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);

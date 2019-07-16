@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 /**
  * Collector for Machine Learning Job Stats.
@@ -73,7 +72,7 @@ public class JobStatsCollector extends Collector {
                                             final long interval,
                                             final ClusterState clusterState) throws Exception {
         // fetch details about all jobs
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, MONITORING_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(MONITORING_ORIGIN)) {
             final GetJobsStatsAction.Response jobs =
                     client.getJobsStats(new GetJobsStatsAction.Request(MetaData.ALL))
                             .actionGet(getCollectionTimeout());

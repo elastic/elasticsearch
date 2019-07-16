@@ -2,6 +2,8 @@
 [testenv="gold"]
 [[configuring-metricbeat]]
 === Collecting {es} monitoring data with {metricbeat}
+
+[subs="attributes"]
 ++++
 <titleabbrev>Collecting monitoring data with {metricbeat}</titleabbrev>
 ++++

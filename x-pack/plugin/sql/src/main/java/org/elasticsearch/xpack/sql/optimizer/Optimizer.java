@@ -149,6 +149,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch aggregate = new Batch("Aggregation Rewrite",
                 //new ReplaceDuplicateAggsWithReferences(),
+                new ReplaceMinMaxWithTopHits(),
                 new ReplaceAggsWithMatrixStats(),
                 new ReplaceAggsWithExtendedStats(),
                 new ReplaceAggsWithStats(),
@@ -1235,7 +1236,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof BinaryPredicate) {
+            if (e instanceof And || e instanceof Or) {
                 return simplifyAndOr((BinaryPredicate<?, ?, ?, ?>) e);
             }
             if (e instanceof Not) {

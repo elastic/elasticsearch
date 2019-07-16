@@ -126,6 +126,10 @@ public class VersionCollection {
                 .orElseThrow(() -> new IllegalStateException("Unexpected number of versions in collection"))
         );
 
+        // Previous major branch is dead so ignore the latest version which will never be released
+        Version previousMajorUnreleased = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
+        groupByMajor.get(currentVersion.getMajor() - 1).remove(previousMajorUnreleased);
+
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         assertNoOlderThanTwoMajors();
@@ -206,7 +210,8 @@ public class VersionCollection {
         unreleased.add(currentVersion);
 
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        unreleased.add(getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1));
+        // The 5.6 release train will have no further releases so don't test against unreleased snapshots
+        // unreleased.add(getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1));
 
         final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
         int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);

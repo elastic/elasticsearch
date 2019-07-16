@@ -884,6 +884,8 @@ class ClusterFormationTasks {
             }
             doLast {
                 project.delete(node.pidFile)
+                // Large tests can exhaust disk space, clean up jdk from the distribution to save some space
+                project.delete(new File(node.homeDir, "jdk"))
             }
         }
     }

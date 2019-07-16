@@ -84,6 +84,10 @@ executing.
 
 The below list shows the actions which are available in each phase.
 
+NOTE: The order that configured actions are performed in within each phase is
+determined by automatically by {ilm-init}, and cannot be changed by changing the
+policy definition.
+
 * Hot
   - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-rollover-action,Rollover>>

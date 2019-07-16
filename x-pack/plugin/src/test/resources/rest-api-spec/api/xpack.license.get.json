@@ -1,6 +1,6 @@
 {
   "xpack.license.get": {
-    "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/6.7/get-license.html",
     "methods": ["GET"],
     "url": {
       "path": "/_xpack/license",

@@ -1,9 +1,13 @@
-
 ==== {component} TLS/SSL Settings
 ifeval::["{component}"=="Auditing"]
+ifdef::asciidoctor[]
+deprecated:[6.7.0, "These settings configure the client used by the index audit output type which is deprecated and will be removed in 7.0. All the settings under the `xpack.security.audit.index` namespace are deprecated."]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.7.0, These settings configure the client used by the index audit
 output type which is deprecated and will be removed in 7.0. All the settings
 under the `xpack.security.audit.index` namespace are deprecated.]
+endif::[]
 endif::[]
 
 You can configure the following TLS/SSL settings. If the settings are not configured,
@@ -47,8 +51,13 @@ Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8
 Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
-
+ifdef::asciidoctor[]
+[#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
 ===== {component} TLS/SSL Key and Trusted Certificate Settings
+endif::[]
+ifndef::asciidoctor[]
+===== anchor:{ssl-context}-tls-ssl-key-trusted-certificate-settings[] {component} TLS/SSL Key and Trusted Certificate Settings
+endif::[]
 
 The following settings are used to specify a private key, certificate, and the
 trusted certificates that should be used when communicating over an SSL/TLS connection.
@@ -114,7 +123,13 @@ Password to the truststore.
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+ifdef::asciidoctor[]
+[#{ssl-context}-pkcs12-files]
 ===== PKCS#12 Files
+endif::[]
+ifndef::asciidoctor[]
+===== anchor:{ssl-context}-pkcs12-files[] PKCS#12 Files
+endif::[]
 
 {es} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
 that contain the private key, certificate and certificates that should be trusted.
@@ -152,7 +167,13 @@ Password to the PKCS#12 file.
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the PKCS#12 file.
 
+ifdef::asciidoctor[]
+[#{ssl-context}-pkcs11-tokens]
 ===== PKCS#11 Tokens
+endif::[]
+ifndef::asciidoctor[]
+===== anchor:{ssl-context}-pkcs11-tokens[] PKCS#11 Tokens
+endif::[]
 
 {es} can be configured to use a PKCS#11 token that contains the private key,
 certificate and certificates that should be trusted.

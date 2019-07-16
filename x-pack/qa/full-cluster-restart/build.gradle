@@ -25,6 +25,7 @@ dependencies {
         // This is total #$%, but the solution is to get the SAML realm (which uses guava) out of security proper
         exclude group: "com.google.guava", module: "guava"
     }
+    testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
@@ -72,15 +73,6 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
 
 Project mainProject = project
 
-String coreFullClusterRestartPath = project(':qa:full-cluster-restart').projectDir.toPath().resolve('src/test/java').toString()
-sourceSets {
-    test {
-        java {
-            srcDirs += [coreFullClusterRestartPath]
-        }
-    }
-}
-
 licenseHeaders {
     approvedLicenses << 'Apache'
 }
@@ -90,7 +82,7 @@ forbiddenPatterns {
 }
 
 // tests are pushed down to subprojects
-testingConventions.enabled = false 
+testingConventions.enabled = false
 
 /**
  * Subdirectories of this project are test rolling upgrades with various
@@ -105,21 +97,22 @@ subprojects {
 
   apply plugin: 'elasticsearch.standalone-test'
 
-  // Use resources from the rolling-upgrade project in subdirectories
   sourceSets {
     test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java", coreFullClusterRestartPath]
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
+        output.builtBy(mainProject.tasks.testClasses)
       }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
+      runtimeClasspath += mainProject.sourceSets.test.output
     }
   }
 
-  licenseHeaders {
-    approvedLicenses << 'Apache'
+  processTestResources {
+    from mainProject.file('src/test/resources')
   }
+
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
 
   forbiddenPatterns {
     exclude '**/system_key'
@@ -194,7 +187,7 @@ subprojects {
       extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (version.before('5.1.2')) {
-        // Disable monitoring if version is before 5.1.2 because form 5.1.2 we changed how we get DocStats 
+        // Disable monitoring if version is before 5.1.2 because form 5.1.2 we changed how we get DocStats
         // and we can get a negative value which cannot because serialised by <5.1.2 as it writes VLongs
         setting 'xpack.monitoring.enabled', 'false'
       }
@@ -275,7 +268,7 @@ subprojects {
       bwcTest.dependsOn(versionBwcTest)
     }
   }
-    
+
   unitTest.enabled = false // no unit tests for full cluster restarts, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
@@ -295,6 +288,7 @@ subprojects {
       testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
       testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
       testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+      testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
   }
 
   // copy x-pack plugin info so it is on the classpath and security manager has the right permissions

@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 
 /**
@@ -102,7 +101,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         request.setExcludeInterim(true);
         request.setPageParams(new PageParams(0, (int)((end - start)/bucketSpan)));
 
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             GetBucketsAction.Response response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
             return response.getBuckets().results();
         }
@@ -115,7 +114,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
             .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end));
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             SearchResponse response = client.execute(SearchAction.INSTANCE, searchRequest).actionGet();
             List<? extends Histogram.Bucket> buckets = ((Histogram)response.getAggregations().get(DATE_BUCKETS)).getBuckets();
             Map<Long, Long> hashMap = new HashMap<>(buckets.size());

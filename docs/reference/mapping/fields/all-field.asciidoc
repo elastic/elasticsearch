@@ -1,7 +1,12 @@
 [[mapping-all-field]]
 === `_all` field
 
+ifdef::asciidoctor[]
+deprecated::[6.0.0, "`_all` may no longer be enabled for indices created in 6.0+, use a custom field and the mapping `copy_to` parameter"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.0.0, `_all` may no longer be enabled for indices created in 6.0+, use a custom field and the mapping `copy_to` parameter]
+endif::[]
 
 The `_all` field is a special _catch-all_ field which concatenates the values
 of all of the other fields into one big string, using space as a delimiter, which is then

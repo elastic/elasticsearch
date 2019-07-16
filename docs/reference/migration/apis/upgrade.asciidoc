@@ -10,9 +10,14 @@ IMPORTANT: To prepare a cluster for an upgrade to Elasticsearch version 7, use
 the {kibana-ref}/upgrade-assistant.html[{kib} Upgrade Assistant] or
 <<reindex-upgrade,reindex manually>> before upgrading.
 
+ifdef::asciidoctor[]
+deprecated::[6.7, "Use the {kibana-ref}/upgrade-assistant.html[{kib} Upgrade Assistant] or <<reindex-upgrade,reindex manually>> before upgrading."]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.7, Use the {kibana-ref}/upgrade-assistant.html[{kib} Upgrade
-Assistant] or <<reindex-upgrade,reindex manually>> before upgrading.] The
-migration upgrade API performs the upgrade of internal indices to make them
+Assistant] or <<reindex-upgrade,reindex manually>> before upgrading.]
+endif::[]
+The migration upgrade API performs the upgrade of internal indices to make them
 compatible with version 6 of Elasticsearch.
 
 [float]

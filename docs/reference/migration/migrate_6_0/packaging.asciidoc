@@ -13,6 +13,7 @@ should use the tarball distribution instead of the provided RPM and DEB
 packages.
 
 [float]
+[[_literal_path_conf_literal_is_no_longer_a_configurable_setting]]
 ==== `path.conf` is no longer a configurable setting
 
 Previous versions of Elasticsearch enabled setting `path.conf` as a
@@ -22,6 +23,7 @@ Elasticsearch should use another config file. Instead, to configure a custom
 config directory, use the <<config-files-location,`ES_PATH_CONF` environment variable>>.
 
 [float]
+[[_literal_conf_dir_literal_is_no_longer_supported]]
 ==== `CONF_DIR` is no longer supported
 
 Previous versions of Elasticsearch enabled using the `CONF_DIR` environment
@@ -67,6 +69,7 @@ JVM (although a bootstrap check prevented using a 32-bit JVM in production). We
 are no longer maintaining this attempt.
 
 [float]
+[[_literal_server_literal_flag_no_longer_filtered_in_the_windows_service]]
 ==== `-server` flag no longer filtered in the Windows service
 
 Related to the previous change that 32-bit is no longer supported, the default
@@ -79,6 +82,7 @@ if you have a `jvm.options` file that includes this flag you will need to remove
 it.
 
 [float]
+[[_literal_es_jvm_options_literal_is_no_longer_supported]]
 ==== `ES_JVM_OPTIONS` is no longer supported
 
 The environment variable `ES_JVM_OPTIONS` that enabled a custom location for the
@@ -88,6 +92,7 @@ support relocating the configuration files so this change merely aligns the
 other configuration files with the location of the `jvm.options` file.
 
 [float]
+[[_literal_es_include_literal_is_no_longer_supported]]
 ==== `ES_INCLUDE` is no longer supported
 
 The environment variable `ES_INCLUDE` could previously be used to establish the

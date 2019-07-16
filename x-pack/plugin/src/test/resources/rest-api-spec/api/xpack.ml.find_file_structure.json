@@ -1,6 +1,6 @@
 {
   "xpack.ml.find_file_structure": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-file-structure.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/6.7/ml-find-file-structure.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/ml/find_file_structure",

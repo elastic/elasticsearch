@@ -3,6 +3,7 @@
 
 [partintro]
 --
+TIP: The fastest way to get started with {es} is to https://www.elastic.co/cloud/elasticsearch-service/signup[start a free 14-day trial of Elasticsearch Service] in the cloud.
 
 Elasticsearch is a highly scalable open-source full-text search and analytics engine. It allows you to store, search, and analyze big volumes of data quickly and in near real time. It is generally used as the underlying engine/technology that powers applications that have complex search features and requirements.
 
@@ -513,6 +514,7 @@ This REST access pattern is so pervasive throughout all the API commands that if
 Elasticsearch provides data manipulation and search capabilities in near real time. By default, you can expect a one second delay (refresh interval) from the time you index/update/delete your data until the time that it appears in your search results. This is an important distinction from other platforms like SQL wherein data is immediately available after a transaction is completed.
 
 [float]
+[[indexing-replacing-documents]]
 === Indexing/Replacing Documents
 
 We've previously seen how we can index a single document. Let's recall that command again:
@@ -788,7 +790,7 @@ As for the response, we see the following parts:
 * `hits` – search results
 * `hits.total` – total number of documents matching our search criteria
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `hits.sort` - sort key for results (missing if sorting by score)
+* `hits.sort` - sort value of the sort key for each result (missing if sorting by score)
 * `hits._score` and `max_score` - ignore these fields for now
 
 Here is the same exact search above using the alternative request body method:

@@ -34,13 +34,8 @@ unitTest {
   include '**/*Tests.class'
 }
 
-String licensePath = xpackProject('license-tools').projectDir.toPath().resolve('src/test/resources').toString()
-sourceSets {
-  test {
-    resources {
-      srcDirs += [licensePath]
-    }
-  }
+processTestResources {
+    from xpackProject('license-tools').file('src/test/resources')
 }
 
 project.forbiddenPatterns {

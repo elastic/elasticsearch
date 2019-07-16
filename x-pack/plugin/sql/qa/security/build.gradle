@@ -13,14 +13,20 @@ subprojects {
   // Use resources from the parent project in subprojects
   sourceSets {
     test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
+        output.builtBy(mainProject.tasks.testClasses)
       }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
+      runtimeClasspath += mainProject.sourceSets.test.output
     }
   }
+
+  processTestResources {
+    from mainProject.file('src/test/resources')
+  }
+
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
 
   dependencies {
     testCompile "org.elasticsearch.plugin:x-pack-core:${version}"

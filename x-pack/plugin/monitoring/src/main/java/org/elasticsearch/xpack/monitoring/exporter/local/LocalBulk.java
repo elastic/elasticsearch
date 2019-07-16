@@ -30,8 +30,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * LocalBulk exports monitoring data in the local cluster using bulk requests. Its usage is not thread safe since the
- * {@link LocalBulk#add(Collection)}, {@link LocalBulk#flush(org.elasticsearch.action.ActionListener)} and
- * {@link LocalBulk#doClose(ActionListener)} methods are not synchronized.
+ * {@link LocalBulk#add(Collection)} and {@link LocalBulk#flush(org.elasticsearch.action.ActionListener)}
+ * methods are not synchronized.
  */
 public class LocalBulk extends ExportBulk {
 
@@ -52,13 +52,10 @@ public class LocalBulk extends ExportBulk {
     }
 
     @Override
-    public void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
+    protected void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
         ExportException exception = null;
 
         for (MonitoringDoc doc : docs) {
-            if (isClosed()) {
-                return;
-            }
             if (requestBuilder == null) {
                 requestBuilder = client.prepareBulk();
             }
@@ -99,8 +96,8 @@ public class LocalBulk extends ExportBulk {
     }
 
     @Override
-    public void doFlush(ActionListener<Void> listener) {
-        if (requestBuilder == null || requestBuilder.numberOfActions() == 0 || isClosed()) {
+    protected void doFlush(ActionListener<Void> listener) {
+        if (requestBuilder == null || requestBuilder.numberOfActions() == 0) {
             listener.onResponse(null);
         } else {
             try {
@@ -138,11 +135,4 @@ public class LocalBulk extends ExportBulk {
         }
     }
 
-    @Override
-    protected void doClose(ActionListener<Void> listener) {
-        if (isClosed() == false) {
-            requestBuilder = null;
-        }
-        listener.onResponse(null);
-    }
 }

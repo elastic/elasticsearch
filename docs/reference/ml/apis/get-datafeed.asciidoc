@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-get-datafeed]]
 === Get {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Get {dfeeds}</titleabbrev>
 ++++

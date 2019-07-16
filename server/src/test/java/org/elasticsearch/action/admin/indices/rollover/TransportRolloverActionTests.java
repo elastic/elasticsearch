@@ -20,17 +20,30 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -39,9 +52,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,7 +67,9 @@ import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverA
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,7 +82,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         long docsInShards = 200;
 
         final Condition condition = createTestCondition();
-        evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndicesStatResponse(docsInShards, docsInPrimaryShards));
+        String indexName = randomAlphaOfLengthBetween(5, 7);
+        evaluateConditions(Sets.newHashSet(condition), createMetaData(indexName),
+                createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
@@ -286,7 +306,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .patterns(Arrays.asList("foo-*", "bar-*"))
             .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
             .build();
-        final MetaData metaData = MetaData.builder().put(createMetaData(), false).put(template).build();
+        final MetaData metaData = MetaData.builder().put(createMetaData(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
@@ -294,9 +314,92 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
-    private IndicesStatsResponse createIndicesStatResponse(long totalDocs, long primaryDocs) {
+    public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() {
+        final TransportService mockTransportService = mock(TransportService.class);
+        final ClusterService mockClusterService = mock(ClusterService.class);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        final MetaDataCreateIndexService mockCreateIndexService = mock(MetaDataCreateIndexService.class);
+        final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).thenReturn("logs-index-000003");
+        final ActionFilters mockActionFilters = mock(ActionFilters.class);
+        final MetaDataIndexAliasesService mdIndexAliasesService = mock(MetaDataIndexAliasesService.class);
+
+        final Client mockClient = mock(Client.class);
+        final AdminClient mockAdminClient = mock(AdminClient.class);
+        final IndicesAdminClient mockIndicesAdminClient = mock(IndicesAdminClient.class);
+        when(mockClient.admin()).thenReturn(mockAdminClient);
+        when(mockAdminClient.indices()).thenReturn(mockIndicesAdminClient);
+
+        final IndicesStatsRequestBuilder mockIndicesStatsBuilder = mock(IndicesStatsRequestBuilder.class);
+        when(mockIndicesAdminClient.prepareStats(any())).thenReturn(mockIndicesStatsBuilder);
+        final Map<String, IndexStats> indexStats = new HashMap<>();
+        int total = randomIntBetween(500, 1000);
+        indexStats.put("logs-index-000001", createIndexStats(200L, total));
+        indexStats.put("logs-index-000002", createIndexStats(300L, total));
+        final IndicesStatsResponse statsResponse = createAliasToMultipleIndicesStatsResponse(indexStats);
+        when(mockIndicesStatsBuilder.clear()).thenReturn(mockIndicesStatsBuilder);
+        when(mockIndicesStatsBuilder.setDocs(true)).thenReturn(mockIndicesStatsBuilder);
+
+        assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
+        assert statsResponse.getTotal().getDocs().getCount() == (total + total);
+
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 1;
+            ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[0];
+            listener.onResponse(statsResponse);
+            return null;
+        }).when(mockIndicesStatsBuilder).execute(any(ActionListener.class));
+
+        final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("logs-index-000001")
+                .putAlias(AliasMetaData.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
+                .numberOfShards(1).numberOfReplicas(1);
+        final IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("logs-index-000002")
+                .putAlias(AliasMetaData.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
+                .numberOfShards(1).numberOfReplicas(1);
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+                .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
+
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(Settings.EMPTY, mockTransportService,
+                mockClusterService, mockThreadPool, mockCreateIndexService, mockActionFilters, mockIndexNameExpressionResolver,
+                mdIndexAliasesService, mockClient);
+
+        // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
+        // (primaries from only write index is considered)
+        PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+        RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
+        rolloverRequest.addMaxIndexDocsCondition(500L);
+        rolloverRequest.dryRun(true);
+        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+
+        RolloverResponse response = future.actionGet();
+        assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
+        assertThat(response.getNewIndex(), equalTo("logs-index-000003"));
+        assertThat(response.isDryRun(), equalTo(true));
+        assertThat(response.isRolledOver(), equalTo(false));
+        assertThat(response.getConditionStatus().size(), equalTo(1));
+        assertThat(response.getConditionStatus().get("[max_docs: 500]"), is(false));
+
+        // For given alias, verify that the condition evaluation is successful when condition doc count is less than the primaries doc count
+        // (primaries from only write index is considered)
+        future = new PlainActionFuture<>();
+        rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
+        rolloverRequest.addMaxIndexDocsCondition(300L);
+        rolloverRequest.dryRun(true);
+        transportRolloverAction.masterOperation(rolloverRequest, stateBefore, future);
+
+        response = future.actionGet();
+        assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
+        assertThat(response.getNewIndex(), equalTo("logs-index-000003"));
+        assertThat(response.isDryRun(), equalTo(true));
+        assertThat(response.isRolledOver(), equalTo(false));
+        assertThat(response.getConditionStatus().size(), equalTo(1));
+        assertThat(response.getConditionStatus().get("[max_docs: 300]"), is(true));
+    }
+
+    private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
-        when(primaryStats.getDocs()).thenReturn(new DocsStats(primaryDocs, 0, between(1, 10000)));
+        when(primaryStats.getDocs()).thenReturn(new DocsStats(primariesDocs, 0, between(1, 10000)));
 
         final CommonStats totalStats = mock(CommonStats.class);
         when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0, between(1, 10000)));
@@ -304,18 +407,49 @@ public class TransportRolloverActionTests extends ESTestCase {
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         when(response.getPrimaries()).thenReturn(primaryStats);
         when(response.getTotal()).thenReturn(totalStats);
-
+        final IndexStats indexStats = mock(IndexStats.class);
+        when(response.getIndex(indexName)).thenReturn(indexStats);
+        when(indexStats.getPrimaries()).thenReturn(primaryStats);
+        when(indexStats.getTotal()).thenReturn(totalStats);
         return response;
     }
 
-    private static IndexMetaData createMetaData() {
+    private IndicesStatsResponse createAliasToMultipleIndicesStatsResponse(Map<String, IndexStats> indexStats) {
+        final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
+        final CommonStats primariesStats = new CommonStats();
+        final CommonStats totalStats = new CommonStats();
+        for (String indexName : indexStats.keySet()) {
+            when(response.getIndex(indexName)).thenReturn(indexStats.get(indexName));
+            primariesStats.add(indexStats.get(indexName).getPrimaries());
+            totalStats.add(indexStats.get(indexName).getTotal());
+        }
+
+        when(response.getPrimaries()).thenReturn(primariesStats);
+        when(response.getTotal()).thenReturn(totalStats);
+        return response;
+    }
+
+    private IndexStats createIndexStats(long primaries, long total) {
+        final CommonStats primariesCommonStats = mock(CommonStats.class);
+        when(primariesCommonStats.getDocs()).thenReturn(new DocsStats(primaries, 0, between(1, 10000)));
+
+        final CommonStats totalCommonStats = mock(CommonStats.class);
+        when(totalCommonStats.getDocs()).thenReturn(new DocsStats(total, 0, between(1, 10000)));
+
+        IndexStats indexStats = mock(IndexStats.class);
+        when(indexStats.getPrimaries()).thenReturn(primariesCommonStats);
+        when(indexStats.getTotal()).thenReturn(totalCommonStats);
+        return indexStats;
+    }
+
+    private static IndexMetaData createMetaData(String indexName) {
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        return IndexMetaData.builder(randomAlphaOfLength(10))
+        return IndexMetaData.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();

@@ -36,7 +36,7 @@ The general execution of `SELECT` is as follows:
 
 As with a table, every output column of a `SELECT` has a name which can be either specified per column through the `AS` keyword :
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[selectColumnAlias]
 ----
@@ -46,14 +46,14 @@ which is why it is recommended to specify it.
 
 assigned by {es-sql} if no name is given:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[selectInline]
 ----
 
 or if it's a simple column reference, use its name as the column name:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[selectColumn]
 ----
@@ -63,7 +63,7 @@ include-tagged::{sql-specs}/docs.csv-spec[selectColumn]
 
 To select all the columns in the source, one can use `*`:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[wildcardWithOrder]
 ----
@@ -89,14 +89,14 @@ Represents the name (optionally qualified) of an existing table, either a concre
 
 If the table name contains special SQL characters (such as `.`,`-`,`*`,etc...) use double quotes to escape them:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[fromTableQuoted]
 ----
 
 The name can be a <<multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[fromTablePatternQuoted]
 ----
@@ -104,7 +104,7 @@ include-tagged::{sql-specs}/docs.csv-spec[fromTablePatternQuoted]
 `alias`::
 A substitute name for the `FROM` item containing the alias. An alias is used for brevity or to eliminate ambiguity. When an alias is provided, it completely hides the actual name of the table and must be used in its place.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[fromTableAlias]
 ----
@@ -125,7 +125,7 @@ where:
 
 Represents an expression that evaluates to a `boolean`. Only the rows that match the condition (to `true`) are returned.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[basicWhere]
 ----
@@ -148,34 +148,34 @@ Represents an expression on which rows are being grouped _on_. It can be a colum
 
 A common, group by column name:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByColumn]
 ----
 
 Grouping by output ordinal:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByOrdinal]
 ----
 
 Grouping by alias:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByAlias]
 ----
 
 And grouping by column expression (typically used along-side an alias):
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByExpression]
 ----
 
 Or a mixture of the above:
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByMulti]
 ----
@@ -185,21 +185,21 @@ When a `GROUP BY` clause is used in a `SELECT`, _all_ output expressions must be
 
 To wit:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByAndAgg]
 ----
 
 Expressions over aggregates used in output:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByAndAggExpression]
 ----
 
 Multiple aggregates used:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByAndMultipleAggs]
 ----
@@ -212,14 +212,14 @@ As such, the query emits only a single row (as there is only a single group).
 
 A common example is counting the number of records:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByImplicitCount]
 ----
 
 Of course, multiple aggregations can be applied:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByImplicitMultipleAggs]
 ----
@@ -245,14 +245,14 @@ Both `WHERE` and `HAVING` are used for filtering however there are several signi
 . `WHERE` works on individual *rows*, `HAVING` works on the *groups* created by ``GROUP BY``
 . `WHERE` is evaluated *before* grouping, `HAVING` is evaluated *after* grouping
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByHaving]
 ----
 
 Further more, one can use multiple aggregate expressions inside `HAVING` even ones that are not used in the output (`SELECT`):
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByHavingMultiple]
 ----
@@ -265,14 +265,14 @@ As such, the query emits only a single row (as there is only a single group) and
 
 In this example, `HAVING` matches:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByHavingImplicitMatch]
 ----
 
 //However `HAVING` can also not match, in which case an empty result is returned:
 //
-//["source","sql",subs="attributes,callouts,macros"]
+//[source, sql]
 //----
 //include-tagged::{sql-specs}/docs.csv-spec[groupByHavingImplicitNoMatch]
 //----
@@ -300,7 +300,7 @@ IMPORTANT: When used along-side, `GROUP BY` expression can point _only_ to the c
 
 For example, the following query sorts by an arbitrary input field (`page_count`):
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[orderByBasic]
 ----
@@ -314,20 +314,20 @@ NOTE: With `GROUP BY`, make sure the ordering targets the resulting group - appl
 
 For example, to order groups simply indicate the grouping key:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[orderByGroup]
 ----
 
 Multiple keys can be specified of course:
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[groupByMulti]
 ----
 
 Further more, it is possible to order groups based on aggregations of their values:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[orderByAgg]
 ----
@@ -348,7 +348,7 @@ combined using the same rules as {es}'s
 
 To sort based on the `score`, use the special function `SCORE()`:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[orderByScore]
 ----
@@ -356,7 +356,7 @@ include-tagged::{sql-specs}/docs.csv-spec[orderByScore]
 Note that you can return `SCORE()` by using a full-text search predicate in the `WHERE` clause.
 This is possible even if `SCORE()` is not used for sorting:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[orderByScoreWithMatch]
 ----
@@ -383,7 +383,7 @@ ALL:: indicates there is no limit and thus all results are being returned.
 
 To return 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[limitBasic]
 ----

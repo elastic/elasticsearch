@@ -88,17 +88,18 @@ subprojects {
 
   apply plugin: 'elasticsearch.standalone-test'
 
-  // Use resources from the rolling-upgrade project in subdirectories
   sourceSets {
     test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
+        output.builtBy(mainProject.tasks.testClasses)
       }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
+      runtimeClasspath += mainProject.sourceSets.test.output
     }
   }
+
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
 
   forbiddenPatterns {
     exclude '**/system_key'

@@ -73,7 +73,7 @@ have a higher score than words that originated in the `content` field.
 This functionality comes at a cost: queries on the `_all` field are slower
 when field boosting is used.
 
-deprecated[5.0.0, index time boost is deprecated.  Instead, the field mapping boost is applied at query time. For indices created before 5.0.0 the boost will still be applied at index time.]
+deprecated[5.0.0, "index time boost is deprecated.  Instead, the field mapping boost is applied at query time. For indices created before 5.0.0 the boost will still be applied at index time."]
 [WARNING]
 .Why index time boosting is a bad idea
 ==================================================

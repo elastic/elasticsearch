@@ -65,6 +65,7 @@ GET my_index/_search
 // CONSOLE
 // TEST[continued]
 
+[[nested-fields-array-objects]]
 ==== Using `nested` fields for arrays of objects
 
 If you need to index arrays of objects and to maintain the independence of
@@ -160,6 +161,22 @@ Nested documents can be:
 * sorted with <<nested-sorting,nested sorting>>.
 * retrieved and highlighted with <<nested-inner-hits,nested inner hits>>.
 
+[IMPORTANT]
+=============================================
+
+Because nested documents are indexed as separate documents, they can only be
+accessed  within the scope of the `nested` query, the
+`nested`/`reverse_nested` aggregations, or <<nested-inner-hits,nested inner hits>>.
+
+For instance, if a string field within a nested document has
+<<index-options,`index_options`>> set to `offsets` to allow use of the postings
+during the highlighting, these offsets will not be available during the main highlighting
+phase.  Instead, highlighting needs to be performed via
+<<nested-inner-hits,nested inner hits>>. The same consideration applies when loading
+fields during a search through <<search-request-docvalue-fields, `docvalue_fields`>>
+or <<search-request-stored-fields, `stored_fields`>>.
+
+=============================================
 
 [[nested-params]]
 ==== Parameters for `nested` fields
@@ -179,25 +196,20 @@ The following parameters are accepted by `nested` fields:
     may be added to an existing nested object.
 
 
-[IMPORTANT]
-=============================================
+[float]
+=== Limits on `nested` mappings and objects
 
-Because nested documents are indexed as separate documents, they can only be
-accessed  within the scope of the `nested` query, the
-`nested`/`reverse_nested` aggregations, or <<nested-inner-hits,nested inner hits>>.
+As described earlier, each nested object is indexed as a separate document under the hood.
+Continuing with the example above, if we indexed a single document containing 100 `user` objects,
+then 101 Lucene documents would be created -- one for the parent document, and one for each
+nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts
+the following setting in place to guard against performance problems:
 
-For instance, if a string field within a nested document has
-<<index-options,`index_options`>> set to `offsets` to allow use of the postings
-during the highlighting, these offsets will not be available during the main highlighting
-phase.  Instead, highlighting needs to be performed via
-<<nested-inner-hits,nested inner hits>>.
+`index.mapping.nested_fields.limit`::
 
-=============================================
+    The `nested` type should only be used in special cases, when arrays of objects need to be
+    queried independently of each other. To safeguard against poorly designed mappings, this setting
+    limits the number of unique `nested` types per index. In our example, the `user` mapping would
+    count as only 1 towards this limit. Defaults to 50.
 
-
-==== Limiting the number of `nested` fields
-
-Indexing a document with 100 nested fields actually indexes 101 documents as each nested
-document is indexed as a separate document. To safeguard against ill-defined mappings
-the number of nested fields that can be defined per index has been limited to 50. See
-<<mapping-limit-settings>>.
+Additional background on this setting can be found in <<mapping-limit-settings>>.

@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-kibana-${monitoring.template.version}-*" ],
-  "version": 6050399,
+  "version": 6070299,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -50,6 +50,13 @@
         },
         "kibana_stats": {
           "properties": {
+            "usage": {
+              "properties": {
+                "index": {
+                  "type": "keyword"
+                }
+              }
+            },
             "kibana": {
               "properties": {
                 "uuid": {

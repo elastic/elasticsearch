@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[get-ml-info]]
 === Get machine learning info API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Get {ml} info</titleabbrev>
 ++++

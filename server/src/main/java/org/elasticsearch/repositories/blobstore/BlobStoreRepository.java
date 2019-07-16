@@ -123,27 +123,28 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * <pre>
  * {@code
  *   STORE_ROOT
- *   |- index-N           - list of all snapshot ids and the indices belonging to each snapshot, N is the generation of the file
+ *   |- index-N           - JSON serialized {@link RepositoryData} containing a list of all snapshot ids and the indices belonging to
+ *   |                      each snapshot, N is the generation of the file
  *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
  *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010 - JSON serialized Snapshot for snapshot "20131010"
- *   |- meta-20131010.dat - JSON serialized MetaData for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011 - JSON serialized Snapshot for snapshot "20131011"
- *   |- meta-20131011.dat - JSON serialized MetaData for snapshot "20131011"
+ *   |- snap-20131010.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131010"
+ *   |- meta-20131010.dat - SMILE serialized {@link MetaData} for snapshot "20131010" (includes only global metadata)
+ *   |- snap-20131011.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131011"
+ *   |- meta-20131011.dat - SMILE serialized {@link MetaData} for snapshot "20131011"
  *   .....
  *   |- indices/ - data for all indices
  *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
- *      |  |- meta-20131010.dat - JSON Serialized IndexMetaData for index "foo"
+ *      |  |- meta-20131010.dat - JSON Serialized {@link IndexMetaData} for index "foo"
  *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1 \
- *      |  |  |- __2 |
- *      |  |  |- __3 |- files from different segments see snapshot-* for their mappings to real segment files
- *      |  |  |- __4 |
- *      |  |  |- __5 /
+ *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
+ *      |  |  |- __2                      |
+ *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
+ *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
+ *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
  *      |  |  .....
- *      |  |  |- snap-20131010.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
- *      |  |  |- list-123 - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
+ *      |  |  |- snap-20131010.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131010"
+ *      |  |  |- snap-20131011.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131011"
+ *      |  |  |- index-123 - SMILE serialized {@link BlobStoreIndexShardSnapshots} for the shard
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"
  *      |  |  |- __1
@@ -1059,41 +1060,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         /**
-         * Generates blob name
-         *
-         * @param generation the blob number
-         * @return the blob name
-         */
-        protected String fileNameFromGeneration(long generation) {
-            return DATA_BLOB_PREFIX + Long.toString(generation, Character.MAX_RADIX);
-        }
-
-        /**
-         * Finds the next available blob number
-         *
-         * @param blobs list of blobs in the repository
-         * @return next available blob number
-         */
-        protected long findLatestFileNameGeneration(Map<String, BlobMetaData> blobs) {
-            long generation = -1;
-            for (String name : blobs.keySet()) {
-                if (!name.startsWith(DATA_BLOB_PREFIX)) {
-                    continue;
-                }
-                name = canonicalName(name);
-                try {
-                    long currentGen = Long.parseLong(name.substring(DATA_BLOB_PREFIX.length()), Character.MAX_RADIX);
-                    if (currentGen > generation) {
-                        generation = currentGen;
-                    }
-                } catch (NumberFormatException e) {
-                    logger.warn("file [{}] does not conform to the '{}' schema", name, DATA_BLOB_PREFIX);
-                }
-            }
-            return generation;
-        }
-
-        /**
          * Loads all available snapshots in the repository
          *
          * @param blobs list of blobs in repository
@@ -1142,7 +1108,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("failed to read commit point [{}]", name), e);
                 }
             }
-            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), -1);
+            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), latest);
         }
     }
 
@@ -1185,7 +1151,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
             }
 
-            long generation = findLatestFileNameGeneration(blobs);
             Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs);
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             int fileListGeneration = tuple.v2();
@@ -1253,7 +1218,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexIncrementalSize += md.length();
                         // create a new FileInfo
                         BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo =
-                            new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize());
+                            new BlobStoreIndexShardSnapshot.FileInfo(DATA_BLOB_PREFIX + UUIDs.randomBase64UUID(), md, chunkSize());
                         indexCommitPointFiles.add(snapshotFileInfo);
                         filesToSnapshot.add(snapshotFileInfo);
                     } else {

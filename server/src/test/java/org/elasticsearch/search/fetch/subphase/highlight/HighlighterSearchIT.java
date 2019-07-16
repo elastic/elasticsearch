@@ -1827,9 +1827,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(response, 0, "text", 0, 1, equalTo("I am pretty long so some"));
 
         // We can also ask for a fragment longer than the input string and get the whole string
-        field.highlighterType("plain").noMatchSize(text.length() * 2);
-        response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
-        assertHighlight(response, 0, "text", 0, 1, equalTo(text));
+        for (String type : new String[] { "plain", "unified" }) {
+            field.highlighterType(type).noMatchSize(text.length() * 2).numOfFragments(0);
+            response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
+            assertHighlight(response, 0, "text", 0, 1, equalTo(text));
+        }
 
         field.highlighterType("fvh");
         response = client().prepareSearch("test").highlighter(new HighlightBuilder().field(field)).get();
@@ -3091,6 +3093,29 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
             assertThat(field.getFragments().length, equalTo(1));
             assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+        }
+    }
+
+    public void testDisableHighlightIdField() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("doc", "keyword", "type=keyword"));
+        ensureGreen();
+
+        client().prepareIndex("test", "doc", "d33f85bf1e51e84d9ab38948db9f3a068e1fe5294f1d8603914ac8c7bcc39ca1")
+            .setSource("keyword", "Hello World")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        for (String highlighterType : new String[] {"plain", "unified"}) {
+            SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchQuery("_id", "d33f85bf1e51e84d9ab38948db9f3a068e1fe5294f1d8603914ac8c7bcc39ca1"))
+                .highlighter(
+                    new HighlightBuilder().field(new Field("*")
+                        .highlighterType(highlighterType).requireFieldMatch(false))
+                )
+                .get();
+            assertHitCount(searchResponse, 1);
+            assertNull(searchResponse.getHits().getAt(0).getHighlightFields().get("_id"));
         }
     }
 

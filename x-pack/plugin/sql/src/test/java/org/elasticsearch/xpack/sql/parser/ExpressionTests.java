@@ -338,22 +338,6 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
     }
 
-    public void testCurrentDate() {
-        Expression expr = parser.createExpression("CURRENT_DATE");
-        assertEquals(UnresolvedFunction.class, expr.getClass());
-        UnresolvedFunction ur = (UnresolvedFunction) expr;
-        assertEquals("CURRENT_DATE", ur.sourceText());
-        assertEquals(0, ur.children().size());
-    }
-
-    public void testCurrentDateWithParentheses() {
-        Expression expr = parser.createExpression("CURRENT_DATE(  )");
-        assertEquals(UnresolvedFunction.class, expr.getClass());
-        UnresolvedFunction ur = (UnresolvedFunction) expr;
-        assertEquals("CURRENT_DATE(  )", ur.sourceText());
-        assertEquals(0, ur.children().size());
-    }
-
     public void testCurrentTimestamp() {
         Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
         assertEquals(UnresolvedFunction.class, expr.getClass());
@@ -370,12 +354,23 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(1, ur.children().size());
         Expression child = ur.children().get(0);
         assertEquals(Literal.class, child.getClass());
-        assertEquals(Short.valueOf((short) 4), child.fold());
+        assertEquals(4, child.fold());
     }
 
-    public void testCurrentTimestampInvalidPrecision() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
-        assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
+    public void testCurrentDate() {
+        Expression expr = parser.createExpression("CURRENT_DATE");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentDateWithParentheses() {
+        Expression expr = parser.createExpression("CURRENT_DATE(  )");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE(  )", ur.sourceText());
+        assertEquals(0, ur.children().size());
     }
 
     public void testSourceKeyword() throws Exception {

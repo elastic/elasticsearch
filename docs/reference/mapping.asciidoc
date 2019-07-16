@@ -89,10 +89,7 @@ causing a mapping explosion:
     `2`, etc. The default is `20`.
 
 `index.mapping.nested_fields.limit`::
-    The maximum number of `nested` fields in an index, defaults to `50`.
-    Indexing 1 document with 100 nested fields actually indexes 101 documents
-    as each nested document is indexed as a separate hidden document.
-
+    The maximum number of distinct `nested` mappings in an index, defaults to `50`.
 
 [float]
 == Dynamic mapping

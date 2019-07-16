@@ -60,8 +60,10 @@ unitTest.enabled = false
 
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
-    final def version = bwcVersions.unreleasedIndexCompatible.first()
-    dependsOn "v${version}#bwcTest"
+    if (bwcVersions.unreleasedIndexCompatible.isEmpty() == false) {
+      final def version = bwcVersions.unreleasedIndexCompatible.first()
+      dependsOn "v${version}#bwcTest"
+    }
   }
 }
 

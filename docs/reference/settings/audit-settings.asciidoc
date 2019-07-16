@@ -22,11 +22,17 @@ file named `<clustername>_audit.log` on each node.
 +
 You can also specify `index`, which puts the auditing events in an {es} index
 that is prefixed with `.security_audit_log`. The index can reside on the same
-cluster or a separate cluster. deprecated[6.7.0, The outputs setting will be
+cluster or a separate cluster. 
+ifdef::asciidoctor[]
+deprecated:[6.7.0, "The outputs setting will be removed in 7.0 as there will only be one supported output type (`logfile`). Users who wish to store their audit information in an Elasticsearch index should write to the log file output, and a use a file ingestion component to index it into Elasticsearch."]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[6.7.0, The outputs setting will be
 removed in 7.0 as there will only be one supported output type (`logfile`).
 Users who wish to store their audit information in an Elasticsearch index
 should write to the log file output, and a use a file ingestion component to
 index it into Elasticsearch.]
+endif::[]
 +
 For backwards compatibility reasons, if you use the logfile output type, a
 `<clustername>_access.log` file is also created. It contains the same
@@ -123,8 +129,13 @@ these values. If the event concerns several indices, some of which are
 
 [[index-audit-settings]]
 ==== Audit Log Indexing Configuration Settings
+ifdef::asciidoctor[]
+deprecated:[6.7.0, "`xpack.security.audit.index` settings namespace refers to the `index` audit output type which is deprecated and will be removed in 7.0"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.7.0, `xpack.security.audit.index` settings namespace refers to the
 `index` audit output type which is deprecated and will be removed in 7.0]
+endif::[]
 
 `xpack.security.audit.index.bulk_size`::
 Controls how many audit events are batched into a single write. The default
@@ -178,8 +189,13 @@ even if they are unspecified (i.e. left to defaults).
 
 [[remote-audit-settings]]
 ==== Remote Audit Log Indexing Configuration Settings
+ifdef::asciidoctor[]
+deprecated:[6.7.0, "`xpack.security.audit.index` settings namespace refers to the `index` audit output type which is deprecated and will be removed in 7.0"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.7.0, `xpack.security.audit.index` settings namespace refers to the
 `index` audit output type which is deprecated and will be removed in 7.0]
+endif::[]
 
 To index audit events to a remote {es} cluster, you configure the following
 `xpack.security.audit.index.client` settings:

@@ -9,14 +9,13 @@ import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.Project
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.UnknownElement
-import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTreeElement
 import org.gradle.api.specs.Spec
+import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.options.Option
@@ -39,7 +38,7 @@ class RandomizedTestingTask extends DefaultTask {
     File workingDir = new File(project.buildDir, 'testrun' + File.separator + name)
 
     @Optional
-    @Input
+    @Classpath
     FileCollection classpath
 
     @Input
@@ -253,7 +252,7 @@ class RandomizedTestingTask extends DefaultTask {
                 if (argLine != null) {
                     jvmarg(line: argLine)
                 }
-                testClassesDirs.each { testClassDir ->
+                testClassesDirs.filter { it.exists() }.each { testClassDir ->
                     fileset(dir: testClassDir) {
                         patternSet.getIncludes().each { include(name: it) }
                         patternSet.getExcludes().each { exclude(name: it) }

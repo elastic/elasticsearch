@@ -73,8 +73,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -611,9 +611,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         public void trigger(String watchId, int times, TimeValue timeValue) {
-            boolean isTriggered = schedulers.stream().anyMatch(scheduler -> scheduler.trigger(watchId, times, timeValue));
-            String msg = String.format(Locale.ROOT, "could not find watch [%s] to trigger", watchId);
-            assertThat(msg, isTriggered, is(true));
+            long triggeredCount = schedulers.stream()
+                .filter(scheduler -> scheduler.trigger(watchId, times, timeValue))
+                .count();
+            String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+            if (triggeredCount > 1) {
+                logger.warn(msg);
+            }
+            assertThat(msg, triggeredCount, greaterThanOrEqualTo(1L));
         }
     }
 

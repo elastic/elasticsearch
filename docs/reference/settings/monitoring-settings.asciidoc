@@ -52,8 +52,7 @@ ignored.
 
 `xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>):: 
 
-Setting to `-1` to disable data collection has been deprecated. deprecated[6.3.0,
-Use `xpack.monitoring.collection.enabled` set to `false` instead.]
+Setting to `-1` to disable data collection has been deprecated. deprecated[6.3.0, Use `xpack.monitoring.collection.enabled` set to `false` instead.]
 
 Controls how often data samples are collected. Defaults to `10s`. If you
 modify the collection interval, set the `xpack.monitoring.min_interval_seconds`
@@ -286,5 +285,6 @@ For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
 :component:              {monitoring}
 :verifies:
 :server!:
+:ssl-context:            monitoring
 
 include::ssl-settings.asciidoc[]

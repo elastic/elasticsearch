@@ -1,3 +1,125 @@
+[[release-notes-6.7.2]]
+== {es} version 6.7.2
+
+
+Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
+
+[[enhancement-6.7.2]]
+[float]
+=== Enhancements
+
+CCR::
+* Reduce security permissions in CCR plugin {pull}41391[#41391]
+
+Distributed::
+* Avoid background sync on relocated primary {pull}40800[#40800] (issue: {issue}40731[#40731])
+
+Infra/Packaging::
+* Be lenient when parsing build flavor and type on the wire {pull}40734[#40734] (issues: {issue}39378[#39378], {issue}40723[#40723])
+
+Machine Learning::
+* Allow xpack.ml.max_machine_memory_percent higher than 100% {pull}41193[#41193]
+* Add the "time" system call to the syscall filter {ml-pull}459[#459] (issue: {issue}41101[#41101])
+
+Snapshot/Restore::
+* Mark Deleted Snapshot Directories with Tombstones {pull}40228[#40228] (issue: {issue}39852[#39852])
+
+
+
+[[bug-6.7.2]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Short-circuit rebalancing when disabled {pull}40966[#40966] (issue: {issue}40942[#40942])
+
+Authorization::
+* Fix role mapping DN field wildcards for users with NULL DNs {pull}41343[#41343] (issue: {issue}41305[#41305])
+* Fix Has Privilege API check on restricted indices {pull}41226[#41226]
+* put mapping authorization for alias with write-index and multiple read indices {pull}40834[#40834] (issue: {issue}40831[#40831])
+* Use alias name from rollover request to query indices stats {pull}40774[#40774] (issue: {issue}40771[#40771])
+
+CCR::
+* Suppress lease background sync failures if stopping {pull}40902[#40902]
+
+Distributed::
+* Fix NPE on Stale Index in IndicesService {pull}38891[#38891] (issue: {issue}38845[#38845])
+
+Features/ILM::
+* Allow ILM to stop if indices have nonexistent policies {pull}40820[#40820] (issue: {issue}40824[#40824])
+
+Features/Monitoring::
+* Properly handle Monitoring exporters all disabled {pull}40920[#40920] (issue: {issue}40919[#40919])
+
+Features/Watcher::
+* Use setIfSeqNo(...) and setIfPrimaryTerm(...) for updating watch status if all nodes are at least on 6.7.0 {pull}40888[#40888] (issue: {issue}40841[#40841])
+
+Highlighting::
+* Unified highlighter should ignore terms that target the _id field {pull}41275[#41275] (issue: {issue}37525[#37525])
+* Unified highlighter should respect no_match_size with number_of_fragments set to 0 {pull}41069[#41069] (issue: {issue}41066[#41066])
+
+Infra/Core::
+* Allow single digit milliseconds in strict date parsing {pull}40676[#40676] (issue: {issue}40403[#40403])
+* Bat scripts to work with JAVA_HOME with parentheses {pull}39712[#39712] (issues: {issue}30606[#30606], {issue}33405[#33405], {issue}38578[#38578], {issue}38624[#38624])
+
+Infra/Packaging::
+* Suppress illegal access in plugin install {pull}41620[#41620] (issue: {issue}41478[#41478])
+
+Infra/Scripting::
+* Correct bug in ScriptDocValues {pull}40864[#40864] (issue: {issue}40488[#40488])
+
+Infra/Settings::
+* Always check for archiving broken index settings {pull}41209[#41209]
+
+Machine Learning::
+* Checking if p-tasks metadata is null before updating state {pull}41091[#41091] (issue: {issue}41090[#41090])
+* Write header to autodetect before it is visible to other calls {pull}41085[#41085] (issue: {issue}40385[#40385])
+* Fix unsafe publication of invalid license enforcer {pull}40985[#40985] (issue: {issue}40957[#40957])
+* Scrolling datafeed should clear scroll contexts on error {pull}40773[#40773] (issue: {issue}40772[#40772])
+
+Mapping::
+* Optimise rejection of out-of-range `long` values {pull}40325[#40325] (issues: {issue}26137[#26137], {issue}40323[#40323])
+
+Recovery::
+* Resync should not send operations without sequence number {pull}40433[#40433]
+
+Rollup::
+* Remove timezone validation on rollup range queries {pull}40647[#40647]
+
+SQL::
+* Fix bug with optimization of null related conditionals {pull}41355[#41355]
+* Predicate diff takes into account all values {pull}41346[#41346] (issue: {issue}40835[#40835])
+* Fix LIMIT bug in agg sorting {pull}41258[#41258] (issue: {issue}40984[#40984])
+* Allow current_date/time/timestamp to be also used as a function escape pattern {pull}41254[#41254] (issue: {issue}41240[#41240])
+* Translate MIN/MAX on keyword fields as FIRST/LAST {pull}41247[#41247] (issues: {issue}37936[#37936], {issue}41195[#41195])
+* Tweak pattern matching in SYS TABLES {pull}41243[#41243] (issue: {issue}40775[#40775])
+* Change schema calls to empty set {pull}41034[#41034] (issue: {issue}41028[#41028])
+* Fix display size for DATE/DATETIME {pull}40669[#40669]
+* Use ResultSets over exceptions in metadata {pull}40641[#40641] (issue: {issue}40533[#40533])
+* Fix catalog filtering in SYS COLUMNS {pull}40583[#40583] (issue: {issue}40582[#40582])
+
+Search::
+* Full text queries should not always ignore unmapped fields {pull}41062[#41062] (issue: {issue}41022[#41022])
+* Fix rewrite of inner queries in DisMaxQueryBuilder {pull}40956[#40956] (issue: {issue}40953[#40953])
+* Fix alias resolution runtime complexity. {pull}40263[#40263] (issue: {issue}40248[#40248])
+
+Security::
+* Fix unsafe publication in opt-out query cache {pull}40957[#40957]
+* Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
+
+Snapshot/Restore::
+* Fix Broken Index Shard Snapshot File Preventing Snapshot Creation {pull}41310[#41310] (issue: {issue}41304[#41304])
+* Do not create missing directories in readonly repo {pull}41249[#41249] (issues: {issue}26909[#26909], {issue}41009[#41009])
+
+
+
+[[upgrade-6.7.2]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Bump the bundled JDK to 12.0.1 {pull}41627[#41627]
+
 [[release-notes-6.7.1]]
 == {es} version 6.7.1
 

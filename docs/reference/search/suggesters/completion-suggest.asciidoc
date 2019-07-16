@@ -48,10 +48,6 @@ Mapping supports the following parameters:
 [horizontal]
 `analyzer`::
     The index analyzer to use, defaults to `simple`.
-    In case you are wondering why we did not opt for the `standard`
-    analyzer: We try to have easy to understand behaviour here, and if you
-    index the field content `At the Drive-in`, you will not get any
-    suggestions for `a`, nor for `d` (the first non stopword).
 
 `search_analyzer`::
     The search analyzer to use, defaults to value of `analyzer`.

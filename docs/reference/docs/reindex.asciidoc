@@ -118,8 +118,11 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
-By default, version conflicts abort the `_reindex` process, but you can just
-count them by setting `"conflicts": "proceed"` in the request body:
+By default, version conflicts abort the `_reindex` process. The `"conflicts"` request body
+parameter can be used to instruct `_reindex` to proceed with the next document on version conflicts.
+It is important to note that the handling of other error types is unaffected by the `"conflicts"` parameter.
+When `"conflicts": "proceed"` is set in the request body, the `_reindex` process will continue on version conflicts
+and return a count of version conflicts encountered:
 
 [source,js]
 --------------------------------------------------

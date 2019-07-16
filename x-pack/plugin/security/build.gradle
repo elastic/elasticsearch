@@ -125,6 +125,11 @@ dependencies {
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
+processTestResources {
+    from(project(xpackModule('core')).file('src/main/config'))
+    from(project(xpackModule('core')).file('src/test/resources'))
+}
+
 configurations {
     testArtifacts.extendsFrom testRuntime
 }
@@ -144,13 +149,6 @@ processResources {
     }
 }
 
-sourceSets.test.resources {
-    srcDir '../core/src/test/resources'
-    // this is required because audit logging tests (LoggingAuditTrailTests)
-    // parse the actual log4j2.properties config file to extract and test
-    // the log line pattern. These tests need access to the file as a resource.
-    srcDir '../core/src/main/config'
-}
 dependencyLicenses {
     mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
     mapping from: /http.*/, to: 'httpclient'

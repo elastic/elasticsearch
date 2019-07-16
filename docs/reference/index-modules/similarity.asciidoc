@@ -86,7 +86,12 @@ Type name: `BM25`
 [[classic-similarity]]
 ==== Classic similarity
 
+ifdef::asciidoctor[]
+deprecated::[6.3.0, "The quality of the produced scores used to rely on coordination factors, which have been removed. It is advised to use BM25 instead."]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.3.0, The quality of the produced scores used to rely on coordination factors, which have been removed. It is advised to use BM25 instead.]
+endif::[]
 
 The classic similarity that is based on the TF/IDF model. This
 similarity has the following option:

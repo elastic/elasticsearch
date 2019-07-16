@@ -408,6 +408,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
   /**
+   * Visit a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#castExpression}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -419,12 +425,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitCastTemplate(SqlBaseParser.CastTemplateContext ctx);
-  /**
-   * Visit a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#convertTemplate}.
    * @param ctx the parse tree

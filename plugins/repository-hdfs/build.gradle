@@ -84,7 +84,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
-    }    
+    }
 
     final List<String> miniHDFSArgs = []
 
@@ -118,6 +118,8 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
   }
 }
 
+Set disabledIntegTestTaskNames = ['integTestSecure', 'integTestSecureHa']
+
 // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
 project.afterEvaluate {
   for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSecureHa']) {
@@ -127,6 +129,10 @@ project.afterEvaluate {
 
     Task restIntegTestTask = project.tasks.getByName(integTestTaskName)
     restIntegTestTask.clusterConfig.plugin(project.path)
+
+    if (disabledIntegTestTaskNames.contains(integTestTaskName)) {
+      restIntegTestTask.enabled = false;
+    }
 
     // Default jvm arguments for all test clusters
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +

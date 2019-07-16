@@ -69,7 +69,7 @@ Machine learning::
 than one day ({ml-pull}243[#243])
 * Rules that trigger the `skip_model_update` action should also apply to the 
 anomaly model. This fixes an issue where anomaly scores of results that triggered 
-the rule would decrease if they occurred frequently. {ml-pull}222[#222] (issue:{ml-issue}217[#217])
+the rule would decrease if they occurred frequently. {ml-pull}222[#222] (issue: {ml-issue}217[#217])
 
 Network::
 *  Support PKCS#11 tokens as keystores and truststores  {pull}34063[#34063] (issue: {issue}11[#11])
@@ -401,7 +401,7 @@ will not start. {pull}31247[#31247]
 * Improves behavior when there are abrupt changes in the seasonal components present in a time series ({ml-pull}91[#91] (issue: {ml-issue}6[#6]))
 * Adds explicit change point detection and modeling ({ml-pull}92[#92])
 * Improves partition analysis memory usage ({ml-pull}97[#97])
-* Reduces model memory by storing state for periodicity testing in a compressed format ({ml-pull}104[#104],{ml-pull}100[#100])
+* Reduces model memory by storing state for periodicity testing in a compressed format ({ml-pull}104[#104], {ml-pull}100[#100])
 * Improves the accuracy of model memory control
 ({ml-pull}125[#125], {ml-issue}122[#122])
 * Improves adaption of the modeling of cyclic components to very localized features
@@ -431,7 +431,7 @@ Monitoring::
  * _cluster/state should always return cluster_uuid {pull}30143[#30143]
 
 Network::
- * Backport SSL context names {pull}32223[#32223], {pull}30953[#30953)
+ * Backport SSL context names ({pull}32223[#32223], {pull}30953[#30953])
  * Remove client connections from TcpTransport {pull}31886[#31886] (issue: {issue}31835[#31835])
  * Support multiple system store types {pull}31650[#31650]
  * Use remote client in TransportFieldCapsAction {pull}30838[#30838]

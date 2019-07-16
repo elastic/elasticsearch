@@ -20,7 +20,9 @@ will now have the rollover alias pointing to it as the write index with `is_writ
 
 The available conditions are:
 
+[[index-rollover-conditions]]
 .`conditions` parameters
+[options="header"]
 |===
 | Name     | Description
 | max_age  | The maximum age of the index

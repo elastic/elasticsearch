@@ -151,7 +151,7 @@ Some settings are sensitive and must be stored in the
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add-file gcs.client.default.credentials_file
+bin/elasticsearch-keystore add-file gcs.client.default.credentials_file /path/service-account.json
 ----
 
 The following are the available client settings. Those that must be stored in the keystore
@@ -244,7 +244,7 @@ include::repository-shared-settings.asciidoc[]
 
 `application_name`::
 
-    deprecated[6.3.0, This setting is now defined in the <<repository-gcs-client, client settings>>]
+    deprecated:[6.3.0, "This setting is now defined in the <<repository-gcs-client, client settings>>."]
     Name used by the client when it uses the Google Cloud Storage service.
 
 [[repository-gcs-bucket-permission]]

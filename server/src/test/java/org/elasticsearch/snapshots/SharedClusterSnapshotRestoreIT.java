@@ -2963,6 +2963,108 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", snapshotInfo.snapshotId().getName()).get());
     }
 
+    /**
+     * Tests that a shard snapshot with a corrupted shard index file can still be used for restore and incremental snapshots.
+     */
+    public void testSnapshotWithCorruptedShardIndexFile() throws Exception {
+        final Client client = client();
+        final Path repo = randomRepoPath();
+        final String indexName = "test-idx";
+        final int nDocs = randomIntBetween(1, 10);
+
+        logger.info("-->  creating index [{}] with [{}] documents in it", indexName, nDocs);
+        assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+
+        final IndexRequestBuilder[] documents = new IndexRequestBuilder[nDocs];
+        for (int j = 0; j < nDocs; j++) {
+            documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo", "bar");
+        }
+        indexRandom(true, documents);
+        flushAndRefresh();
+
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("fs")
+            .setSettings(Settings.builder()
+                .put("location", repo)));
+
+        final String snapshot1 = "test-snap-1";
+        logger.info("-->  creating snapshot [{}]", snapshot1);
+        final SnapshotInfo snapshotInfo = client().admin().cluster().prepareCreateSnapshot("test-repo", snapshot1)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.indices(), hasSize(1));
+
+        RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        Repository repository = service.repository("test-repo");
+
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        final Map<String, IndexId> indexIds = repositoryData.getIndices();
+        assertThat(indexIds.size(), equalTo(1));
+
+        final IndexId corruptedIndex = indexIds.get(indexName);
+        final Path shardIndexFile = repo.resolve("indices")
+            .resolve(corruptedIndex.getId()).resolve("0")
+            .resolve("index-0");
+
+        logger.info("-->  truncating shard index file [{}]", shardIndexFile);
+        try (SeekableByteChannel outChan = Files.newByteChannel(shardIndexFile, StandardOpenOption.WRITE)) {
+            outChan.truncate(randomInt(10));
+        }
+
+        logger.info("-->  verifying snapshot state for [{}]", snapshot1);
+        List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots();
+        assertThat(snapshotInfos.size(), equalTo(1));
+        assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo(snapshot1));
+
+        logger.info("-->  deleting index [{}]", indexName);
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        logger.info("-->  restoring snapshot [{}]", snapshot1);
+        client().admin().cluster().prepareRestoreSnapshot("test-repo", snapshot1)
+            .setRestoreGlobalState(randomBoolean())
+            .setWaitForCompletion(true)
+            .get();
+        ensureGreen();
+
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nDocs);
+
+        logger.info("-->  indexing [{}] more documents into [{}]", nDocs, indexName);
+        for (int j = 0; j < nDocs; j++) {
+            documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo2", "bar2");
+        }
+        indexRandom(true, documents);
+
+        final String snapshot2 = "test-snap-2";
+        logger.info("-->  creating snapshot [{}]", snapshot2);
+        final SnapshotInfo snapshotInfo2 = client().admin().cluster().prepareCreateSnapshot("test-repo", snapshot2)
+            .setWaitForCompletion(true)
+            .get()
+            .getSnapshotInfo();
+        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo2.failedShards(), equalTo(0));
+        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo2.indices(), hasSize(1));
+
+        logger.info("-->  deleting index [{}]", indexName);
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        logger.info("-->  restoring snapshot [{}]", snapshot2);
+        client().admin().cluster().prepareRestoreSnapshot("test-repo", snapshot2)
+            .setRestoreGlobalState(randomBoolean())
+            .setWaitForCompletion(true)
+            .get();
+
+        ensureGreen();
+
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 2 * nDocs);
+    }
+
     public void testCannotCreateSnapshotsWithSameName() throws Exception {
         final String repositoryName = "test-repo";
         final String snapshotName = "test-snap";

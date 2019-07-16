@@ -21,7 +21,7 @@ PUT trips
         },
         "route_length_miles": {
           "type": "alias",
-          "path": "distance" // <1>
+          "path": "distance" <1>
         },
         "transit_mode": {
           "type": "keyword"

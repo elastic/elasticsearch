@@ -81,7 +81,6 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40682")
     public void testHttpInputClusterStats() throws Exception {
         InetSocketAddress address = internalCluster().httpAddresses()[0];
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_name")

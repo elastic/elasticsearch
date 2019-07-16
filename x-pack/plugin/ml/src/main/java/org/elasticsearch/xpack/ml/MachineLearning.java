@@ -270,8 +270,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+    // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
+    // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
+    // staggered, so with large numbers of jobs few will generally be persisting state at the same time.
+    // Settings higher than available memory are only recommended for OEM type situations where a wrapper tightly
+    // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
+    // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-            Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
             Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
@@ -445,8 +451,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
                 autodetectProcessManager, memoryTracker);
 
-        // This object's constructor attaches to the license state, so there's no need to retain another reference to it
-        new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
+        final InvalidLicenseEnforcer enforcer =
+                new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        enforcer.listenForLicenseStateChanges();
 
         // run node startup tasks
         autodetectProcessManager.onNodeStartup();

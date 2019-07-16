@@ -41,6 +41,7 @@ returns a `current_watches` list instead of a `queued_watches` list. The
 === Search changes
 
 [float]
+[[_literal_query_string_literal_literal_multi_match_literal_and_literal_simple_query_string_literal_query]]
 ==== `query_string`, `multi_match` and `simple_query_string` query
 
 Using automatically expanded fields for the "all fields" mode ("default_field": "*")
@@ -50,6 +51,7 @@ will be enforced with a hard error starting in 7.0 and is determined by the
 `indices.query.bool.max_clause_count` setting which defaults to 1024.
 
 [float]
+[[_deprecate_literal__source_exclude_literal_and_literal__source_include_literal_url_parameters]]
 ==== Deprecate `_source_exclude` and `_source_include` URL Parameters
 
 `_source_exclude` and `_source_include` are deprecated in favor of
@@ -65,6 +67,7 @@ Setting `boost` on inner span queries is deprecated. In the next major version
 setting `boost` on inner span queries will throw a parsing exception.
 
 [float]
+[[_deprecate_literal_values_literal_and_literal_getvalues_literal_on_doc_values_in_scripts]]
 ==== Deprecate `.values` and `.getValues()` on doc values in scripts
 
 In scripts `.values` and `.getValues()` hasn't been needed for a long, long
@@ -138,6 +141,7 @@ the cluster settings API.
 === Mappings changes
 
 [float]
+[[_changed_default_literal_geo_shape_literal_indexing_strategy]]
 ==== Changed default `geo_shape` indexing strategy
 
 `geo_shape` types now default to using a vector indexing approach based on Lucene's new
@@ -159,6 +163,7 @@ to update the `geo_shape` field mapping to explicitly define the `tree` paramete
 previously created indexes.
 
 [float]
+[[_deprecated_literal_geo_shape_literal_parameters]]
 ==== deprecated `geo_shape` parameters
 
 The following type parameters are deprecated for the `geo_shape` field type: `tree`,

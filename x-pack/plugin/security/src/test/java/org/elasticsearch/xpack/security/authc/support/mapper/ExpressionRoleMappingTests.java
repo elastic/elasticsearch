@@ -17,12 +17,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -42,17 +44,17 @@ public class ExpressionRoleMappingTests extends ESTestCase {
                 new ThreadContext(Settings.EMPTY));
     }
 
-    public void testParseValidJson() throws Exception {
+    public void testValidExpressionWithFixedRoleNames() throws Exception {
         String json = "{"
-                + "\"roles\": [  \"kibana_user\", \"sales\" ], "
-                + "\"enabled\": true, "
-                + "\"rules\": { "
-                + "  \"all\": [ "
-                + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } }, "
-                + "    { \"except\": { \"field\": { \"metadata.active\" : false } } }"
-                + "  ]}"
-                + "}";
-        final ExpressionRoleMapping mapping = parse(json, "ldap_sales");
+            + "\"roles\": [  \"kibana_user\", \"sales\" ], "
+            + "\"enabled\": true, "
+            + "\"rules\": { "
+            + "  \"all\": [ "
+            + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } }, "
+            + "    { \"except\": { \"field\": { \"metadata.active\" : false } } }"
+            + "  ]}"
+            + "}";
+        ExpressionRoleMapping mapping = parse(json, "ldap_sales");
         assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("kibana_user", "sales"));
         assertThat(mapping.getExpression(), instanceOf(AllExpression.class));
 
@@ -79,12 +81,48 @@ public class ExpressionRoleMappingTests extends ESTestCase {
                 Collections.emptyList(), Collections.singletonMap("active", true), realm
         );
 
+        final UserRoleMapper.UserData user4 = new UserRoleMapper.UserData(
+                "peter.null", null, Collections.emptyList(), Collections.singletonMap("active", true), realm
+        );
+
         assertThat(mapping.getExpression().match(user1a.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(user1b.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(user1c.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(user1d.asModel()), equalTo(true));
-        assertThat(mapping.getExpression().match(user2.asModel()), equalTo(false));
-        assertThat(mapping.getExpression().match(user3.asModel()), equalTo(false));
+        assertThat(mapping.getExpression().match(user2.asModel()), equalTo(false)); // metadata.active == false
+        assertThat(mapping.getExpression().match(user3.asModel()), equalTo(false)); // dn != ou=sales,dc=example,dc=com
+        assertThat(mapping.getExpression().match(user4.asModel()), equalTo(false)); // dn == null
+
+        // expression without dn
+        json = "{"
+                + "\"roles\": [  \"superuser\", \"system_admin\", \"admin\" ], "
+                + "\"enabled\": true, "
+                + "\"rules\": { "
+                + "  \"any\": [ "
+                + "    { \"field\": { \"username\" : \"tony.stark\" } }, "
+                + "    { \"field\": { \"groups\": \"cn=admins,dc=stark-enterprises,dc=com\" } }"
+                + "  ]}"
+                + "}";
+        mapping = parse(json, "stark_admin");
+            assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("superuser", "system_admin", "admin"));
+            assertThat(mapping.getExpression(), instanceOf(AnyExpression.class));
+
+        final UserRoleMapper.UserData userTony = new UserRoleMapper.UserData(
+                "tony.stark", null, Collections.singletonList("Audi R8 owners"), Collections.singletonMap("boss", true), realm
+        );
+        final UserRoleMapper.UserData userPepper = new UserRoleMapper.UserData(
+                "pepper.potts", null, Arrays.asList("marvel", "cn=admins,dc=stark-enterprises,dc=com"), null, realm
+        );
+        final UserRoleMapper.UserData userMax = new UserRoleMapper.UserData(
+                "max.rockatansky", null, Collections.singletonList("bronze"), Collections.singletonMap("mad", true), realm
+        );
+        final UserRoleMapper.UserData userFinn = new UserRoleMapper.UserData(
+                "finn.hackleberry", null, Arrays.asList("hacker", null), null, realm
+        );
+        assertThat(mapping.getExpression().match(userTony.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(userPepper.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(userMax.asModel()), equalTo(false));
+        assertThat(mapping.getExpression().match(userFinn.asModel()), equalTo(false));
     }
 
     public void testParsingFailsIfRulesAreMissing() throws Exception {

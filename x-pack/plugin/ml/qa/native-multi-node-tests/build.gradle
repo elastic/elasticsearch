@@ -37,7 +37,7 @@ integTest {
 
 testClusters.integTest {
     numberOfNodes = 3
-    distribution = 'DEFAULT'
+    testDistribution = 'DEFAULT'
 
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.ml.enabled', 'true'

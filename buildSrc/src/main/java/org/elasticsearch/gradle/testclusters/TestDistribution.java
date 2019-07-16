@@ -16,17 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle.testclusters;
 
-package org.elasticsearch.action.admin.cluster.node.info;
-
-import org.elasticsearch.action.ActionType;
-
-public class NodesInfoAction extends ActionType<NodesInfoResponse> {
-
-    public static final NodesInfoAction INSTANCE = new NodesInfoAction();
-    public static final String NAME = "cluster:monitor/nodes/info";
-
-    private NodesInfoAction() {
-        super(NAME, NodesInfoResponse::new);
-    }
+/**
+ * An enumeration of the distributions that may be used in test clusters.
+ */
+public enum TestDistribution {
+    INTEG_TEST,
+    DEFAULT,
+    OSS
 }

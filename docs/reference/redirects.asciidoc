@@ -616,3 +616,35 @@ the steps needed to migrate.
 The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
 query>> instead. The `match` query skips blocks of documents efficiently,
 without any configuration, if the total number of hits is not tracked.
+
+[role="exclude",id="xpack-api"]
+=== X-Pack APIs
+
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
+
+[role="exclude",id="ml-calendar-resource"]]
+=== Calendar resources
+
+See <<ml-get-calendar>> and 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="ml-filter-resource"]
+=== Filter resources
+
+See <<ml-get-filter>> and
+{stack-ov}/ml-rules.html[Machine learning custom rules].
+
+[role="exclude",id="ml-event-resource"]
+=== Scheduled event resources
+
+See <<ml-get-calendar-event>> and 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.
+

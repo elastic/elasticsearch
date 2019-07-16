@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -64,7 +64,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *     retrieves all available information about the API for this specific context</li>
  * </ul>
  */
-public class PainlessContextAction extends Action<PainlessContextAction.Response> {
+public class PainlessContextAction extends ActionType<PainlessContextAction.Response> {
 
     public static final PainlessContextAction INSTANCE = new PainlessContextAction();
     private static final String NAME = "cluster:admin/scripts/painless/context";
@@ -73,11 +73,6 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
     private PainlessContextAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -151,7 +146,6 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeStringCollection(scriptContextNames);
             out.writeOptionalWriteable(painlessContextInfo);
         }

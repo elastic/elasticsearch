@@ -832,7 +832,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.indices.recovery:TRACE")
     public void testHistoryRetention() throws Exception {
         internalCluster().startNodes(3);
 

@@ -116,8 +116,15 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         return Collections.singleton(Script.PARAMS_PARSE_FIELD.getPreferredName());
     }
 
+    /**
+     * Check that this query is generally not cacheable
+     */
     @Override
-    protected boolean isCacheable(ScriptQueryBuilder queryBuilder) {
-        return false;
+    public void testCacheability() throws IOException {
+        ScriptQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

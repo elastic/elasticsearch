@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
@@ -67,8 +68,8 @@ public final class TransportFreezeIndexAction extends
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations,
                                       TransportCloseIndexAction transportCloseIndexAction) {
-        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            FreezeRequest::new);
+        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
+            indexNameExpressionResolver);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
         this.transportCloseIndexAction = transportCloseIndexAction;
@@ -85,8 +86,8 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected FreezeResponse newResponse() {
-        return new FreezeResponse();
+    protected FreezeResponse read(StreamInput in) throws IOException {
+        return new FreezeResponse(in);
     }
 
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
@@ -109,11 +110,6 @@ public final class TransportFreezeIndexAction extends
     }
 
     @Override
-    protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<FreezeResponse> listener) {
-        throw new UnsupportedOperationException("The task parameter is required");
-    }
-
-    @Override
     protected void masterOperation(Task task, TransportFreezeIndexAction.FreezeRequest request, ClusterState state,
                                    ActionListener<TransportFreezeIndexAction.FreezeResponse> listener) throws Exception {
         final Index[] concreteIndices = resolveIndices(request, state);
@@ -127,7 +123,7 @@ public final class TransportFreezeIndexAction extends
             .masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices);
 
-        indexStateService.closeIndices(closeRequest, new ActionListener<CloseIndexResponse>() {
+        indexStateService.closeIndices(closeRequest, new ActionListener<>() {
             @Override
             public void onResponse(final CloseIndexResponse response) {
                 if (response.isAcknowledged()) {
@@ -149,13 +145,13 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
+            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                         .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                         .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
-                    indexStateService.openIndex(updateRequest, new ActionListener<OpenIndexClusterStateUpdateResponse>() {
+                    indexStateService.openIndex(updateRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(OpenIndexClusterStateUpdateResponse openIndexClusterStateUpdateResponse) {
                             listener.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
@@ -217,8 +213,8 @@ public final class TransportFreezeIndexAction extends
     }
 
     public static class FreezeResponse extends OpenIndexResponse {
-        public FreezeResponse() {
-            super();
+        FreezeResponse(StreamInput in) throws IOException {
+            super(in);
         }
 
         public FreezeResponse(boolean acknowledged, boolean shardsAcknowledged) {
@@ -226,7 +222,7 @@ public final class TransportFreezeIndexAction extends
         }
     }
 
-    public static class FreezeIndexAction extends Action<FreezeResponse> {
+    public static class FreezeIndexAction extends ActionType<FreezeResponse> {
 
         public static final FreezeIndexAction INSTANCE = new FreezeIndexAction();
         public static final String NAME = "indices:admin/freeze";
@@ -236,8 +232,8 @@ public final class TransportFreezeIndexAction extends
         }
 
         @Override
-        public FreezeResponse newResponse() {
-            return new FreezeResponse();
+        public Writeable.Reader<FreezeResponse> getResponseReader() {
+            return FreezeResponse::new;
         }
     }
 
@@ -247,6 +243,16 @@ public final class TransportFreezeIndexAction extends
         private boolean freeze = true;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
+        public FreezeRequest() {}
+
+        public FreezeRequest(StreamInput in) throws IOException {
+            super(in);
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+            indices = in.readStringArray();
+            freeze = in.readBoolean();
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        }
 
         public FreezeRequest(String... indices) {
             this.indices = indices;
@@ -268,15 +274,6 @@ public final class TransportFreezeIndexAction extends
 
         public boolean freeze() {
             return freeze;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-            indices = in.readStringArray();
-            freeze = in.readBoolean();
-            waitForActiveShards = ActiveShardCount.readFrom(in);
         }
 
         @Override

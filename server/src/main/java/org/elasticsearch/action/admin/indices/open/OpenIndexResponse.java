@@ -39,17 +39,12 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
-    public OpenIndexResponse() {
+    public OpenIndexResponse(StreamInput in) throws IOException {
+        super(in, true);
     }
 
     public OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged, shardsAcknowledged);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        readShardsAcknowledged(in);
     }
 
     @Override

@@ -15,15 +15,18 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -54,12 +57,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
     }
 
     @Override
-    protected GetDatafeedsAction.Response newResponse() {
-        return new GetDatafeedsAction.Response();
+    protected GetDatafeedsAction.Response read(StreamInput in) throws IOException {
+        return new GetDatafeedsAction.Response(in);
     }
 
     @Override
-    protected void masterOperation(GetDatafeedsAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, GetDatafeedsAction.Request request, ClusterState state,
                                    ActionListener<GetDatafeedsAction.Response> listener) {
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 

@@ -46,7 +46,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, TermsAggregatorFactory> {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TermsAggregatorFactory.class));
 
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
@@ -67,7 +67,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                                   TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                   boolean showTermDocCountError,
                                   SearchContext context,
-                                  AggregatorFactory<?> parent,
+                                  AggregatorFactory parent,
                                   AggregatorFactories.Builder subFactoriesBuilder,
                                   Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
@@ -189,7 +189,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field()
-                + "]. It can only be applied to numeric or string fields.");
+            + "]. It can only be applied to numeric or string fields.");
     }
 
     // return the SubAggCollectionMode that this aggregation should use based on the expected size
@@ -262,21 +262,26 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 assert maxOrd != -1;
                 final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs());
 
+                assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
+                ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+
                 if (factories == AggregatorFactories.EMPTY &&
                         includeExclude == null &&
                         Aggregator.descendsFromBucketAggregator(parent) == false &&
+                        ordinalsValuesSource.supportsGlobalOrdinalsMapping() &&
                         // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
                         (COLLECT_SEGMENT_ORDS!= null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /**
                      * We can use the low cardinality execution mode iff this aggregator:
                      *  - has no sub-aggregator AND
                      *  - is not a child of a bucket aggregator AND
+                     *  - has a values source that can map from segment to global ordinals
                      *  - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
                      *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
                      *  which directly linked to maxOrd, so we need to limit).
                      */
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories,
-                            (ValuesSource.Bytes.WithOrdinals) valuesSource, order, format, bucketCountThresholds, context, parent, false,
+                            ordinalsValuesSource, order, format, bucketCountThresholds, context, parent, false,
                             subAggCollectMode, showTermDocCountError, pipelineAggregators, metaData);
 
                 }
@@ -301,7 +306,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                          remapGlobalOrds = false;
                     }
                 }
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, order,
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, ordinalsValuesSource, order,
                         format, bucketCountThresholds, filter, context, parent, remapGlobalOrds, subAggCollectMode, showTermDocCountError,
                         pipelineAggregators, metaData);
             }

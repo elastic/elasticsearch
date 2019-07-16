@@ -43,8 +43,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
             storedScriptRequest.writeTo(output);
 
             try (StreamInput in = output.bytes().streamInput()) {
-                PutStoredScriptRequest serialized = new PutStoredScriptRequest();
-                serialized.readFrom(in);
+                PutStoredScriptRequest serialized = new PutStoredScriptRequest(in);
                 assertEquals(XContentType.JSON, serialized.xContentType());
                 assertEquals(storedScriptRequest.id(), serialized.id());
                 assertEquals(storedScriptRequest.context(), serialized.context());

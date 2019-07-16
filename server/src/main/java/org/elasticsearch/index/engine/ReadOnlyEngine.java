@@ -21,14 +21,11 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
@@ -42,6 +39,8 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.Closeable;
@@ -73,12 +72,13 @@ public class ReadOnlyEngine extends Engine {
         BlockTreeTermsReader.FSTLoadMode.AUTO.name());
     private final SegmentInfos lastCommittedSegmentInfos;
     private final SeqNoStats seqNoStats;
-    private final TranslogStats translogStats;
-    private final SearcherManager searcherManager;
+    private final ElasticsearchReaderManager readerManager;
     private final IndexCommit indexCommit;
     private final Lock indexWriterLock;
     private final DocsStats docsStats;
-    private final RamAccountingSearcherFactory searcherFactory;
+    private final RamAccountingRefreshListener refreshListener;
+
+    protected volatile TranslogStats translogStats;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -95,11 +95,11 @@ public class ReadOnlyEngine extends Engine {
     public ReadOnlyEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) {
         super(config);
-        this.searcherFactory = new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService());
+        this.refreshListener = new RamAccountingRefreshListener(engineConfig.getCircuitBreakerService());
         try {
             Store store = config.getStore();
             store.incRef();
-            DirectoryReader reader = null;
+            ElasticsearchDirectoryReader reader = null;
             Directory directory = store.directory();
             Lock indexWriterLock = null;
             boolean success = false;
@@ -108,17 +108,17 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-                this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
-                reader = open(indexCommit);
-                reader = wrapReader(reader, readerWrapperFunction);
-                searcherManager = new SearcherManager(reader, searcherFactory);
+                reader = wrapReader(open(indexCommit), readerWrapperFunction);
+                readerManager = new ElasticsearchReaderManager(reader, refreshListener);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
+                assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
+                this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
             } finally {
@@ -164,7 +164,7 @@ public class ReadOnlyEngine extends Engine {
         // reopened as an internal engine, which would be the path to fix the issue.
     }
 
-    protected final DirectoryReader wrapReader(DirectoryReader reader,
+    protected final ElasticsearchDirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
@@ -199,9 +199,9 @@ public class ReadOnlyEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                IOUtils.close(searcherManager, indexWriterLock, store::decRef);
+                IOUtils.close(readerManager, indexWriterLock, store::decRef);
             } catch (Exception ex) {
-                logger.warn("failed to close searcher", ex);
+                logger.warn("failed to close reader", ex);
             } finally {
                 closedLatch.countDown();
             }
@@ -216,14 +216,34 @@ public class ReadOnlyEngine extends Engine {
         return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
     }
 
+    private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
+        final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        if (translogUuid == null) {
+            throw new IllegalStateException("commit doesn't contain translog unique id");
+        }
+        final long translogGenOfLastCommit = Long.parseLong(infos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+        final TranslogConfig translogConfig = config.getTranslogConfig();
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+            config.getIndexSettings().getTranslogRetentionSize().getBytes(),
+            config.getIndexSettings().getTranslogRetentionAge().getMillis()
+        );
+        translogDeletionPolicy.setTranslogGenerationOfLastCommit(translogGenOfLastCommit);
+
+        try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy, config.getGlobalCheckpointSupplier(),
+                config.getPrimaryTermSupplier(), seqNo -> {})
+        ) {
+            return translog.stats();
+        }
+    }
+
     @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory) throws EngineException {
         return getFromSearcher(get, searcherFactory, SearcherScope.EXTERNAL);
     }
 
     @Override
-    protected ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope) {
-        return searcherManager;
+    protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+        return readerManager;
     }
 
     @Override
@@ -329,7 +349,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public long getLocalCheckpoint() {
+    public long getPersistedLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
     }
 
@@ -355,7 +375,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void refresh(String source) {
-        // we could allow refreshes if we want down the road the searcher manager will then reflect changes to a rw-engine
+        // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side
     }
 
@@ -466,8 +486,8 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReader(IndexReader reader) {
-        searcherFactory.processReaders(reader, null);
+    protected void processReader(ElasticsearchDirectoryReader reader) {
+        refreshListener.accept(reader, null);
     }
 
     @Override

@@ -16,7 +16,7 @@ task copyGraphRestTests(type: Copy) {
 integTest.dependsOn copyGraphRestTests
 
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
 

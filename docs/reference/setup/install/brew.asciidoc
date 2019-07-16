@@ -1,0 +1,69 @@
+[[brew]]
+=== Install {es} on macOS with Homebrew
+
+Elastic publishes Homebrew formulae so you can install {es} with the
+https://brew.sh/[Homebrew] package manager.
+
+To install with Homebrew, you first need to tap the
+Elastic Homebrew repository:
+
+[source,sh]
+-------------------------
+brew tap elastic/tap
+-------------------------
+
+Once you've tapped the Elastic Homebrew repo, you can use `brew install` to
+install the default distribution of {es}:
+
+[source,sh]
+-------------------------
+brew install elastic/tap/elasticsearch-full
+-------------------------
+
+This installs the most recently released default distribution of {es}.
+To install the OSS distribution, specify `elastic/tap/elasticsearch-oss`.
+
+[[brew-layout]]
+==== Directory layout for Homebrew installs
+
+When you install {es} with `brew install` the config files, logs,
+and data directory are stored in the following locations.
+
+[cols="<h,<,<m,<m",options="header",]
+|=======================================================================
+| Type | Description | Default Location | Setting
+| home
+  | Elasticsearch home directory or `$ES_HOME`
+  | /usr/local/var/homebrew/linked/elasticsearch-full
+ d|
+
+| bin
+  | Binary scripts including `elasticsearch` to start a node
+    and `elasticsearch-plugin` to install plugins
+  | /usr/local/var/homebrew/linked/elasticsearch-full/bin
+ d|
+
+| conf
+  | Configuration files including `elasticsearch.yml`
+  | /usr/local/etc/elasticsearch
+  | <<config-files-location,ES_PATH_CONF>>
+
+| data
+  | The location of the data files of each index / shard allocated
+    on the node. Can hold multiple locations.
+  | /usr/local/var/lib/elasticsearch
+  | path.data
+
+| logs
+  | Log files location.
+  | /usr/local/var/log/elasticsearch
+  | path.logs
+
+| plugins
+  | Plugin files location. Each plugin will be contained in a subdirectory.
+  | /usr/local/var/homebrew/linked/elasticsearch/plugins
+  |
+
+|=======================================================================
+
+include::next-steps.asciidoc[]

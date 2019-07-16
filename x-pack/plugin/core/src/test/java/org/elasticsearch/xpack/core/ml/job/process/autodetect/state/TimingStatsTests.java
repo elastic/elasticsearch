@@ -13,7 +13,6 @@ import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
@@ -70,6 +69,7 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(0L));
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(0.0));
         assertThat(stats.getMinBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getMaxBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getAvgBucketProcessingTimeMs(), nullValue());
@@ -81,6 +81,7 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(7L));
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(8.61));
         assertThat(stats.getMinBucketProcessingTimeMs(), equalTo(1.0));
         assertThat(stats.getMaxBucketProcessingTimeMs(), equalTo(2.0));
         assertThat(stats.getAvgBucketProcessingTimeMs(), equalTo(1.23));
@@ -93,6 +94,7 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
 
         assertThat(stats2.getJobId(), equalTo(JOB_ID));
         assertThat(stats2.getBucketCount(), equalTo(7L));
+        assertThat(stats2.getTotalBucketProcessingTimeMs(), equalTo(8.61));
         assertThat(stats2.getMinBucketProcessingTimeMs(), equalTo(1.0));
         assertThat(stats2.getMaxBucketProcessingTimeMs(), equalTo(2.0));
         assertThat(stats2.getAvgBucketProcessingTimeMs(), equalTo(1.23));
@@ -120,35 +122,28 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
         assertThat(stats, areCloseTo(new TimingStats(JOB_ID, 5, 1.0, 5.0, 3.0, 3.00029801), 1e-9));
     }
 
+    public void testTotalBucketProcessingTimeIsCalculatedProperlyAfterUpdates() {
+        TimingStats stats = new TimingStats(JOB_ID);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(0.0));
+
+        stats.updateStats(3);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(3.0));
+
+        stats.updateStats(2);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(5.0));
+
+        stats.updateStats(4);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(9.0));
+
+        stats.updateStats(1);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(10.0));
+
+        stats.updateStats(5);
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(15.0));
+    }
+
     public void testDocumentId() {
         assertThat(TimingStats.documentId("my-job-id"), equalTo("my-job-id_timing_stats"));
-    }
-
-    public void testTimingStatsDifferSignificantly() {
-        assertThat(
-            TimingStats.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0)),
-            is(false));
-        assertThat(
-            TimingStats.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 11.0, 1.0, 10.0)),
-            is(false));
-        assertThat(
-            TimingStats.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 12.0, 1.0, 10.0)),
-            is(true));
-    }
-
-    public void testValuesDifferSignificantly() {
-        assertThat(TimingStats.differSignificantly((Double) null, (Double) null), is(false));
-        assertThat(TimingStats.differSignificantly(1.0, null), is(true));
-        assertThat(TimingStats.differSignificantly(null, 1.0), is(true));
-        assertThat(TimingStats.differSignificantly(0.9, 1.0), is(false));
-        assertThat(TimingStats.differSignificantly(1.0, 0.9), is(false));
-        assertThat(TimingStats.differSignificantly(0.9, 1.000001), is(true));
-        assertThat(TimingStats.differSignificantly(1.0, 0.899999), is(true));
-        assertThat(TimingStats.differSignificantly(0.0, 1.0), is(true));
-        assertThat(TimingStats.differSignificantly(1.0, 0.0), is(true));
     }
 
     /**
@@ -166,6 +161,7 @@ public class TimingStatsTests extends AbstractSerializingTestCase<TimingStats> {
             protected boolean matchesSafely(TimingStats item) {
                 return equalTo(operand.getJobId()).matches(item.getJobId())
                     && equalTo(operand.getBucketCount()).matches(item.getBucketCount())
+                    && closeTo(operand.getTotalBucketProcessingTimeMs(), error).matches(item.getTotalBucketProcessingTimeMs())
                     && closeTo(operand.getMinBucketProcessingTimeMs(), error).matches(item.getMinBucketProcessingTimeMs())
                     && closeTo(operand.getMaxBucketProcessingTimeMs(), error).matches(item.getMaxBucketProcessingTimeMs())
                     && closeTo(operand.getAvgBucketProcessingTimeMs(), error).matches(item.getAvgBucketProcessingTimeMs())

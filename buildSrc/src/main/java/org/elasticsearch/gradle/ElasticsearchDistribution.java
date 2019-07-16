@@ -22,12 +22,15 @@ package org.elasticsearch.gradle;
 import org.gradle.api.Buildable;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileTree;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
 import java.io.File;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.concurrent.Callable;
 
 public class ElasticsearchDistribution implements Buildable {
 
@@ -90,6 +93,10 @@ public class ElasticsearchDistribution implements Buildable {
             return configuration.getBuildDependencies();
         }
 
+        public FileTree getFileTree(Project project) {
+            return project.fileTree((Callable<File>) configuration::getSingleFile);
+        }
+
         @Override
         public String toString() {
             return configuration.getSingleFile().toString();
@@ -107,17 +114,18 @@ public class ElasticsearchDistribution implements Buildable {
     private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
 
-    ElasticsearchDistribution(String name, Project project) {
+    ElasticsearchDistribution(String name, ObjectFactory objectFactory, Configuration fileConfiguration,
+                              Configuration extractedConfiguration) {
         this.name = name;
-        this.configuration = project.getConfigurations().create("es_distro_file_" + name);
-        this.version = project.getObjects().property(Version.class);
+        this.configuration = fileConfiguration;
+        this.version = objectFactory.property(Version.class);
         this.version.convention(Version.fromString(VersionProperties.getElasticsearch()));
-        this.type = project.getObjects().property(Type.class);
+        this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
-        this.platform = project.getObjects().property(Platform.class);
-        this.flavor = project.getObjects().property(Flavor.class);
-        this.bundledJdk = project.getObjects().property(Boolean.class);
-        this.extracted = new Extracted(project.getConfigurations().create("es_distro_extracted_" + name));
+        this.platform = objectFactory.property(Platform.class);
+        this.flavor = objectFactory.property(Flavor.class);
+        this.bundledJdk = objectFactory.property(Boolean.class);
+        this.extracted = new Extracted(extractedConfiguration);
     }
 
     public String getName() {

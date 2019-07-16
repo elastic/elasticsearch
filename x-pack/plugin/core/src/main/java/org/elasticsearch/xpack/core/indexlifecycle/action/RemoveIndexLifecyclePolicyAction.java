@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class RemoveIndexLifecyclePolicyAction extends Action<RemoveIndexLifecyclePolicyAction.Response> {
+public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionType<RemoveIndexLifecyclePolicyAction.Response> {
     public static final RemoveIndexLifecyclePolicyAction INSTANCE = new RemoveIndexLifecyclePolicyAction();
     public static final String NAME = "indices:admin/ilm/remove_policy";
 
@@ -87,7 +87,6 @@ public class RemoveIndexLifecyclePolicyAction extends Action<RemoveIndexLifecycl
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeStringCollection(failedIndexes);
         }
 
@@ -114,6 +113,12 @@ public class RemoveIndexLifecyclePolicyAction extends Action<RemoveIndexLifecycl
 
         private String[] indices;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
 
         public Request() {
         }
@@ -147,13 +152,6 @@ public class RemoveIndexLifecyclePolicyAction extends Action<RemoveIndexLifecycl
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override

@@ -19,12 +19,16 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
+
+import java.io.IOException;
 
 public class TransportMoveToStepAction extends TransportMasterNodeAction<Request, Response> {
     private static final Logger logger = LogManager.getLogger(TransportMoveToStepAction.class);
@@ -34,8 +38,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
     public TransportMoveToStepAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                      IndexLifecycleService indexLifecycleService) {
-        super(MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            Request::new);
+        super(MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
+            indexNameExpressionResolver);
         this.indexLifecycleService = indexLifecycleService;
     }
 
@@ -45,12 +49,12 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         IndexMetaData indexMetaData = state.metaData().index(request.getIndex());
         if (indexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] does not exist"));

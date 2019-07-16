@@ -135,7 +135,8 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             assertEquals(checkpoint, getDataFrameTransformStats(id)
                 .getTransformsStateAndStats()
                 .get(0)
-                .getTransformState()
+                .getCheckpointingInfo()
+                .getNext()
                 .getCheckpoint()),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS);

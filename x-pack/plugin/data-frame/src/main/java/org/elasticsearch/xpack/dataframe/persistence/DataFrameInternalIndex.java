@@ -211,7 +211,9 @@ public final class DataFrameInternalIndex {
                     .endObject()
                 .endObject()
             .endObject()
-            .startObject(DataFrameTransformStateAndStats.CHECKPOINTING_INFO_FIELD.getPreferredName())
+            // This is obsolete and can be removed for future versions of the index, but is left here as a warning/reminder that
+            // we cannot declare this field differently in version 1 of the internal index as it would cause a mapping clash
+            .startObject("checkpointing")
                 .field(ENABLED, false)
             .endObject();
     }

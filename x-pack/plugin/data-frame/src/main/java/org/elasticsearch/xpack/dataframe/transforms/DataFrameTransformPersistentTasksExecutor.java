@@ -215,7 +215,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(
             fieldMappings -> {
                 indexerBuilder.setFieldMappings(fieldMappings);
-                transformsConfigManager.getTransformStats(transformId, transformStatsActionListener);
+                transformsConfigManager.getTransformStateAndStats(transformId, transformStatsActionListener);
             },
             error -> {
                 String msg = DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,

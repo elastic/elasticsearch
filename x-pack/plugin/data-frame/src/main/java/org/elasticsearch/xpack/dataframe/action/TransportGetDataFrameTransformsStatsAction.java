@@ -84,6 +84,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
             transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
+                task.getState().getIndexerState(), task.getState().getPosition(),
                 ActionListener.wrap(checkpointStats -> listener.onResponse(new Response(
                         Collections.singletonList(new DataFrameTransformStateAndStatsInfo(task.getTransformId(),
                             task.getState().getTaskState(),
@@ -183,7 +184,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         null,
                         null,
                         stat.getTransformStats(),
-                        stat.getCheckpointingInfo()))
+                        DataFrameTransformCheckpointingInfo.EMPTY)) // TODO !!!
                 );
                 transformsWithoutTasks.removeAll(stats.stream().map(DataFrameTransformStateAndStats::getId).collect(Collectors.toSet()));
 
@@ -209,6 +210,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
             }
         );
 
-        dataFrameTransformsConfigManager.getTransformStats(transformsWithoutTasks, searchStatsListener);
+        dataFrameTransformsConfigManager.getTransformStateAndStats(transformsWithoutTasks, searchStatsListener);
     }
 }

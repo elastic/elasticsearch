@@ -139,7 +139,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         assertThat(stateAndStats.getTransformStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
         assertThat(stateAndStats.getTransformStats().getNumDocuments(), equalTo(totalDocsWritten));
-        assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+        assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
     }
 
     private void verifyContinuousDataFrameHandlesData(long expectedLastCheckpoint) throws Exception {
@@ -148,7 +148,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
             DataFrameTransformStateAndStatsInfo stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
-            assertThat(stateAndStats.getTransformState().getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
+            assertThat(stateAndStats.getTaskState(), equalTo(DataFrameTransformTaskState.STARTED));
         },
         120,
         TimeUnit.SECONDS);
@@ -174,7 +174,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             TimeUnit.SECONDS);
         DataFrameTransformStateAndStatsInfo stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
-        assertThat(stateAndStats.getTransformState().getTaskState(),
+        assertThat(stateAndStats.getTaskState(),
             equalTo(DataFrameTransformTaskState.STARTED));
         assertThat(stateAndStats.getTransformStats().getOutputDocuments(),
             greaterThan(previousStateAndStats.getTransformStats().getOutputDocuments()));
@@ -222,7 +222,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void waitUntilAfterCheckpoint(String id, long currentCheckpoint) throws Exception {
-        assertBusy(() -> assertThat(getTransformStats(id).getTransformState().getCheckpoint(), greaterThan(currentCheckpoint)),
+        assertBusy(() -> assertThat(getTransformStats(id).getCheckpointingInfo().getNext().getCheckpoint(), greaterThan(currentCheckpoint)),
             60, TimeUnit.SECONDS);
     }
 

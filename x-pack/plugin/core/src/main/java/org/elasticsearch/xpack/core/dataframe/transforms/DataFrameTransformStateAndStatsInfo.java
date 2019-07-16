@@ -101,7 +101,7 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
     }
 
     public DataFrameTransformStateAndStatsInfo(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
             this.id = in.readString();
             this.taskState = in.readEnum(DataFrameTransformTaskState.class);
             if (in.readBoolean()) {
@@ -113,8 +113,8 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
             this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
 
         } else {
-            // In 7.2 DataFrameTransformStateAndStatsInfo didn't exist, and we have to do
-            // the best we can of reading from a DataFrameTransformStateAndStats object
+            // Prior to version 7.4 DataFrameTransformStateAndStatsInfo didn't exist, and we have
+            // to do the best we can of reading from a DataFrameTransformStateAndStats object
             this.id = in.readString();
             this.taskState = new DataFrameTransformState(in).getTaskState();
             this.node = null;
@@ -139,7 +139,7 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
             out.writeString(id);
             out.writeEnum(taskState);
             if (node != null) {
@@ -151,8 +151,8 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
             transformStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         } else {
-            // In 7.2 DataFrameTransformStateAndStatsInfo didn't exist, and we have to do
-            // the best we can of writing to a DataFrameTransformStateAndStats object
+            // Prior to version 7.4 DataFrameTransformStateAndStatsInfo didn't exist, and we have
+            // to do the best we can of writing to a DataFrameTransformStateAndStats object
             out.writeString(id);
             new DataFrameTransformState(taskState,
                 checkpointingInfo.getNext().getIndexerState(),

@@ -280,7 +280,7 @@ public class DataFrameTransformsConfigManager {
         }));
     }
 
-    public void putOrUpdateTransformStats(DataFrameTransformStateAndStats stats, ActionListener<Boolean> listener) {
+    public void putOrUpdateTransformStateAndStats(DataFrameTransformStateAndStats stats, ActionListener<Boolean> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
@@ -303,7 +303,7 @@ public class DataFrameTransformsConfigManager {
         }
     }
 
-    public void getTransformStats(String transformId, ActionListener<DataFrameTransformStateAndStats> resultListener) {
+    public void getTransformStateAndStats(String transformId, ActionListener<DataFrameTransformStateAndStats> resultListener) {
         GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameTransformStateAndStats.documentId(transformId));
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
 
@@ -332,7 +332,7 @@ public class DataFrameTransformsConfigManager {
         }));
     }
 
-    public void getTransformStats(Collection<String> transformIds, ActionListener<List<DataFrameTransformStateAndStats>> listener) {
+    public void getTransformStateAndStats(Collection<String> transformIds, ActionListener<List<DataFrameTransformStateAndStats>> listener) {
 
         QueryBuilder builder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), transformIds))

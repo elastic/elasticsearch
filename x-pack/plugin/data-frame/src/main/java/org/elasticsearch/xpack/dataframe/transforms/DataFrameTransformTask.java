@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPositio
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
@@ -647,9 +646,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
             // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
             // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
-            transformsConfigManager.putOrUpdateTransformStats(
-                    new DataFrameTransformStateAndStats(transformId, state, getStats(),
-                            DataFrameTransformCheckpointingInfo.EMPTY), // TODO should this be null
+            transformsConfigManager.putOrUpdateTransformStateAndStats(
+                    new DataFrameTransformStateAndStats(transformId, state, getStats()),
                     ActionListener.wrap(
                             r -> {
                                 // for auto stop shutdown the task

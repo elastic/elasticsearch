@@ -73,7 +73,7 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
     }
 
     public DataFrameTransformCheckpointStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
             this.checkpoint = in.readVLong();
             if (in.readBoolean()) {
                 this.indexerState = in.readEnum(IndexerState.class);
@@ -149,7 +149,7 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
             out.writeVLong(checkpoint);
             if (indexerState != null) {
                 out.writeBoolean(true);

@@ -251,13 +251,14 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         DataFrameTransformStateAndStats stateAndStats =
                 DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
 
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(stateAndStats, listener), Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStats(transformId, listener), stateAndStats, null, null);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStateAndStats(stateAndStats, listener),
+            Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStateAndStats(transformId, listener), stateAndStats, null, null);
 
         DataFrameTransformStateAndStats updated =
                 DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(updated, listener), Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStats(transformId, listener), updated, null, null);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStateAndStats(updated, listener), Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStateAndStats(transformId, listener), updated, null, null);
     }
 
     public void testGetStateAndStatsMultiple() throws InterruptedException {
@@ -267,7 +268,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
             DataFrameTransformStateAndStats stat =
                     DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(randomAlphaOfLength(6));
             expectedStats.add(stat);
-            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(stat, listener), Boolean.TRUE, null, null);
+            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStateAndStats(stat, listener), Boolean.TRUE, null, null);
         }
 
         // remove one of the put stats so we don't retrieve all
@@ -278,6 +279,6 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
 
         // get stats will be ordered by id
         expectedStats.sort(Comparator.comparing(DataFrameTransformStateAndStats::getId));
-        assertAsync(listener -> transformsConfigManager.getTransformStats(ids, listener), expectedStats, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStateAndStats(ids, listener), expectedStats, null, null);
     }
 }

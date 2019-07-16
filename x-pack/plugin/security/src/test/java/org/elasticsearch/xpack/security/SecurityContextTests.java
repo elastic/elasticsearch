@@ -56,7 +56,7 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(user, securityContext.getUser());
     }
 
-    public void testGetAuthenticationDoesNotSwallowIOException() throws IOException {
+    public void testGetAuthenticationDoesNotSwallowIOException() {
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "");
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final UncheckedIOException e = expectThrows(UncheckedIOException.class, securityContext::getAuthentication);

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.JdkJarHellCheck;
 import org.elasticsearch.gradle.OS;
@@ -50,10 +51,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -338,6 +336,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getRuntimeConfiguration(),
                 getProject().getConfigurations().getByName("compileOnly")
             );
+            spec.jvmArgs("-Xmx1g");
             spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args(
                 "-f", getSignatureFile().getAbsolutePath(),
@@ -358,6 +357,13 @@ public class ThirdPartyAuditTask extends DefaultTask {
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
+        }
+        if (Arrays.asList(
+            CliMain.EXIT_SUCCESS,
+            CliMain.EXIT_VIOLATION,
+            CliMain.EXIT_UNSUPPORTED_JDK
+        ).contains(result.getExitValue()) == false) {
+            throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;
     }

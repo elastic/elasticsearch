@@ -731,7 +731,7 @@ public class XPackLicenseState {
     /**
      * Determine if Spatial features should be enabled.
      * <p>
-     * Geo features are available in for all license types except
+     * Spatial features are available in for all license types except
      * {@link OperationMode#MISSING}
      *
      * @return {@code true} as long as the license is valid. Otherwise

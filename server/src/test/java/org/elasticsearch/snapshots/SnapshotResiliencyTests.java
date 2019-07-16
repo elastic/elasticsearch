@@ -100,7 +100,7 @@ import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -654,7 +654,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private static ClusterState stateForNode(ClusterState state, DiscoveryNode node) {
-        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
+        // Remove and add back local node to update ephemeral id on restarts
+        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(
+            state.nodes()).remove(node.getId()).add(node).localNodeId(node.getId())).build();
     }
 
     private final class TestClusterNodes {
@@ -753,7 +755,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
-                    testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
+                    testClusterNodes.nodes.values().forEach(n -> n.transportService.openConnection(node, null));
                 }
             });
         }
@@ -950,9 +952,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 transportService, indicesService, actionFilters, indexNameExpressionResolver);
             final ShardStateAction shardStateAction = new ShardStateAction(
                 clusterService, transportService, allocationService,
-                new RoutingService(clusterService, allocationService::reroute),
+                new BatchedRerouteService(clusterService, allocationService::reroute),
                 threadPool
             );
+            Map<ActionType, TransportAction> actions = new HashMap<>();
+            actions.put(GlobalCheckpointSyncAction.TYPE,
+                new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
+                    threadPool, shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseBackgroundSyncAction.TYPE,
+                new RetentionLeaseBackgroundSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseSyncAction.TYPE,
+                new RetentionLeaseSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
             final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
             indicesClusterStateService = new IndicesClusterStateService(
                 settings,
@@ -978,34 +990,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters,
                         indexNameExpressionResolver)),
-                new GlobalCheckpointSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                new RetentionLeaseSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                    new RetentionLeaseBackgroundSyncAction(
-                            settings,
-                            transportService,
-                            clusterService,
-                            indicesService,
-                            threadPool,
-                            shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver));
-            Map<ActionType, TransportAction> actions = new HashMap<>();
+                client);
             final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                 indicesService,
                 allocationService, new AliasValidator(), environment, indexScopedSettings,
@@ -1081,9 +1066,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             actions.put(IndicesShardStoresAction.INSTANCE,
                 new TransportIndicesShardStoresAction(
                     transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                    new TransportNodesListGatewayStartedShards(settings,
-                        threadPool, clusterService, transportService, actionFilters, nodeEnv, indicesService, namedXContentRegistry))
-            );
+                    client));
+            actions.put(TransportNodesListGatewayStartedShards.TYPE, new TransportNodesListGatewayStartedShards(settings,
+                threadPool, clusterService, transportService, actionFilters, nodeEnv, indicesService, namedXContentRegistry));
             actions.put(DeleteSnapshotAction.INSTANCE,
                 new TransportDeleteSnapshotAction(
                     transportService, clusterService, threadPool,
@@ -1134,7 +1119,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 hostsResolver -> testClusterNodes.nodes.values().stream().filter(n -> n.node.isMasterNode())
                     .map(n -> n.node.getAddress()).collect(Collectors.toList()),
                 clusterService.getClusterApplierService(), Collections.emptyList(), random(),
-                new RoutingService(clusterService, allocationService::reroute)::reroute, ElectionStrategy.DEFAULT_INSTANCE);
+                new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE);
             masterService.setClusterStatePublisher(coordinator);
             coordinator.start();
             masterService.start();

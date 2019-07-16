@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -29,18 +29,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateModelSnapshotAction extends StreamableResponseActionType<UpdateModelSnapshotAction.Response> {
+public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAction.Response> {
 
     public static final UpdateModelSnapshotAction INSTANCE = new UpdateModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/update";
 
     private UpdateModelSnapshotAction() {
-        super(NAME);
-    }
-
-    @Override
-    public UpdateModelSnapshotAction.Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -71,6 +66,14 @@ public class UpdateModelSnapshotAction extends StreamableResponseActionType<Upda
         private Boolean retain;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            snapshotId = in.readString();
+            description = in.readOptionalString();
+            retain = in.readOptionalBoolean();
         }
 
         public Request(String jobId, String snapshotId) {
@@ -109,11 +112,7 @@ public class UpdateModelSnapshotAction extends StreamableResponseActionType<Upda
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            snapshotId = in.readString();
-            description = in.readOptionalString();
-            retain = in.readOptionalBoolean();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -166,10 +165,11 @@ public class UpdateModelSnapshotAction extends StreamableResponseActionType<Upda
         private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
         private static final ParseField MODEL = new ParseField("model");
 
-        private ModelSnapshot model;
+        private final ModelSnapshot model;
 
-        public Response() {
-
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            model = new ModelSnapshot(in);
         }
 
         public Response(ModelSnapshot modelSnapshot) {
@@ -182,13 +182,11 @@ public class UpdateModelSnapshotAction extends StreamableResponseActionType<Upda
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            model = new ModelSnapshot(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             model.writeTo(out);
         }
 

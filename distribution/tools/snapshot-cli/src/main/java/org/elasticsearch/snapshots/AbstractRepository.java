@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 
@@ -48,6 +50,10 @@ public abstract class AbstractRepository implements Repository {
     private static final long DEFAULT_SAFETY_GAP_MILLIS = 3600 * 1000;
     private static final int DEFAULT_PARALLELISM = 100;
 
+    private static final String INCOMPATIBLE_SNAPSHOTS = "incompatible-snapshots";
+    private static final String NAME = "name";
+    private static final String UUID = "uuid";
+
     protected final Terminal terminal;
     private final long safetyGapMillis;
     private final int parallelism;
@@ -61,6 +67,55 @@ public abstract class AbstractRepository implements Repository {
     private void describeCollection(String start, Collection<?> elements) {
         terminal.println(Terminal.Verbosity.VERBOSE,
                 start + " has " + elements.size() + " elements: " + elements);
+    }
+
+    /**
+     * Reads the incompatible snapshot ids from x-content, loading them into a new instance of {@link RepositoryData}
+     * that is created from the invoking instance, plus the incompatible snapshots that are read from x-content.
+     */
+    static List<SnapshotId> incompatibleSnapshotsFromXContent(final XContentParser parser) throws IOException {
+        List<SnapshotId> incompatibleSnapshotIds = new ArrayList<>();
+        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                String currentFieldName = parser.currentName();
+                if (INCOMPATIBLE_SNAPSHOTS.equals(currentFieldName)) {
+                    if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            incompatibleSnapshotIds.add(snapshotIdFromXContent(parser));
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("expected array for [" + currentFieldName + "]");
+                    }
+                } else {
+                    throw new ElasticsearchParseException("unknown field name  [" + currentFieldName + "]");
+                }
+            }
+        } else {
+            throw new ElasticsearchParseException("start object expected");
+        }
+        return incompatibleSnapshotIds;
+    }
+
+    private static SnapshotId snapshotIdFromXContent(XContentParser parser) throws IOException {
+        // the new format from 5.0 which contains the snapshot name and uuid
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            String name = null;
+            String uuid = null;
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String currentFieldName = parser.currentName();
+                parser.nextToken();
+                if (NAME.equals(currentFieldName)) {
+                    name = parser.text();
+                } else if (UUID.equals(currentFieldName)) {
+                    uuid = parser.text();
+                }
+            }
+            return new SnapshotId(name, uuid);
+        } else {
+            // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
+            final String name = parser.text();
+            return new SnapshotId(name, name);
+        }
     }
 
     @Override
@@ -80,9 +135,10 @@ public abstract class AbstractRepository implements Repository {
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading latest index file");
         final RepositoryData repositoryData = getRepositoryData(latestIndexId);
-        if (repositoryData.getIncompatibleSnapshotIds().isEmpty() == false) {
+        final Collection<SnapshotId> incompatibleSnapshots = getIncompatibleSnapshots();
+        if (incompatibleSnapshots.isEmpty() == false) {
             throw new ElasticsearchException(
-                "Found incompatible snapshots which prevent a safe cleanup execution " + repositoryData.getIncompatibleSnapshotIds());
+                "Found incompatible snapshots which prevent a safe cleanup execution " + incompatibleSnapshots);
         }
         if (repositoryData.getIndices().isEmpty()) {
             throw new ElasticsearchException(

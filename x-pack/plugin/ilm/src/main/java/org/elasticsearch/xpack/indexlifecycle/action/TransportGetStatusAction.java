@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Response;
 
-public class TransportGetStatusAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportGetStatusAction extends StreamableTransportMasterNodeAction<Request, Response> {
 
     @Inject
     public TransportGetStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,

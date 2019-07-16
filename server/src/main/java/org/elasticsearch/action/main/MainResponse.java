@@ -76,7 +76,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(nodeName);
         Version.writeVersion(version, out);
         clusterName.writeTo(out);

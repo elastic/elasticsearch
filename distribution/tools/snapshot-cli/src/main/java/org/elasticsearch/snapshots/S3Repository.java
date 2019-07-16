@@ -25,6 +25,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -41,10 +42,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -123,6 +127,27 @@ public class S3Repository extends AbstractRepository {
             }
         } catch (IOException e) {
             terminal.println("Failed to read " + snapshotsIndexBlobName + " file");
+            throw e;
+        }
+    }
+
+    @Override
+    public Collection<SnapshotId> getIncompatibleSnapshots() throws IOException {
+        try (InputStream blob = client.getObject(bucket, fullPath("incompatible-snapshots")).getObjectContent()) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            Streams.copy(blob, out);
+            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
+                return incompatibleSnapshotsFromXContent(parser);
+            }
+        } catch (AmazonS3Exception e) {
+            if (e.getStatusCode() != RestStatus.NOT_FOUND.getStatus()) {
+                throw e;
+            }
+            return Collections.emptyList();
+        } catch (IOException e) {
+            terminal.println("Failed to read [incompatible-snapshots] blob");
             throw e;
         }
     }

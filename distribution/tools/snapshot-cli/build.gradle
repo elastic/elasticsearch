@@ -29,19 +29,28 @@ dependencies {
   compile project(":libs:elasticsearch-cli")
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
   compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   testCompile project(":test:framework")
   testCompile project(":plugins:repository-s3")
+
+  // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
+  // and whitelist this hack in JarHell
+  compile 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
 dependencyLicenses {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
 test {
@@ -134,3 +143,31 @@ task buildTarArchive(dependsOn: copyRuntimeLibs, type: Tar) {
 }
 
 assemble.dependsOn(buildTarArchive)
+
+thirdPartyAudit.ignoreMissingClasses (
+  // classes are missing
+  'javax.activation.DataHandler',
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+  'software.amazon.ion.IonReader',
+  'software.amazon.ion.IonSystem',
+  'software.amazon.ion.IonType',
+  'software.amazon.ion.IonWriter',
+  'software.amazon.ion.Timestamp',
+  'software.amazon.ion.system.IonBinaryWriterBuilder',
+  'software.amazon.ion.system.IonSystemBuilder',
+  'software.amazon.ion.system.IonTextWriterBuilder',
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
+)

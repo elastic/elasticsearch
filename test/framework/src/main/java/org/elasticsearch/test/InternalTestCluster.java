@@ -40,6 +40,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -498,6 +499,11 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getKey(),
                     timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());
+        }
+
+        if (rarely()) {
+            builder.put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(),
+                randomFrom("immediate", "urgent", "high", "normal", "low"));
         }
 
         return builder.build();

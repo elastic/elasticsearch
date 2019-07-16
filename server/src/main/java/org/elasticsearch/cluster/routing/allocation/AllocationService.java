@@ -109,7 +109,6 @@ public class AllocationService {
         Collections.sort(startedShards, Comparator.comparing(ShardRouting::primary));
         applyStartedShards(allocation, startedShards);
         gatewayAllocator.applyStartedShards(allocation, startedShards);
-        reroute(allocation);
         String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString());
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "] ...");
     }

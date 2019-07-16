@@ -902,10 +902,12 @@ public class JobResultsProviderTests extends ESTestCase {
         Map<String, Object> sourceFooMap = new HashMap<>();
         sourceFooMap.put(Job.ID.getPreferredName(), "foo");
         sourceFooMap.put(DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6);
+        sourceFooMap.put(DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 66);
         sourceFooMap.put(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0);
         Map<String, Object> sourceBarMap = new HashMap<>();
         sourceBarMap.put(Job.ID.getPreferredName(), "bar");
         sourceBarMap.put(DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7);
+        sourceFooMap.put(DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 77);
         sourceBarMap.put(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0);
 
         List<Map<String, Object>> sourceFoo = Arrays.asList(sourceFooMap);
@@ -939,8 +941,8 @@ public class JobResultsProviderTests extends ESTestCase {
                 new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar")));
 
         Map<String, DatafeedTimingStats> expectedStatsByJobId = new HashMap<>();
-        expectedStatsByJobId.put("foo", new DatafeedTimingStats("foo", 6, 666.0));
-        expectedStatsByJobId.put("bar", new DatafeedTimingStats("bar", 7, 777.0));
+        expectedStatsByJobId.put("foo", new DatafeedTimingStats("foo", 6, 66, 666.0));
+        expectedStatsByJobId.put("bar", new DatafeedTimingStats("bar", 7, 77, 777.0));
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             Arrays.asList("foo", "bar"),
@@ -960,6 +962,7 @@ public class JobResultsProviderTests extends ESTestCase {
         Map<String, Object> sourceFooMap = new HashMap<>();
         sourceFooMap.put(Job.ID.getPreferredName(), "foo");
         sourceFooMap.put(DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6);
+        sourceFooMap.put(DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 66);
         sourceFooMap.put(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0);
         List<Map<String, Object>> source = Arrays.asList(sourceFooMap);
         SearchResponse response = createSearchResponse(source);
@@ -971,7 +974,7 @@ public class JobResultsProviderTests extends ESTestCase {
         JobResultsProvider provider = createProvider(client);
         provider.datafeedTimingStats(
             "foo",
-            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 666.0))),
+            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0))),
             e -> { throw new AssertionError(); });
 
         verify(client).prepareSearch(indexName);

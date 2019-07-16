@@ -104,14 +104,14 @@ thirdPartyTest {
 }
 
 task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
-  from tarTree("${project.buildDir}/snapshot-cli-${project.version}.tgz")
+  from tarTree("${project.buildDir}/snapshot-tool-${project.version}.tgz")
   into "${project.buildDir}"
 }
 
 task smokeTest(type: Exec) {
   dependsOn unpackArchive
   onlyIf { ElasticsearchDistribution.CURRENT_PLATFORM != ElasticsearchDistribution.Platform.WINDOWS }
-  commandLine "${project.buildDir}/snapshot-cli-${project.version}/bin/elasticsearch-snapshot", "-h"
+  commandLine "${project.buildDir}/snapshot-tool-${project.version}/bin/elasticsearch-snapshot", "-h"
 }
 
 check.dependsOn(thirdPartyTest)
@@ -129,9 +129,9 @@ task copyRuntimeLibs(type: Copy) {
 
 task buildTarArchive(dependsOn: copyRuntimeLibs, type: Tar) {
   compression Compression.GZIP
-  archiveBaseName.set('snapshot-cli')
+  archiveBaseName.set('snapshot-tool')
   destinationDirectory.set(project.buildDir)
-  into "snapshot-cli-${version}", {
+  into "snapshot-tool-${version}", {
     into "bin", {
       from file("${project.projectDir}/src/bin")
     }

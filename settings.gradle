@@ -47,7 +47,6 @@ List projects = [
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
-  'distribution:tools:snapshot-cli',      
   'server',
   'server:cli',
   'test:framework',

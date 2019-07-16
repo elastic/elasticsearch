@@ -35,7 +35,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.StringJoiner;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -125,15 +124,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        Path log = installation.logs.resolve("elasticsearch.log");
-        StringJoiner logFileJoiner = new StringJoiner("\n");
-        logFileJoiner.add(new String(Files.readAllBytes(log), StandardCharsets.UTF_8));
-
-        for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "*.log.gz")) {
-            logFileJoiner.add(FileUtils.slurpGZ(rotatedLogFile));
-        }
-
-        assertThat(logFileJoiner.toString(), containsString(systemJavaHome));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+            containsString(systemJavaHome));
     }
 
     public void test32JavaHomeOverride() throws Exception {

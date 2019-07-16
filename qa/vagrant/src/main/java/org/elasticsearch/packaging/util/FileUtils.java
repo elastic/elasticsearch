@@ -41,7 +41,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -128,18 +130,36 @@ public class FileUtils {
         }
     }
 
-    public static String slurpGZ(Path file) {
+    public static String slurpTxtorGz(Path file) {
         ByteArrayOutputStream fileBuffer = new ByteArrayOutputStream();
-        try (GZIPInputStream in = new GZIPInputStream(Channels.newInputStream(FileChannel.open(file))))
-        {
+        try (GZIPInputStream in = new GZIPInputStream(Channels.newInputStream(FileChannel.open(file)))) {
             byte[] buffer = new byte[1024];
             int len;
 
-            while((len = in.read(buffer)) != -1){
+            while ((len = in.read(buffer)) != -1) {
                 fileBuffer.write(buffer, 0, len);
             }
 
-            return(new String(fileBuffer.toByteArray(), StandardCharsets.UTF_8));
+            return (new String(fileBuffer.toByteArray(), StandardCharsets.UTF_8));
+        } catch (ZipException e) {
+            if (e.toString().contains("Not in GZIP format")) {
+                return slurp(file);
+            }
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String slurpAllLogs(Path logPath, String activeLogFile, String rotatedLogFilesGlob) {
+        StringJoiner logFileJoiner = new StringJoiner("\n");
+        try {
+            logFileJoiner.add(new String(Files.readAllBytes(logPath.resolve(activeLogFile)), StandardCharsets.UTF_8));
+
+            for (Path rotatedLogFile : FileUtils.lsGlob(logPath, rotatedLogFilesGlob)) {
+                logFileJoiner.add(FileUtils.slurpTxtorGz(rotatedLogFile));
+            }
+            return(logFileJoiner.toString());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

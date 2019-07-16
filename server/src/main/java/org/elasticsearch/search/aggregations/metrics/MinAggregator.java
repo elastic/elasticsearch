@@ -49,7 +49,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 class MinAggregator extends NumericMetricsAggregator.SingleValue {

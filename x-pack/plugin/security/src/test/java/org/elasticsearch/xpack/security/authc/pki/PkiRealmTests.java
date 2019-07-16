@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -431,6 +432,16 @@ public class PkiRealmTests extends ESTestCase {
         result = authenticate(token, pkiRealm);
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getUser(), sameInstance(lookupUser2));
+    }
+
+    public void testX509AuthenticationToken() throws Exception {
+        X509Certificate[] mockCertChain = new X509Certificate[2];
+        mockCertChain[0] = mock(X509Certificate.class);
+        when(mockCertChain[0].getIssuerX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
+        mockCertChain[1] = mock(X509Certificate.class);
+        when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Not Test, OU=elasticsearch, O=org"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new X509AuthenticationToken(mockCertChain));
+        assertThat(e.getMessage(), is("certificates chain array is not ordered"));
     }
 
     static X509Certificate readCert(Path path) throws Exception {

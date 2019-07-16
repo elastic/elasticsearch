@@ -18,9 +18,12 @@ import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
+import javax.security.auth.x500.X500Principal;
+
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DelegatePkiRequestTests extends ESTestCase {
 
@@ -29,15 +32,31 @@ public class DelegatePkiRequestTests extends ESTestCase {
         ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0), is("certificates must not be null"));
+        assertThat(ve.validationErrors().get(0), is("certificates chain array must not be null"));
 
         request = new DelegatePkiRequest(new X509Certificate[0]);
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
-        assertThat(ve.validationErrors().get(0), is("certificates array must not be empty"));
+        assertThat(ve.validationErrors().get(0), is("certificates chain array must not be empty"));
 
-        request = new DelegatePkiRequest(randomArray(1, 3, X509Certificate[]::new, () -> mock(X509Certificate.class)));
+        X509Certificate[] mockCertChain = new X509Certificate[2];
+        mockCertChain[0] = mock(X509Certificate.class);
+        when(mockCertChain[0].getIssuerX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
+        mockCertChain[1] = mock(X509Certificate.class);
+        when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Not Test, OU=elasticsearch, O=org"));
+        request = new DelegatePkiRequest(mockCertChain);
+        ve = request.validate();
+        assertNotNull(ve);
+        assertEquals(1, ve.validationErrors().size());
+        assertThat(ve.validationErrors().get(0), is("certificates chain array is not ordered"));
+
+        request = new DelegatePkiRequest(randomArray(1, 3, X509Certificate[]::new, () -> {
+            X509Certificate mockX509Certificate = mock(X509Certificate.class);
+            when(mockX509Certificate.getSubjectX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
+            when(mockX509Certificate.getIssuerX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
+            return mockX509Certificate;
+        }));
         ve = request.validate();
         assertNull(ve);
     }

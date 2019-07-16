@@ -53,8 +53,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        GrokProcessorGetAction.Response otherResponse = new GrokProcessorGetAction.Response(null);
-        otherResponse.readFrom(streamInput);
+        GrokProcessorGetAction.Response otherResponse = new GrokProcessorGetAction.Response(streamInput);
         assertThat(response.getGrokPatterns(), equalTo(TEST_PATTERNS));
         assertThat(response.getGrokPatterns(), equalTo(otherResponse.getGrokPatterns()));
     }

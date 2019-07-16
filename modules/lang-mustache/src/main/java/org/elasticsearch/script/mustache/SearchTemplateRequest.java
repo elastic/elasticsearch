@@ -57,6 +57,19 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     public SearchTemplateRequest() {
     }
 
+    public SearchTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        request = in.readOptionalWriteable(SearchRequest::new);
+        simulate = in.readBoolean();
+        explain = in.readBoolean();
+        profile = in.readBoolean();
+        scriptType = ScriptType.readFrom(in);
+        script = in.readOptionalString();
+        if (in.readBoolean()) {
+            scriptParams = in.readMap();
+        }
+    }
+
     public SearchTemplateRequest(SearchRequest searchRequest) {
         this.request = searchRequest;
     }
@@ -219,16 +232,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        request = in.readOptionalWriteable(SearchRequest::new);
-        simulate = in.readBoolean();
-        explain = in.readBoolean();
-        profile = in.readBoolean();
-        scriptType = ScriptType.readFrom(in);
-        script = in.readOptionalString();
-        if (in.readBoolean()) {
-            scriptParams = in.readMap();
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

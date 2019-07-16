@@ -793,13 +793,14 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    public void testQuotedQueryStringWithBoost() {
+    public void testQuotedQueryStringWithBoost() throws InterruptedException {
         float boost = 10.0f;
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
 
-        client().prepareIndex("test", "_doc", "1").setSource("important", "phrase match", "less_important", "nothing important").get();
-        client().prepareIndex("test", "_doc", "2").setSource("important", "nothing important", "less_important", "phrase match").get();
-        refresh();
+        indexRandom(true, false,
+            client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
+            client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
+        );
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();

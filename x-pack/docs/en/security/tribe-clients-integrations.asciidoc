@@ -32,23 +32,16 @@ be secured as well, or at least communicate with the cluster in a secured way:
 * {kibana-ref}/secure-reporting.html[Reporting]
 * {winlogbeat-ref}/securing-beats.html[Winlogbeat]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ribe-clients-integrations/cross-cluster.asciidoc
 include::tribe-clients-integrations/cross-cluster.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ribe-clients-integrations/tribe.asciidoc
 include::tribe-clients-integrations/tribe.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ribe-clients-integrations/java.asciidoc
 include::tribe-clients-integrations/java.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ribe-clients-integrations/http.asciidoc
 include::tribe-clients-integrations/http.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ribe-clients-integrations/hadoop.asciidoc
 include::tribe-clients-integrations/hadoop.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ribe-clients-integrations/beats.asciidoc
 include::tribe-clients-integrations/beats.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ribe-clients-integrations/monitoring.asciidoc
 include::tribe-clients-integrations/monitoring.asciidoc[]

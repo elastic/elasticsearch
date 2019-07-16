@@ -18,7 +18,6 @@ This section shows how to:
 The authentication of new nodes helps prevent a rogue node from joining the
 cluster and receiving data through replication.
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/setting-up-ssl.asciidoc
 include::{es-repo-dir}/security/securing-communications/setting-up-ssl.asciidoc[]
 
 [[ciphers]]

@@ -82,7 +82,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         gapPolicy = BucketHelpers.GapPolicy.readFrom(in);
         bucketsPath = in.readString();
         window = in.readInt();
-        shift = 0; // todo
+        shift = in.readInt();
     }
 
     @Override
@@ -92,7 +92,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         gapPolicy.writeTo(out);
         out.writeString(bucketsPath);
         out.writeInt(window);
-        // todo
+        out.writeInt(shift);
     }
 
     @Override

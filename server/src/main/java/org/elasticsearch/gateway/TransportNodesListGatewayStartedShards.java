@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
@@ -62,12 +62,11 @@ public class TransportNodesListGatewayStartedShards extends
     TransportNodesAction<TransportNodesListGatewayStartedShards.Request,
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeRequest,
-        TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
-    implements
-    AsyncShardFetch.Lister<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
+    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);
+
     private final Settings settings;
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesService;
@@ -87,19 +86,13 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    public void list(ShardId shardId, DiscoveryNode[] nodes,
-                     ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, nodes), listener);
-    }
-
-    @Override
     protected NodeRequest newNodeRequest(Request request) {
         return new NodeRequest(request);
     }
 
     @Override
-    protected NodeGatewayStartedShards newNodeResponse() {
-        return new NodeGatewayStartedShards();
+    protected NodeGatewayStartedShards newNodeResponse(StreamInput in) throws IOException {
+        return new NodeGatewayStartedShards(in);
     }
 
     @Override
@@ -171,7 +164,9 @@ public class TransportNodesListGatewayStartedShards extends
 
         private ShardId shardId;
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            shardId = new ShardId(in);
         }
 
         public Request(ShardId shardId, DiscoveryNode[] nodes) {
@@ -185,12 +180,6 @@ public class TransportNodesListGatewayStartedShards extends
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = new ShardId(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
@@ -199,6 +188,10 @@ public class TransportNodesListGatewayStartedShards extends
 
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
 
+        public NodesGatewayStartedShards(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public NodesGatewayStartedShards(ClusterName clusterName, List<NodeGatewayStartedShards> nodes,
                                          List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
@@ -206,7 +199,7 @@ public class TransportNodesListGatewayStartedShards extends
 
         @Override
         protected List<NodeGatewayStartedShards> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(NodeGatewayStartedShards::new);
+            return in.readList(NodeGatewayStartedShards::new);
         }
 
         @Override
@@ -220,17 +213,13 @@ public class TransportNodesListGatewayStartedShards extends
 
         private ShardId shardId;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            shardId = new ShardId(in);
         }
 
         public NodeRequest(Request request) {
             this.shardId = request.shardId();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            shardId = new ShardId(in);
         }
 
         @Override
@@ -250,7 +239,13 @@ public class TransportNodesListGatewayStartedShards extends
         private boolean primary = false;
         private Exception storeException = null;
 
-        public NodeGatewayStartedShards() {
+        public NodeGatewayStartedShards(StreamInput in) throws IOException {
+            super(in);
+            allocationId = in.readOptionalString();
+            primary = in.readBoolean();
+            if (in.readBoolean()) {
+                storeException = in.readException();
+            }
         }
 
         public NodeGatewayStartedShards(DiscoveryNode node, String allocationId, boolean primary) {
@@ -274,16 +269,6 @@ public class TransportNodesListGatewayStartedShards extends
 
         public Exception storeException() {
             return this.storeException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            allocationId = in.readOptionalString();
-            primary = in.readBoolean();
-            if (in.readBoolean()) {
-                storeException = in.readException();
-            }
         }
 
         @Override

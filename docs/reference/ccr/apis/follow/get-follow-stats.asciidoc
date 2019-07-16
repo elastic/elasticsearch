@@ -57,8 +57,8 @@ following tasks associated with each shard for the specified indices.
 [[ccr-get-follow-stats-path-parms]]
 ==== {api-path-parms-title}
 
-`<index>` (Required)::
-  (string) A comma-delimited list of index patterns.
+`<index>`::
+  (Required, string) A comma-delimited list of index patterns.
 
 [[ccr-get-follow-stats-response-body]]
 ==== {api-response-body-title}
@@ -79,7 +79,7 @@ The `indices` array consists of objects containing two fields:
 The `shards` array consists of objects containing the following fields:
 
 `indices[].shards[].remote_cluster`::
-  (string) The <modules-remote-clusters,remote cluster>> containing the leader
+  (string) The <<modules-remote-clusters,remote cluster>> containing the leader
   index.
 
 `indices[].shards[].leader_index`::

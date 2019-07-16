@@ -58,11 +58,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     }
 
     @Override
-    protected CleanupRepositoryResponse newResponse() {
-        return new CleanupRepositoryResponse();
-    }
-
-    @Override
     protected CleanupRepositoryResponse read(StreamInput in) throws IOException {
         return new CleanupRepositoryResponse(in);
     }

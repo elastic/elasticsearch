@@ -21,6 +21,7 @@ package org.elasticsearch.geo.geometry;
 
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -59,6 +60,12 @@ public class LineTests extends BaseGeometryTestCase<Line> {
         ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new Line(new double[]{1, 100, 3, 1}, new double[]{3, 4, 5, 3})));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new Line(new double[]{1, 2}, new double[]{3, 4}, new double[]{6, 5})));
+        assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new Line(new double[]{1, 2}, new double[]{3, 4}, new double[]{6, 5}));
     }
 
     public void testWKTValidation() {

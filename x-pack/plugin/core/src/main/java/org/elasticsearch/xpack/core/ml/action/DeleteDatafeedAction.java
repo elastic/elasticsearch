@@ -51,6 +51,12 @@ public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeedId = in.readString();
+            force = in.readBoolean();
+        }
+
         public String getDatafeedId() {
             return datafeedId;
         }
@@ -70,9 +76,7 @@ public class DeleteDatafeedAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeedId = in.readString();
-            force = in.readBoolean();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

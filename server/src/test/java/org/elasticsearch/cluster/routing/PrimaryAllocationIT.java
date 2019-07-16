@@ -90,6 +90,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        // testForceStaleReplicaToBePromotedToPrimary replies on the flushing when a shard is no longer assigned.
+        return false;
+    }
+
     public void testBulkWeirdScenario() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(2);

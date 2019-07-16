@@ -59,7 +59,6 @@ public final class CleanupRepositoryResponse extends ActionResponse implements T
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         result.writeTo(out);
     }
 

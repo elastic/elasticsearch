@@ -1,0 +1,11 @@
+[[index-apis]]
+== Index APIs
+
+The index APIs are used to manage individual indices.
+
+* <<freeze-index-api>>, <<unfreeze-index-api>>
+
+See also <<indices>>.
+
+include::freeze.asciidoc[]
+include::unfreeze.asciidoc[]

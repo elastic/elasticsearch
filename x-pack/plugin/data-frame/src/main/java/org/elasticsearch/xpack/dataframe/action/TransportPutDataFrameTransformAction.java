@@ -23,12 +23,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -49,20 +47,18 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportPutDataFrameTransformAction
-        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, AcknowledgedResponse> {
+        extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -97,11 +93,6 @@ public class TransportPutDataFrameTransformAction
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
 
@@ -129,58 +120,19 @@ public class TransportPutDataFrameTransformAction
                     DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS, transformId)));
             return;
         }
-        final String destIndex = config.getDestination().getIndex();
-        Set<String> concreteSourceIndexNames = new HashSet<>();
-        for(String src : config.getSource().getIndex()) {
-            String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
-            if (concreteNames.length == 0) {
-                listener.onFailure(new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
-                    RestStatus.BAD_REQUEST));
-                return;
-            }
-            if (Regex.simpleMatch(src, destIndex)) {
-                listener.onFailure(new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE, destIndex, src),
-                    RestStatus.BAD_REQUEST
-                ));
-                return;
-            }
-            concreteSourceIndexNames.addAll(Arrays.asList(concreteNames));
-        }
-
-        if (concreteSourceIndexNames.contains(destIndex)) {
-            listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
-                    destIndex,
-                    Strings.arrayToCommaDelimitedString(config.getSource().getIndex())),
-                RestStatus.BAD_REQUEST
-            ));
-            return;
-        }
-
-        final String[] concreteDest =
-            indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
-
-        if (concreteDest.length > 1) {
-            listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
-                RestStatus.BAD_REQUEST
-            ));
-            return;
-        }
-        if (concreteDest.length > 0 && concreteSourceIndexNames.contains(concreteDest[0])) {
-            listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
-                    concreteDest[0],
-                    Strings.arrayToCommaDelimitedString(concreteSourceIndexNames.toArray(new String[0]))),
-                RestStatus.BAD_REQUEST
-            ));
+        try {
+            SourceDestValidator.check(config, clusterState, indexNameExpressionResolver);
+        } catch (ElasticsearchStatusException ex) {
+            listener.onFailure(ex);
             return;
         }
 
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed()) {
+            final String destIndex = config.getDestination().getIndex();
+            final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                config.getDestination().getIndex());
             final String username = securityContext.getUser().principal();
             List<String> srcPrivileges = new ArrayList<>(2);
             srcPrivileges.add("read");
@@ -249,8 +201,7 @@ public class TransportPutDataFrameTransformAction
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
-
-        // <5> Return the listener, or clean up destination index on failure.
+        // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
             putTransformConfigurationResult -> {
                 auditor.info(config.getId(), "Created data frame transform.");
@@ -259,7 +210,7 @@ public class TransportPutDataFrameTransformAction
             listener::onFailure
         );
 
-        // <4> Put our transform
+        // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
             validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> listener.onFailure(

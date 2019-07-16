@@ -57,7 +57,7 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testGetAuthenticationDoesNotSwallowIOException() {
-        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "");
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, ""); // an intentionally corrupt header
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final UncheckedIOException e = expectThrows(UncheckedIOException.class, securityContext::getAuthentication);
         assertNotNull(e.getCause());

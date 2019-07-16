@@ -211,7 +211,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 + "     \"avg_rating\": {"
                 + "       \"avg\": {"
                 + "         \"field\": \"stars\""
-                + " } } } }"
+                + " } } } },"
+                + "\"frequency\":\"1s\""
                 + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);

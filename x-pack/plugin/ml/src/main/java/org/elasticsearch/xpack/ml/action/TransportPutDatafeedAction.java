@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +61,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportPutDatafeedAction extends StreamableTransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
+public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDatafeedAction.class);
 
@@ -78,7 +79,7 @@ public class TransportPutDatafeedAction extends StreamableTransportMasterNodeAct
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       NamedXContentRegistry xContentRegistry) {
         super(PutDatafeedAction.NAME, transportService, clusterService, threadPool,
-                actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
+                actionFilters, PutDatafeedAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -94,8 +95,8 @@ public class TransportPutDatafeedAction extends StreamableTransportMasterNodeAct
     }
 
     @Override
-    protected PutDatafeedAction.Response newResponse() {
-        return new PutDatafeedAction.Response();
+    protected PutDatafeedAction.Response read(StreamInput in) throws IOException {
+        return new PutDatafeedAction.Response(in);
     }
 
     @Override

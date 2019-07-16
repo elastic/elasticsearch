@@ -109,6 +109,11 @@ public enum RangeType {
         }
 
         @Override
+        public Double doubleValue (Object endpointValue) {
+            throw new UnsupportedOperationException("IP ranges cannot be safely converted to doubles");
+        }
+
+        @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
             if (includeFrom == false) {
@@ -209,6 +214,11 @@ public enum RangeType {
         }
 
         @Override
+        public Double doubleValue (Object endpointValue) {
+            return LONG.doubleValue(endpointValue);
+        }
+
+        @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
             return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
@@ -275,6 +285,12 @@ public enum RangeType {
         }
 
         @Override
+        public Double doubleValue(Object endpointValue) {
+            assert endpointValue instanceof Float;
+            return ((Float) endpointValue).doubleValue();
+        }
+
+        @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
             if (includeFrom == false) {
@@ -337,6 +353,12 @@ public enum RangeType {
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
             return BinaryRangeUtil.decodeDoubleRanges(bytes);
+        }
+
+        @Override
+        public Double doubleValue(Object endpointValue) {
+            assert endpointValue instanceof Double;
+            return (Double) endpointValue;
         }
 
         @Override
@@ -408,6 +430,11 @@ public enum RangeType {
         }
 
         @Override
+        public Double doubleValue(Object endpointValue) {
+            return LONG.doubleValue(endpointValue);
+        }
+
+        @Override
         public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
                                   boolean includeTo) {
             return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
@@ -459,6 +486,12 @@ public enum RangeType {
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) {
             return BinaryRangeUtil.decodeLongRanges(bytes);
+        }
+
+        @Override
+        public Double doubleValue(Object endpointValue) {
+            assert endpointValue instanceof Long;
+            return ((Long) endpointValue).doubleValue();
         }
 
         @Override
@@ -620,6 +653,19 @@ public enum RangeType {
     // rounded up via parseFrom and parseTo methods.
     public abstract BytesRef encodeRanges(Set<RangeFieldMapper.Range> ranges) throws IOException;
     public abstract List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes);
+
+    /**
+     * Given the Range.to or Range.from Object value from a Range instance, converts that value into a Double.  Before converting, it
+     * asserts that the object is of the expected type.  Operation is not supported on IP ranges (because of loss of precision)
+     *
+     * @param endpointValue Object value for Range.to or Range.from
+     * @return endpointValue as a Double
+     */
+    public abstract Double doubleValue(Object endpointValue);
+
+    public boolean isNumeric() {
+        return numberType != null;
+    }
 
     public abstract Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to,
                                        boolean includeFrom, boolean includeTo);

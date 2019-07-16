@@ -41,6 +41,8 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -210,6 +212,8 @@ public class RangeFieldMapper extends FieldMapper {
             }
         }
 
+        public RangeType rangeType() { return rangeType; }
+
         @Override
         public MappedFieldType clone() {
             return new RangeFieldType(this);
@@ -228,6 +232,12 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), rangeType, dateTimeFormatter);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().setRangeType(rangeType);
         }
 
         @Override
@@ -467,6 +477,14 @@ public class RangeFieldMapper extends FieldMapper {
             sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress)t) : t.toString());
             sb.append(includeTo ? ']' : ')');
             return sb.toString();
+        }
+
+        public Object getFrom() {
+            return from;
+        }
+
+        public Object getTo() {
+            return to;
         }
     }
 

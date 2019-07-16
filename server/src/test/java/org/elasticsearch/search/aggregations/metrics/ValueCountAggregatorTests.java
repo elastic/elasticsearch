@@ -41,6 +41,8 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -215,6 +217,8 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                 return new IpFieldMapper.Builder("_name").fieldType();
             case GEOPOINT:
                 return new GeoPointFieldMapper.Builder("_name").fieldType();
+            case RANGE:
+                return new RangeFieldMapper.Builder("_name", RangeType.DOUBLE).fieldType();
             default:
                 throw new IllegalArgumentException("Test does not support value type [" + valueType + "]");
         }

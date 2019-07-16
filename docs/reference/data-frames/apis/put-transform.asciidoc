@@ -76,9 +76,17 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
     `field`::::
       (Required, string) The date field that is used to identify new documents
       in the source.
++
+--
+TIP: In general, it’s a good idea to use a field that contains the
+<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+you might need to set the `delay` such that it accounts for data transmission
+delays.
+
+--
     `delay`::::
       (Optional, time units) The time delay between the current time and the
-      latest input data time.
+      latest input data time. The default value is `60s`.
 
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}

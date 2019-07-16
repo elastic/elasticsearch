@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -55,8 +55,8 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
     private final Context context;
 
     public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
-        NamedXContentRegistry namedXContentRegistry, DeterministicTaskQueue deterministicTaskQueue, Context context) {
-        super(metadata, environment.settings(), namedXContentRegistry, deterministicTaskQueue.getThreadPool(), BlobPath.cleanPath());
+        NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool, Context context) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
         this.context = context;
     }
 
@@ -141,6 +141,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             closed.set(true);
         }
 
+        private void ensureNotClosed() {
+            if (closed.get()) {
+                throw new AssertionError("Blobstore is closed already");
+            }
+        }
+
         private class MockBlobContainer implements BlobContainer {
 
             private final BlobPath path;
@@ -156,9 +162,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public boolean blobExists(String blobName) {
-                if (closed.get()) {
-                    throw new AssertionError("Blobstore is closed already");
-                }
+                ensureNotClosed();
                 try {
                     readBlob(blobName);
                     return true;
@@ -169,14 +173,19 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public InputStream readBlob(String name) throws NoSuchFileException {
-                if (closed.get()) {
-                    throw new AssertionError("Blobstore is closed already");
-                }
+                ensureNotClosed();
                 final String blobPath = path.buildAsString() + name;
                 synchronized (context.actions) {
+                    final List<BlobStoreAction> relevantActions = new ArrayList<>(
+                            context.actions.stream().filter(action -> blobPath.equals(action.path)).collect(Collectors.toList()));
                     context.actions.add(new BlobStoreAction(Operation.GET, blobPath));
-                    final List<BlobStoreAction> relevantActions =
-                        context.actions.stream().filter(action -> blobPath.equals(action.path)).collect(Collectors.toList());
+                    for (int i = relevantActions.size() - 1; i > 0; i--) {
+                        if (relevantActions.get(i).operation == Operation.GET) {
+                            relevantActions.remove(i);
+                        } else {
+                            break;
+                        }
+                    }
                     final List<byte[]> writes = new ArrayList<>();
                     boolean readBeforeWrite = false;
                     for (BlobStoreAction relevantAction : relevantActions) {
@@ -190,25 +199,17 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                     if (writes.isEmpty()) {
                         throw new NoSuchFileException(blobPath);
                     }
-                    if (readBeforeWrite == false && writes.size() == 1) {
+                    if (readBeforeWrite == false && relevantActions.size() == 1) {
                         // Consistent read after write
                         return new ByteArrayInputStream(writes.get(0));
                     }
-                    if ("incompatible-snapshots".equals(blobPath) == false && "index.latest".equals(blobPath) == false) {
-                        throw new AssertionError("Inconsistent read on [" + blobPath + ']');
-                    }
-                    return consistentView(relevantActions).stream()
-                        .filter(action -> action.path.equals(blobPath) && action.operation == Operation.PUT)
-                        .findAny().map(
-                            action -> new ByteArrayInputStream(action.data)).orElseThrow(() -> new NoSuchFileException(blobPath));
+                    throw new AssertionError("Inconsistent read on [" + blobPath + ']');
                 }
             }
 
             @Override
             public void deleteBlob(String blobName) {
-                if (closed.get()) {
-                    throw new AssertionError("Blobstore is closed already");
-                }
+                ensureNotClosed();
                 synchronized (context.actions) {
                     context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
                 }
@@ -216,9 +217,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public void delete() {
-                if (closed.get()) {
-                    throw new AssertionError("Blobstore is closed already");
-                }
+                ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
                     consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath))
@@ -228,9 +227,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public Map<String, BlobMetaData> listBlobs() {
-                if (closed.get()) {
-                    throw new AssertionError("Blobstore is closed already");
-                }
+                ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
                     return consistentView(context.actions).stream()
@@ -246,9 +243,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public Map<String, BlobContainer> children() {
-                if (closed.get()) {
-                    throw new AssertionError("Blobstore is closed already");
-                }
+                ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
                     return consistentView(context.actions).stream()
@@ -271,9 +266,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
-                if (closed.get()) {
-                    throw new AssertionError("Blobstore is closed already");
-                }
+                ensureNotClosed();
                 // TODO: Throw if we try to overwrite any blob other than incompatible_snapshots or index.latest with different content
                 //       than it already contains.
                 assert blobSize < Integer.MAX_VALUE;

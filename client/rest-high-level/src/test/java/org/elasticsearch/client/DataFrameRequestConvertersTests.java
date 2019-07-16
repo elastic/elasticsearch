@@ -66,7 +66,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         PutDataFrameTransformRequest putRequest = new PutDataFrameTransformRequest(
                 DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         Request request = DataFrameRequestConverters.putDataFrameTransform(putRequest);
-
+        assertFalse(request.getParameters().containsKey("defer_validation"));
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + putRequest.getConfig().getId()));
 
@@ -74,6 +74,9 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
             DataFrameTransformConfig parsedConfig = DataFrameTransformConfig.PARSER.apply(parser, null);
             assertThat(parsedConfig, equalTo(putRequest.getConfig()));
         }
+        putRequest.setDeferValidations(true);
+        request = DataFrameRequestConverters.putDataFrameTransform(putRequest);
+        assertThat(request.getParameters().get("defer_validation"), equalTo(Boolean.toString(putRequest.getDeferValidations())));
     }
 
     public void testDeleteDataFrameTransform() {

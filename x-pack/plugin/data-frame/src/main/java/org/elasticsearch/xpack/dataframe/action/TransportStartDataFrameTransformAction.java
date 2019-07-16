@@ -182,7 +182,7 @@ public class TransportStartDataFrameTransformAction extends
                     return;
                 }
                 // Validate source and destination indices
-                SourceDestValidator.check(config, clusterService.state(), indexNameExpressionResolver);
+                SourceDestValidator.check(config, clusterService.state(), indexNameExpressionResolver, false);
 
                 transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion(), config.getFrequency()));
                 final String destinationIndex = config.getDestination().getIndex();

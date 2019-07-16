@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -14,8 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -47,9 +46,10 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
         return AcknowledgedResponse::new;
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private final DataFrameTransformConfig config;
+        private boolean deferValidation = false;
 
         public Request(DataFrameTransformConfig config) {
             this.config = config;
@@ -58,6 +58,11 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new DataFrameTransformConfig(in);
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                this.deferValidation = in.readBoolean();
+            } else {
+                this.deferValidation = false;
+            }
         }
 
         public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
@@ -117,24 +122,30 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
             return validationException;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return this.config.toXContent(builder, params);
-        }
-
         public DataFrameTransformConfig getConfig() {
             return config;
+        }
+
+        public boolean isDeferValidation() {
+            return deferValidation;
+        }
+
+        public void setDeferValidation(boolean deferValidation) {
+            this.deferValidation = deferValidation;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+                out.writeBoolean(this.deferValidation);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config);
+            return Objects.hash(config, deferValidation);
         }
 
         @Override
@@ -146,7 +157,7 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config);
+            return Objects.equals(config, other.config) && this.deferValidation == other.deferValidation;
         }
     }
 

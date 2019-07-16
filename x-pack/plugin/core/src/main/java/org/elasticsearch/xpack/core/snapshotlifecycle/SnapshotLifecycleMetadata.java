@@ -96,7 +96,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0; // TODO: revisit this when we figure out where this goes
+        return Version.V_7_4_0;
     }
 
     @Override

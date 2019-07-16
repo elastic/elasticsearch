@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -19,12 +20,16 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,6 +56,12 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
+    }
+
+    @Before
+    public void waitForMlTemplates() throws Exception {
+        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
@@ -94,15 +105,17 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     @SuppressWarnings("unchecked")
     private Map<String, Object> mappingsForDataFrameAnalysis() throws Exception {
         Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
-        Response getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
+        Response getIndexMappingsResponse;
+        try {
+            getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
+        } catch (WarningFailureException e) {
+            getIndexMappingsResponse = e.getResponse();
+        }
         assertThat(getIndexMappingsResponse.getStatusLine().getStatusCode(), equalTo(200));
 
         Map<String, Object> mappings = entityAsMap(getIndexMappingsResponse);
-        mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, ".ml-config", "mappings");
-        if (mappings.containsKey("doc")) {
-            mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "doc");
-        }
-        mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "properties", "analysis");
+        mappings =
+            (Map<String, Object>) XContentMapValues.extractValue(mappings, ".ml-config", "mappings", "doc", "properties", "analysis");
         return mappings;
     }
 

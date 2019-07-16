@@ -47,7 +47,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
-    MultiSearchTemplateRequest() {
+    public MultiSearchTemplateRequest() {
         super();
     }
 

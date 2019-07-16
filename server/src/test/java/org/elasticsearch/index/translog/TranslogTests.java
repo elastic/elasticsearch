@@ -2794,6 +2794,7 @@ public class TranslogTests extends ESTestCase {
 
     public void testLegacyCheckpointVersion() {
         expectThrows(
+            TranslogCorruptedException.class,
             IndexFormatTooOldException.class,
             () -> Checkpoint.read(getDataPath("/org/elasticsearch/index/checkpoint/v2.cpk"))
         );

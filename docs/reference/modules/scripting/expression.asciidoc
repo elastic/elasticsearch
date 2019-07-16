@@ -112,6 +112,7 @@ The following example shows the difference in years between the `date` fields da
 `doc['date1'].date.year - doc['date0'].date.year`
 
 [float]
+[[geo-point-field-api]]
 === `geo_point` field API
 [cols="<,<",options="header",]
 |=======================================================================

@@ -89,6 +89,7 @@ new `authorization_realms` setting that you can configure in the
 {stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>. 
 
 [float]
+[[_cross_cluster_replication_beta_superscript_superscript]]
 === Cross-cluster replication (beta^*^)
 
 Cross-cluster replication enables you to replicate indices that exist in remote 
@@ -104,6 +105,7 @@ For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication]
 and <<ccr-apis>>. 
 
 [float]
+[[_monitor_elasticsearch_with_metricbeat_beta_superscript_superscript]]
 === Monitor {es} with {metricbeat} (beta^*^)
 
 In 6.4 and later, you can use {metricbeat} to collect data about {kib} and ship 

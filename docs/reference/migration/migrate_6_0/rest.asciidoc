@@ -46,6 +46,7 @@ In Elasticsearch 6.0.0, Analyze API can analyze a text as a keyword field with c
 or if `char_filter`/`filter` is set and `tokenizer`/`analyzer` is not set.
 
 [float]
+[[_literal_timestamp_literal_and_literal_ttl_literal_in_index_requests]]
 ==== `timestamp` and `ttl` in index requests
 
 `timestamp` and `ttl` are not accepted anymore as parameters of index/update
@@ -114,9 +115,10 @@ $ curl -v -XPOST 'localhost:9200/my_index/_settings'
 }
 * Curl_http_done: called premature == 0
 * Connection #0 to host localhost left intact
---------------------------------------------
+-------------------------------------------
 
 [float]
+[[_disallow_using_literal__cache_literal_and_literal__cache_key_literal]]
 ==== Disallow using `_cache` and `_cache_key`
 
 The `_cache` and `_cache_key` options in queries have been deprecated since version 2.0.0 and

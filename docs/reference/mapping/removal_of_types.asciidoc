@@ -216,6 +216,7 @@ GET twitter/_search
 <1> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
+[[parent-child-mapping-types]]
 ==== Parent/Child without mapping types
 
 Previously, a parent-child relationship was represented by making one mapping

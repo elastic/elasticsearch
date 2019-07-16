@@ -731,7 +731,7 @@ Recovery::
 Rollup::
 * [Rollup] Proactively resolve index patterns in RollupSearch endoint {pull}34930[#34930] (issue: {issue}34828[#34828])
 * Address BWC bug due to default metrics in (#34764) {pull}34810[#34810] (issue: {issue}34764[#34764])
-* Allowing {index}/_xpack/rollup/data to accept comma delimited list {pull}34115[#34115]
+* Allowing \{index\}/_xpack/rollup/data to accept comma delimited list {pull}34115[#34115]
 * [Rollup] Fix Caps Comparator to handle calendar/fixed time {pull}33336[#33336] (issue: {issue}32052[#32052])
 * [Rollup] Better error message when trying to set non-rollup index {pull}32965[#32965]
 * [Rollup] Return empty response when aggs are missing {pull}32796[#32796] (issue: {issue}32256[#32256])

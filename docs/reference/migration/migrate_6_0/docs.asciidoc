@@ -3,23 +3,27 @@
 === Document API changes
 
 [float]
+[[_version_type_literal_force_literal_removed]]
 ==== version type `force` removed
 
 Document modification operations may no longer specify the `version_type` of
 `force` to override any previous version checks.
 
 [float]
+[[_link_linkend_upserts_upserts_link_no_longer_support_versions]]
 ==== <<upserts,Upserts>> no longer support versions
 
 Adding a `version` to an upsert request is no longer supported.
 
 [float]
+[[_literal_created_literal_field_removed_in_the_index_api]]
 ==== `created` field removed in the Index API
 
 The `created` field has been removed in the Index API as in the `index` and
 `create` bulk operations. `operation` field should be used instead.
 
 [float]
+[[_literal_found_literal_field_removed_in_the_delete_api]]
 ==== `found` field removed in the Delete API
 
 The `found` field has been removed in the Delete API as in the `delete` bulk

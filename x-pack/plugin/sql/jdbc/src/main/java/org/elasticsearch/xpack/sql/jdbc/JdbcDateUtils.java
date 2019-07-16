@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -27,10 +28,9 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
  */
 final class JdbcDateUtils {
 
-    private JdbcDateUtils() {
-    }
+    private JdbcDateUtils() {}
 
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
+    private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
@@ -58,12 +58,13 @@ final class JdbcDateUtils {
         return new Date(zdt.toLocalDate().atStartOfDay(zdt.getZone()).toInstant().toEpochMilli());
     }
 
-    /**
-     * In contrast to {@link JdbcDateUtils#asDate(String)} here we just want to eliminate
-     * the date part and just set it to EPOCH (1970-01-1)
-     */
     static Time asTime(String date) {
-        return new Time(utcMillisRemoveDate(asMillisSinceEpoch(date)));
+        ZonedDateTime zdt = asDateTime(date);
+        return new Time(zdt.toLocalTime().atDate(EPOCH).atZone(zdt.getZone()).toInstant().toEpochMilli());
+    }
+
+    static Timestamp asTimestamp(long millisSinceEpoch) {
+        return new Timestamp(millisSinceEpoch);
     }
 
     static Timestamp asTimestamp(String date) {
@@ -80,9 +81,5 @@ final class JdbcDateUtils {
         } else {
             return ctor.apply(((Number) value).longValue());
         }
-    }
-
-    private static long utcMillisRemoveDate(long l) {
-        return l % DAY_IN_MILLIS;
     }
 }

@@ -26,7 +26,7 @@ Returns the name of the database being queried. In the case of Elasticsearch SQL
 is the name of the Elasticsearch cluster. This function should always return a non-null
 value.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[database]
 --------------------------------------------------
@@ -48,7 +48,7 @@ USER()
 Returns the username of the authenticated user executing the query. This function can
 return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabled.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[user]
 --------------------------------------------------

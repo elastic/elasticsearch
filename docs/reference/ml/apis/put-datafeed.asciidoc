@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-put-datafeed]]
 === Create {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Create {dfeeds}</titleabbrev>
 ++++
@@ -40,6 +42,11 @@ IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {df
 `chunking_config`::
   (object) Specifies how data searches are split into time chunks.
   See <<ml-datafeed-chunking-config>>.
+
+`delayed_data_check_config`::
+  (object) Specifies whether the data feed checks for missing data and 
+  the size of the window. See
+  <<ml-datafeed-delayed-data-check-config>>.
 
 `frequency`::
   (time units) The interval at which scheduled queries are made while the {dfeed}
@@ -82,10 +89,6 @@ IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {df
   (array) A list of types to search for within the specified indices.
   For example: `[]`. This property is provided for backwards compatibility with
   releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
-
-`delayed_data_check_config`::
-  (object) Specifies if and with how large a window should the data feed check
-  for missing data. See <<ml-datafeed-delayed-data-check-config>>.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.

@@ -1631,7 +1631,7 @@ understands this to mean `2016-04-01` as is explained in the <<date-math-index-n
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
 | `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date. Supports <<accessing-template-fields,template snippets>>.
 | `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second). Supports <<accessing-template-fields,template snippets>>.
-| `date_formats`         | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `date_formats`         | no        | yyyy-MM-dd+++'T'+++HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
 | `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here. Supports <<accessing-template-fields,template snippets>>.
@@ -1772,6 +1772,7 @@ Right padding modifier with empty key example
 * level = WARN
 |======
 
+[[_append_modifier_literal_literal]]
 ===== Append modifier (`+`)
 [[dissect-modifier-append-key]]
 Dissect supports appending two or more results together for the output.
@@ -1786,6 +1787,7 @@ Append modifier example
 * name = john jacob jingleheimer schmidt
 |======
 
+[[_append_with_order_modifier_literal_literal_and_literal_n_literal]]
 ===== Append with order modifier (`+` and `/n`)
 [[dissect-modifier-append-key-with-order]]
 Dissect supports appending two or more results together for the output.
@@ -1800,6 +1802,7 @@ Append with order modifier example
 * name = schmidt,john,jingleheimer,jacob
 |======
 
+[[_named_skip_key_literal_literal]]
 ===== Named skip key (`?`)
 [[dissect-modifier-named-skip-key]]
 Dissect supports ignoring matches in the final result. This can be done with an empty key `%{}`, but for readability
@@ -1814,6 +1817,7 @@ Named skip key modifier example
 * @timestamp = 30/Apr/1998:22:00:52 +0000
 |======
 
+[[_reference_keys_literal_literal_and_literal_amp_literal]]
 ===== Reference keys (`*` and `&`)
 [[dissect-modifier-reference-keys]]
 Dissect support using parsed values as the key/value pairings for the structured content. Imagine a system that 

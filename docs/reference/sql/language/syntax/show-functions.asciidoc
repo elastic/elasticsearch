@@ -8,7 +8,7 @@ beta[]
 .Synopsis
 [source, sql]
 ----
-SHOW FUNCTIONS [ LIKE pattern<1>? ]?
+SHOW FUNCTIONS [ LIKE pattern? ]? <1>
 ----
 
 <1> SQL match pattern
@@ -17,7 +17,7 @@ SHOW FUNCTIONS [ LIKE pattern<1>? ]?
 
 List all the SQL functions and their type. The `LIKE` clause can be used to restrict the list of names to the given pattern.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showFunctions]
 ----
@@ -25,25 +25,25 @@ include-tagged::{sql-specs}/docs.csv-spec[showFunctions]
 The list of functions returned can be customized based on the pattern.
 
 It can be an exact match:
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeExact]
 ----
 
 A wildcard for exactly one character:
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeChar]
 ----
 
 A wildcard matching zero or more characters:
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeWildcard]
 ----
 
 Or of course, a variation of the above:
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showFunctionsWithPattern]
 ----

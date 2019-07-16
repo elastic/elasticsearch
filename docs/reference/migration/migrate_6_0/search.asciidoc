@@ -37,7 +37,7 @@ been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length
 
 * The `query_string` query now correctly parses the maximum number of
   states allowed when
-  "https://en.wikipedia.org/wiki/Powerset_construction#Complexity[determinizing]"
+  https://en.wikipedia.org/wiki/Powerset_construction#Complexity[determinizing]
   a regex as `max_determinized_states` instead of the typo
   `max_determined_states`.
 
@@ -159,6 +159,7 @@ score is produced as a result of computation (e.g. in `script_score` or
 this major version, and an error will be thrown in the next major version. 
 
 [float]
+[[_fielddata_on_literal__uid_literal]]
 ==== Fielddata on `_uid`
 
 Fielddata on `_uid` is deprecated. It is possible to switch to `_id` instead
@@ -180,17 +181,20 @@ The `unified` highlighter outputs the same highlighting when `index_options` is 
  to `offsets`.
 
 [float]
+[[_literal_fielddata_fields_literal]]
 ==== `fielddata_fields`
 
 The deprecated `fielddata_fields` have now been removed. `docvalue_fields` should be used instead.
 
 [float]
+[[_literal_docvalue_fields_literal]]
 ==== `docvalue_fields`
 
 `docvalue_fields` now have a default upper limit of 100 fields that can be requested.
 This limit can be overridden by using the `index.max_docvalue_fields_search` index setting.
 
 [float]
+[[_literal_script_fields_litera]]
 ==== `script_fields`
 
 `script_fields` now have a default upper limit of 32 script fields that can be requested.
@@ -209,6 +213,7 @@ The `from` parameter can no longer be used in the search request body when initi
 The parameter was already ignored in these situations, now in addition an error is thrown.
 
 [float]
+[[_limit_on_from_size_in_top_hits_and_inner_hits]]
 ==== Limit on from/size in top hits and inner hits
 
 The maximum number of results (`from` + `size`) that is allowed to be retrieved
@@ -234,6 +239,7 @@ Terms Query request has been limited to 65536. This default maximum can be chang
 for a particular index with the index setting `index.max_terms_count`.
 
 [float]
+[[_invalid_literal__search_literal_request_body]]
 ==== Invalid `_search` request body
 
 For 6.x and starting in 6.3 a deprecation warning will be printed to warn

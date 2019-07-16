@@ -513,6 +513,7 @@ This REST access pattern is so pervasive throughout all the API commands that if
 Elasticsearch provides data manipulation and search capabilities in near real time. By default, you can expect a one second delay (refresh interval) from the time you index/update/delete your data until the time that it appears in your search results. This is an important distinction from other platforms like SQL wherein data is immediately available after a transaction is completed.
 
 [float]
+[[indexing-replacing-documents]]
 === Indexing/Replacing Documents
 
 We've previously seen how we can index a single document. Let's recall that command again:

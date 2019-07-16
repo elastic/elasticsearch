@@ -53,14 +53,21 @@ Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://<1>[[http|https]://]*<2>[host[:port]]*<3>/[prefix]*<4>[?[option=value]&<5>]*
+jdbc:es://[[http|https]://]*[host[:port]]*/[prefix]*<[?[option=value]&]*
 ----
+`jdbc:es://`:: Prefix. Mandatory.
 
-<1> `jdbc:es://` prefix. Mandatory.
-<2> type of HTTP connection to make - `http` (default) or `https`. Optional.
-<3> host (`localhost` by default) and port (`9200` by default). Optional.
-<4> prefix (empty by default). Typically used when hosting {es} under a certain path. Optional.
-<5> Properties for the JDBC driver. Empty by default. Optional.
+`[[http|https]://]`:: Type of HTTP connection to make. Possible values are
+`http` (default) or `https`. Optional.
+
+`[host[:port]]`:: Host (`localhost` by default) and port (`9200` by default).
+Optional.
+
+`[prefix]`:: Prefix (empty by default). Typically used when hosting {es} under
+a certain path. Optional.
+
+`[option=value]`:: Properties for the JDBC driver. Empty by default.
+Optional.
 
 The driver recognized the following properties:
 
@@ -146,6 +153,7 @@ beta[]
 
 One can use JDBC through the official `java.sql` and `javax.sql` packages:
 
+[[java-sql]]
 ==== `java.sql`
 The former through `java.sql.Driver` and `DriverManager`:
 
@@ -158,6 +166,7 @@ HTTP traffic. The port is by default 9200.
 <2> Properties for connecting to Elasticsearch. An empty `Properties`
 instance is fine for unsecured Elasticsearch.
 
+[[javax-sql]]
 ==== `javax.sql`
 
 Accessible through the `javax.sql.DataSource` API:

@@ -160,6 +160,7 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
+[[rpm-sysv-init-vs-systemd]]
 ==== SysV `init` vs `systemd`
 
 include::init-systemd.asciidoc[]

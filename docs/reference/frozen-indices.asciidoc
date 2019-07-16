@@ -1,10 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[frozen-indices]]
-= Frozen Indices
+= Frozen indices
 
 [partintro]
 --
+
+beta[]
+
 Elasticsearch indices can require a significant amount of memory available in order to be open and searchable. Yet, not all indices need
 to be writable at the same time and have different access patterns over time. For example, indices in the time series or logging use cases
 are unlikely to be queried once they age out but still need to be kept around for retention policy purposes.
@@ -14,14 +17,19 @@ into a frozen state. Once an index is frozen, all of its transient shard memory 
 is moved to persistent storage. This allows for a much higher disk to heap storage ratio on individual nodes. Once an index is
 frozen, it is made read-only and drops its transient data structures from memory.  These data structures will need to be reloaded on demand (and subsequently dropped) for each search request that targets the frozen index.  A search request that hits
 one or more frozen shards will be executed on a throttled threadpool that ensures that we never search more than
-`N` (`1` by default) searches concurrently (see <<search-throttled>>). This protects nodes from exceeding the available memory due to incoming search requests.
+`N` (`1` by default) searches concurrently (see <<search-throttled,`search-throttled`>>). This protects nodes from exceeding the available memory due to incoming search requests.
 
 In contrast to ordinary open indices, frozen indices are expected to execute slowly and are not designed for high query load. Parallelism is
 gained only on a per-node level and loading data-structures on demand is expected to be one or more orders of a magnitude slower than query
 execution on a per shard level. Depending on the data in an index, a frozen index may execute searches in the seconds to minutes range, when the same index in an unfrozen state may execute the same search request in milliseconds.
 --
 
-== Best Practices
+[role="xpack"]
+[testenv="basic"]
+[[best_practices]]
+== Best practices
+
+beta[]
 
 Since frozen indices provide a much higher disk to heap ratio at the expense of search latency, it is advisable to allocate frozen indices to
 dedicated nodes to prevent searches on frozen indices influencing traffic on low latency nodes. There is significant overhead in loading
@@ -40,10 +48,15 @@ POST /twitter/_forcemerge?max_num_segments=1
 // CONSOLE
 // TEST[setup:twitter]
 
+[role="xpack"]
+[testenv="basic"]
+[[searching_a_frozen_index]]
 == Searching a frozen index
 
+beta[]
+
 Frozen indices are throttled in order to limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
-limited by the number of threads in the <<search-throttled>> threadpool,  which is `1` by default. 
+limited by the number of threads in the <<search-throttled,search_throttled>> threadpool,  which is `1` by default. 
 Search requests will not be executed against frozen indices by default, even if a frozen index is named explicitly. This is 
 to prevent accidental slowdowns by targeting a frozen index by mistake. To include frozen indices a search request must be executed with
 the query parameter `ignore_throttled=false`.

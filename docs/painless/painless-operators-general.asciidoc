@@ -22,8 +22,8 @@ precedence: '(' expression ')';
 +
 [source,Painless]
 ----
-<1> int x = (5+4)*6;
-<2> int y = 12/(x-50);
+int x = (5+4)*6;   <1>
+int y = 12/(x-50); <2>
 ----
 +
 <1> declare `int x`;
@@ -59,11 +59,11 @@ function_call: ID '(' ( expression (',' expression)* )? ')'';
 +
 [source,Painless]
 ----
-<1> int add(int x, int y) {
+int add(int x, int y) { <1>
       return x + y;
   }
 
-<2> int z = add(1, 2);
+int z = add(1, 2); <2>
 ----
 +
 <1> define function `add` that returns `int` and has parameters (`int x`,
@@ -128,10 +128,10 @@ occur.
 +
 [source,Painless]
 ----
-<1> boolean b = true;
-<2> int x = b ? 1 : 2;
-<3> List y = x > 1 ? new ArrayList() : null;
-<4> def z = x < 2 ? x : 2.0;
+boolean b = true;        <1>
+int x = b ? 1 : 2;       <2>
+List y = x > 1 ? new ArrayList() : null; <3>
+def z = x < 2 ? x : 2.0; <4>
 ----
 +
 <1> declare `boolean b`;
@@ -195,10 +195,10 @@ non-static member fields:
 +
 [source,Painless]
 ----
-<1> Example example = new Example();
-<2> example.x = 1;
-<3> example.y = 2.0;
-<4> example.z = new ArrayList();
+Example example = new Example(); <1>
+example.x = 1;                   <2>
+example.y = 2.0;                 <3>
+example.z = new ArrayList();     <4>
 ----
 +
 <1> declare `Example example`;
@@ -218,9 +218,9 @@ non-static member fields:
 +
 [source,Painless]
 ----
-<1> Example example = new Example();
-<2> example.x = 1;
-<3> example.y = example.x;
+Example example = new Example(); <1>
+example.x = 1;                   <2>
+example.y = example.x;           <3>
 ----
 +
 <1> declare `Example example`;
@@ -297,18 +297,18 @@ operators.
 +
 [source,Painless]
 ----
-<1> int i = 10;
-<2> i *= 2;
-<3> i /= 5;
-<4> i %= 3;
-<5> i += 5;
-<6> i -= 5;
-<7> i <<= 2;
-<8> i >>= 1;
-<9> i >>>= 1;
-<10> i &= 15;
-<11> i ^= 12;
-<12> i |= 2;
+int i = 10; <1>
+i *= 2;     <2>
+i /= 5;     <3>
+i %= 3;     <4>
+i += 5;     <5>
+i -= 5;     <6>
+i <<= 2;    <7>
+i >>= 1;    <8>
+i >>>= 1;   <9>
+i &= 15;    <10>
+i ^= 12;    <11>
+i |= 2;     <12>
 ----
 +
 <1> declare `int i`;
@@ -362,10 +362,10 @@ operators.
 +
 [source,Painless]
 ----
-<1> boolean b = true;
-<2> b &= false;
-<3> b ^= false;
-<4> b |= true;
+boolean b = true; <1>
+b &= false;       <2>
+b ^= false;       <3>
+b |= true;        <4>
 ----
 +
 <1> declare `boolean b`;
@@ -387,8 +387,8 @@ operators.
 +
 [source,Painless]
 ----
-<1> String s = 'compound';
-<2> s += ' assignment';
+String s = 'compound'; <1>
+s += ' assignment';    <2>
 ----
 <1> declare `String s`;
     store `String 'compound'` to `s`;
@@ -402,8 +402,8 @@ operators.
 +
 [source,Painless]
 ----
-<1> def x = 1;
-<2> x += 2;
+def x = 1; <1>
+x += 2;    <2>
 ----
 <1> declare `def x`;
     implicit cast `int 1` to `def`;
@@ -419,8 +419,8 @@ operators.
 +
 [source,Painless]
 ----
-<1> byte b = 1;
-<2> b += 2;
+byte b = 1; <1>
+b += 2;     <2>
 ----
 <1> declare `byte b`;
     store `byte 1` to `x`;

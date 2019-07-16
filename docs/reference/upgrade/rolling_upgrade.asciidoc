@@ -111,7 +111,7 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 
 [source,sh]
 --------------------------------------------------
-GET _cat/health
+GET _cat/health?v
 --------------------------------------------------
 // CONSOLE
 

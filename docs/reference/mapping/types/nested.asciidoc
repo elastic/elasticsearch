@@ -65,6 +65,7 @@ GET my_index/_search
 // CONSOLE
 // TEST[continued]
 
+[[nested-fields-array-objects]]
 ==== Using `nested` fields for arrays of objects
 
 If you need to index arrays of objects and to maintain the independence of
@@ -194,7 +195,7 @@ phase.  Instead, highlighting needs to be performed via
 
 =============================================
 
-
+[[limit-number-nested-fields]]
 ==== Limiting the number of `nested` fields
 
 Indexing a document with 100 nested fields actually indexes 101 documents as each nested

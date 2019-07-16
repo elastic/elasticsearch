@@ -61,6 +61,33 @@ WARNING: Version {version} of {es} has not yet been released, so a
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
+
+ifdef::asciidoctor[]
+["source","yaml",subs="attributes"]
+----
+version: '2.2'
+
+services:
+  create_certs:
+    container_name: create_certs
+    image: {docker-image}
+    command: >
+      bash -c '
+        if [[ ! -d config/certificates/certs ]]; then
+          mkdir config/certificates/certs;
+        fi;
+        if [[ ! -f /local/certs/bundle.zip ]]; then
+          bin/elasticsearch-certgen --silent --in config/certificates/instances.yml --out config/certificates/certs/bundle.zip;
+          unzip config/certificates/certs/bundle.zip -d config/certificates/certs; <1>
+        fi;
+        chgrp -R 0 config/certificates/certs
+      '
+    user: ${UID:-1000}
+    working_dir: /usr/share/elasticsearch
+    volumes: ['.:/usr/share/elasticsearch/config/certificates']
+----
+endif::[]
+ifndef::asciidoctor[]
 ["source","yaml",subs="attributes"]
 ----
 version: '2.2'
@@ -84,6 +111,7 @@ services:
     working_dir: /usr/share/elasticsearch
     volumes: ['.:/usr/share/elasticsearch/config/certificates']
 ----
+endif::[]
 
 <1> The new node certificates and CA certificate+key are placed under the local directory `certs`.
 endif::[]

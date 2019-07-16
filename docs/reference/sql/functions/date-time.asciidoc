@@ -59,32 +59,32 @@ s|Description
 
 Basic arithmetic operators (`+`, `-`, etc) support date-time parameters as indicated below:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dtIntervalPlusInterval]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dtDatePlusInterval]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dtMinusInterval]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMinusInterval]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dtDateMinusInterval]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 --------------------------------------------------
@@ -100,7 +100,7 @@ beta[]
 [source, sql]
 --------------------------------------------------
 CURRENT_TIMESTAMP
-CURRENT_TIMESTAMP(precision <1>)
+CURRENT_TIMESTAMP([precision]) <1>
 --------------------------------------------------
 
 *Input*:
@@ -117,17 +117,17 @@ parameter for rounding the second fractional digits (nanoseconds).
 
 This method always returns the same value within a query.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[curTs]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[curTsFunction]
 --------------------------------------------------
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[curTsFunctionPrecision]
 --------------------------------------------------
@@ -135,10 +135,14 @@ include-tagged::{sql-specs}/docs.csv-spec[curTsFunctionPrecision]
 Typically, this function (as well as its twin <<sql-functions-now,NOW())>> function is used for
 relative date/time filtering:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[filterNow]
 --------------------------------------------------
+
+[IMPORTANT]
+Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 3 (milliseconds).
 
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`
@@ -146,7 +150,7 @@ include-tagged::{sql-specs}/docs.csv-spec[filterNow]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_OF_MONTH(date_exp<1>)
+DAY_OF_MONTH(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -159,7 +163,7 @@ DAY_OF_MONTH(date_exp<1>)
 
 Extract the day of the month from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dayOfMonth]
 --------------------------------------------------
@@ -170,7 +174,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayOfMonth]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_OF_WEEK(date_exp<1>)
+DAY_OF_WEEK(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -183,7 +187,7 @@ DAY_OF_WEEK(date_exp<1>)
 
 Extract the day of the week from a date. Sunday is `1`, Monday is `2`, etc.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dayOfWeek]
 --------------------------------------------------
@@ -194,7 +198,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayOfWeek]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_OF_YEAR(date_exp<1>)
+DAY_OF_YEAR(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -207,7 +211,7 @@ DAY_OF_YEAR(date_exp<1>)
 
 Extract the day of the year from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dayOfYear]
 --------------------------------------------------
@@ -218,7 +222,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_NAME(date_exp<1>)
+DAY_NAME(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -231,7 +235,7 @@ DAY_NAME(date_exp<1>)
 
 Extract the day of the week from a datetime in text format (`Monday`, `Tuesday`...).
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dayName]
 --------------------------------------------------
@@ -242,7 +246,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dayName]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-HOUR_OF_DAY(date_exp<1>)
+HOUR_OF_DAY(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -255,7 +259,7 @@ HOUR_OF_DAY(date_exp<1>)
 
 Extract the hour of the day from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[hourOfDay]
 --------------------------------------------------
@@ -266,7 +270,7 @@ include-tagged::{sql-specs}/docs.csv-spec[hourOfDay]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ISO_DAY_OF_WEEK(date_exp<1>)
+ISO_DAY_OF_WEEK(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -280,7 +284,7 @@ ISO_DAY_OF_WEEK(date_exp<1>)
 Extract the day of the week from a date, following the https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard].
 Monday is `1`, Tuesday is `2`, etc.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[isoDayOfWeek]
 --------------------------------------------------
@@ -291,7 +295,7 @@ include-tagged::{sql-specs}/docs.csv-spec[isoDayOfWeek]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ISO_WEEK_OF_YEAR(date_exp<1>)
+ISO_WEEK_OF_YEAR(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -305,7 +309,7 @@ ISO_WEEK_OF_YEAR(date_exp<1>)
 Extract the week of the year from a date, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
 of a year is the first week with a majority (4 or more) of its days in January.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[isoWeekOfYear]
 --------------------------------------------------
@@ -316,7 +320,7 @@ include-tagged::{sql-specs}/docs.csv-spec[isoWeekOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MINUTE_OF_DAY(date_exp<1>)
+MINUTE_OF_DAY(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -329,7 +333,7 @@ MINUTE_OF_DAY(date_exp<1>)
 
 Extract the minute of the day from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[minuteOfDay]
 --------------------------------------------------
@@ -340,7 +344,7 @@ include-tagged::{sql-specs}/docs.csv-spec[minuteOfDay]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MINUTE_OF_HOUR(date_exp<1>)
+MINUTE_OF_HOUR(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -353,7 +357,7 @@ MINUTE_OF_HOUR(date_exp<1>)
 
 Extract the minute of the hour from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[minuteOfHour]
 --------------------------------------------------
@@ -364,7 +368,7 @@ include-tagged::{sql-specs}/docs.csv-spec[minuteOfHour]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MONTH(date_exp<1>)
+MONTH(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -377,7 +381,7 @@ MONTH(date_exp<1>)
 
 Extract the month of the year from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[monthOfYear]
 --------------------------------------------------
@@ -388,7 +392,7 @@ include-tagged::{sql-specs}/docs.csv-spec[monthOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MONTH_NAME(date_exp<1>)
+MONTH_NAME(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -401,7 +405,7 @@ MONTH_NAME(date_exp<1>)
 
 Extract the month from a datetime in text format (`January`, `February`...).
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[monthName]
 --------------------------------------------------
@@ -424,7 +428,7 @@ NOW()
 This function offers the same functionality as <<sql-functions-current-timestamp,CURRENT_TIMESTAMP()>> function: returns the date/time 
 when the current query reached the server. This method always returns the same value within a query.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[nowFunction]
 --------------------------------------------------
@@ -432,7 +436,7 @@ include-tagged::{sql-specs}/docs.csv-spec[nowFunction]
 Typically, this function (as well as its twin <<sql-functions-current-timestamp,CURRENT_TIMESTAMP())>> function is used for
 relative date/time filtering:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[filterNow]
 --------------------------------------------------
@@ -443,7 +447,7 @@ include-tagged::{sql-specs}/docs.csv-spec[filterNow]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SECOND_OF_MINUTE(date_exp<1>)
+SECOND_OF_MINUTE(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -456,7 +460,7 @@ SECOND_OF_MINUTE(date_exp<1>)
 
 Extract the second of the minute from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[secondOfMinute]
 --------------------------------------------------
@@ -467,7 +471,7 @@ include-tagged::{sql-specs}/docs.csv-spec[secondOfMinute]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-QUARTER(date_exp<1>)
+QUARTER(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -480,7 +484,7 @@ QUARTER(date_exp<1>)
 
 Extract the year quarter the date falls in.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[quarter]
 --------------------------------------------------
@@ -491,7 +495,7 @@ include-tagged::{sql-specs}/docs.csv-spec[quarter]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-WEEK_OF_YEAR(date_exp<1>)
+WEEK_OF_YEAR(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -504,7 +508,7 @@ WEEK_OF_YEAR(date_exp<1>)
 
 Extract the week of the year from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[weekOfYear]
 --------------------------------------------------
@@ -515,7 +519,7 @@ include-tagged::{sql-specs}/docs.csv-spec[weekOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-YEAR(date_exp<1>)
+YEAR(date_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -528,7 +532,7 @@ YEAR(date_exp<1>)
 
 Extract the year from a date.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[year]
 --------------------------------------------------
@@ -539,7 +543,9 @@ include-tagged::{sql-specs}/docs.csv-spec[year]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-EXTRACT(datetime_function<1> FROM date_exp<2>)
+EXTRACT(
+    datetime_function <1>
+    FROM date_exp)    <2>
 --------------------------------------------------
 
 *Input*:
@@ -554,14 +560,14 @@ EXTRACT(datetime_function<1> FROM date_exp<2>)
 Extract fields from a datetime by specifying the name of a <<sql-functions-datetime,datetime function>>.
 The following
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[extractDayOfYear]
 --------------------------------------------------
 
 is the equivalent to
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[dayOfYear]
 --------------------------------------------------

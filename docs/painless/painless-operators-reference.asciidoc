@@ -38,12 +38,12 @@ arguments: '(' (expression (',' expression)*)? ')';
 +
 [source,Painless]
 ----
-<1> Map m = new HashMap();
-<2> m.put(1, 2);
-<3> int z = m.get(1);
-<4> def d = new ArrayList();
-<5> d.add(1);
-<6> int i = Integer.parseInt(d.get(0).toString());
+Map m = new HashMap();                         <1>
+m.put(1, 2);                                   <2>
+int z = m.get(1);                              <3>
+def d = new ArrayList();                       <4>
+d.add(1);                                      <5>
+int i = Integer.parseInt(d.get(0).toString()); <6>
 ----
 +
 <1> declare `Map m`;
@@ -111,12 +111,12 @@ non-static member fields:
 +
 [source,Painless]
 ----
-<1> Example example = new Example();
-<2> example.x = 1;
-<3> example.y = example.x;
-<4> example.z = new ArrayList();
-<5> example.z.add(1);
-<6> example.x = example.z.get(0);
+Example example = new Example(); <1>
+example.x = 1;                   <2>
+example.y = example.x;           <3>
+example.z = new ArrayList();     <4>
+example.z.add(1);                <5>
+example.x = example.z.get(0);    <6>
 ----
 +
 <1> declare `Example example`;
@@ -192,8 +192,8 @@ non-static member fields:
 +
 [source,Painless]
 ----
-<1> Example example = new Example();
-<2> List x = example?.factory();
+Example example = new Example(); <1>
+List x = example?.factory();     <2>
 ----
 +
 <1> declare `Example example`;
@@ -208,8 +208,8 @@ non-static member fields:
 +
 [source,Painless]
 ----
-<1> Example example = null;
-<2> List x = example?.x;
+Example example = null; <1>
+List x = example?.x;    <2>
 ----
 <1> declare `Example example`;
     store `null` to `example`
@@ -242,7 +242,7 @@ list_initialization: '[' expression (',' expression)* ']'
 +
 [source,Painless]
 ----
-<1> List empty = [];
+List empty = []; <1>
 ----
 +
 <1> declare `List empty`;
@@ -254,7 +254,7 @@ list_initialization: '[' expression (',' expression)* ']'
 +
 [source,Painless]
 ----
-<1> List list = [1, 2, 3];
+List list = [1, 2, 3]; <1>
 ----
 +
 <1> declare `List list`;
@@ -269,12 +269,12 @@ list_initialization: '[' expression (',' expression)* ']'
 +
 [source,Painless]
 ----
-<1> int i = 1;
-<2> long l = 2L;
-<3> float f = 3.0F;
-<4> double d = 4.0;
-<5> String s = "5";
-<6> List list = [i, l, f*d, s];
+int i = 1;                  <1>
+long l = 2L;                <2>
+float f = 3.0F;             <3>
+double d = 4.0;             <4>
+String s = "5";             <5>
+List list = [i, l, f*d, s]; <6>
 ----
 +
 <1> declare `int i`;
@@ -329,15 +329,15 @@ list_access: '[' expression ']'
 +
 [source,Painless]
 ----
-<1> List list = new ArrayList();
-<2> list.add(1);
-<3> list.add(2);
-<4> list.add(3);
-<5> list[0] = 2;
-<6> list[1] = 5;
-<7> int x = list[0] + list[1];
-<8> int y = 1;
-<9> int z = list[y];
+List list = new ArrayList(); <1>
+list.add(1);                 <2>
+list.add(2);                 <3>
+list.add(3);                 <4>
+list[0] = 2;                 <5>
+list[1] = 5;                 <6>
+int x = list[0] + list[1];   <7>
+int y = 1;                   <8>
+int z = list[y];             <9>
 ----
 +
 <1> declare `List list`;
@@ -376,15 +376,15 @@ list_access: '[' expression ']'
 +
 [source,Painless]
 ----
-<1> def d = new ArrayList();
-<2> d.add(1);
-<3> d.add(2);
-<4> d.add(3);
-<5> d[0] = 2;
-<6> d[1] = 5;
-<7> def x = d[0] + d[1];
-<8> def y = 1;
-<9> def z = d[y];
+def d = new ArrayList(); <1>
+d.add(1);                <2>
+d.add(2);                <3>
+d.add(3);                <4>
+d[0] = 2;                <5>
+d[1] = 5;                <6>
+def x = d[0] + d[1];     <7>
+def y = 1;               <8>
+def z = d[y];            <9>
 ----
 +
 <1> declare `List d`;
@@ -449,7 +449,7 @@ key_pair: expression ':' expression
 +
 [source,Painless]
 ----
-<1> Map empty = [:];
+Map empty = [:]; <1>
 ----
 +
 <1> declare `Map empty`;
@@ -461,7 +461,7 @@ key_pair: expression ':' expression
 +
 [source,Painless]
 ----
-<1> Map map = [1:2, 3:4, 5:6];
+Map map = [1:2, 3:4, 5:6]; <1>
 ----
 +
 <1> declare `Map map`;
@@ -476,13 +476,13 @@ key_pair: expression ':' expression
 +
 [source,Painless]
 ----
-<1> byte b = 0;
-<2> int i = 1;
-<3> long l = 2L;
-<4> float f = 3.0F;
-<5> double d = 4.0;
-<6> String s = "5";
-<7> Map map = [b:i, l:f*d, d:s];
+byte b = 0;                  <1>
+int i = 1;                   <2>
+long l = 2L;                 <3>
+float f = 3.0F;              <4>
+double d = 4.0;              <5>
+String s = "5";              <6>
+Map map = [b:i, l:f*d, d:s]; <7>
 ----
 +
 <1> declare `byte b`;
@@ -538,12 +538,12 @@ map_access: '[' expression ']'
 +
 [source,Painless]
 ----
-<1> Map map = new HashMap();
-<2> map['value2'] = 2;
-<3> map['value5'] = 5;
-<4> int x = map['value2'] + map['value5'];
-<5> String y = 'value5';
-<6> int z = x[z];
+Map map = new HashMap();               <1>
+map['value2'] = 2;                     <2>
+map['value5'] = 5;                     <3>
+int x = map['value2'] + map['value5']; <4>
+String y = 'value5';                   <5>
+int z = x[z];                          <6>
 ----
 +
 <1> declare `Map map`;
@@ -576,12 +576,12 @@ map_access: '[' expression ']'
 +
 [source,Painless]
 ----
-<1> def d = new HashMap();
-<2> d['value2'] = 2;
-<3> d['value5'] = 5;
-<4> int x = d['value2'] + d['value5'];
-<5> String y = 'value5';
-<6> def z = d[y];
+def d = new HashMap();             <1>
+d['value2'] = 2;                   <2>
+d['value5'] = 5;                   <3>
+int x = d['value2'] + d['value5']; <4>
+String y = 'value5';               <5>
+def z = d[y];                      <6>
 ----
 +
 <1> declare `def d`;
@@ -649,9 +649,9 @@ new_instance: 'new' TYPE '(' (expression (',' expression)*)? ')';
 
 [source,Painless]
 ----
-<1> Map m = new HashMap();
-<2> def d = new ArrayList();
-<3> def e = new HashMap(m);
+Map m = new HashMap();   <1>
+def d = new ArrayList(); <2>
+def e = new HashMap(m);  <3>
 ----
 <1> declare `Map m`;
     allocate `HashMap` instance -> `HashMap reference`;
@@ -687,9 +687,9 @@ concatenate: expression '+' expression;
 +
 [source,Painless]
 ----
-<1> String x = "con";
-<2> String y = x + "cat";
-<3> String z = 4 + 5 + x;
+String x = "con";     <1>
+String y = x + "cat"; <2>
+String z = 4 + 5 + x; <3>
 ----
 +
 <1> declare `String x`;
@@ -709,8 +709,8 @@ concatenate: expression '+' expression;
 +
 [source,Painless]
 ----
-<1> def d = 2;
-<2> d = "con" + d + "cat";
+def d = 2;             <1>
+d = "con" + d + "cat"; <2>
 ----
 +
 <1> declare `def`;
@@ -749,10 +749,10 @@ elvis: expression '?:' expression;
 +
 [source,Painless]
 ----
-<1> List x = new ArrayList();
-<2> List y = x ?: new ArrayList();
-<3> y = null;
-<4> List z = y ?: new ArrayList();
+List x = new ArrayList();      <1>
+List y = x ?: new ArrayList(); <2>
+y = null;                      <3>
+List z = y ?: new ArrayList(); <4>
 ----
 +
 <1> declare `List x`;

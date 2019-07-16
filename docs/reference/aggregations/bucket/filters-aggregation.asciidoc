@@ -118,6 +118,7 @@ request.  The response for this example would be:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
+[[other-bucket]]
 ==== `Other` Bucket
 
 The `other_bucket` parameter can be set to add a bucket to the response which will contain all documents that do 

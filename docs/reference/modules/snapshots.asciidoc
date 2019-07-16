@@ -699,6 +699,7 @@ GET /_snapshot/my_backup/snapshot_1,snapshot_2/_status
 // TEST[continued]
 
 [float]
+[[monitor-snapshot-restore-progress]]
 === Monitoring snapshot/restore progress
 
 There are several ways to monitor the progress of the snapshot and restores processes while they are running. Both

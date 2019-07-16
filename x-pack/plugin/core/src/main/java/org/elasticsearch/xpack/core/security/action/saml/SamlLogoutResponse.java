@@ -18,7 +18,9 @@ public final class SamlLogoutResponse extends ActionResponse {
 
     private String redirectUrl;
 
-    public SamlLogoutResponse() {
+    public SamlLogoutResponse(StreamInput in) throws IOException {
+        super(in);
+        redirectUrl = in.readString();
     }
 
     public SamlLogoutResponse(String redirectUrl) {
@@ -36,8 +38,7 @@ public final class SamlLogoutResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        redirectUrl = in.readString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
 }

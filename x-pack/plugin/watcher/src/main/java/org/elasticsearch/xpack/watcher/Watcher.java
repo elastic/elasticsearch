@@ -283,7 +283,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         Map<String, EmailAttachmentParser> emailAttachmentParsers = new HashMap<>();
         emailAttachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, templateEngine));
         emailAttachmentParsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
-        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE, new ReportingAttachmentParser(settings, httpClient, templateEngine));
+        emailAttachmentParsers.put(ReportingAttachmentParser.TYPE,
+            new ReportingAttachmentParser(settings, httpClient, templateEngine, clusterService.getClusterSettings()));
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
         // conditions
@@ -469,8 +470,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.addAll(HtmlSanitizer.getSettings());
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
-        settings.add(ReportingAttachmentParser.RETRIES_SETTING);
-        settings.add(ReportingAttachmentParser.INTERVAL_SETTING);
+        settings.addAll(ReportingAttachmentParser.getSettings());
 
         // http settings
         settings.addAll(HttpSettings.getSettings());

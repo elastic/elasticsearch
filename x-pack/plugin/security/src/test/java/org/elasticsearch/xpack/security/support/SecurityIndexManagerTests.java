@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import com.google.common.util.concurrent.Service.State;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
@@ -49,6 +51,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -67,6 +70,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class SecurityIndexManagerTests extends ESTestCase {
 
@@ -97,6 +102,21 @@ public class SecurityIndexManagerTests extends ESTestCase {
             }
         };
         manager = SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService);
+
+    }
+
+    public void testIndexWithFaultyMappingOnDisk() {
+        SecurityIndexManager.State state = new SecurityIndexManager.State(randomBoolean() ? Instant.now() : null, true, randomBoolean(),
+                false, null, "not_important", null, null);
+        Runnable runnable = mock(Runnable.class);
+        manager = new SecurityIndexManager(mock(Client.class), RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+                RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT, () -> {
+                    throw new RuntimeException();
+                }, state);
+        AtomicReference<Exception> exceptionConsumer = new AtomicReference<>();
+        manager.prepareIndexIfNeededThenExecute(e -> exceptionConsumer.set(e), runnable);
+        verify(runnable, never()).run();
+        assertThat(exceptionConsumer.get(), is(notNullValue()));
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {

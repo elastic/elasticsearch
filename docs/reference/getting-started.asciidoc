@@ -714,7 +714,7 @@ As for the response, we see the following parts:
 ** `hits.total.relation` - whether `hits.total.value` is the exact hit count, in which case it is equal to `"eq"` or a
                            lower bound of the total hit count (greater than or equals), in which case it is equal to `gte`.
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `hits.sort` - sort key for results (missing if sorting by score)
+* `hits.sort` - sort value of the sort key for each result (missing if sorting by score)
 * `hits._score` and `max_score` - ignore these fields for now
 
 The accuracy of `hits.total` is controlled by the request parameter `track_total_hits`, when set to true

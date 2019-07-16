@@ -181,7 +181,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
                 throttleTimeInNanos), fileChunkRequestOptions, new ActionListenerResponseHandler<>(
-                    ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
+                    ActionListener.map(listener, r -> null), in -> TransportResponse.Empty.INSTANCE));
     }
 
 }

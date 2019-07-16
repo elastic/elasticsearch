@@ -287,7 +287,7 @@ class NioHttpClient implements Closeable {
             try {
                 adaptor.close();
                 // After closing the pipeline, we must poll to see if any new messages are available. This
-                // is because HTTP supports a channel being closed as an end if content marker.
+                // is because HTTP supports a channel being closed as an end of content marker.
                 Object message;
                 while ((message = adaptor.pollInboundMessage()) != null) {
                     handleResponse(message);

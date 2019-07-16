@@ -25,8 +25,9 @@ import org.hamcrest.Matcher;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -129,7 +130,8 @@ public class FileUtils {
 
     public static String slurpGZ(Path file) {
         ByteArrayOutputStream fileBuffer = new ByteArrayOutputStream();
-        try (GZIPInputStream in = new GZIPInputStream(new FileInputStream(file.toString()))){
+        try (GZIPInputStream in = new GZIPInputStream(Channels.newInputStream(FileChannel.open(file))))
+        {
             byte[] buffer = new byte[1024];
             int len;
 

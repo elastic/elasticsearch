@@ -38,7 +38,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
@@ -228,12 +227,7 @@ public final class TransportFreezeIndexAction extends
         public static final String NAME = "indices:admin/freeze";
 
         private FreezeIndexAction() {
-            super(NAME);
-        }
-
-        @Override
-        public Writeable.Reader<FreezeResponse> getResponseReader() {
-            return FreezeResponse::new;
+            super(NAME, FreezeResponse::new);
         }
     }
 

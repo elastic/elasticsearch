@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.geo;
+package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
-import org.elasticsearch.xpack.core.geo.GeoFeatureSetUsage;
+import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
 import org.junit.Before;
 
@@ -22,7 +22,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class GeoInfoTransportActionTests extends ESTestCase {
+public class SpatialInfoTransportActionTests extends ESTestCase {
 
     private XPackLicenseState licenseState;
 
@@ -32,13 +32,13 @@ public class GeoInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        GeoInfoTransportAction featureSet = new GeoInfoTransportAction(
+        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isGeoAllowed()).thenReturn(available);
+        when(licenseState.isSpatialAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
-        var usageAction = new GeoUsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new SpatialUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, Settings.EMPTY, licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
@@ -47,7 +47,7 @@ public class GeoInfoTransportActionTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new GeoFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureSet.Usage serializedUsage = new SpatialFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.available(), is(available));
     }
 
@@ -56,16 +56,16 @@ public class GeoInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         if (enabled) {
             if (randomBoolean()) {
-                settings.put("xpack.geo.enabled", enabled);
+                settings.put("xpack.spatial.enabled", enabled);
             }
         } else {
-            settings.put("xpack.geo.enabled", enabled);
+            settings.put("xpack.spatial.enabled", enabled);
         }
-        GeoInfoTransportAction featureSet = new GeoInfoTransportAction(
-mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+        SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
+            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
 
-        GeoUsageTransportAction usageAction = new GeoUsageTransportAction(mock(TransportService.class),
+        SpatialUsageTransportAction usageAction = new SpatialUsageTransportAction(mock(TransportService.class),
             null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);

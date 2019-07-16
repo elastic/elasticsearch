@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.geo;
+package org.elasticsearch.xpack.core.spatial;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GeoFeatureSetUsage extends XPackFeatureSet.Usage {
+public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
 
-    public GeoFeatureSetUsage(boolean available, boolean enabled) {
-        super(XPackField.GEO, available, enabled);
+    public SpatialFeatureSetUsage(boolean available, boolean enabled) {
+        super(XPackField.SPATIAL, available, enabled);
     }
 
-    public GeoFeatureSetUsage(StreamInput input) throws IOException {
+    public SpatialFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
     }
 
@@ -42,7 +42,7 @@ public class GeoFeatureSetUsage extends XPackFeatureSet.Usage {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        GeoFeatureSetUsage other = (GeoFeatureSetUsage) obj;
+        SpatialFeatureSetUsage other = (SpatialFeatureSetUsage) obj;
         return Objects.equals(available, other.available) &&
             Objects.equals(enabled, other.enabled);
     }

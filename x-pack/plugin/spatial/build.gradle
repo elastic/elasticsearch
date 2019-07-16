@@ -3,12 +3,12 @@ evaluationDependsOn(xpackModule('core'))
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
-    name 'geo'
-    description 'A plugin for Basic Geo features'
-    classname 'org.elasticsearch.xpack.geo.Geo'
+    name 'spatial'
+    description 'A plugin for Basic Spatial features'
+    classname 'org.elasticsearch.xpack.spatial.Spatial'
     extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-vectors'
+archivesBaseName = 'x-pack-spatial'
 
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')

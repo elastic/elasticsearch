@@ -75,10 +75,6 @@ Example response:
          "available" : true,
          "enabled" : true
       },
-      "geo" : {
-         "available" : true,
-         "enabled" : true
-      },
       "graph" : {
          "available" : true,
          "enabled" : true
@@ -106,6 +102,10 @@ Example response:
       "security" : {
          "available" : true,
          "enabled" : false
+      },
+      "spatial" : {
+         "available" : true,
+         "enabled" : true
       },
       "sql" : {
          "available" : true,

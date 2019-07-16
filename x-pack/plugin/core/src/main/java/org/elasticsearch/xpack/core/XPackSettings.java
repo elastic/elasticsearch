@@ -122,10 +122,9 @@ public class XPackSettings {
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
 
     /**
-     * Setting for enabling or disabling geo features. Defaults to true.
+     * Setting for enabling or disabling spatial features. Defaults to true.
      */
-    public static final Setting<Boolean> GEO_ENABLED = Setting.boolSetting("xpack.geo.enabled", true,
-        Setting.Property.NodeScope);
+    public static final Setting<Boolean> SPATIAL_ENABLED = Setting.boolSetting("xpack.spatial.enabled", true, Setting.Property.NodeScope);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them

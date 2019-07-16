@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.geo;
+package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,18 +21,18 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
-import org.elasticsearch.xpack.core.geo.GeoFeatureSetUsage;
+import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 
-public class GeoUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class SpatialUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final Settings settings;
     private final XPackLicenseState licenseState;
 
     @Inject
-    public GeoUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+    public SpatialUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        Settings settings, XPackLicenseState licenseState) {
-        super(XPackUsageFeatureAction.GEO.name(), transportService, clusterService,
+        super(XPackUsageFeatureAction.SPATIAL.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
         this.settings = settings;
         this.licenseState = licenseState;
@@ -41,8 +41,8 @@ public class GeoUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        GeoFeatureSetUsage usage =
-            new GeoFeatureSetUsage(licenseState.isGeoAllowed(), XPackSettings.GEO_ENABLED.get(settings));
+        SpatialFeatureSetUsage usage =
+            new SpatialFeatureSetUsage(licenseState.isSpatialAllowed(), XPackSettings.SPATIAL_ENABLED.get(settings));
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

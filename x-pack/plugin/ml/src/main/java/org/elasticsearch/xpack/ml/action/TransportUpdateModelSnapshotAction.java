@@ -42,7 +42,7 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
     @Inject
     public TransportUpdateModelSnapshotAction(TransportService transportService, ActionFilters actionFilters,
                                               JobResultsProvider jobResultsProvider, Client client) {
-        super(UpdateModelSnapshotAction.NAME, transportService, UpdateModelSnapshotAction.Request::new, actionFilters);
+        super(UpdateModelSnapshotAction.NAME, transportService, actionFilters, UpdateModelSnapshotAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
     }

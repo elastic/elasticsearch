@@ -46,7 +46,12 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistog
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 

@@ -114,8 +114,11 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         assertThat(getIndexMappingsResponse.getStatusLine().getStatusCode(), equalTo(200));
 
         Map<String, Object> mappings = entityAsMap(getIndexMappingsResponse);
-        mappings =
-            (Map<String, Object>) XContentMapValues.extractValue(mappings, ".ml-config", "mappings", "doc", "properties", "analysis");
+        mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, ".ml-config", "mappings");
+        if (mappings.containsKey("doc")) {
+            mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "doc");
+        }
+        mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "properties", "analysis");
         return mappings;
     }
 

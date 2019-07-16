@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,6 +41,9 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
 
     public static final String ALL = "_all";
     private static final String STATE = "state";
+    private static final String NODE = "node";
+    private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
+    private static final String TIMING_STATS = "timing_stats";
 
     private GetDatafeedsStatsAction() {
         super(NAME);
@@ -186,7 +191,7 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                 builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
                 builder.field(STATE, datafeedState.toString());
                 if (node != null) {
-                    builder.startObject("node");
+                    builder.startObject(NODE);
                     builder.field("id", node.getId());
                     builder.field("name", node.getName());
                     builder.field("ephemeral_id", node.getEphemeralId());
@@ -202,10 +207,13 @@ public class GetDatafeedsStatsAction extends StreamableResponseActionType<GetDat
                     builder.endObject();
                 }
                 if (assignmentExplanation != null) {
-                    builder.field("assignment_explanation", assignmentExplanation);
+                    builder.field(ASSIGNMENT_EXPLANATION, assignmentExplanation);
                 }
                 if (timingStats != null) {
-                    builder.field("timing_stats", timingStats);
+                    builder.field(
+                        TIMING_STATS,
+                        timingStats,
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
                 }
                 builder.endObject();
                 return builder;

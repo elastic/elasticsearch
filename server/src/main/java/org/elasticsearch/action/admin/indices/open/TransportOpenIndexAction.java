@@ -66,11 +66,6 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     }
 
     @Override
-    protected OpenIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected OpenIndexResponse read(StreamInput in) throws IOException {
         return new OpenIndexResponse(in);
     }

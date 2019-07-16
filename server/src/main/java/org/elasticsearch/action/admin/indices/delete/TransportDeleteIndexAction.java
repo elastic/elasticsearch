@@ -73,11 +73,6 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void doExecute(Task task, DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);

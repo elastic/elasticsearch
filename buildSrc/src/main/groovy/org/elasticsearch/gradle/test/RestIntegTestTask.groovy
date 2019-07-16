@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
-import org.elasticsearch.gradle.VersionProperties
+
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
@@ -26,7 +26,6 @@ import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
-import org.gradle.api.specs.Specs
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
@@ -38,7 +37,6 @@ import org.gradle.process.CommandLineArgumentProvider
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.stream.Stream
-
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
@@ -70,8 +68,6 @@ class RestIntegTestTask extends DefaultTask {
         } else {
             project.testClusters {
                 "$name" {
-                    distribution = 'INTEG_TEST'
-                    version = VersionProperties.elasticsearch
                     javaHome = project.file(project.ext.runtimeJavaHome)
                 }
             }

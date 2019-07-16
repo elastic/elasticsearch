@@ -78,11 +78,6 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
         String[] indices;
         if (request.getConcreteIndex() == null) {

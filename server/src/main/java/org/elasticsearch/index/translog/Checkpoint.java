@@ -20,6 +20,9 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
@@ -33,6 +36,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
@@ -176,6 +180,8 @@ final class Checkpoint {
                     assert indexInput.length() == V3_FILE_SIZE : indexInput.length();
                     return Checkpoint.readCheckpointV3(indexInput);
                 }
+            } catch (CorruptIndexException | NoSuchFileException | IndexFormatTooOldException | IndexFormatTooNewException e) {
+                throw new TranslogCorruptedException(path.toString(), e);
             }
         }
     }

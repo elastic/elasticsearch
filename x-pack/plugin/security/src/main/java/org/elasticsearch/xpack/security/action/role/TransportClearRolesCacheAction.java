@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.io.IOException;
 import java.util.List;
 
 public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRolesCacheRequest, ClearRolesCacheResponse,
@@ -44,8 +46,8 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
     }
 
     @Override
-    protected ClearRolesCacheResponse.Node newNodeResponse() {
-        return new ClearRolesCacheResponse.Node();
+    protected ClearRolesCacheResponse.Node newNodeResponse(StreamInput in) throws IOException {
+        return new ClearRolesCacheResponse.Node(in);
     }
 
     @Override

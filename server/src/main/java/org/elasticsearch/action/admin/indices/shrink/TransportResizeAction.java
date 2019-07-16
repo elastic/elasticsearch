@@ -83,11 +83,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     }
 
     @Override
-    protected ResizeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ResizeResponse read(StreamInput in) throws IOException {
         return new ResizeResponse(in);
     }

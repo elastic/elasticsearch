@@ -60,11 +60,6 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(DeleteStoredScriptRequest request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
         scriptService.deleteStoredScript(clusterService, request, listener);

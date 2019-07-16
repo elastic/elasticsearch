@@ -54,12 +54,8 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(Request request, ClusterState state,
+                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
         PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
             listener.onFailure(new ElasticsearchStatusException("Cannot delete data frame [" + request.getId() +

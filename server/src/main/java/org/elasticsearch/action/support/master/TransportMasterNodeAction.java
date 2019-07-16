@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -81,7 +80,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Supplier<Request> request) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, request, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -103,20 +102,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected abstract String executor();
 
-    /**
-     * @deprecated new implementors should override {@link #read(StreamInput)} and use the
-     *             {@link Writeable.Reader} interface.
-     * @return a new response instance. Typically this is used for serialization using the
-     *         {@link Streamable#readFrom(StreamInput)} method.
-     */
-    @Deprecated
-    protected abstract Response newResponse();
-
-    protected Response read(StreamInput in) throws IOException {
-        Response response = newResponse();
-        response.readFrom(in);
-        return response;
-    }
+    protected abstract Response read(StreamInput in) throws IOException;
 
     protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
 

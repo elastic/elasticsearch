@@ -68,7 +68,7 @@ public abstract class TransportBroadcastAction<
                                        TransportService transportService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                        Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(actionName, transportService, actionFilters, request);
+        super(actionName, transportService, request, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

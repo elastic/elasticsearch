@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.tasks.Task;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -130,7 +132,20 @@ public final class ThreadContext implements Closeable, Writeable {
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        threadLocal.set(null);
+        /**
+         * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+         * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * Otherwise when context is stash, it should be empty.
+         */
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+            ThreadContextStruct threadContextStruct =
+                DEFAULT_CONTEXT.putHeaders(MapBuilder.<String, String>newMapBuilder()
+                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
+                    .immutableMap());
+            threadLocal.set(threadContextStruct);
+        } else {
+            threadLocal.set(null);
+        }
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
@@ -403,7 +418,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Returns <code>true</code> if the context is closed, otherwise <code>true</code>
      */
-    boolean isClosed() {
+    public boolean isClosed() {
         return threadLocal.closed.get();
     }
 

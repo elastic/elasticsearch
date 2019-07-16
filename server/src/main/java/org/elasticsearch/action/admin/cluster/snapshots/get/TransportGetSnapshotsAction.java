@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 /**
  * Transport Action for get snapshots operation
  */
-public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
+public class TransportGetSnapshotsAction extends StreamableTransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -94,7 +94,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final RepositoryData repositoryData;
             if (isCurrentSnapshotsOnly(request.snapshots()) == false) {
                 repositoryData = snapshotsService.getRepositoryData(repository);
-                for (SnapshotId snapshotId : repositoryData.getAllSnapshotIds()) {
+                for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
                     allSnapshotIds.put(snapshotId.getName(), snapshotId);
                 }
             } else {

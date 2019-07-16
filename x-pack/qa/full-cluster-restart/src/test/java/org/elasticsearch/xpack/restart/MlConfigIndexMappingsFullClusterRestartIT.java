@@ -70,10 +70,14 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             assertThatMlConfigIndexDoesNotExist();
             // trigger .ml-config index creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
-            // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
-            assertThat(mappingsForDataFrameAnalysis(), is(nullValue()));
+            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
+                // .ml-config has correct mappings from the start
+                assertThat(mappingsForDataFrameAnalysis(), is(equalTo(EXPECTED_DATA_FRAME_ANALYSIS_MAPPINGS)));
+            } else {
+                // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
+                assertThat(mappingsForDataFrameAnalysis(), is(nullValue()));
+            }
         } else {
-            assertThat(mappingsForDataFrameAnalysis(), is(nullValue()));
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);
             // assert that the mappings are updated

@@ -9,7 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 import java.io.IOException;
@@ -21,13 +21,13 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
 
     @Override
     protected GetEnrichPolicyAction.Response doParseInstance(XContentParser parser) throws IOException {
-        EnrichPolicy policy = EnrichPolicy.fromXContent(parser);
+        EnrichPolicyDefinition policy = EnrichPolicyDefinition.fromXContent(parser);
         return new GetEnrichPolicyAction.Response(policy);
     }
 
     @Override
     protected GetEnrichPolicyAction.Response createTestInstance() {
-        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
         return new GetEnrichPolicyAction.Response(policy);
     }
 

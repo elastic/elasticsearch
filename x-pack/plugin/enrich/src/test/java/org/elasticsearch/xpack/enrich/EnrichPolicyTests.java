@@ -16,7 +16,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,24 +26,24 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy> {
+public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicyDefinition> {
 
     @Override
-    protected EnrichPolicy doParseInstance(XContentParser parser) throws IOException {
-        return EnrichPolicy.fromXContent(parser);
+    protected EnrichPolicyDefinition doParseInstance(XContentParser parser) throws IOException {
+        return EnrichPolicyDefinition.fromXContent(parser);
     }
 
     @Override
-    protected EnrichPolicy createTestInstance() {
+    protected EnrichPolicyDefinition createTestInstance() {
         return randomEnrichPolicy(randomFrom(XContentType.values()));
     }
 
     @Override
-    protected EnrichPolicy createXContextTestInstance(XContentType xContentType) {
+    protected EnrichPolicyDefinition createXContextTestInstance(XContentType xContentType) {
         return randomEnrichPolicy(xContentType);
     }
 
-    public static EnrichPolicy randomEnrichPolicy(XContentType xContentType) {
+    public static EnrichPolicyDefinition randomEnrichPolicy(XContentType xContentType) {
         final QueryBuilder queryBuilder;
         if (randomBoolean()) {
             queryBuilder = new MatchAllQueryBuilder();
@@ -55,9 +55,9 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(xContentType, out)) {
             XContentBuilder content = queryBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             content.flush();
-            EnrichPolicy.QuerySource querySource = new EnrichPolicy.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
-            return new EnrichPolicy(
-                randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
+            EnrichPolicyDefinition.QuerySource querySource = new EnrichPolicyDefinition.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
+            return new EnrichPolicyDefinition(
+                randomFrom(EnrichPolicyDefinition.SUPPORTED_POLICY_TYPES),
                 randomBoolean() ? querySource : null,
                 Arrays.asList(generateRandomStringArray(8, 4, false, false)),
                 randomAlphaOfLength(4),
@@ -70,17 +70,17 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
     }
 
     @Override
-    protected Writeable.Reader<EnrichPolicy> instanceReader() {
-        return EnrichPolicy::new;
+    protected Writeable.Reader<EnrichPolicyDefinition> instanceReader() {
+        return EnrichPolicyDefinition::new;
     }
 
     @Override
-    protected void assertEqualInstances(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
+    protected void assertEqualInstances(EnrichPolicyDefinition expectedInstance, EnrichPolicyDefinition newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertEqualPolicies(expectedInstance, newInstance);
     }
 
-    public static void assertEqualPolicies(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
+    public static void assertEqualPolicies(EnrichPolicyDefinition expectedInstance, EnrichPolicyDefinition newInstance) {
         assertThat(newInstance.getType(), equalTo(expectedInstance.getType()));
         if (newInstance.getQuery() != null) {
             // testFromXContent, always shuffles the xcontent and then byte wise the query is different, so we check the parsed version:

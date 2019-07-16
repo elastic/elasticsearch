@@ -9,7 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -22,17 +22,17 @@ import static org.hamcrest.Matchers.nullValue;
 public class EnrichStoreTests extends ESSingleNodeTestCase {
 
     public void testCrud() throws Exception {
-        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String name = "my-policy";
 
         AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
         assertThat(error.get(), nullValue());
 
-        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        EnrichPolicyDefinition result = EnrichStore.getPolicy(name, clusterService.state());
         assertThat(result, equalTo(policy));
 
-        Map<String, EnrichPolicy> listPolicies = EnrichStore.getPolicies(clusterService.state());
+        Map<String, EnrichPolicyDefinition> listPolicies = EnrichStore.getPolicies(clusterService.state());
         assertThat(listPolicies.size(), equalTo(1));
         assertThat(listPolicies.get(name), equalTo(policy));
 
@@ -42,7 +42,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
     }
 
     public void testImmutability() throws Exception {
-        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String name = "my-policy";
 
@@ -53,12 +53,12 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         assertTrue(error.get().getMessage().contains("policy [my-policy] already exists"));;
 
         deleteEnrichPolicy(name, clusterService);
-        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        EnrichPolicyDefinition result = EnrichStore.getPolicy(name, clusterService.state());
         assertThat(result, nullValue());
     }
 
     public void testPutValidation() throws Exception {
-        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         {
@@ -105,17 +105,17 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
 
         assertThat(error.getMessage(), equalTo("name is missing or empty"));
 
-        EnrichPolicy policy = EnrichStore.getPolicy("null-policy", clusterService.state());
+        EnrichPolicyDefinition policy = EnrichStore.getPolicy("null-policy", clusterService.state());
         assertNull(policy);
     }
 
     public void testListValidation()  {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
+        Map<String, EnrichPolicyDefinition> policies = EnrichStore.getPolicies(clusterService.state());
         assertTrue(policies.isEmpty());
     }
 
-    private AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy,
+    private AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicyDefinition policy,
                                                         ClusterService clusterService) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();

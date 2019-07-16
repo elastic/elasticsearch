@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 public class EnrichPolicyExecutor {
 
@@ -77,14 +77,14 @@ public class EnrichPolicyExecutor {
         }
     }
 
-    protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+    protected Runnable createPolicyRunner(String policyName, EnrichPolicyDefinition policy, ActionListener<PolicyExecutionResult> listener) {
         return new EnrichPolicyRunner(policyName, policy, listener, clusterService, client, indexNameExpressionResolver, nowSupplier,
             fetchSize);
     }
 
     public void runPolicy(String policyId, ActionListener<PolicyExecutionResult> listener) {
         // Look up policy in policy store and execute it
-        EnrichPolicy policy = EnrichStore.getPolicy(policyId, clusterService.state());
+        EnrichPolicyDefinition policy = EnrichStore.getPolicy(policyId, clusterService.state());
         if (policy == null) {
             throw new IllegalArgumentException("Policy execution failed. Could not locate policy with id [" + policyId + "]");
         } else {
@@ -92,7 +92,7 @@ public class EnrichPolicyExecutor {
         }
     }
 
-    public void runPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+    public void runPolicy(String policyName, EnrichPolicyDefinition policy, ActionListener<PolicyExecutionResult> listener) {
         tryLockingPolicy(policyName);
         try {
             Runnable runnable = createPolicyRunner(policyName, policy, new PolicyUnlockingListener(policyName, listener));

@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,17 +47,17 @@ public class ListEnrichPolicyAction extends ActionType<ListEnrichPolicyAction.Re
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final List<EnrichPolicy.NamedPolicy> policies;
+        private final List<EnrichPolicyDefinition.NamedPolicy> policies;
 
-        public Response(Map<String, EnrichPolicy> policies) {
+        public Response(Map<String, EnrichPolicyDefinition> policies) {
             Objects.requireNonNull(policies, "policies cannot be null");
             // use a treemap to guarantee ordering in the set, then transform it to the list of named policies
             this.policies = new TreeMap<>(policies).entrySet().stream()
-                .map(entry -> new EnrichPolicy.NamedPolicy(entry.getKey(), entry.getValue())).collect(Collectors.toList());
+                .map(entry -> new EnrichPolicyDefinition.NamedPolicy(entry.getKey(), entry.getValue())).collect(Collectors.toList());
         }
 
         public Response(StreamInput in) throws IOException {
-            policies = in.readList(EnrichPolicy.NamedPolicy::new);
+            policies = in.readList(EnrichPolicyDefinition.NamedPolicy::new);
         }
 
         @Override
@@ -71,7 +71,7 @@ public class ListEnrichPolicyAction extends ActionType<ListEnrichPolicyAction.Re
             {
                 builder.startArray("policies");
                 {
-                    for (EnrichPolicy.NamedPolicy policy: policies) {
+                    for (EnrichPolicyDefinition.NamedPolicy policy: policies) {
                         policy.toXContent(builder, params);
                     }
                 }
@@ -82,7 +82,7 @@ public class ListEnrichPolicyAction extends ActionType<ListEnrichPolicyAction.Re
             return builder;
         }
 
-        public List<EnrichPolicy.NamedPolicy> getPolicies() {
+        public List<EnrichPolicyDefinition.NamedPolicy> getPolicies() {
             return policies;
         }
 

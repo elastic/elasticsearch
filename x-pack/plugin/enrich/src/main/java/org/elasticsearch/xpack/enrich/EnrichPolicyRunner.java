@@ -49,7 +49,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import static org.elasticsearch.xpack.enrich.ExactMatchProcessor.ENRICH_KEY_FIELD_NAME;
 
@@ -58,7 +58,7 @@ public class EnrichPolicyRunner implements Runnable {
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
     private final String policyName;
-    private final EnrichPolicy policy;
+    private final EnrichPolicyDefinition policy;
     private final ActionListener<PolicyExecutionResult> listener;
     private final ClusterService clusterService;
     private final Client client;
@@ -66,7 +66,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final LongSupplier nowSupplier;
     private final int fetchSize;
 
-    EnrichPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener,
+    EnrichPolicyRunner(String policyName, EnrichPolicyDefinition policy, ActionListener<PolicyExecutionResult> listener,
                        ClusterService clusterService, Client client, IndexNameExpressionResolver indexNameExpressionResolver,
                        LongSupplier nowSupplier, int fetchSize) {
         this.policyName = policyName;
@@ -189,10 +189,10 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
-        // Currently the only supported policy type is EnrichPolicy.EXACT_MATCH_TYPE, which is a keyword type
+    private XContentBuilder resolveEnrichMapping(final EnrichPolicyDefinition policy) {
+        // Currently the only supported policy type is EnrichPolicyDefinition.EXACT_MATCH_TYPE, which is a keyword type
         String keyType;
-        if (EnrichPolicy.EXACT_MATCH_TYPE.equals(policy.getType())) {
+        if (EnrichPolicyDefinition.EXACT_MATCH_TYPE.equals(policy.getType())) {
             keyType = "keyword";
         } else {
             throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
@@ -227,7 +227,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
+        String enrichIndexName = EnrichPolicyDefinition.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .build();
@@ -352,7 +352,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void updateEnrichPolicyAlias(final String destinationIndexName) {
-        String enrichIndexBase = EnrichPolicy.getBaseName(policyName);
+        String enrichIndexBase = EnrichPolicyDefinition.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterService.state(), aliasRequest);

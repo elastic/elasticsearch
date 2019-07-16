@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -83,14 +83,14 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         }
 
         private CountDownLatch currentLatch;
-        CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+        CountDownLatch testRunPolicy(String policyName, EnrichPolicyDefinition policy, ActionListener<PolicyExecutionResult> listener) {
             currentLatch = new CountDownLatch(1);
             runPolicy(policyName, policy, listener);
             return currentLatch;
         }
 
         @Override
-        protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+        protected Runnable createPolicyRunner(String policyName, EnrichPolicyDefinition policy, ActionListener<PolicyExecutionResult> listener) {
             if (currentLatch == null) {
                 throw new IllegalStateException("Use the testRunPolicy method on this test instance");
             }
@@ -100,7 +100,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     public void testNonConcurrentPolicyExecution() throws InterruptedException {
         String testPolicyName = "test_policy";
-        EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("some_index"), "keyfield",
+        EnrichPolicyDefinition testPolicy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("some_index"), "keyfield",
             List.of("valuefield"));
         final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(Settings.EMPTY, null, null, testThreadPool,
             new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);

@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * Represents an enrich policy including its configuration.
  */
-public final class EnrichPolicy implements Writeable, ToXContentFragment {
+public final class EnrichPolicyDefinition implements Writeable, ToXContentFragment {
 
     private static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
 
@@ -41,8 +41,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
-        args -> new EnrichPolicy(
+    private static final ConstructingObjectParser<EnrichPolicyDefinition, Void> PARSER = new ConstructingObjectParser<>("policy",
+        args -> new EnrichPolicyDefinition(
             (String) args[0],
             (QuerySource) args[1],
             (List<String>) args[2],
@@ -67,7 +67,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
     }
 
-    public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
+    public static EnrichPolicyDefinition fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -77,7 +77,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final String enrichKey;
     private final List<String> enrichValues;
 
-    public EnrichPolicy(StreamInput in) throws IOException {
+    public EnrichPolicyDefinition(StreamInput in) throws IOException {
         this(
             in.readString(),
             in.readOptionalWriteable(QuerySource::new),
@@ -87,11 +87,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         );
     }
 
-    public EnrichPolicy(String type,
-                        QuerySource query,
-                        List<String> indices,
-                        String enrichKey,
-                        List<String> enrichValues) {
+    public EnrichPolicyDefinition(String type,
+                                  QuerySource query,
+                                  List<String> indices,
+                                  String enrichKey,
+                                  List<String> enrichValues) {
         this.type = type;
         this.query= query;
         this.indices = indices;
@@ -148,7 +148,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        EnrichPolicy policy = (EnrichPolicy) o;
+        EnrichPolicyDefinition policy = (EnrichPolicyDefinition) o;
         return type.equals(policy.type) &&
             Objects.equals(query, policy.query) &&
             indices.equals(policy.indices) &&
@@ -225,7 +225,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         static final ConstructingObjectParser<NamedPolicy, Void> PARSER = new ConstructingObjectParser<>("named_policy",
             args -> new NamedPolicy(
                 (String) args[0],
-                new EnrichPolicy((String) args[1],
+                new EnrichPolicyDefinition((String) args[1],
                     (QuerySource) args[2],
                     (List<String>) args[3],
                     (String) args[4],
@@ -239,23 +239,23 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         }
 
         private final String name;
-        private final EnrichPolicy policy;
+        private final EnrichPolicyDefinition policy;
 
-        public NamedPolicy(String name, EnrichPolicy policy) {
+        public NamedPolicy(String name, EnrichPolicyDefinition policy) {
             this.name = name;
             this.policy = policy;
         }
 
         public NamedPolicy(StreamInput in) throws IOException {
             name = in.readString();
-            policy = new EnrichPolicy(in);
+            policy = new EnrichPolicyDefinition(in);
         }
 
         public String getName() {
             return name;
         }
 
-        public EnrichPolicy getPolicy() {
+        public EnrichPolicyDefinition getPolicy() {
             return policy;
         }
 

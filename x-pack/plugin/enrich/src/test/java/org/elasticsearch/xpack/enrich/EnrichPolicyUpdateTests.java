@@ -13,7 +13,7 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
 import java.util.Collection;
@@ -35,8 +35,8 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         EnrichProcessorFactory enrichProcessorFactory =
             (EnrichProcessorFactory) ingestService.getProcessorFactories().get(EnrichProcessorFactory.TYPE);
 
-        EnrichPolicy instance1 =
-            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("index"), "key1", List.of("field1"));
+        EnrichPolicyDefinition instance1 =
+            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("index"), "key1", List.of("field1"));
         PutEnrichPolicyAction.Request putPolicyRequest = new PutEnrichPolicyAction.Request("my_policy", instance1);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
         assertThat(enrichProcessorFactory.policies.get("my_policy"), equalTo(instance1));
@@ -47,8 +47,8 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         Pipeline pipelineInstance1 = ingestService.getPipeline("1");
         assertThat(pipelineInstance1.getProcessors().get(0), instanceOf(ExactMatchProcessor.class));
 
-        EnrichPolicy instance2 =
-            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("index"), "key2", List.of("field2"));
+        EnrichPolicyDefinition instance2 =
+            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("index"), "key2", List.of("field2"));
         ResourceAlreadyExistsException exc = expectThrows(ResourceAlreadyExistsException.class, () ->
             client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2)).actionGet());
         assertTrue(exc.getMessage().contains("policy [my_policy] already exists"));

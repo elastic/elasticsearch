@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,18 +37,18 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "enrich_metadata",
-        args -> new EnrichMetadata((Map<String, EnrichPolicy>) args[0])
+        args -> new EnrichMetadata((Map<String, EnrichPolicyDefinition>) args[0])
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, EnrichPolicy> patterns = new HashMap<>();
+            Map<String, EnrichPolicyDefinition> patterns = new HashMap<>();
             String fieldName = null;
             for (XContentParser.Token token = p.nextToken(); token != XContentParser.Token.END_OBJECT; token = p.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = p.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    patterns.put(fieldName, EnrichPolicy.fromXContent(p));
+                    patterns.put(fieldName, EnrichPolicyDefinition.fromXContent(p));
                 } else {
                     throw new ElasticsearchParseException("unexpected token [" + token + "]");
                 }
@@ -61,17 +61,17 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
         return PARSER.parse(parser, null);
     }
 
-    private final Map<String, EnrichPolicy> policies;
+    private final Map<String, EnrichPolicyDefinition> policies;
 
     public EnrichMetadata(StreamInput in) throws IOException {
-        this(in.readMap(StreamInput::readString, EnrichPolicy::new));
+        this(in.readMap(StreamInput::readString, EnrichPolicyDefinition::new));
     }
 
-    public EnrichMetadata(Map<String, EnrichPolicy> policies) {
+    public EnrichMetadata(Map<String, EnrichPolicyDefinition> policies) {
         this.policies = Collections.unmodifiableMap(policies);
     }
 
-    public Map<String, EnrichPolicy> getPolicies() {
+    public Map<String, EnrichPolicyDefinition> getPolicies() {
         return policies;
     }
 
@@ -99,7 +99,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(POLICIES.getPreferredName());
-        for (Map.Entry<String, EnrichPolicy> entry : policies.entrySet()) {
+        for (Map.Entry<String, EnrichPolicyDefinition> entry : policies.entrySet()) {
             builder.startObject(entry.getKey());
             builder.value(entry.getValue());
             builder.endObject();

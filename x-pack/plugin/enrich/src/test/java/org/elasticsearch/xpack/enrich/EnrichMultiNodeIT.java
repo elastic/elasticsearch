@@ -22,7 +22,7 @@ import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
@@ -61,16 +61,16 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            EnrichPolicy enrichPolicy =
-                new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
+            EnrichPolicyDefinition enrichPolicy =
+                new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
-            EnrichPolicy result =
+            EnrichPolicyDefinition result =
                 client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request(policyName)).actionGet().getPolicy();
             assertThat(result, equalTo(enrichPolicy));
-            String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
+            String enrichIndexPrefix = EnrichPolicyDefinition.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);
             SearchResponse searchResponse = client().search(new SearchRequest(enrichIndexPrefix)).actionGet();
             assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
@@ -156,8 +156,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createAndExecutePolicy() {
-        EnrichPolicy enrichPolicy =
-            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
+        EnrichPolicyDefinition enrichPolicy =
+            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(POLICY_NAME)).actionGet();

@@ -9,7 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
     static final String TYPE = "enrich";
     private final Client client;
-    volatile Map<String, EnrichPolicy> policies = Map.of();
+    volatile Map<String, EnrichPolicyDefinition> policies = Map.of();
 
     EnrichProcessorFactory(Client client) {
         this.client = client;
@@ -29,7 +29,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     @Override
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
-        EnrichPolicy policy = policies.get(policyName);
+        EnrichPolicyDefinition policy = policies.get(policyName);
         if (policy == null) {
             throw new IllegalArgumentException("policy [" + policyName + "] does not exists");
         }
@@ -52,7 +52,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         }
 
         switch (policy.getType()) {
-            case EnrichPolicy.EXACT_MATCH_TYPE:
+            case EnrichPolicyDefinition.EXACT_MATCH_TYPE:
                 return new ExactMatchProcessor(tag, client, policyName, enrichKey, ignoreMissing, specifications);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");

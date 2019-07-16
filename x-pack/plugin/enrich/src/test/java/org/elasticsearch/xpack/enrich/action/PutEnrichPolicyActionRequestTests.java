@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
@@ -17,7 +17,7 @@ public class PutEnrichPolicyActionRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected PutEnrichPolicyAction.Request createTestInstance() {
-        final EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        final EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
         return new PutEnrichPolicyAction.Request(randomAlphaOfLength(3), policy);
     }
 

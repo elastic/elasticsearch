@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,15 +27,15 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
     }
 
     public static Request fromXContent(XContentParser parser, String name) throws IOException {
-        return new Request(name, EnrichPolicy.fromXContent(parser));
+        return new Request(name, EnrichPolicyDefinition.fromXContent(parser));
     }
 
     public static class Request extends MasterNodeRequest<PutEnrichPolicyAction.Request> {
 
-        private final EnrichPolicy policy;
+        private final EnrichPolicyDefinition policy;
         private final String name;
 
-        public Request(String name, EnrichPolicy policy) {
+        public Request(String name, EnrichPolicyDefinition policy) {
             this.name = Objects.requireNonNull(name, "name cannot be null");
             this.policy = policy;
         }
@@ -43,7 +43,7 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readString();
-            policy = new EnrichPolicy(in);
+            policy = new EnrichPolicyDefinition(in);
         }
 
         @Override
@@ -57,7 +57,7 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
             return name;
         }
 
-        public EnrichPolicy getPolicy() {
+        public EnrichPolicyDefinition getPolicy() {
             return policy;
         }
 

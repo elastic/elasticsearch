@@ -16,7 +16,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification;
 import org.elasticsearch.xpack.enrich.action.CoordinatorProxyAction;
 
@@ -84,7 +84,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
             searchBuilder.query(constantScore);
 
             SearchRequest req = new SearchRequest();
-            req.indices(EnrichPolicy.getBaseName(policyName));
+            req.indices(EnrichPolicyDefinition.getBaseName(policyName));
             req.preference(Preference.LOCAL.type());
             req.source(searchBuilder);
 

@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,7 +34,7 @@ public final class EnrichStore {
      * @param policy    The policy to store
      * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
      */
-    public static void putPolicy(String name, EnrichPolicy policy, ClusterService clusterService, Consumer<Exception> handler) {
+    public static void putPolicy(String name, EnrichPolicyDefinition policy, ClusterService clusterService, Consumer<Exception> handler) {
         assert clusterService.localNode().isMasterNode();
 
         if (Strings.isNullOrEmpty(name)) {
@@ -46,7 +46,7 @@ public final class EnrichStore {
         // TODO: add policy validation
 
         updateClusterState(clusterService, handler, current -> {
-            final Map<String, EnrichPolicy> policies = getPolicies(current);
+            final Map<String, EnrichPolicyDefinition> policies = getPolicies(current);
             if (policies.get(name) != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }
@@ -70,7 +70,7 @@ public final class EnrichStore {
         }
 
         updateClusterState(clusterService, handler, current -> {
-            final Map<String, EnrichPolicy> policies = getPolicies(current);
+            final Map<String, EnrichPolicyDefinition> policies = getPolicies(current);
             if (policies.containsKey(name) == false) {
                 throw new ResourceNotFoundException("policy [{}] not found", name);
             }
@@ -86,7 +86,7 @@ public final class EnrichStore {
      * @param name  The name of the policy to fetch
      * @return enrich policy if exists or <code>null</code> otherwise
      */
-    public static EnrichPolicy getPolicy(String name, ClusterState state) {
+    public static EnrichPolicyDefinition getPolicy(String name, ClusterState state) {
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
@@ -98,10 +98,10 @@ public final class EnrichStore {
      * Gets all policies in the cluster.
      *
      * @param state the cluster state
-     * @return a Map of <code>policyName, EnrichPolicy</code> of the policies
+     * @return a Map of <code>policyName, EnrichPolicyDefinition</code> of the policies
      */
-    public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
-        final Map<String, EnrichPolicy> policies;
+    public static Map<String, EnrichPolicyDefinition> getPolicies(ClusterState state) {
+        final Map<String, EnrichPolicyDefinition> policies;
         final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
             // Make a copy, because policies map inside custom metadata is read only:
@@ -114,12 +114,12 @@ public final class EnrichStore {
 
     private static void updateClusterState(ClusterService clusterService,
                                            Consumer<Exception> handler,
-                                           Function<ClusterState, Map<String, EnrichPolicy>> function) {
+                                           Function<ClusterState, Map<String, EnrichPolicyDefinition>> function) {
         clusterService.submitStateUpdateTask("update-enrich-metadata", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                Map<String, EnrichPolicy> policies = function.apply(currentState);
+                Map<String, EnrichPolicyDefinition> policies = function.apply(currentState);
                 MetaData metaData = MetaData.builder(currentState.metaData())
                     .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
                     .build();

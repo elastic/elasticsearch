@@ -9,7 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,9 +37,9 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
 
     private static EnrichMetadata randomEnrichMetadata(XContentType xContentType) {
         int numPolicies = randomIntBetween(8, 64);
-        Map<String, EnrichPolicy> policies = new HashMap<>(numPolicies);
+        Map<String, EnrichPolicyDefinition> policies = new HashMap<>(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
-            EnrichPolicy policy = randomEnrichPolicy(xContentType);
+            EnrichPolicyDefinition policy = randomEnrichPolicy(xContentType);
             policies.put(randomAlphaOfLength(8), policy);
         }
         return new EnrichMetadata(policies);
@@ -54,9 +54,9 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
     protected void assertEqualInstances(EnrichMetadata expectedInstance, EnrichMetadata newInstance) {
         assertNotSame(expectedInstance, newInstance);
         assertThat(newInstance.getPolicies().size(), equalTo(expectedInstance.getPolicies().size()));
-        for (Map.Entry<String, EnrichPolicy> entry : newInstance.getPolicies().entrySet()) {
-            EnrichPolicy actual = entry.getValue();
-            EnrichPolicy expected = expectedInstance.getPolicies().get(entry.getKey());
+        for (Map.Entry<String, EnrichPolicyDefinition> entry : newInstance.getPolicies().entrySet()) {
+            EnrichPolicyDefinition actual = entry.getValue();
+            EnrichPolicyDefinition expected = expectedInstance.getPolicies().get(entry.getKey());
             EnrichPolicyTests.assertEqualPolicies(expected, actual);
         }
     }

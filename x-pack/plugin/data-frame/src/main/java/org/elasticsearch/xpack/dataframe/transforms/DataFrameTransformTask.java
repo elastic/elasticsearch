@@ -764,7 +764,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         }
                     }, e -> {
                         changed.set(false);
-                        logger.error("failure in update check", e);
+                        logger.warn(
+                                "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check",
+                                e);
+
+                        auditor.warning(transformId,
+                                "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                                        + e.getMessage());
                     }), latch));
 
             try {
@@ -773,7 +779,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     return changed.get();
                 }
             } catch (InterruptedException e) {
-                logger.error("Failed to check for update", e);
+                logger.warn("Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check", e);
+
+                auditor.warning(transformId,
+                        "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                                + e.getMessage());
             }
 
             return false;

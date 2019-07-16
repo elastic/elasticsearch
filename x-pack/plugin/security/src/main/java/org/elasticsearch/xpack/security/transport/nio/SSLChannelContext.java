@@ -56,6 +56,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     @Override
     protected void channelActive() throws IOException {
+        super.channelActive();
         sslDriver.init();
         SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
         if (outboundBuffer.hasEncryptedBytesToFlush()) {

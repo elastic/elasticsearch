@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import com.google.common.util.concurrent.Service.State;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;

@@ -188,7 +188,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public final void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 

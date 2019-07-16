@@ -32,13 +32,11 @@ public class MonitoringBulkRequest extends ActionRequest {
 
     private final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
-    public MonitoringBulkRequest() {
-        super();
-    }
+    public MonitoringBulkRequest() {}
 
     public MonitoringBulkRequest(StreamInput in) throws IOException {
         super(in);
-        docs.addAll(in.readList(MonitoringBulkDoc::readFrom));
+        docs.addAll(in.readList(MonitoringBulkDoc::new));
     }
 
     /**

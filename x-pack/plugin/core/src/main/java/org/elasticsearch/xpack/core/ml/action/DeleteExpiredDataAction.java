@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,18 +20,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteExpiredDataAction extends StreamableResponseActionType<DeleteExpiredDataAction.Response> {
+public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.Response> {
 
     public static final DeleteExpiredDataAction INSTANCE = new DeleteExpiredDataAction();
     public static final String NAME = "cluster:admin/xpack/ml/delete_expired_data";
 
     private DeleteExpiredDataAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -61,12 +56,14 @@ public class DeleteExpiredDataAction extends StreamableResponseActionType<Delete
             this.deleted = deleted;
         }
 
-        public Response() {}
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            deleted = in.readBoolean();
+        }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            deleted = in.readBoolean();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

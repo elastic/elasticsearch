@@ -22,7 +22,9 @@ public class PutRoleMappingResponse extends ActionResponse implements ToXContent
 
     private boolean created;
 
-    public PutRoleMappingResponse() {
+    public PutRoleMappingResponse(StreamInput in) throws IOException {
+        super(in);
+        this.created = in.readBoolean();
     }
 
     public PutRoleMappingResponse(boolean created) {
@@ -46,7 +48,6 @@ public class PutRoleMappingResponse extends ActionResponse implements ToXContent
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.created = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

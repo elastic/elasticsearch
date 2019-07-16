@@ -18,35 +18,20 @@
  */
 package org.elasticsearch.client.ml;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction.Response;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
-public class MlInfoActionResponseTests extends
-    AbstractHlrcStreamableXContentTestCase<Response, MlInfoResponse> {
+import static org.hamcrest.Matchers.equalTo;
 
-    @Override
-    public MlInfoResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return MlInfoResponse.fromXContent(parser);
-    }
+public class MlInfoActionResponseTests extends AbstractResponseTestCase<Response, MlInfoResponse> {
 
     @Override
-    public Response convertHlrcToInternal(MlInfoResponse instance) {
-        return new Response(instance.getInfo());
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return p -> true;
-    }
-
-    @Override
-    protected Response createTestInstance() {
+    protected Response createServerTestInstance() {
         int size = randomInt(10);
         Map<String, Object> info = new HashMap<>();
         for (int j = 0; j < size; j++) {
@@ -56,7 +41,12 @@ public class MlInfoActionResponseTests extends
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected MlInfoResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return MlInfoResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected void assertInstances(Response serverTestInstance, MlInfoResponse clientInstance) {
+        assertThat(serverTestInstance.getInfo(), equalTo(clientInstance.getInfo()));
     }
 }

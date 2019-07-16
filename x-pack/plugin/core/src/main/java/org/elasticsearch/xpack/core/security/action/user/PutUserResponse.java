@@ -22,7 +22,9 @@ public class PutUserResponse extends ActionResponse implements ToXContentObject 
 
     private boolean created;
 
-    public PutUserResponse() {
+    public PutUserResponse(StreamInput in) throws IOException {
+        super(in);
+        this.created = in.readBoolean();
     }
 
     public PutUserResponse(boolean created) {
@@ -40,8 +42,7 @@ public class PutUserResponse extends ActionResponse implements ToXContentObject 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.created = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

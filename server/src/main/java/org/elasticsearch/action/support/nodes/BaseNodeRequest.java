@@ -31,12 +31,16 @@ public abstract class BaseNodeRequest extends TransportRequest {
 
     public BaseNodeRequest() {}
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public BaseNodeRequest(StreamInput in) throws IOException {
+        super(in);
         if (in.getVersion().before(Version.V_7_3_0)) {
             in.readString(); // previously nodeId
         }
+    }
+
+    @Override
+    public final void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

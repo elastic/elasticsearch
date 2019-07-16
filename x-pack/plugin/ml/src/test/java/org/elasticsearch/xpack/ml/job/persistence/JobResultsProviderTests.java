@@ -55,10 +55,12 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -845,7 +847,11 @@ public class JobResultsProviderTests extends ESTestCase {
                     TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1.0,
                     TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 1000.0,
                     TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0,
-                    TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 777.0));
+                    TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 777.0,
+                    TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
+                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 100.0,
+                        ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(1000_000_000),
+                        ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 200.0)));
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(
             queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
@@ -853,9 +859,11 @@ public class JobResultsProviderTests extends ESTestCase {
 
         when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
         JobResultsProvider provider = createProvider(client);
+        ExponentialAverageCalculationContext context =
+            new ExponentialAverageCalculationContext(100.0, Instant.ofEpochMilli(1000_000_000), 200.0);
         provider.timingStats(
             "foo",
-            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0, 777.0))),
+            stats -> assertThat(stats, equalTo(new TimingStats("foo", 7, 1.0, 1000.0, 666.0, 777.0, context))),
             e -> { throw new AssertionError(); });
 
         verify(client).prepareSearch(indexName);
@@ -904,14 +912,22 @@ public class JobResultsProviderTests extends ESTestCase {
                     Job.ID.getPreferredName(), "foo",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
                     DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 66,
-                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
+                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0,
+                    DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
+                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 600.0,
+                        ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600),
+                        ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0)));
         List<Map<String, Object>> sourceBar =
             Arrays.asList(
                 Map.of(
                     Job.ID.getPreferredName(), "bar",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7,
                     DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 77,
-                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0));
+                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0,
+                    DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
+                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 700.0,
+                        ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000700),
+                        ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 70.0)));
         SearchResponse responseFoo = createSearchResponse(sourceFoo);
         SearchResponse responseBar = createSearchResponse(sourceBar);
         MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
@@ -940,6 +956,10 @@ public class JobResultsProviderTests extends ESTestCase {
                 new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar")));
 
         JobResultsProvider provider = createProvider(client);
+        ExponentialAverageCalculationContext contextFoo =
+            new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(100000600), 60.0);
+        ExponentialAverageCalculationContext contextBar =
+            new ExponentialAverageCalculationContext(700.0, Instant.ofEpochMilli(100000700), 70.0);
         provider.datafeedTimingStats(
             List.of("foo", "bar"),
             statsByJobId ->
@@ -947,8 +967,8 @@ public class JobResultsProviderTests extends ESTestCase {
                     statsByJobId,
                     equalTo(
                         Map.of(
-                            "foo", new DatafeedTimingStats("foo", 6, 66, 666.0),
-                            "bar", new DatafeedTimingStats("bar", 7, 77, 777.0)))),
+                            "foo", new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo),
+                            "bar", new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)))),
             e -> { throw new AssertionError(); });
 
         verify(client).threadPool();
@@ -967,7 +987,11 @@ public class JobResultsProviderTests extends ESTestCase {
                     Job.ID.getPreferredName(), "foo",
                     DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 6,
                     DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 66,
-                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0));
+                    DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0,
+                    DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
+                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 600.0,
+                        ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600),
+                        ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0)));
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(
             queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")),
@@ -975,9 +999,11 @@ public class JobResultsProviderTests extends ESTestCase {
 
         when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
         JobResultsProvider provider = createProvider(client);
+        ExponentialAverageCalculationContext contextFoo =
+            new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(100000600), 60.0);
         provider.datafeedTimingStats(
             "foo",
-            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0))),
+            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo))),
             e -> { throw new AssertionError(); });
 
         verify(client).prepareSearch(indexName);

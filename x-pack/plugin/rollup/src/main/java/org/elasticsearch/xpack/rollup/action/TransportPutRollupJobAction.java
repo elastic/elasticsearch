@@ -72,7 +72,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                                        ClusterService clusterService, XPackLicenseState licenseState,
                                        PersistentTasksService persistentTasksService, Client client) {
         super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutRollupJobAction.Request::new, indexNameExpressionResolverw);
+            PutRollupJobAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;

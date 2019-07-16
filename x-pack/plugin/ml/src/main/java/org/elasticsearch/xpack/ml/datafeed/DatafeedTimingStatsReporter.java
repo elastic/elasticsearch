@@ -77,8 +77,18 @@ public class DatafeedTimingStatsReporter {
      * Returns true if given stats objects differ from each other by more than 10% for at least one of the statistics.
      */
     public static boolean differSignificantly(DatafeedTimingStats stats1, DatafeedTimingStats stats2) {
-        return differSignificantly(stats1.getTotalSearchTimeMs(), stats2.getTotalSearchTimeMs())
+        return countsDifferSignificantly(stats1.getSearchCount(), stats2.getSearchCount())
+            || differSignificantly(stats1.getTotalSearchTimeMs(), stats2.getTotalSearchTimeMs())
             || differSignificantly(stats1.getAvgSearchTimePerBucketMs(), stats2.getAvgSearchTimePerBucketMs());
+    }
+
+    /**
+     * Returns {@code true} if one of the ratios { value1 / value2, value2 / value1 } is smaller than MIN_VALID_RATIO.
+     * This can be interpreted as values { value1, value2 } differing significantly from each other.
+     */
+    private static boolean countsDifferSignificantly(long value1, long value2) {
+        return (((double) value2) / value1 < MIN_VALID_RATIO)
+            || (((double) value1) / value2 < MIN_VALID_RATIO);
     }
 
     /**

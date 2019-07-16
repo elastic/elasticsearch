@@ -333,7 +333,7 @@ public class SSLChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realChannel);
             TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
             context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
-            context.setSelectionKey(new TestSelectionKey());
+            context.setSelectionKey(mock(SelectionKey.class));
             context.closeChannel();
             ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
             verify(selector).queueWrite(captor.capture());

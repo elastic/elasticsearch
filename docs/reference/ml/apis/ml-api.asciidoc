@@ -49,22 +49,10 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-update-datafeed,Update {dfeed}>>
 
 [discrete]
-[[ml-api-dfanalytics-endpoint]]
-=== {dfanalytics-cap} APIs
-
-* <<put-dfanalytics,Create>> or 
-<<delete-dfanalytics,delete {dfanalytics-jobs}>>
-* <<get-dfanalytics,Get {dfanalytics-jobs} info>> or
-<<get-dfanalytics-stats,statistics>>
-* <<start-dfanalytics,Start>> or <<stop-dfanalytics,stop {dfanalytics-jobs}>>
-* <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
-
-
-[discrete]
 [[ml-api-job-endpoint]]
 === Jobs
 
-See <<ml-api-anomaly-job-endpoint>> and <<ml-api-dfanalytics-endpoint>>.
+See <<ml-api-anomaly-job-endpoint>>.
 
 [discrete]
 [[ml-api-snapshot-endpoint]]
@@ -120,7 +108,6 @@ include::put-job.asciidoc[]
 include::put-calendar.asciidoc[]
 include::put-datafeed.asciidoc[]
 include::put-filter.asciidoc[]
-include::put-dfanalytics.asciidoc[]
 //DELETE
 include::delete-calendar.asciidoc[]
 include::delete-datafeed.asciidoc[]
@@ -131,9 +118,6 @@ include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
 include::delete-expired-data.asciidoc[]
-include::delete-dfanalytics.asciidoc[]
-//EVALUATE
-include::evaluate-dfanalytics.asciidoc[]
 //FIND
 include::find-file-structure.asciidoc[]
 //FLUSH
@@ -144,8 +128,6 @@ include::forecast.asciidoc[]
 include::get-bucket.asciidoc[]
 include::get-calendar.asciidoc[]
 include::get-category.asciidoc[]
-include::get-dfanalytics.asciidoc[]
-include::get-dfanalytics-stats.asciidoc[]
 include::get-datafeed.asciidoc[]
 include::get-datafeed-stats.asciidoc[]
 include::get-influencer.asciidoc[]
@@ -168,9 +150,7 @@ include::revert-snapshot.asciidoc[]
 //SET/START/STOP
 include::set-upgrade-mode.asciidoc[]
 include::start-datafeed.asciidoc[]
-include::start-dfanalytics.asciidoc[]
 include::stop-datafeed.asciidoc[]
-include::stop-dfanalytics.asciidoc[]
 //UPDATE
 include::update-datafeed.asciidoc[]
 include::update-filter.asciidoc[]

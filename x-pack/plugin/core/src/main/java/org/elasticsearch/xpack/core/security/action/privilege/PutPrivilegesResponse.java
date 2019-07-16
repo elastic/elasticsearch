@@ -24,8 +24,9 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
 
     private Map<String, List<String>> created;
 
-    PutPrivilegesResponse() {
-        this(Collections.emptyMap());
+    public PutPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.created = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readStringList));
     }
 
     public PutPrivilegesResponse(Map<String, List<String>> created) {
@@ -53,7 +54,6 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.created = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readStringList));
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

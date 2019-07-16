@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsP
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProvider;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -78,7 +79,8 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
                 jobPage -> {
                     if (jobPage.count() == 0) {
-                        listener.onResponse(new GetOverallBucketsAction.Response());
+                        listener.onResponse(new GetOverallBucketsAction.Response(
+                            new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD)));
                         return;
                     }
 
@@ -107,7 +109,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
 
         ActionListener<ChunkedBucketSearcher> chunkedBucketSearcherListener = ActionListener.wrap(searcher -> {
             if (searcher == null) {
-                listener.onResponse(new GetOverallBucketsAction.Response());
+                listener.onResponse(new GetOverallBucketsAction.Response(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD)));
                 return;
             }
             searcher.searchAndComputeOverallBuckets(overallBucketsListener);

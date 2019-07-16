@@ -24,6 +24,8 @@ import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -38,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -119,6 +122,22 @@ public class FileUtils {
     public static String slurp(Path file) {
         try {
             return String.join("\n", Files.readAllLines(file, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String slurpGZ(Path file) {
+        ByteArrayOutputStream fileBuffer = new ByteArrayOutputStream();
+        try (GZIPInputStream in = new GZIPInputStream(new FileInputStream(file.toString()))){
+            byte[] buffer = new byte[1024];
+            int len;
+
+            while((len = in.read(buffer)) != -1){
+                fileBuffer.write(buffer, 0, len);
+            }
+
+            return(new String(fileBuffer.toByteArray(), StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

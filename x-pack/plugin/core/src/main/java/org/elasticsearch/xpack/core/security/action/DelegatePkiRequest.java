@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -18,8 +19,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
-
-import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -42,7 +41,7 @@ public final class DelegatePkiRequest extends ActionRequest {
             validationException = addValidationError("certificates chain array must not be null", validationException);
         } else if (certificates.length == 0) {
             validationException = addValidationError("certificates chain array must not be empty", validationException);
-        } else if (false == isOrderedCertificateChain(certificates)) {
+        } else if (false == CertParsingUtils.isOrderedCertificateChain(certificates)) {
             validationException = addValidationError("certificates chain array is not ordered", validationException);
         }
         return validationException;
@@ -94,16 +93,4 @@ public final class DelegatePkiRequest extends ActionRequest {
         return Arrays.hashCode(certificates);
     }
 
-    private static boolean isOrderedCertificateChain(X509Certificate[] chain) {
-        X500Principal prevIssuer = null;
-        for (int i = 0; i < chain.length; i++) {
-            X509Certificate cert = chain[i];
-            X500Principal subject = cert.getSubjectX500Principal();
-            if (i != 0 && false == subject.equals(prevIssuer)) {
-                return false;
-            }
-            prevIssuer = cert.getIssuerX500Principal();
-        }
-        return true;
-    }
 }

@@ -6,11 +6,10 @@
 package org.elasticsearch.xpack.security.authc.pki;
 
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.security.cert.X509Certificate;
 import java.util.Objects;
-
-import javax.security.auth.x500.X500Principal;
 
 public class X509AuthenticationToken implements AuthenticationToken {
 
@@ -25,7 +24,9 @@ public class X509AuthenticationToken implements AuthenticationToken {
 
     public X509AuthenticationToken(X509Certificate[] certificates, boolean isDelegated) {
         this.credentials = Objects.requireNonNull(certificates);
-        checkCertificateChainOrdered(certificates);
+        if (false == CertParsingUtils.isOrderedCertificateChain(certificates)) {
+            throw new IllegalArgumentException("certificates chain array is not ordered");
+        }
         this.dn = certificates.length == 0 ? "" : certificates[0].getSubjectX500Principal().toString();
         this.principal = this.dn;
         this.isDelegated = isDelegated;
@@ -56,17 +57,5 @@ public class X509AuthenticationToken implements AuthenticationToken {
 
     public boolean isDelegated() {
         return isDelegated;
-    }
-
-    private static void checkCertificateChainOrdered(X509Certificate[] chain) throws IllegalArgumentException {
-        X500Principal prevIssuer = null;
-        for (int i = 0; i < chain.length; i++) {
-            X509Certificate cert = chain[i];
-            X500Principal subject = cert.getSubjectX500Principal();
-            if (i != 0 && false == subject.equals(prevIssuer)) {
-                throw new IllegalArgumentException("certificates chain array is not ordered");
-            }
-            prevIssuer = cert.getIssuerX500Principal();
-        }
     }
 }

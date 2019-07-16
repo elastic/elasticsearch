@@ -575,6 +575,14 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             autoFollowResults.set(slot, result);
             if (autoFollowPatternsCountDown.countDown()) {
                 statsUpdater.accept(autoFollowResults.asList());
+                /*
+                 * In the face of a failure, we could be called back on the same thread. That is, it could be that we
+                 * never fired off the asynchronous remote cluster state call, instead failing beforehand. In this case,
+                 * we will recurse on the same thread. If there are repeated failures, we could blow the stack and
+                 * overflow. A real-world scenario in which this can occur is if the local connect queue is full. To
+                 * avoid this, if we are called back on the same thread, then we truncate the stack by forking to
+                 * another thread.
+                 */
                 if (thread == Thread.currentThread()) {
                     executor.execute(this::start);
                     return;

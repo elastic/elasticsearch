@@ -233,7 +233,7 @@ public class NioSelector implements Closeable {
             assert context instanceof SocketChannelContext : "Only sockets channels can receive non-accept events";
             SocketChannelContext channelContext = (SocketChannelContext) context;
             int ops = selectionKey.readyOps();
-            if ((ops & SelectionKey.OP_CONNECT) != 0) {
+            if ((ops & SelectionKey.OP_CONNECT) != 0 && channelContext.isConnectComplete() == false) {
                 attemptConnect(channelContext, true);
             }
 

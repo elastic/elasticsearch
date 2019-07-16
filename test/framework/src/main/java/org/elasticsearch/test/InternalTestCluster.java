@@ -501,11 +501,6 @@ public final class InternalTestCluster extends TestCluster {
                     timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());
         }
 
-        if (rarely()) {
-            builder.put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(),
-                randomFrom("immediate", "urgent", "high", "normal", "low"));
-        }
-
         return builder.build();
     }
 

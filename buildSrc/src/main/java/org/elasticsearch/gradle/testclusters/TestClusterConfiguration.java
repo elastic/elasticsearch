@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.gradle.api.logging.Logging;
@@ -39,7 +38,7 @@ public interface TestClusterConfiguration {
 
     void setVersion(String version);
 
-    void setDistribution(Distribution distribution);
+    void setTestDistribution(TestDistribution distribution);
 
     void plugin(URI plugin);
 

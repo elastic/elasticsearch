@@ -16,24 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.esplugin'
+package org.elasticsearch.gradle.testclusters;
 
-esplugin {
-  name 'painless-whitelist'
-  description 'An example whitelisting additional classes and methods in painless'
-  classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
-  extendedPlugins = ['lang-painless']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+/**
+ * An enumeration of the distributions that may be used in test clusters.
+ */
+public enum TestDistribution {
+    INTEG_TEST,
+    DEFAULT,
+    OSS
 }
-
-dependencies {
-  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
-}
-
-testClusters.integTest {
-  testDistribution = 'oss'
-}
-
-test.enabled = false

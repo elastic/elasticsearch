@@ -22,6 +22,7 @@ The `term_vector` setting accepts:
 `with_positions`::          Terms and positions are stored.
 `with_offsets`::            Terms and character offsets are stored.
 `with_positions_offsets`::  Terms, positions, and character offsets are stored.
+`with_positions_payloads`:: Terms, positions, and payloads are stored.
 `with_positions_offsets_payloads`::  Terms, positions, offsets and payloads are stored.
 
 The fast vector highlighter requires `with_positions_offsets`.

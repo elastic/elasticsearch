@@ -55,6 +55,11 @@ public class ExplainLifecycleResponseTests extends AbstractStreamableXContentTes
         return false;
     }
 
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(Arrays
             .asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new)));

@@ -14,19 +14,19 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.util.Objects;
 
-public final class DelegatePkiResponse extends ActionResponse {
+public final class DelegatePkiAuthenticationResponse extends ActionResponse {
 
     private String tokenString;
     private TimeValue expiresIn;
 
-    DelegatePkiResponse() { }
+    DelegatePkiAuthenticationResponse() { }
 
-    public DelegatePkiResponse(String tokenString, TimeValue expiresIn) {
+    public DelegatePkiAuthenticationResponse(String tokenString, TimeValue expiresIn) {
         this.tokenString = Objects.requireNonNull(tokenString);
         this.expiresIn = Objects.requireNonNull(expiresIn);
     }
 
-    public DelegatePkiResponse(StreamInput input) throws IOException {
+    public DelegatePkiAuthenticationResponse(StreamInput input) throws IOException {
         this.readFrom(input);
     }
 
@@ -55,7 +55,7 @@ public final class DelegatePkiResponse extends ActionResponse {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DelegatePkiResponse that = (DelegatePkiResponse) o;
+        DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
         return Objects.equals(tokenString, that.tokenString) &&
             Objects.equals(expiresIn, that.expiresIn);
     }

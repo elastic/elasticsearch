@@ -22,15 +22,15 @@ import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class DelegatePkiRequest extends ActionRequest {
+public final class DelegatePkiAuthenticationRequest extends ActionRequest {
 
     private X509Certificate[] certificates;
 
-    public DelegatePkiRequest(X509Certificate[] certificates) {
+    public DelegatePkiAuthenticationRequest(X509Certificate[] certificates) {
         this.certificates = certificates;
     }
 
-    public DelegatePkiRequest(StreamInput in) throws IOException {
+    public DelegatePkiAuthenticationRequest(StreamInput in) throws IOException {
         this.readFrom(in);
     }
 
@@ -84,7 +84,7 @@ public final class DelegatePkiRequest extends ActionRequest {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DelegatePkiRequest that = (DelegatePkiRequest) o;
+        DelegatePkiAuthenticationRequest that = (DelegatePkiAuthenticationRequest) o;
         return Arrays.equals(certificates, that.certificates);
     }
 

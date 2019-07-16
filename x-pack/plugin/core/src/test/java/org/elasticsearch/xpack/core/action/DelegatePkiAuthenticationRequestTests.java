@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.action.DelegatePkiRequest;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -25,16 +25,16 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DelegatePkiRequestTests extends ESTestCase {
+public class DelegatePkiAuthenticationRequestTests extends ESTestCase {
 
     public void testRequestValidation() {
-        DelegatePkiRequest request = new DelegatePkiRequest(((X509Certificate[]) null));
+        DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest(((X509Certificate[]) null));
         ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
         assertThat(ve.validationErrors().get(0), is("certificates chain array must not be null"));
 
-        request = new DelegatePkiRequest(new X509Certificate[0]);
+        request = new DelegatePkiAuthenticationRequest(new X509Certificate[0]);
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
@@ -45,13 +45,13 @@ public class DelegatePkiRequestTests extends ESTestCase {
         when(mockCertChain[0].getIssuerX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
         mockCertChain[1] = mock(X509Certificate.class);
         when(mockCertChain[1].getSubjectX500Principal()).thenReturn(new X500Principal("CN=Not Test, OU=elasticsearch, O=org"));
-        request = new DelegatePkiRequest(mockCertChain);
+        request = new DelegatePkiAuthenticationRequest(mockCertChain);
         ve = request.validate();
         assertNotNull(ve);
         assertEquals(1, ve.validationErrors().size());
         assertThat(ve.validationErrors().get(0), is("certificates chain array is not ordered"));
 
-        request = new DelegatePkiRequest(randomArray(1, 3, X509Certificate[]::new, () -> {
+        request = new DelegatePkiAuthenticationRequest(randomArray(1, 3, X509Certificate[]::new, () -> {
             X509Certificate mockX509Certificate = mock(X509Certificate.class);
             when(mockX509Certificate.getSubjectX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
             when(mockX509Certificate.getIssuerX500Principal()).thenReturn(new X500Principal("CN=Test, OU=elasticsearch, O=org"));
@@ -70,12 +70,12 @@ public class DelegatePkiRequestTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         });
-        DelegatePkiRequest request = new DelegatePkiRequest(certificates);
+        DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest(certificates);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                final DelegatePkiRequest serialized = new DelegatePkiRequest(in);
+                final DelegatePkiAuthenticationRequest serialized = new DelegatePkiAuthenticationRequest(in);
                 assertThat(request.getCertificates(), arrayContaining(certificates));
                 assertThat(request, is(serialized));
                 assertThat(request.hashCode(), is(serialized.hashCode()));

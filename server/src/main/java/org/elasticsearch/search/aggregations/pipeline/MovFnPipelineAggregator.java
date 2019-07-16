@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
@@ -82,7 +83,11 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         gapPolicy = BucketHelpers.GapPolicy.readFrom(in);
         bucketsPath = in.readString();
         window = in.readInt();
-        shift = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            shift = in.readInt();
+        } else {
+            shift = 0;
+        }
     }
 
     @Override
@@ -92,7 +97,9 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         gapPolicy.writeTo(out);
         out.writeString(bucketsPath);
         out.writeInt(window);
-        out.writeInt(shift);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeInt(shift);
+        }
     }
 
     @Override

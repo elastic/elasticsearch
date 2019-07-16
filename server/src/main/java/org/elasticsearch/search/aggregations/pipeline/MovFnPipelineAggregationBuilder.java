@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -100,7 +101,11 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readInt();
-        shift = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            shift = in.readInt();
+        } else {
+            shift = 0;
+        }
     }
 
     @Override
@@ -110,7 +115,9 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
         out.writeInt(window);
-        out.writeInt(shift);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeInt(shift);
+        }
     }
 
     /**

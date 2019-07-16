@@ -212,9 +212,10 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             return converter.apply(pointValues.getMinPackedValue());
         }
         final Number[] result = new Number[1];
-        final AtomicInteger lookupCounter = new AtomicInteger(0);
         try {
             pointValues.intersect(new PointValues.IntersectVisitor() {
+                private short lookupCounter = 0;
+
                 @Override
                 public void visit(int docID) {
                     throw new UnsupportedOperationException();
@@ -222,12 +223,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
                 @Override
                 public void visit(int docID, byte[] packedValue) {
-                    if (lookupCounter.incrementAndGet() > MAX_BKD_LOOKUPS) {
-                        throw new CollectionTerminatedException();
-                    }
                     if (liveDocs.get(docID)) {
                         result[0] = converter.apply(packedValue);
                         // this is the first leaf with a live doc so the value is the minimum for this segment.
+                        throw new CollectionTerminatedException();
+                    }
+                    if (++lookupCounter > MAX_BKD_LOOKUPS) {
                         throw new CollectionTerminatedException();
                     }
                 }

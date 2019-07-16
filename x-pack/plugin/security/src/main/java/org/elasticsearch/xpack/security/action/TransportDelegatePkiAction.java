@@ -54,7 +54,7 @@ public class TransportDelegatePkiAction extends HandledTransportAction<DelegateP
         Authentication delegateeAuthentication = Authentication.getAuthentication(threadContext);
         final X509AuthenticationToken x509DelegatedToken = new X509AuthenticationToken(request.getCertificates(), true);
         logger.trace(
-                (Supplier<?>) () -> new ParameterizedMessage("Attempting to authenticate delegated x509Token [{}]", x509DelegatedToken));
+                "Attempting to authenticate delegated x509Token [{}]", x509DelegatedToken);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authenticationService.authenticate(ACTION_NAME, request, x509DelegatedToken, ActionListener.wrap(authentication -> {
                 assert authentication != null : "authentication should never be null at this point";

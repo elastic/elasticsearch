@@ -20,8 +20,7 @@ public class CreateTokenResponseTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                CreateTokenResponse serialized = new CreateTokenResponse();
-                serialized.readFrom(input);
+                CreateTokenResponse serialized = new CreateTokenResponse(input);
                 assertEquals(response, serialized);
             }
         }
@@ -31,8 +30,7 @@ public class CreateTokenResponseTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                CreateTokenResponse serialized = new CreateTokenResponse();
-                serialized.readFrom(input);
+                CreateTokenResponse serialized = new CreateTokenResponse(input);
                 assertEquals(response, serialized);
             }
         }
@@ -47,8 +45,7 @@ public class CreateTokenResponseTests extends ESTestCase {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
                 input.setVersion(version);
-                CreateTokenResponse serialized = new CreateTokenResponse();
-                serialized.readFrom(input);
+                CreateTokenResponse serialized = new CreateTokenResponse(input);
                 assertNull(serialized.getRefreshToken());
                 assertEquals(response.getTokenString(), serialized.getTokenString());
                 assertEquals(response.getExpiresIn(), serialized.getExpiresIn());
@@ -66,8 +63,7 @@ public class CreateTokenResponseTests extends ESTestCase {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
                 input.setVersion(version);
-                CreateTokenResponse serialized = new CreateTokenResponse();
-                serialized.readFrom(input);
+                CreateTokenResponse serialized = new CreateTokenResponse(input);
                 assertEquals(response, serialized);
             }
         }
@@ -80,8 +76,7 @@ public class CreateTokenResponseTests extends ESTestCase {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
                 input.setVersion(version);
-                CreateTokenResponse serialized = new CreateTokenResponse();
-                serialized.readFrom(input);
+                CreateTokenResponse serialized = new CreateTokenResponse(input);
                 assertEquals("", serialized.getRefreshToken());
                 assertEquals(response.getTokenString(), serialized.getTokenString());
                 assertEquals(response.getExpiresIn(), serialized.getExpiresIn());

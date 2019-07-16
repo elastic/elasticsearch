@@ -24,13 +24,14 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -61,62 +62,30 @@ public class RestUpdateActionTests extends RestActionTestCase {
     }
 
     public void testUpdateDocVersion() {
-        {
-            Map<String, String> params = Collections.singletonMap("version", "100");
-            String content =
-                "{\n" +
-                    "    \"doc\" : {\n" +
-                    "        \"name\" : \"new_name\"\n" +
-                    "    }\n" +
-                    "}";
-            FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(RestRequest.Method.POST)
-                .withPath("test/_update/1")
-                .withParams(params)
-                .withContent(new BytesArray(content), XContentType.JSON)
-                .build();
-            ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-                () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
-            assertThat(e.getMessage(), containsString("internal versioning can not be used for optimistic concurrency control. " +
-                "Please use `if_seq_no` and `if_primary_term` instead"));
+        Map<String, String> params = new HashMap<>();
+        if (randomBoolean()) {
+            params.put("version", Long.toString(randomNonNegativeLong()));
+            params.put("version_type", randomFrom(VersionType.values()).name());
+        } else if (randomBoolean()) {
+            params.put("version", Long.toString(randomNonNegativeLong()));
+        } else {
+            params.put("version_type", randomFrom(VersionType.values()).name());
         }
-        {
-            Map<String, String> params = Collections.singletonMap("version_type", "internal");
-            String content =
-                "{\n" +
-                    "    \"doc\" : {\n" +
-                    "        \"name\" : \"new_name\"\n" +
-                    "    }\n" +
-                    "}";
-            FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(RestRequest.Method.POST)
-                .withPath("test/_update/1")
-                .withParams(params)
-                .withContent(new BytesArray(content), XContentType.JSON)
-                .build();
-            ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-                () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
-            assertThat(e.getMessage(), containsString("internal versioning can not be used for optimistic concurrency control. " +
-                "Please use `if_seq_no` and `if_primary_term` instead"));
-        }
-        {
-            Map<String, String> params = Map.of("version", "100", "version_type", "external");
-            String content =
-                "{\n" +
-                    "    \"doc\" : {\n" +
-                    "        \"name\" : \"new_name\"\n" +
-                    "    }\n" +
-                    "}";
-            FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(RestRequest.Method.POST)
-                .withPath("test/_update/1")
-                .withParams(params)
-                .withContent(new BytesArray(content), XContentType.JSON)
-                .build();
-            ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-                () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
-            assertThat(e.getMessage(), containsString("internal versioning can not be used for optimistic concurrency control. " +
-                "Please use `if_seq_no` and `if_primary_term` instead"));
-        }
+        String content =
+            "{\n" +
+                "    \"doc\" : {\n" +
+                "        \"name\" : \"new_name\"\n" +
+                "    }\n" +
+                "}";
+        FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("test/_update/1")
+            .withParams(params)
+            .withContent(new BytesArray(content), XContentType.JSON)
+            .build();
+        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
+            () -> action.prepareRequest(updateRequest, mock(NodeClient.class)));
+        assertThat(e.getMessage(), containsString("internal versioning can not be used for optimistic concurrency control. " +
+            "Please use `if_seq_no` and `if_primary_term` instead"));
     }
 }

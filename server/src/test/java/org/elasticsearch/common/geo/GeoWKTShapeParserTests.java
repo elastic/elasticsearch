@@ -62,6 +62,7 @@ import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.jts.JtsPoint;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -91,7 +92,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         return XContentFactory.jsonBuilder().value(wkt);
     }
 
-    private void assertExpected(Object expected, ShapeBuilder<?, ?, ?> builder, boolean useJTS) throws IOException {
+    private void assertExpected(Object expected, ShapeBuilder<?, ?, ?> builder, boolean useJTS) throws IOException, ParseException {
         XContentBuilder xContentBuilder = toWKTContent(builder, false);
         assertGeometryEquals(expected, xContentBuilder, useJTS);
     }
@@ -102,7 +103,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParsePoint() throws IOException {
+    public void testParsePoint() throws IOException, ParseException {
         GeoPoint p = RandomShapeGenerator.randomPoint(random());
         Coordinate c = new Coordinate(p.lon(), p.lat());
         Point expected = GEOMETRY_FACTORY.createPoint(c);
@@ -112,7 +113,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParseMultiPoint() throws IOException {
+    public void testParseMultiPoint() throws IOException, ParseException {
         int numPoints = randomIntBetween(0, 100);
         List<Coordinate> coordinates = new ArrayList<>(numPoints);
         for (int i = 0; i < numPoints; ++i) {
@@ -160,7 +161,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParseLineString() throws IOException {
+    public void testParseLineString() throws IOException, ParseException {
         List<Coordinate> coordinates = randomLineStringCoords();
         LineString expected = GEOMETRY_FACTORY.createLineString(coordinates.toArray(new Coordinate[coordinates.size()]));
         assertExpected(jtsGeom(expected), new LineStringBuilder(coordinates), true);
@@ -175,7 +176,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParseMultiLineString() throws IOException {
+    public void testParseMultiLineString() throws IOException, ParseException {
         int numLineStrings = randomIntBetween(0, 8);
         List<LineString> lineStrings = new ArrayList<>(numLineStrings);
         MultiLineStringBuilder builder = new MultiLineStringBuilder();
@@ -210,7 +211,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParsePolygon() throws IOException {
+    public void testParsePolygon() throws IOException, ParseException {
         PolygonBuilder builder = PolygonBuilder.class.cast(
             RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POLYGON));
         Coordinate[] coords = builder.coordinates()[0][0];
@@ -222,7 +223,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParseMultiPolygon() throws IOException {
+    public void testParseMultiPolygon() throws IOException, ParseException {
         int numPolys = randomIntBetween(0, 8);
         MultiPolygonBuilder builder = new MultiPolygonBuilder();
         PolygonBuilder pb;
@@ -242,7 +243,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertMalformed(builder);
     }
 
-    public void testParsePolygonWithHole() throws IOException {
+    public void testParsePolygonWithHole() throws IOException, ParseException {
         // add 3d point to test ISSUE #10501
         List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0));
@@ -279,7 +280,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertMalformed(polygonWithHole);
     }
 
-    public void testParseMixedDimensionPolyWithHole() throws IOException {
+    public void testParseMixedDimensionPolyWithHole() throws IOException, ParseException {
         List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0));
         shellCoordinates.add(new Coordinate(101, 0));
@@ -436,7 +437,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParseEnvelope() throws IOException {
+    public void testParseEnvelope() throws IOException, ParseException {
         org.apache.lucene.geo.Rectangle r = GeoTestUtil.nextBox();
         EnvelopeBuilder builder = new EnvelopeBuilder(new Coordinate(r.minLon, r.maxLat), new Coordinate(r.maxLon, r.minLat));
 
@@ -452,7 +453,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     }
 
     @Override
-    public void testParseGeometryCollection() throws IOException {
+    public void testParseGeometryCollection() throws IOException, ParseException {
         if (rarely()) {
             // assert empty shape collection
             GeometryCollectionBuilder builder = new GeometryCollectionBuilder();

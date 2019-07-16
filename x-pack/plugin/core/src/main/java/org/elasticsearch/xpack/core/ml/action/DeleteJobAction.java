@@ -54,6 +54,12 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            force = in.readBoolean();
+        }
+
         public String getJobId() {
             return jobId;
         }
@@ -94,9 +100,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            force = in.readBoolean();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

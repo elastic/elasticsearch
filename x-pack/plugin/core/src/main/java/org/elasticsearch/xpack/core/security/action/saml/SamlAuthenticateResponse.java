@@ -23,7 +23,12 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     private String refreshToken;
     private TimeValue expiresIn;
 
-    public SamlAuthenticateResponse() {
+    public SamlAuthenticateResponse(StreamInput in) throws IOException {
+        super(in);
+        principal = in.readString();
+        tokenString = in.readString();
+        refreshToken = in.readString();
+        expiresIn = in.readTimeValue();
     }
 
     public SamlAuthenticateResponse(String principal, String tokenString, String refreshToken, TimeValue expiresIn) {
@@ -59,10 +64,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        principal = in.readString();
-        tokenString = in.readString();
-        refreshToken = in.readString();
-        expiresIn = in.readTimeValue();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

@@ -42,14 +42,18 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobIds = in.readStringArray();
+        }
+
         public String[] getJobIds() {
             return jobIds;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobIds = in.readStringArray();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

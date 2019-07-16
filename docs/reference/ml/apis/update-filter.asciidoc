@@ -23,20 +23,20 @@ Updates the description of a filter, adds items, or removes items.
 [[ml-update-filter-path-parms]]
 ==== {api-path-parms-title}
 
-`<filter_id>` (Required)::
-		(string) Identifier for the filter.
+`<filter_id>`::
+		(Required, string) Identifier for the filter.
 
 [[ml-update-filter-request-body]]
 ==== {api-request-body-title}
 
-`description` (Optional)::
-  (string) A description for the filter. See <<ml-filter-resource>>.
+`add_items`::
+  (Optional, array of strings) The items to add to the filter.
+
+`description`::
+  (Optional, string) A description for the filter.
 	
-`add_items` (Optional)::
-  (array of strings) The items to add to the filter.
-	
-`remove_items` (Optional)::
-  (array of strings) The items to remove from the filter.
+`remove_items`::
+  (Optional, array of strings) The items to remove from the filter.
 
 [[ml-update-filter-example]]
 ==== {api-examples-title}

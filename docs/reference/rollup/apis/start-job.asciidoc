@@ -33,7 +33,7 @@ to start a job that is already started, nothing happens.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the {rollup-job}.
+  (Required, string) Identifier for the {rollup-job}.
   
 [[rollup-start-job-response-codes]]
 ==== {api-response-codes-title}

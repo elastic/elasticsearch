@@ -33,13 +33,13 @@ to stop a job that is already stopped, nothing happens.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (string) Required. Identifier for the {rollup-job}.
+  (Required, string) Identifier for the {rollup-job}.
 
 [[rollup-stop-job-query-parms]]
 ==== {api-query-parms-title}
 
 `timeout`::
-  (TimeValue) Optional. If `wait_for_completion` is `true`, the API blocks for
+  (Optional, TimeValue) If `wait_for_completion` is `true`, the API blocks for
   (at maximum) the specified duration while waiting for the job to stop. If more
   than `timeout` time has passed, the API throws a timeout exception. Defaults
   to `30s`.
@@ -52,7 +52,7 @@ the API call itself timed out while waiting for the status change.
 --
   
 `wait_for_completion`::
-  (boolean) Optional. If set to `true`, causes the API to block until the
+  (Optional, boolean) If set to `true`, causes the API to block until the
   indexer state completely stops. If set to `false`, the API returns immediately
   and the indexer is stopped asynchronously in the background. Defaults to
   `false`.

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse.AnalyzeToken;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -284,7 +285,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         }
 
         public AnalyzeResponse.AnalyzeToken[] getTokens() {
-            return tokens;
+            return tokens != null ? tokens : new AnalyzeToken[0];
         }
 
         public static AnalyzeTokenList readAnalyzeTokenList(StreamInput in) throws IOException {
@@ -296,8 +297,10 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         XContentBuilder toXContentWithoutObject(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.NAME, this.name);
             builder.startArray(AnalyzeResponse.Fields.TOKENS);
-            for (AnalyzeResponse.AnalyzeToken token : tokens) {
-                token.toXContent(builder, params);
+            if (tokens != null) {
+                for (AnalyzeResponse.AnalyzeToken token : tokens) {
+                    token.toXContent(builder, params);
+                }
             }
             builder.endArray();
             return builder;

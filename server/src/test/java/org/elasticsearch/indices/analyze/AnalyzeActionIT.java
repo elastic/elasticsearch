@@ -21,6 +21,7 @@ package org.elasticsearch.indices.analyze;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -436,5 +437,24 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getPositionLength(), equalTo(1));
     }
 
+    /**
+     * Input text that doesn't produce tokens should return an empty token list
+     */
+    public void testZeroTokenAnalysis() throws IOException {
+        assertAcked(prepareCreate("test"));
+        ensureGreen("test");
+
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", ".").get();
+        assertNotNull(analyzeResponse.getTokens());
+        assertThat(analyzeResponse.getTokens().size(), equalTo(0));
+        assertEquals("{\"tokens\":[]}", Strings.toString(analyzeResponse));
+
+        // also check detailed response
+        analyzeResponse = client().admin().indices().prepareAnalyze("test", ".").setExplain(true).get();
+        assertNotNull(analyzeResponse.detail().analyzer().getTokens());
+        assertThat(analyzeResponse.getTokens().size(), equalTo(0));
+        assertEquals("{\"detail\":{\"custom_analyzer\":false,\"analyzer\":{\"name\":\"default\",\"tokens\":[]}}}",
+                Strings.toString(analyzeResponse));
+    }
 
 }

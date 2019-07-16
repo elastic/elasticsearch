@@ -87,6 +87,24 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+    public CreateIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        cause = in.readString();
+        index = in.readString();
+        settings = readSettingsFromStream(in);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            final String type = in.readString();
+            String source = in.readString();
+            mappings.put(type, source);
+        }
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            aliases.add(Alias.read(in));
+        }
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+    }
+
     public CreateIndexRequest() {
     }
 
@@ -428,26 +446,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        cause = in.readString();
-        index = in.readString();
-        settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String source = in.readString();
-            mappings.put(type, source);
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
-        }
-        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     @Override

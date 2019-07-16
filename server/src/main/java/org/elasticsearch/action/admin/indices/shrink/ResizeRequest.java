@@ -57,6 +57,15 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
 
+    public ResizeRequest(StreamInput in) throws IOException {
+        super(in);
+        targetIndexRequest = new CreateIndexRequest();
+        targetIndexRequest.readFrom(in);
+        sourceIndex = in.readString();
+        type = in.readEnum(ResizeType.class);
+        copySettings = in.readOptionalBoolean();
+    }
+
     ResizeRequest() {}
 
     public ResizeRequest(String targetIndex, String sourceIndex) {
@@ -85,16 +94,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public void setSourceIndex(String index) {
         this.sourceIndex = index;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        targetIndexRequest = new CreateIndexRequest();
-        targetIndexRequest.readFrom(in);
-        sourceIndex = in.readString();
-        type = in.readEnum(ResizeType.class);
-        copySettings = in.readOptionalBoolean();
     }
 
     @Override

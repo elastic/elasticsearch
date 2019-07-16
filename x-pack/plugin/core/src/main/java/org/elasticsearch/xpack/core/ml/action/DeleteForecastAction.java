@@ -40,6 +40,13 @@ public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
         private String forecastId;
         private boolean allowNoForecasts = true;
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            forecastId = in.readString();
+            allowNoForecasts = in.readBoolean();
+        }
+
         public Request() {
         }
 
@@ -67,14 +74,6 @@ public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            forecastId = in.readString();
-            allowNoForecasts = in.readBoolean();
         }
 
         @Override

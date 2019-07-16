@@ -96,6 +96,20 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
+    public RolloverRequest(StreamInput in) throws IOException {
+        super(in);
+        alias = in.readString();
+        newIndexName = in.readOptionalString();
+        dryRun = in.readBoolean();
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            Condition<?> condition = in.readNamedWriteable(Condition.class);
+            this.conditions.put(condition.name, condition);
+        }
+        createIndexRequest = new CreateIndexRequest();
+        createIndexRequest.readFrom(in);
+    }
+
     RolloverRequest() {}
 
     public RolloverRequest(String alias, String newIndexName) {
@@ -110,21 +124,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             validationException = addValidationError("index alias is missing", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        alias = in.readString();
-        newIndexName = in.readOptionalString();
-        dryRun = in.readBoolean();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            Condition<?> condition = in.readNamedWriteable(Condition.class);
-            this.conditions.put(condition.name, condition);
-        }
-        createIndexRequest = new CreateIndexRequest();
-        createIndexRequest.readFrom(in);
     }
 
     @Override

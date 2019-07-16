@@ -8,7 +8,7 @@ import org.gradle.api.tasks.testing.Test;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import static org.elasticsearch.gradle.Distribution.INTEG_TEST;
+import static org.elasticsearch.gradle.testclusters.TestDistribution.INTEG_TEST;
 
 /**
  * Customized version of Gradle {@link Test} task which tracks a collection of {@link ElasticsearchCluster} as a task input. We must do this
@@ -23,7 +23,7 @@ public class RestTestRunnerTask extends Test {
     public RestTestRunnerTask() {
         super();
         this.getOutputs().doNotCacheIf("Build cache is only enabled for tests against clusters using the 'integ-test' distribution",
-            task -> clusters.stream().flatMap(c -> c.getNodes().stream()).anyMatch(n -> n.getDistribution() != INTEG_TEST));
+            task -> clusters.stream().flatMap(c -> c.getNodes().stream()).anyMatch(n -> n.getTestDistribution() != INTEG_TEST));
     }
 
     @Nested

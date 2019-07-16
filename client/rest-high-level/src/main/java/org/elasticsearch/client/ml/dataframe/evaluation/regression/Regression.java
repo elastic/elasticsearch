@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -84,8 +85,11 @@ public class Regression implements Evaluation {
     }
 
     public Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
-        this.actualField = actualField;
-        this.predictedField = predictedField;
+        this.actualField = Objects.requireNonNull(actualField);
+        this.predictedField = Objects.requireNonNull(predictedField);
+        if (metrics != null) {
+            metrics.sort(Comparator.comparing(EvaluationMetric::getName));
+        }
         this.metrics = metrics;
     }
 

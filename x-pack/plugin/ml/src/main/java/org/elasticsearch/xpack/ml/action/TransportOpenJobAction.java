@@ -96,8 +96,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                   JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker) {
-        super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                OpenJobAction.Request::new);
+        super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,OpenJobAction.Request::new,
+            indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;

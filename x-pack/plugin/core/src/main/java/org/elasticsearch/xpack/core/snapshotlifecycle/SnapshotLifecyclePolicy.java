@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -76,11 +77,11 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), CONFIG);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
     }
 
     public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, Map<String, Object> configuration) {
+                                   final String repository, @Nullable Map<String, Object> configuration) {
         this.id = Objects.requireNonNull(id);
         this.name = name;
         this.schedule = schedule;
@@ -112,6 +113,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         return this.repository;
     }
 
+    @Nullable
     public Map<String, Object> getConfig() {
         return this.configuration;
     }
@@ -172,7 +174,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             }
         }
 
-        if (configuration.containsKey(METADATA_FIELD_NAME)) {
+        if (configuration != null && configuration.containsKey(METADATA_FIELD_NAME)) {
             if (configuration.get(METADATA_FIELD_NAME) instanceof Map == false) {
                 err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + " [" + configuration.get(METADATA_FIELD_NAME) +
                     "]: must be an object if present");
@@ -265,7 +267,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         builder.field(NAME.getPreferredName(), this.name);
         builder.field(SCHEDULE.getPreferredName(), this.schedule);
         builder.field(REPOSITORY.getPreferredName(), this.repository);
-        builder.field(CONFIG.getPreferredName(), this.configuration);
+        if (this.configuration != null) {
+            builder.field(CONFIG.getPreferredName(), this.configuration);
+        }
         builder.endObject();
         return builder;
     }

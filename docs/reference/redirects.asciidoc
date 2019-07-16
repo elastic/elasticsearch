@@ -626,3 +626,11 @@ See <<ml-get-filter>> and
 See <<ml-get-calendar-event>> and 
 {stack-ov}/ml-calendars.html[Calendars and scheduled events].
 
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.
+

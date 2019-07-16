@@ -118,7 +118,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
         ThreadContext threadContext = client.threadPool().getThreadContext();
-        // TODO: What is happening here? Putting headers back in place for possible different thread action listener?
+        // TODO: Eventually we only want to retain security context
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
             ReindexRequest reindexRequest = reindexJob.getReindexRequest();
@@ -140,7 +140,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                                         @Override
                                         public void onFailure(Exception e) {
-                                            logger.info("Failed to store task result.", e);
+                                            logger.info("Failed to store task result", e);
                                             markAsFailed(e);
                                         }
                                     });

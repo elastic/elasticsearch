@@ -35,6 +35,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
@@ -120,8 +121,12 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        threadPool.generic().execute(() -> {
-            try {
+        // We dispatch here because the new ReindexTask uses this action. When an action is executed locally,
+        // it is not dispatched from the ctor argument.
+        threadPool.generic().execute(new ActionRunnable<>(listener) {
+
+            @Override
+            protected void doRun() {
                 checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
                 ClusterState state = clusterService.state();
                 validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
@@ -138,8 +143,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                             request, state, listener).start();
                     }
                 );
-            } catch (Exception e) {
-                listener.onFailure(e);
             }
         });
     }

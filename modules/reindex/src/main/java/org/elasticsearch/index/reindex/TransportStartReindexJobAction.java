@@ -69,6 +69,8 @@ public class TransportStartReindexJobAction
     @Override
     protected void masterOperation(Task task, StartReindexJobAction.Request request, ClusterState state,
                                    ActionListener<StartReindexJobAction.Response> listener) {
+        // TODO: If the connection is lost to the master, this action might be retried creating two tasks.
+        //  Eventually prevent this (perhaps by pre-generating UUID).
         String generatedId = UUIDs.randomBase64UUID();
 
         ReindexRequest reindexRequest = request.getReindexRequest();

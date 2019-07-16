@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -111,10 +112,10 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
         }
 
         private String taskId;
-        private BulkByScrollResponse reindexResponse;
+        @Nullable private BulkByScrollResponse reindexResponse;
 
         public Response(String taskId) {
-            this.taskId = taskId;
+            this(taskId, null);
         }
 
         public Response(String taskId, BulkByScrollResponse reindexResponse) {

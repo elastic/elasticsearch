@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -103,8 +104,13 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> mappingsForDataFrameAnalysis() throws Exception {
-        Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings?include_type_name=true");
-        Response getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
+        Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
+        Response getIndexMappingsResponse;
+        try {
+            getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
+        } catch (WarningFailureException e) {
+            getIndexMappingsResponse = e.getResponse();
+        }
         assertThat(getIndexMappingsResponse.getStatusLine().getStatusCode(), equalTo(200));
 
         Map<String, Object> mappings = entityAsMap(getIndexMappingsResponse);

@@ -189,7 +189,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 ccrLicenseChecker,
                 threadPool::relativeTimeInMillis,
                 threadPool::absoluteTimeInMillis,
-                threadPool.generic()));
+                threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)));
     }
 
     @Override

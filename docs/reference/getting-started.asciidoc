@@ -714,7 +714,7 @@ As for the response, we see the following parts:
 * `hits` – search results
 * `hits.total` – total number of documents matching our search criteria
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `hits.sort` - sort key for results (missing if sorting by score)
+* `hits.sort` - sort value of the sort key for each result (missing if sorting by score)
 * `hits._score` and `max_score` - ignore these fields for now
 
 Here is the same exact search above using the alternative request body method:

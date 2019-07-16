@@ -157,7 +157,7 @@ include::authentication/configuring-saml-realm.asciidoc[]
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authentication/configuring-kerberos-realm.asciidoc
 include::authentication/configuring-kerberos-realm.asciidoc[]
 
-:edit_url:
-include::{es-repo-dir}/security/reference/files.asciidoc[]
+:edit_url: 
 include::fips-140-compliance.asciidoc[]
+include::{es-repo-dir}/security/reference/files.asciidoc[]
 

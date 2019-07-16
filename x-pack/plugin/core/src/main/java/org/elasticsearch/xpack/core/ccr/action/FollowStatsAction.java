@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> {
+public class FollowStatsAction extends ActionType<FollowStatsAction.StatsResponses> {
 
     public static final String NAME = "cluster:monitor/ccr/follow_stats";
 

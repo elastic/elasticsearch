@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class DeleteByQueryAction extends StreamableResponseAction<BulkByScrollResponse> {
+public class DeleteByQueryAction extends StreamableResponseActionType<BulkByScrollResponse> {
 
     public static final DeleteByQueryAction INSTANCE = new DeleteByQueryAction();
     public static final String NAME = "indices:data/write/delete/byquery";

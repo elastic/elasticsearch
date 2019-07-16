@@ -20,11 +20,11 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -43,7 +43,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdatePersistentTaskStatusAction extends StreamableResponseAction<PersistentTaskResponse> {
+public class UpdatePersistentTaskStatusAction extends StreamableResponseActionType<PersistentTaskResponse> {
 
     public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();
     public static final String NAME = "cluster:admin/persistent/update_status";
@@ -146,7 +146,7 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseAction<P
         }
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    public static class TransportAction extends StreamableTransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 

@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.core.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -68,8 +68,8 @@ public final class TransportFreezeIndexAction extends
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations,
                                       TransportCloseIndexAction transportCloseIndexAction) {
-        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            FreezeRequest::new);
+        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
+            indexNameExpressionResolver);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
         this.transportCloseIndexAction = transportCloseIndexAction;
@@ -83,11 +83,6 @@ public final class TransportFreezeIndexAction extends
     protected void doExecute(Task task, FreezeRequest request, ActionListener<FreezeResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
-    }
-
-    @Override
-    protected FreezeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -227,7 +222,7 @@ public final class TransportFreezeIndexAction extends
         }
     }
 
-    public static class FreezeIndexAction extends Action<FreezeResponse> {
+    public static class FreezeIndexAction extends ActionType<FreezeResponse> {
 
         public static final FreezeIndexAction INSTANCE = new FreezeIndexAction();
         public static final String NAME = "indices:admin/freeze";
@@ -249,6 +244,16 @@ public final class TransportFreezeIndexAction extends
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+        public FreezeRequest() {}
+
+        public FreezeRequest(StreamInput in) throws IOException {
+            super(in);
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+            indices = in.readStringArray();
+            freeze = in.readBoolean();
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        }
+
         public FreezeRequest(String... indices) {
             this.indices = indices;
         }
@@ -269,15 +274,6 @@ public final class TransportFreezeIndexAction extends
 
         public boolean freeze() {
             return freeze;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-            indices = in.readStringArray();
-            freeze = in.readBoolean();
-            waitForActiveShards = ActiveShardCount.readFrom(in);
         }
 
         @Override

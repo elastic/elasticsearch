@@ -42,7 +42,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     @Inject
     public TransportDeleteCalendarEventAction(TransportService transportService, ActionFilters actionFilters,
                                               Client client, JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(DeleteCalendarEventAction.NAME, transportService, actionFilters, DeleteCalendarEventAction.Request::new);
+        super(DeleteCalendarEventAction.NAME, transportService, DeleteCalendarEventAction.Request::new, actionFilters);
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;

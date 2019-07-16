@@ -69,6 +69,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -239,7 +240,21 @@ public class MockNioTransport extends TcpTransport {
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
             ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, socketConfig,
-                MockNioTransport.this::acceptChannel, exceptionHandler);
+                MockNioTransport.this::acceptChannel, exceptionHandler) {
+                @Override
+                public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
+                    int acceptCount = 0;
+                    SocketChannel acceptedChannel;
+                    while ((acceptedChannel = accept(rawChannel)) != null) {
+                        NioSocketChannel nioChannel = MockTcpChannelFactory.this.acceptNioChannel(acceptedChannel, selectorSupplier);
+                        acceptChannel(nioChannel);
+                        ++acceptCount;
+                        if (acceptCount % 100 == 0) {
+                            logger.warn("Accepted [{}] connections in a single select loop iteration on [{}]", acceptCount, channel);
+                        }
+                    }
+                }
+            };
             nioServerChannel.setContext(context);
             return nioServerChannel;
         }
@@ -368,14 +383,17 @@ public class MockNioTransport extends TcpTransport {
 
         private void logLongRunningExecutions() {
             for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
-                final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - entry.getValue();
+                final Long blockedSinceInNanos = entry.getValue();
+                final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - blockedSinceInNanos;
                 if (elapsedTimeInNanos > warnThreshold) {
                     final Thread thread = entry.getKey();
-                    logger.warn("Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
-                        thread.getName(),
-                        thread.getState(),
-                        TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos),
-                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
+                    final String stackTrace =
+                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
+                    final Thread.State threadState = thread.getState();
+                    if (blockedSinceInNanos == registry.get(thread)) {
+                        logger.warn("Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
+                            thread.getName(), threadState, TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos), stackTrace);
+                    }
                 }
             }
             if (stopped == false) {

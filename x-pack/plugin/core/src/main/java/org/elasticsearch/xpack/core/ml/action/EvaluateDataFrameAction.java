@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -29,18 +29,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class EvaluateDataFrameAction extends StreamableResponseAction<EvaluateDataFrameAction.Response> {
+public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.Response> {
 
     public static final EvaluateDataFrameAction INSTANCE = new EvaluateDataFrameAction();
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/evaluate";
 
     private EvaluateDataFrameAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, EvaluateDataFrameAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -79,6 +74,12 @@ public class EvaluateDataFrameAction extends StreamableResponseAction<EvaluateDa
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readStringArray();
+            evaluation = in.readNamedWriteable(Evaluation.class);
+        }
+
         public String[] getIndices() {
             return indices;
         }
@@ -106,9 +107,7 @@ public class EvaluateDataFrameAction extends StreamableResponseAction<EvaluateDa
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readStringArray();
-            evaluation = in.readNamedWriteable(Evaluation.class);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -155,7 +154,10 @@ public class EvaluateDataFrameAction extends StreamableResponseAction<EvaluateDa
         private String evaluationName;
         private List<EvaluationMetricResult> metrics;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            this.evaluationName = in.readString();
+            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
         }
 
         public Response(String evaluationName, List<EvaluationMetricResult> metrics) {
@@ -165,14 +167,11 @@ public class EvaluateDataFrameAction extends StreamableResponseAction<EvaluateDa
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.evaluationName = in.readString();
-            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(evaluationName);
             out.writeList(metrics);
         }

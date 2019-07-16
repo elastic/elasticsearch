@@ -20,11 +20,11 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -47,7 +47,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *  This action can be used to add the record for the persistent action to the cluster state.
  */
-public class StartPersistentTaskAction extends StreamableResponseAction<PersistentTaskResponse> {
+public class StartPersistentTaskAction extends StreamableResponseActionType<PersistentTaskResponse> {
 
     public static final StartPersistentTaskAction INSTANCE = new StartPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/start";
@@ -178,7 +178,7 @@ public class StartPersistentTaskAction extends StreamableResponseAction<Persiste
 
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    public static class TransportAction extends StreamableTransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 

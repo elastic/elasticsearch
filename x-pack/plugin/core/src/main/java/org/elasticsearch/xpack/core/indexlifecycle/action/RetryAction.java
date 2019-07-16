@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class RetryAction extends Action<RetryAction.Response> {
+public class RetryAction extends ActionType<RetryAction.Response> {
     public static final RetryAction INSTANCE = new RetryAction();
     public static final String NAME = "indices:admin/ilm/retry";
 
@@ -54,6 +54,12 @@ public class RetryAction extends Action<RetryAction.Response> {
             this.indices = indices;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
+
         public Request() {
         }
 
@@ -81,13 +87,6 @@ public class RetryAction extends Action<RetryAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.indices = in.readStringArray();
-            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override

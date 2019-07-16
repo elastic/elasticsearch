@@ -25,6 +25,11 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
 
     public InvalidateTokenResponse() {}
 
+    public InvalidateTokenResponse(StreamInput in) throws IOException {
+        super(in);
+        result = new TokensInvalidationResult(in);
+    }
+
     public InvalidateTokenResponse(TokensInvalidationResult result) {
         this.result = result;
     }
@@ -35,14 +40,12 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         result.writeTo(out);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        result = new TokensInvalidationResult(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -91,7 +91,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
             }
             assertThat(destDoc.containsKey("ml"), is(true));
+
+            @SuppressWarnings("unchecked")
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
             double outlierScore = (double) resultsObject.get("outlier_score");
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0)));
@@ -209,13 +212,17 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
             }
             assertThat(destDoc.containsKey("ml"), is(true));
+
+            @SuppressWarnings("unchecked")
             Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
             assertThat(resultsObject.containsKey("outlier_score"), is(true));
             double outlierScore = (double) resultsObject.get("outlier_score");
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0)));
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43960")
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 

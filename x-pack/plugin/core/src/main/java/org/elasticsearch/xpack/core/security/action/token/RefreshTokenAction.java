@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.ActionType;
 
-public final class RefreshTokenAction extends StreamableResponseAction<CreateTokenResponse> {
+public final class RefreshTokenAction extends ActionType<CreateTokenResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/token/refresh";
     public static final RefreshTokenAction INSTANCE = new RefreshTokenAction();
 
     private RefreshTokenAction() {
-        super(NAME);
-    }
-
-    @Override
-    public CreateTokenResponse newResponse() {
-        return new CreateTokenResponse();
+        super(NAME, CreateTokenResponse::new);
     }
 }

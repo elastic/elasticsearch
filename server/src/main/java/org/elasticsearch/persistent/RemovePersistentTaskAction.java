@@ -20,11 +20,11 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -41,7 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RemovePersistentTaskAction extends StreamableResponseAction<PersistentTaskResponse> {
+public class RemovePersistentTaskAction extends StreamableResponseActionType<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/remove";
@@ -116,7 +116,7 @@ public class RemovePersistentTaskAction extends StreamableResponseAction<Persist
 
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    public static class TransportAction extends StreamableTransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 

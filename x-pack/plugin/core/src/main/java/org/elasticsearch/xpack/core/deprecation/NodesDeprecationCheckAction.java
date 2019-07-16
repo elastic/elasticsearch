@@ -6,8 +6,7 @@
 
 package org.elasticsearch.xpack.core.deprecation;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
@@ -24,33 +23,24 @@ import java.util.Objects;
  * Runs deprecation checks on each node. Deprecation checks are performed locally so that filtered settings
  * can be accessed in the deprecation checks.
  */
-public class NodesDeprecationCheckAction extends StreamableResponseAction<NodesDeprecationCheckResponse> {
+public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationCheckResponse> {
     public static final NodesDeprecationCheckAction INSTANCE = new NodesDeprecationCheckAction();
     public static final String NAME = "cluster:admin/xpack/deprecation/nodes/info";
 
     private NodesDeprecationCheckAction() {
-        super(NAME);
-    }
-
-    @Override
-    public NodesDeprecationCheckResponse newResponse() {
-        return new NodesDeprecationCheckResponse();
+        super(NAME, NodesDeprecationCheckResponse::new);
     }
 
     public static class NodeRequest extends BaseNodeRequest {
 
         NodesDeprecationCheckRequest request;
 
-        public NodeRequest() {}
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesDeprecationCheckRequest(in);
+        }
         public NodeRequest(NodesDeprecationCheckRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesDeprecationCheckRequest();
-            request.readFrom(in);
         }
 
         @Override
@@ -63,8 +53,9 @@ public class NodesDeprecationCheckAction extends StreamableResponseAction<NodesD
     public static class NodeResponse extends BaseNodeResponse {
         private List<DeprecationIssue> deprecationIssues;
 
-        public NodeResponse() {
-            super();
+        public NodeResponse(StreamInput in) throws IOException {
+            super(in);
+            deprecationIssues = in.readList(DeprecationIssue::new);
         }
 
         public NodeResponse(DiscoveryNode node, List<DeprecationIssue> deprecationIssues) {
@@ -73,21 +64,9 @@ public class NodesDeprecationCheckAction extends StreamableResponseAction<NodesD
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            deprecationIssues = in.readList(DeprecationIssue::new);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeList(this.deprecationIssues);
-        }
-
-        public static NodeResponse readNodeResponse(StreamInput in) throws IOException {
-            NodeResponse nodeResponse = new NodeResponse();
-            nodeResponse.readFrom(in);
-            return nodeResponse;
         }
 
         public List<DeprecationIssue> getDeprecationIssues() {
@@ -113,7 +92,7 @@ public class NodesDeprecationCheckAction extends StreamableResponseAction<NodesD
         NodesDeprecationCheckResponse, RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client,
-                                 Action<NodesDeprecationCheckResponse> action,
+                                 ActionType<NodesDeprecationCheckResponse> action,
                                  NodesDeprecationCheckRequest request) {
             super(client, action, request);
         }

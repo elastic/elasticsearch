@@ -39,6 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class TimingStats implements ToXContentObject {
 
     public static final ParseField BUCKET_COUNT = new ParseField("bucket_count");
+    public static final ParseField TOTAL_BUCKET_PROCESSING_TIME_MS = new ParseField("total_bucket_processing_time_ms");
     public static final ParseField MIN_BUCKET_PROCESSING_TIME_MS = new ParseField("minimum_bucket_processing_time_ms");
     public static final ParseField MAX_BUCKET_PROCESSING_TIME_MS = new ParseField("maximum_bucket_processing_time_ms");
     public static final ParseField AVG_BUCKET_PROCESSING_TIME_MS = new ParseField("average_bucket_processing_time_ms");
@@ -49,12 +50,28 @@ public class TimingStats implements ToXContentObject {
         new ConstructingObjectParser<>(
             "timing_stats",
             true,
-            args ->
-                new TimingStats((String) args[0], (long) args[1], (Double) args[2], (Double) args[3], (Double) args[4], (Double) args[5]));
+            args -> {
+                String jobId = (String) args[0];
+                Long bucketCount = (Long) args[1];
+                Double totalBucketProcessingTimeMs = (Double) args[2];
+                Double minBucketProcessingTimeMs = (Double) args[3];
+                Double maxBucketProcessingTimeMs = (Double) args[4];
+                Double avgBucketProcessingTimeMs = (Double) args[5];
+                Double exponentialAvgBucketProcessingTimeMs = (Double) args[6];
+                return new TimingStats(
+                    jobId,
+                    getOrDefault(bucketCount, 0L),
+                    getOrDefault(totalBucketProcessingTimeMs, 0.0),
+                    minBucketProcessingTimeMs,
+                    maxBucketProcessingTimeMs,
+                    avgBucketProcessingTimeMs,
+                    exponentialAvgBucketProcessingTimeMs);
+            });
 
     static {
         PARSER.declareString(constructorArg(), Job.ID);
-        PARSER.declareLong(constructorArg(), BUCKET_COUNT);
+        PARSER.declareLong(optionalConstructorArg(), BUCKET_COUNT);
+        PARSER.declareDouble(optionalConstructorArg(), TOTAL_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), MIN_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), MAX_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), AVG_BUCKET_PROCESSING_TIME_MS);
@@ -63,6 +80,7 @@ public class TimingStats implements ToXContentObject {
 
     private final String jobId;
     private long bucketCount;
+    private double totalBucketProcessingTimeMs;
     private Double minBucketProcessingTimeMs;
     private Double maxBucketProcessingTimeMs;
     private Double avgBucketProcessingTimeMs;
@@ -71,12 +89,14 @@ public class TimingStats implements ToXContentObject {
     public TimingStats(
             String jobId,
             long bucketCount,
+            double totalBucketProcessingTimeMs,
             @Nullable Double minBucketProcessingTimeMs,
             @Nullable Double maxBucketProcessingTimeMs,
             @Nullable Double avgBucketProcessingTimeMs,
             @Nullable Double exponentialAvgBucketProcessingTimeMs) {
         this.jobId = jobId;
         this.bucketCount = bucketCount;
+        this.totalBucketProcessingTimeMs = totalBucketProcessingTimeMs;
         this.minBucketProcessingTimeMs = minBucketProcessingTimeMs;
         this.maxBucketProcessingTimeMs = maxBucketProcessingTimeMs;
         this.avgBucketProcessingTimeMs = avgBucketProcessingTimeMs;
@@ -89,6 +109,10 @@ public class TimingStats implements ToXContentObject {
 
     public long getBucketCount() {
         return bucketCount;
+    }
+
+    public double getTotalBucketProcessingTimeMs() {
+        return totalBucketProcessingTimeMs;
     }
 
     public Double getMinBucketProcessingTimeMs() {
@@ -112,6 +136,7 @@ public class TimingStats implements ToXContentObject {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
+        builder.field(TOTAL_BUCKET_PROCESSING_TIME_MS.getPreferredName(), totalBucketProcessingTimeMs);
         if (minBucketProcessingTimeMs != null) {
             builder.field(MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), minBucketProcessingTimeMs);
         }
@@ -135,6 +160,7 @@ public class TimingStats implements ToXContentObject {
         TimingStats that = (TimingStats) o;
         return Objects.equals(this.jobId, that.jobId)
             && this.bucketCount == that.bucketCount
+            && this.totalBucketProcessingTimeMs == that.totalBucketProcessingTimeMs
             && Objects.equals(this.minBucketProcessingTimeMs, that.minBucketProcessingTimeMs)
             && Objects.equals(this.maxBucketProcessingTimeMs, that.maxBucketProcessingTimeMs)
             && Objects.equals(this.avgBucketProcessingTimeMs, that.avgBucketProcessingTimeMs)
@@ -146,6 +172,7 @@ public class TimingStats implements ToXContentObject {
         return Objects.hash(
             jobId,
             bucketCount,
+            totalBucketProcessingTimeMs,
             minBucketProcessingTimeMs,
             maxBucketProcessingTimeMs,
             avgBucketProcessingTimeMs,
@@ -155,5 +182,9 @@ public class TimingStats implements ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    private static <T> T getOrDefault(@Nullable T value, T defaultValue) {
+        return value != null ? value : defaultValue;
     }
 }

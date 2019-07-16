@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutRollupJobAction extends Action<AcknowledgedResponse> {
+public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutRollupJobAction INSTANCE = new PutRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/put";
@@ -49,6 +49,11 @@ public class PutRollupJobAction extends Action<AcknowledgedResponse> {
             this.config = config;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new RollupJobConfig(in);
+        }
+
         public Request() {
 
         }
@@ -63,12 +68,6 @@ public class PutRollupJobAction extends Action<AcknowledgedResponse> {
 
         public void setConfig(RollupJobConfig config) {
             this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new RollupJobConfig(in);
         }
 
         @Override

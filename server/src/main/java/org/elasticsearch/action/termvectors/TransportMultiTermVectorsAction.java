@@ -49,7 +49,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     public TransportMultiTermVectorsAction(TransportService transportService, ClusterService clusterService,
                                            NodeClient client, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
+        super(MultiTermVectorsAction.NAME, transportService, MultiTermVectorsRequest::new, actionFilters);
         this.clusterService = clusterService;
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -107,7 +107,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiTermVectorsShardRequest shardRequest : shardRequests.values()) {
-            client.executeLocally(TransportShardMultiTermsVectorAction.ACTION_INSTANCE, shardRequest, new ActionListener<>() {
+            client.executeLocally(TransportShardMultiTermsVectorAction.TYPE, shardRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(MultiTermVectorsShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {

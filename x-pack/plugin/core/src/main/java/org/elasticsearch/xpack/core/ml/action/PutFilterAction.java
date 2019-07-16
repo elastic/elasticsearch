@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,18 +25,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 
-public class PutFilterAction extends StreamableResponseAction<PutFilterAction.Response> {
+public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
     public static final PutFilterAction INSTANCE = new PutFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/put";
 
     private PutFilterAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -59,6 +54,11 @@ public class PutFilterAction extends StreamableResponseAction<PutFilterAction.Re
 
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            filter = new MlFilter(in);
+        }
+
         public Request(MlFilter filter) {
             this.filter = ExceptionsHelper.requireNonNull(filter, "filter");
         }
@@ -74,8 +74,7 @@ public class PutFilterAction extends StreamableResponseAction<PutFilterAction.Re
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filter = new MlFilter(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -122,19 +121,22 @@ public class PutFilterAction extends StreamableResponseAction<PutFilterAction.Re
         Response() {
         }
 
+        Response(StreamInput in) throws IOException {
+            super(in);
+            filter = new MlFilter(in);
+        }
+
         public Response(MlFilter filter) {
             this.filter = filter;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filter = new MlFilter(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             filter.writeTo(out);
         }
 

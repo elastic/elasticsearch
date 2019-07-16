@@ -211,6 +211,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44416")
     public void testJustMasterNode() throws Exception {
         logger.info("--> cleaning nodes");
 

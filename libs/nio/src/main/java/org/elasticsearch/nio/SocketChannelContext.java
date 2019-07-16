@@ -96,8 +96,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
                 throw new IOException("Failed to connect socket channel {remoteAddress=" + remoteAddress + "}.", e);
             }
         }
-
-        channelHandler.channelRegistered();
     }
 
     public void addConnectListener(BiConsumer<Void, Exception> listener) {
@@ -181,6 +179,11 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected FlushOperation getPendingFlush() {
         return pendingFlushes.peekFirst();
+    }
+
+    @Override
+    protected void channelActive() throws IOException {
+        channelHandler.channelActive();
     }
 
     @Override

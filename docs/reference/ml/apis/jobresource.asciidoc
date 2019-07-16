@@ -438,7 +438,7 @@ A custom rule has the following properties:
   To add a scope for a field, add the field name as a key in the scope object and
   set its value to an object with the following properties:  
 `filter_id`:::
-  (string) The id of the <<ml-filter-resource,filter>> to be used.
+  (string) The id of the filter to be used.
 
 `filter_type`:::
   (string) Either `include` (the rule applies for values in the filter)

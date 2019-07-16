@@ -33,17 +33,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
+public abstract class AggregatorFactory {
 
     public static final class MultiBucketAggregatorWrapper extends Aggregator {
         private final BigArrays bigArrays;
         private final Aggregator parent;
-        private final AggregatorFactory<?> factory;
+        private final AggregatorFactory factory;
         private final Aggregator first;
         ObjectArray<Aggregator> aggregators;
         ObjectArray<LeafBucketCollector> collectors;
 
-        MultiBucketAggregatorWrapper(BigArrays bigArrays, SearchContext context, Aggregator parent, AggregatorFactory<?> factory,
+        MultiBucketAggregatorWrapper(BigArrays bigArrays, SearchContext context, Aggregator parent, AggregatorFactory factory,
                 Aggregator first) {
             this.bigArrays = bigArrays;
             this.parent = parent;
@@ -167,7 +167,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
     }
 
     protected final String name;
-    protected final AggregatorFactory<?> parent;
+    protected final AggregatorFactory parent;
     protected final AggregatorFactories factories;
     protected final Map<String, Object> metaData;
     protected final SearchContext context;
@@ -180,7 +180,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, SearchContext context, AggregatorFactory<?> parent,
+    public AggregatorFactory(String name, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         this.name = name;
         this.context = context;
@@ -217,7 +217,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         return createInternal(parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
     }
 
-    public AggregatorFactory<?> getParent() {
+    public AggregatorFactory getParent() {
         return parent;
     }
 
@@ -226,7 +226,7 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
      * {@link Aggregator}s that only know how to collect bucket {@code 0}, this
      * returns an aggregator that can collect any bucket.
      */
-    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory<?> factory, final SearchContext context,
+    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final SearchContext context,
             final Aggregator parent) throws IOException {
         final Aggregator first = factory.create(parent, true);
         final BigArrays bigArrays = context.bigArrays();

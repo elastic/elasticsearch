@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,7 +42,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.Version.V_7_3_0;
 
-public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
+public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> {
 
     public static final GetJobsStatsAction INSTANCE = new GetJobsStatsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/stats/get";
@@ -51,6 +52,8 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
     private static final String FORECASTS_STATS = "forecasts_stats";
     private static final String STATE = "state";
     private static final String NODE = "node";
+    private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
+    private static final String OPEN_TIME = "open_time";
     private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
@@ -266,13 +269,16 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
                     builder.endObject();
                 }
                 if (assignmentExplanation != null) {
-                    builder.field("assignment_explanation", assignmentExplanation);
+                    builder.field(ASSIGNMENT_EXPLANATION, assignmentExplanation);
                 }
                 if (openTime != null) {
-                    builder.field("open_time", openTime.getStringRep());
+                    builder.field(OPEN_TIME, openTime.getStringRep());
                 }
                 if (timingStats != null) {
-                    builder.field(TIMING_STATS, timingStats);
+                    builder.field(
+                        TIMING_STATS,
+                        timingStats,
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
                 }
                 return builder;
             }

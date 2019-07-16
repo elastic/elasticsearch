@@ -1,36 +1,15 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-post-forget-follower]]
-=== Forget Follower API
+=== Forget follower API
 ++++
-<titleabbrev>Forget Follower</titleabbrev>
+<titleabbrev>Forget follower</titleabbrev>
 ++++
 
 Removes the follower retention leases from the leader.
 
-==== Description
-
-A following index takes out retention leases on its leader index. These
-retention leases are used to increase the likelihood that the shards of the
-leader index retain the history of operations that the shards of the following
-index need to execute replication. When a follower index is converted to a
-regular index via the <<ccr-post-unfollow,unfollow API>> (either via explicit
-execution of this API, or implicitly via {ilm}), these retention leases are
-removed. However, removing these retention leases can fail (e.g., if the remote
-cluster containing the leader index is unavailable). While these retention
-leases will eventually expire on their own, their extended existence can cause
-the leader index to hold more history than necessary, and prevent {ilm} from
-performing some operations on the leader index. This API exists to enable
-manually removing these retention leases when the unfollow API was unable to do
-so.
-
-NOTE: This API does not stop replication by a following index. If you use this
-API targeting a follower index that is still actively following, the following
-index will add back retention leases on the leader. The only purpose of this API
-is to handle the case of failure to remove the following retention leases after
-the <<ccr-post-unfollow,unfollow API>> is invoked.
-
-==== Request
+[[ccr-post-forget-follower-request]]
+==== {api-request-title}
 
 //////////////////////////
 
@@ -89,33 +68,61 @@ POST /<leader_index>/_ccr/forget_follower
 // TESTRESPONSE[s/"failed" : 0/"failed" : $body._shards.failed/]
 // TESTRESPONSE[s/"failures" : \[ \]/"failures" : $body._shards.failures/]
 
-==== Path Parameters
+[[ccr-post-forget-follower-prereqs]]
+==== {api-prereq-title}
 
-`leader_index` (required)::
-  (string) the name of the leader index
-
-==== Request Body
-`follower_cluster` (required)::
-  (string) the name of the cluster containing the follower index
-
-`follower_index` (required)::
-  (string) the name of the follower index
-
-`follower_index_uuid` (required)::
-  (string) the UUID of the follower index
-
-`leader_remote_cluster` (required)::
-  (string) the alias (from the perspective of the cluster containing the
-  follower index) of the <<modules-remote-clusters,remote cluster>> containing
-  the leader index
-
-==== Authorization
-
-If the {es} {security-features} are enabled, you must have `manage_leader_index`
+* If the {es} {security-features} are enabled, you must have `manage_leader_index`
 index privileges for the leader index. For more information, see
 {stack-ov}/security-privileges.html[Security privileges].
 
-==== Example
+[[ccr-post-forget-follower-desc]]
+==== {api-description-title}
+
+A following index takes out retention leases on its leader index. These
+retention leases are used to increase the likelihood that the shards of the
+leader index retain the history of operations that the shards of the following
+index need to execute replication. When a follower index is converted to a
+regular index via the <<ccr-post-unfollow,unfollow API>> (either via explicit
+execution of this API, or implicitly via {ilm}), these retention leases are
+removed. However, removing these retention leases can fail (e.g., if the remote
+cluster containing the leader index is unavailable). While these retention
+leases will eventually expire on their own, their extended existence can cause
+the leader index to hold more history than necessary, and prevent {ilm} from
+performing some operations on the leader index. This API exists to enable
+manually removing these retention leases when the unfollow API was unable to do
+so.
+
+NOTE: This API does not stop replication by a following index. If you use this
+API targeting a follower index that is still actively following, the following
+index will add back retention leases on the leader. The only purpose of this API
+is to handle the case of failure to remove the following retention leases after
+the <<ccr-post-unfollow,unfollow API>> is invoked.
+
+[[ccr-post-forget-follower-path-parms]]
+==== {api-path-parms-title}
+
+`<leader_index>`::
+  (Required, string) The name of the leader index.
+
+[[ccr-post-forget-follower-request-body]]
+==== {api-request-body-title}
+
+`follower_cluster`::
+  (Required, string) The name of the cluster containing the follower index.
+
+`follower_index`::
+  (Required, string) The name of the follower index.
+
+`follower_index_uuid`::
+  (Required, string) The UUID of the follower index.
+
+`leader_remote_cluster`::
+  (Required, string) The alias (from the perspective of the cluster containing
+  the follower index) of the <<modules-remote-clusters,remote cluster>>
+  containing the leader index.
+
+[[ccr-post-forget-follower-examples]]
+==== {api-examples-title}
 
 This example removes the follower retention leases for `follower_index` from
 `leader_index`.

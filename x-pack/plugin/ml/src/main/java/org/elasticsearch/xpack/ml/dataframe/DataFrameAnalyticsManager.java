@@ -70,7 +70,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
                 DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
-                    task.getAllocationId());
+                    task.getAllocationId(), null);
                 switch(currentState) {
                     // If we are STARTED, we are right at the beginning of our task, we should indicate that we are entering the
                     // REINDEX state and start reindexing.
@@ -150,7 +150,7 @@ public class DataFrameAnalyticsManager {
                 reindexRequest.setSourceIndices(config.getSource().getIndex());
                 reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
                 reindexRequest.setDestIndex(config.getDest().getIndex());
-                reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsFields.ID + " = ctx._id"));
+                reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsIndex.ID_COPY + " = ctx._id"));
 
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
@@ -191,7 +191,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
-                    task.getAllocationId());
+                    task.getAllocationId(), null);
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
                     updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
                         error -> {

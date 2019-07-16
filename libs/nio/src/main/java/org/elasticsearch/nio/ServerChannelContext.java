@@ -105,7 +105,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
         socket.setReuseAddress(config.tcpReuseAddress());
     }
 
-    private static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
+    protected static SocketChannel accept(ServerSocketChannel serverSocketChannel) throws IOException {
         try {
             assert serverSocketChannel.isBlocking() == false;
             SocketChannel channel = AccessController.doPrivileged((PrivilegedExceptionAction<SocketChannel>) serverSocketChannel::accept);

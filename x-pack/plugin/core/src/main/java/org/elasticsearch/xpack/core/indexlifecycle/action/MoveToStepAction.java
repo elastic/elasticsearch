@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import java.io.IOException;
 import java.util.Objects;
 
-public class MoveToStepAction extends Action<MoveToStepAction.Response> {
+public class MoveToStepAction extends ActionType<MoveToStepAction.Response> {
     public static final MoveToStepAction INSTANCE = new MoveToStepAction();
     public static final String NAME = "cluster:admin/ilm/_move/post";
 
@@ -73,6 +73,13 @@ public class MoveToStepAction extends Action<MoveToStepAction.Response> {
             this.nextStepKey = nextStepKey;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.index = in.readString();
+            this.currentStepKey = new StepKey(in);
+            this.nextStepKey = new StepKey(in);
+        }
+
         public Request() {
         }
 
@@ -95,14 +102,6 @@ public class MoveToStepAction extends Action<MoveToStepAction.Response> {
 
         public static Request parseRequest(String name, XContentParser parser) {
             return PARSER.apply(parser, name);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.index = in.readString();
-            this.currentStepKey = new StepKey(in);
-            this.nextStepKey = new StepKey(in);
         }
 
         @Override

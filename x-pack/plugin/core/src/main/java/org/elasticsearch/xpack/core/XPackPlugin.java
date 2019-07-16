@@ -9,7 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -63,7 +63,9 @@ import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.frozen.FrozenIndicesUsageTransportAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
@@ -251,6 +253,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.add(new ActionHandler<>(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
             TransportFreezeIndexAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.FROZEN_INDICES, FrozenIndicesUsageTransportAction.class));
         actions.addAll(licensing.getActions());
         actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
         return actions;
@@ -267,8 +270,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     }
 
     @Override
-    public List<Action<? extends ActionResponse>> getClientActions() {
-        List<Action<? extends ActionResponse>> actions = new ArrayList<>();
+    public List<ActionType<? extends ActionResponse>> getClientActions() {
+        List<ActionType<? extends ActionResponse>> actions = new ArrayList<>();
         actions.addAll(licensing.getClientActions());
         actions.addAll(super.getClientActions());
         return actions;

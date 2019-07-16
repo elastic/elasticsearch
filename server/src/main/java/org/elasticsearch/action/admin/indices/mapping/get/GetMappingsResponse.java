@@ -77,7 +77,6 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {
             out.writeString(indexEntry.key);

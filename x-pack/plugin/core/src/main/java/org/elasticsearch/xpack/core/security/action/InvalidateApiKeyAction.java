@@ -6,13 +6,13 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.Writeable;
 
 /**
- * Action for invalidating API key
+ * ActionType for invalidating API key
  */
-public final class InvalidateApiKeyAction extends Action<InvalidateApiKeyResponse> {
+public final class InvalidateApiKeyAction extends ActionType<InvalidateApiKeyResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/api_key/invalidate";
     public static final InvalidateApiKeyAction INSTANCE = new InvalidateApiKeyAction();

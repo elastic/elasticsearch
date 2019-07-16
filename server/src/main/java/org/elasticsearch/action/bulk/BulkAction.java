@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-public class BulkAction extends StreamableResponseAction<BulkResponse> {
+public class BulkAction extends StreamableResponseActionType<BulkResponse> {
 
     public static final BulkAction INSTANCE = new BulkAction();
     public static final String NAME = "indices:data/write/bulk";

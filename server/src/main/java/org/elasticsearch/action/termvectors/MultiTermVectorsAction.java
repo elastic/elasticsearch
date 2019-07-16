@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.action.StreamableResponseAction;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class MultiTermVectorsAction extends StreamableResponseAction<MultiTermVectorsResponse> {
+public class MultiTermVectorsAction extends StreamableResponseActionType<MultiTermVectorsResponse> {
 
     public static final MultiTermVectorsAction INSTANCE = new MultiTermVectorsAction();
     public static final String NAME = "indices:data/read/mtv";

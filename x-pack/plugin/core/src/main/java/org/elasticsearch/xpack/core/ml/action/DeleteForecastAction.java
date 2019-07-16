@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteForecastAction extends Action<AcknowledgedResponse> {
+public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteForecastAction INSTANCE = new DeleteForecastAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast/delete";
@@ -39,6 +39,13 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
         private String jobId;
         private String forecastId;
         private boolean allowNoForecasts = true;
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            forecastId = in.readString();
+            allowNoForecasts = in.readBoolean();
+        }
 
         public Request() {
         }
@@ -67,14 +74,6 @@ public class DeleteForecastAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            forecastId = in.readString();
-            allowNoForecasts = in.readBoolean();
         }
 
         @Override

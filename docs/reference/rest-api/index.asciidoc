@@ -14,11 +14,13 @@ not be included yet.
 * <<ccr-apis,{ccr-cap} APIs>>
 * <<data-frame-apis,{dataframe-cap} APIs>>
 * <<graph-explore-api,Graph Explore API>>
-* <<freeze-index-api>>, <<unfreeze-index-api>>
+* <<index-apis>>
 * <<indices-reload-analyzers,Reload Search Analyzers API>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
+* <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<licensing-apis,Licensing APIs>>
-* <<ml-apis,Machine Learning APIs>>
+* <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
+* <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<security-api,Security APIs>>
 * <<watcher-api,Watcher APIs>>
 * <<rollup-apis,Rollup APIs>>
@@ -30,14 +32,15 @@ include::info.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
-include::{es-repo-dir}/indices/apis/freeze.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
+include::{es-repo-dir}/ilm/apis/slm-api.asciidoc[]
+include::{es-repo-dir}/indices/apis/index.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/ml/apis/ml-api.asciidoc[]
+include::{es-repo-dir}/ml/df-analytics/apis/index.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]
-include::{es-repo-dir}/indices/apis/unfreeze.asciidoc[]
 include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::defs.asciidoc[]

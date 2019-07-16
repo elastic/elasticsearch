@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
@@ -80,7 +81,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -145,14 +145,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
      * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
-     * @param reroute A callback to call when the membership of the cluster has changed, to recalculate the assignment of shards. In
-     *                production code this calls {@link org.elasticsearch.cluster.routing.RoutingService#reroute(String)}.
      */
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
-                       Consumer<String> reroute, ElectionStrategy electionStrategy) {
+                       RerouteService rerouteService, ElectionStrategy electionStrategy) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
@@ -162,7 +160,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.electionStrategy = electionStrategy;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators,
-            reroute);
+            rerouteService);
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -444,23 +442,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode());
+        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
+            final ClusterState stateForJoinValidation = getStateForMasterService();
 
-        final ClusterState stateForJoinValidation = getStateForMasterService();
-
-        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
-            onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
-            if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                // we do this in a couple of places including the cluster update thread. This one here is really just best effort
-                // to ensure we fail as fast as possible.
-                JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
-                    stateForJoinValidation.getNodes().getMinNodeVersion());
+            if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+                onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+                if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                    // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+                    // to ensure we fail as fast as possible.
+                    JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                        stateForJoinValidation.getNodes().getMinNodeVersion());
+                }
+                sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
+            } else {
+                processJoinRequest(joinRequest, joinCallback);
             }
-            sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
-
-        } else {
-            processJoinRequest(joinRequest, joinCallback);
-        }
+        }, joinCallback::onFailure));
     }
 
     // package private for tests
@@ -854,11 +851,23 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
+        // exclude any nodes whose ID is in the voting config exclusions list ...
+        final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
+        // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
+        // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
+        // the logging much harder to follow.
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+            .filter(n -> n.isMasterNode() == false
+                && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
+                || clusterState.getLastCommittedConfiguration().getNodeIds().contains(n.getId())))
+            .map(DiscoveryNode::getId);
+
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+            .filter(DiscoveryNode::isMasterNode).filter(coordinationState.get()::containsJoinVoteFor).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
-            clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId).collect(Collectors.toSet()),
+            Stream.concat(masterIneligibleNodeIdsInVotingConfig, excludedNodeIds).collect(Collectors.toSet()),
             getLocalNode(), clusterState.getLastAcceptedConfiguration());
+
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
             return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
@@ -896,9 +905,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // for tests
-    boolean hasJoinVoteFrom(DiscoveryNode node) {
-        return coordinationState.get().containsJoinVoteFor(node);
+    // exposed for tests
+    boolean missingJoinVoteFrom(DiscoveryNode node) {
+        return node.isMasterNode() && coordinationState.get().containsJoinVoteFor(node) == false;
     }
 
     private void handleJoin(Join join) {
@@ -907,13 +916,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (coordinationState.get().electionWon()) {
                 // If we have already won the election then the actual join does not matter for election purposes, so swallow any exception
-                final boolean isNewJoin = handleJoinIgnoringExceptions(join);
+                final boolean isNewJoinFromMasterEligibleNode = handleJoinIgnoringExceptions(join);
 
                 // If we haven't completely finished becoming master then there's already a publication scheduled which will, in turn,
                 // schedule a reconfiguration if needed. It's benign to schedule a reconfiguration anyway, but it might fail if it wins the
                 // race against the election-winning publication and log a big error message, which we can prevent by checking this here:
                 final boolean establishedAsMaster = mode == Mode.LEADER && getLastAcceptedState().term() == getCurrentTerm();
-                if (isNewJoin && establishedAsMaster && publicationInProgress() == false) {
+                if (isNewJoinFromMasterEligibleNode && establishedAsMaster && publicationInProgress() == false) {
                     scheduleReconfigurationIfNeeded();
                 }
             } else {
@@ -1352,7 +1361,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
 
         private void handleAssociatedJoin(Join join) {
-            if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getSourceNode())) {
                 logger.trace("handling {}", join);
                 handleJoin(join);
             }
@@ -1390,7 +1399,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // The remote node did not include a join vote in its publish response. We do not persist joins, so it could be that the remote
             // node voted for us and then rebooted, or it could be that it voted for a different node in this term. If we don't have a copy
             // of a join from this node then we assume the latter and bump our term to obtain a vote from this node.
-            if (hasJoinVoteFrom(discoveryNode) == false) {
+            if (missingJoinVoteFrom(discoveryNode)) {
                 final long term = publishRequest.getAcceptedState().term();
                 logger.debug("onMissingJoin: no join vote from {}, bumping term to exceed {}", discoveryNode, term);
                 updateMaxTermSeen(term + 1);

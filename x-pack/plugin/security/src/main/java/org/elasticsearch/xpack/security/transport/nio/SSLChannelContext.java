@@ -58,8 +58,8 @@ public final class SSLChannelContext extends SocketChannelContext {
     }
 
     @Override
-    public void register() throws IOException {
-        super.register();
+    protected void channelActive() throws IOException {
+        super.channelActive();
         sslDriver.init();
         SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
         if (outboundBuffer.hasEncryptedBytesToFlush()) {
@@ -182,8 +182,15 @@ public final class SSLChannelContext extends SocketChannelContext {
     @Override
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
-            WriteOperation writeOperation = new CloseNotifyOperation(this);
-            getSelector().queueWrite(writeOperation);
+            // The model for closing channels will change at some point, removing the need for this "schedule
+            // a write" signal. But for now, we need to handle the edge case where the channel is not
+            // registered.
+            if (getSelectionKey() == null) {
+                getSelector().queueChannelClose(channel);
+            } else {
+                WriteOperation writeOperation = new CloseNotifyOperation(this);
+                getSelector().queueWrite(writeOperation);
+            }
         }
     }
 

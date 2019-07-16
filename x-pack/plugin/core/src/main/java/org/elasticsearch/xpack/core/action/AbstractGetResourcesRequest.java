@@ -68,10 +68,7 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        resourceId = in.readOptionalString();
-        pageParams = in.readOptionalWriteable(PageParams::new);
-        allowNoResources = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

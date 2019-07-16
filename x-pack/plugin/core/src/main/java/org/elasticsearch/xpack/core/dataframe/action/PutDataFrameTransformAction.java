@@ -6,13 +6,14 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,10 +30,13 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
 
-public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
+public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/put";
+
+    private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
+    private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private PutDataFrameTransformAction() {
         super(NAME);
@@ -60,6 +64,10 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
             return new Request(DataFrameTransformConfig.fromXContent(parser, id, false));
         }
 
+        /**
+         * More complex validations with how {@link DataFrameTransformConfig#getDestination()} and
+         * {@link DataFrameTransformConfig#getSource()} relate are done in the transport handler.
+         */
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -93,6 +101,19 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
                     DataFrameMessages.getMessage(DataFrameMessages.ID_TOO_LONG, DataFrameStrings.ID_LENGTH_LIMIT),
                     validationException);
             }
+            TimeValue frequency = config.getFrequency();
+            if (frequency != null) {
+                if (frequency.compareTo(MIN_FREQUENCY) < 0) {
+                    validationException = addValidationError(
+                        "minimum permitted [" + DataFrameField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
+                        validationException);
+                } else if (frequency.compareTo(MAX_FREQUENCY) > 0) {
+                    validationException = addValidationError(
+                        "highest permitted [" + DataFrameField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
+                        validationException);
+                }
+            }
+
             return validationException;
         }
 

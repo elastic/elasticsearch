@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
 
-public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
+public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
 
     public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction();
     public static final String NAME = "internal:admin/ccr/restore/session/put";
@@ -121,7 +121,6 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             node.writeTo(out);
             storeFileMetaData.writeTo(out);
             out.writeVLong(mappingVersion);

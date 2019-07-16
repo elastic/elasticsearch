@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
+public class PutLifecycleAction extends ActionType<PutLifecycleAction.Response> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/put";
 
@@ -62,6 +62,11 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
             this.policy = policy;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policy = new LifecyclePolicy(in);
+        }
+
         public Request() {
         }
 
@@ -84,12 +89,6 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
             builder.field(POLICY_FIELD.getPreferredName(), policy);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            policy = new LifecyclePolicy(in);
         }
 
         @Override

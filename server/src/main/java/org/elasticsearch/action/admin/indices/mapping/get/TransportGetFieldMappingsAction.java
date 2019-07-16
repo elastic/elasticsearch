@@ -47,7 +47,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            NodeClient client) {
-        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+        super(GetFieldMappingsAction.NAME, transportService, GetFieldMappingsRequest::new, actionFilters);
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
@@ -68,7 +68,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
             for (final String index : concreteIndices) {
                 GetFieldMappingsIndexRequest shardRequest = new GetFieldMappingsIndexRequest(request, index, probablySingleFieldRequest);
 
-                client.executeLocally(TransportGetFieldMappingsIndexAction.ACTION_INSTANCE, shardRequest, new ActionListener<>() {
+                client.executeLocally(TransportGetFieldMappingsIndexAction.TYPE, shardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(GetFieldMappingsResponse result) {
                         indexResponses.set(indexCounter.getAndIncrement(), result);

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PersistJobAction extends Action<PersistJobAction.Response> {
+public class PersistJobAction extends ActionType<PersistJobAction.Response> {
 
     public static final PersistJobAction INSTANCE = new PersistJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/persist";

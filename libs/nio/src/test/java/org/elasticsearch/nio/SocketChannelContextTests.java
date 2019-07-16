@@ -145,6 +145,11 @@ public class SocketChannelContextTests extends ESTestCase {
         assertSame(ioException, exception.get());
     }
 
+    public void testChannelActiveCallsHandler() throws IOException {
+        context.channelActive();
+        verify(handler).channelActive();
+    }
+
     public void testWriteFailsIfClosing() {
         context.closeChannel();
 

@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTransformTaskAction.Response> {
+public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrameTransformTaskAction.Response> {
 
     public static final StartDataFrameTransformTaskAction INSTANCE = new StartDataFrameTransformTaskAction();
     public static final String NAME = "cluster:admin/data_frame/start_task";

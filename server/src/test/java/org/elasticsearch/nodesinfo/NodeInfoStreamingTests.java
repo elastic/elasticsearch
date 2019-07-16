@@ -64,7 +64,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             nodeInfo.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                NodeInfo readNodeInfo = NodeInfo.readNodeInfo(in);
+                NodeInfo readNodeInfo = new NodeInfo(in);
                 assertExpectedUnchanged(nodeInfo, readNodeInfo);
             }
         }

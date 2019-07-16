@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -26,10 +27,16 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
@@ -44,6 +51,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Mock Repository that allows testing the eventually consistent behaviour of AWS S3 as documented in the
  * <a href="https://docs.aws.amazon.com/AmazonS3/latest/dev/Introduction.html#ConsistencyModel">AWS S3 docs</a>.
@@ -54,10 +65,13 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private final Context context;
 
+    private final NamedXContentRegistry namedXContentRegistry;
+
     public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
         NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool, Context context) {
         super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
         this.context = context;
+        this.namedXContentRegistry = namedXContentRegistry;
     }
 
     // Filters out all actions that are super-seeded by subsequent actions
@@ -176,35 +190,31 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 ensureNotClosed();
                 final String blobPath = path.buildAsString() + name;
                 synchronized (context.actions) {
-                    final List<BlobStoreAction> relevantActions = new ArrayList<>(
-                            context.actions.stream().filter(action -> blobPath.equals(action.path)).collect(Collectors.toList()));
+                    final List<BlobStoreAction> relevantActions = relevantActions(blobPath);
                     context.actions.add(new BlobStoreAction(Operation.GET, blobPath));
-                    for (int i = relevantActions.size() - 1; i > 0; i--) {
-                        if (relevantActions.get(i).operation == Operation.GET) {
-                            relevantActions.remove(i);
-                        } else {
-                            break;
-                        }
-                    }
-                    final List<byte[]> writes = new ArrayList<>();
-                    boolean readBeforeWrite = false;
-                    for (BlobStoreAction relevantAction : relevantActions) {
-                        if (relevantAction.operation == Operation.PUT) {
-                            writes.add(relevantAction.data);
-                        }
-                        if (writes.isEmpty() && relevantAction.operation == Operation.GET) {
-                            readBeforeWrite = true;
-                        }
-                    }
-                    if (writes.isEmpty()) {
+                    if (relevantActions.stream().noneMatch(a -> a.operation == Operation.PUT)) {
                         throw new NoSuchFileException(blobPath);
                     }
-                    if (readBeforeWrite == false && relevantActions.size() == 1) {
+                    if (relevantActions.size() == 1 && relevantActions.get(0).operation == Operation.PUT) {
                         // Consistent read after write
-                        return new ByteArrayInputStream(writes.get(0));
+                        return new ByteArrayInputStream(relevantActions.get(0).data);
                     }
                     throw new AssertionError("Inconsistent read on [" + blobPath + ']');
                 }
+            }
+
+            private List<BlobStoreAction> relevantActions(String blobPath) {
+                assert Thread.holdsLock(context.actions);
+                final List<BlobStoreAction> relevantActions = new ArrayList<>(
+                    context.actions.stream().filter(action -> blobPath.equals(action.path)).collect(Collectors.toList()));
+                for (int i = relevantActions.size() - 1; i > 0; i--) {
+                    if (relevantActions.get(i).operation == Operation.GET) {
+                        relevantActions.remove(i);
+                    } else {
+                        break;
+                    }
+                }
+                return relevantActions;
             }
 
             @Override
@@ -265,16 +275,63 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                throws IOException {
+                    throws IOException {
                 ensureNotClosed();
-                // TODO: Throw if we try to overwrite any blob other than incompatible_snapshots or index.latest with different content
-                //       than it already contains.
                 assert blobSize < Integer.MAX_VALUE;
                 final byte[] data = new byte[(int) blobSize];
                 final int read = inputStream.read(data);
                 assert read == data.length;
+                final String blobPath = path.buildAsString() + blobName;
                 synchronized (context.actions) {
-                    context.actions.add(new BlobStoreAction(Operation.PUT, path.buildAsString() + blobName, data));
+                    final List<BlobStoreAction> relevantActions = relevantActions(blobPath);
+                    // We do some checks in case there is a consistent state for a blob to prevent turning it inconsistent.
+                    final boolean hasConsistentContent =
+                        relevantActions.size() == 1 && relevantActions.get(0).operation == Operation.PUT;
+                    if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                        // TODO: Ensure that it is impossible to ever decrement the generation id stored in index.latest then assert that
+                        //       it never decrements here
+                    } else if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)) {
+                        if (hasConsistentContent) {
+                                if (basePath().buildAsString().equals(path().buildAsString())) {
+                                    try {
+                                        // TODO: dry up the logic for reading SnapshotInfo here against the code in ChecksumBlobStoreFormat
+                                        final int offset = CodecUtil.headerLength(BlobStoreRepository.SNAPSHOT_CODEC);
+                                        final SnapshotInfo updatedInfo = SnapshotInfo.fromXContentInternal(
+                                            XContentHelper.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
+                                                new BytesArray(data, offset, data.length - offset - CodecUtil.footerLength()),
+                                                XContentType.SMILE));
+                                        // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
+                                        // a problem and could be the result of a correctly handled master failover.
+                                        final SnapshotInfo existingInfo = snapshotFormat.readBlob(this, blobName);
+                                        assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
+                                        assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
+                                        assertThat(existingInfo.state(), equalTo(updatedInfo.state()));
+                                        assertThat(existingInfo.totalShards(), equalTo(updatedInfo.totalShards()));
+                                        assertThat(existingInfo.successfulShards(), equalTo(updatedInfo.successfulShards()));
+                                        assertThat(
+                                            existingInfo.shardFailures(), containsInAnyOrder(updatedInfo.shardFailures().toArray()));
+                                        assertThat(existingInfo.indices(), equalTo(updatedInfo.indices()));
+                                        return; // No need to add a write for this since we didn't change content
+                                    } catch (Exception e) {
+                                        // Rethrow as AssertionError here since kind exception might otherwise be swallowed and logged by
+                                        // the blob store repository.
+                                        // Since we are not doing any actual IO we don't expect this to throw ever and an exception would
+                                        // signal broken SnapshotInfo bytes or unexpected behavior of SnapshotInfo otherwise.
+                                        throw new AssertionError("Failed to deserialize SnapshotInfo", e);
+                                    }
+                                } else {
+                                    // Primaries never retry so any shard level snap- blob retry/overwrite even with the same content is
+                                    // not expected.
+                                    throw new AssertionError("Shard level snap-{uuid} blobs should never be overwritten");
+                                }
+                        }
+                    } else {
+                        if (hasConsistentContent) {
+                            ESTestCase.assertArrayEquals("Tried to overwrite blob [" + blobName + "]", relevantActions.get(0).data, data);
+                            return; // No need to add a write for this since we didn't change content
+                        }
+                    }
+                    context.actions.add(new BlobStoreAction(Operation.PUT, blobPath, data));
                 }
             }
 

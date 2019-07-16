@@ -32,7 +32,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
 
     @Override
     protected UpdateSettingsRequest createTestInstance() {
-        UpdateSettingsRequest testRequest = UpdateSettingsRequestStreamableTests.createTestItem();
+        UpdateSettingsRequest testRequest = UpdateSettingsRequestSerializationTests.createTestItem();
         if (enclosedSettings) {
             UpdateSettingsRequest requestWithEnclosingSettings = new UpdateSettingsRequest(testRequest.settings()) {
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

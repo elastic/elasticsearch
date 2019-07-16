@@ -68,8 +68,8 @@ public final class TransportFreezeIndexAction extends
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations,
                                       TransportCloseIndexAction transportCloseIndexAction) {
-        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            FreezeRequest::new);
+        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
+            indexNameExpressionResolver);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
         this.transportCloseIndexAction = transportCloseIndexAction;
@@ -249,6 +249,16 @@ public final class TransportFreezeIndexAction extends
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+        public FreezeRequest() {}
+
+        public FreezeRequest(StreamInput in) throws IOException {
+            super(in);
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+            indices = in.readStringArray();
+            freeze = in.readBoolean();
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        }
+
         public FreezeRequest(String... indices) {
             this.indices = indices;
         }
@@ -269,15 +279,6 @@ public final class TransportFreezeIndexAction extends
 
         public boolean freeze() {
             return freeze;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-            indices = in.readStringArray();
-            freeze = in.readBoolean();
-            waitForActiveShards = ActiveShardCount.readFrom(in);
         }
 
         @Override

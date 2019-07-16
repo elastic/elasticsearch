@@ -15,14 +15,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichStoreTests extends ESSingleNodeTestCase {
 
     public void testCrud() throws Exception {
-        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String name = "my-policy";
 
@@ -42,7 +42,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
     }
 
     public void testImmutability() throws Exception {
-        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String name = "my-policy";
 
@@ -58,7 +58,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
     }
 
     public void testPutValidation() throws Exception {
-        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         {

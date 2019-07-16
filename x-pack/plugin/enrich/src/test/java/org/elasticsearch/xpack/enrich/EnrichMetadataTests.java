@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetadata> {
@@ -39,7 +39,7 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
         int numPolicies = randomIntBetween(8, 64);
         Map<String, EnrichPolicyDefinition> policies = new HashMap<>(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
-            EnrichPolicyDefinition policy = randomEnrichPolicy(xContentType);
+            EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(xContentType);
             policies.put(randomAlphaOfLength(8), policy);
         }
         return new EnrichMetadata(policies);
@@ -57,7 +57,7 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
         for (Map.Entry<String, EnrichPolicyDefinition> entry : newInstance.getPolicies().entrySet()) {
             EnrichPolicyDefinition actual = entry.getValue();
             EnrichPolicyDefinition expected = expectedInstance.getPolicies().get(entry.getKey());
-            EnrichPolicyTests.assertEqualPolicies(expected, actual);
+            EnrichPolicyDefinitionTests.assertEqualPolicyDefinitions(expected, actual);
         }
     }
 }

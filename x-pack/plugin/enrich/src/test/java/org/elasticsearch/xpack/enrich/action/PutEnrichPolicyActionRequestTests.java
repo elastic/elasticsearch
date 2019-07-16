@@ -11,13 +11,13 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
-import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition;
 
 public class PutEnrichPolicyActionRequestTests extends AbstractWireSerializingTestCase<PutEnrichPolicyAction.Request> {
 
     @Override
     protected PutEnrichPolicyAction.Request createTestInstance() {
-        final EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
+        final EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
         return new PutEnrichPolicyAction.Request(randomAlphaOfLength(3), policy);
     }
 

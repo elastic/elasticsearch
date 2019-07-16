@@ -17,8 +17,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolicies;
-import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.assertEqualPolicyDefinitions;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ListEnrichPolicyActionResponseTests extends AbstractSerializingTestCase<ListEnrichPolicyAction.Response> {
@@ -44,7 +44,7 @@ public class ListEnrichPolicyActionResponseTests extends AbstractSerializingTest
     protected ListEnrichPolicyAction.Response createTestInstance() {
         Map<String, EnrichPolicyDefinition> items = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 3); i++) {
-            EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
+            EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
             items.put(randomAlphaOfLength(3), policy);
         }
         return new ListEnrichPolicyAction.Response(items);
@@ -65,7 +65,7 @@ public class ListEnrichPolicyActionResponseTests extends AbstractSerializingTest
                 .filter(p -> p.getName().equals(expectedPolicy.getName())).findFirst();
             assertTrue(maybePolicy.isPresent());
             EnrichPolicyDefinition.NamedPolicy newPolicy = maybePolicy.get();
-            assertEqualPolicies(expectedPolicy.getPolicy(), newPolicy.getPolicy());
+            assertEqualPolicyDefinitions(expectedPolicy.getPolicy(), newPolicy.getPolicy());
             assertThat(expectedPolicy.getName(), equalTo(newPolicy.getName()));
         }
     }

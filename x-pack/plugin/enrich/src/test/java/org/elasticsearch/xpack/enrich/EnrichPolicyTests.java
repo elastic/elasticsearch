@@ -1,95 +1,49 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.common.bytes.BytesArray;
+import java.io.IOException;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Arrays;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
-public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicyDefinition> {
+public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy> {
 
     @Override
-    protected EnrichPolicyDefinition doParseInstance(XContentParser parser) throws IOException {
-        return EnrichPolicyDefinition.fromXContent(parser);
+    protected EnrichPolicy doParseInstance(XContentParser parser) throws IOException {
+        return EnrichPolicy.fromXContent(parser);
     }
 
     @Override
-    protected EnrichPolicyDefinition createTestInstance() {
+    protected EnrichPolicy createTestInstance() {
         return randomEnrichPolicy(randomFrom(XContentType.values()));
     }
 
     @Override
-    protected EnrichPolicyDefinition createXContextTestInstance(XContentType xContentType) {
+    protected EnrichPolicy createXContextTestInstance(XContentType xContentType) {
         return randomEnrichPolicy(xContentType);
     }
 
-    public static EnrichPolicyDefinition randomEnrichPolicy(XContentType xContentType) {
-        final QueryBuilder queryBuilder;
-        if (randomBoolean()) {
-            queryBuilder = new MatchAllQueryBuilder();
-        } else {
-            queryBuilder = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(4));
-        }
-
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try (XContentBuilder xContentBuilder = XContentFactory.contentBuilder(xContentType, out)) {
-            XContentBuilder content = queryBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            content.flush();
-            EnrichPolicyDefinition.QuerySource querySource = new EnrichPolicyDefinition.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
-            return new EnrichPolicyDefinition(
-                randomFrom(EnrichPolicyDefinition.SUPPORTED_POLICY_TYPES),
-                randomBoolean() ? querySource : null,
-                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
-                randomAlphaOfLength(4),
-                Arrays.asList(generateRandomStringArray(8, 4, false, false))
-            );
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
+    public static EnrichPolicy randomEnrichPolicy(XContentType xContentType) {
+        return new EnrichPolicy(
+            randomAlphaOfLength(4),
+            randomFrom(Version.getDeclaredVersions(Version.class)),
+            EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition(xContentType)
+        );
     }
 
     @Override
-    protected Writeable.Reader<EnrichPolicyDefinition> instanceReader() {
-        return EnrichPolicyDefinition::new;
+    protected Writeable.Reader<EnrichPolicy> instanceReader() {
+        return EnrichPolicy::new;
     }
 
     @Override
-    protected void assertEqualInstances(EnrichPolicyDefinition expectedInstance, EnrichPolicyDefinition newInstance) {
+    protected void assertEqualInstances(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
         assertNotSame(expectedInstance, newInstance);
-        assertEqualPolicies(expectedInstance, newInstance);
-    }
-
-    public static void assertEqualPolicies(EnrichPolicyDefinition expectedInstance, EnrichPolicyDefinition newInstance) {
-        assertThat(newInstance.getType(), equalTo(expectedInstance.getType()));
-        if (newInstance.getQuery() != null) {
-            // testFromXContent, always shuffles the xcontent and then byte wise the query is different, so we check the parsed version:
-            assertThat(newInstance.getQuery().getQueryAsMap(), equalTo(expectedInstance.getQuery().getQueryAsMap()));
-        } else {
-            assertThat(expectedInstance.getQuery(), nullValue());
-        }
-        assertThat(newInstance.getIndices(), equalTo(expectedInstance.getIndices()));
-        assertThat(newInstance.getEnrichKey(), equalTo(expectedInstance.getEnrichKey()));
-        assertThat(newInstance.getEnrichValues(), equalTo(expectedInstance.getEnrichValues()));
+        assertEquals(expectedInstance.getName(), newInstance.getName());
+        assertEquals(expectedInstance.getVersionCreated(), newInstance.getVersionCreated());
+        EnrichPolicyDefinitionTests.assertEqualPolicyDefinitions(expectedInstance.getDefinition(), newInstance.getDefinition());
     }
 }

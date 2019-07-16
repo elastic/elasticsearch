@@ -41,7 +41,7 @@ public final class EnrichPolicyDefinition implements Writeable, ToXContentFragme
     private static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<EnrichPolicyDefinition, Void> PARSER = new ConstructingObjectParser<>("policy",
+    private static final ConstructingObjectParser<EnrichPolicyDefinition, Void> PARSER = new ConstructingObjectParser<>("policy_definition",
         args -> new EnrichPolicyDefinition(
             (String) args[0],
             (QuerySource) args[1],

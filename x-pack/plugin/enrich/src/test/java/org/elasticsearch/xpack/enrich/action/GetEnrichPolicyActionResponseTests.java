@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolicies;
-import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.assertEqualPolicyDefinitions;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition;
 
 public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestCase<GetEnrichPolicyAction.Response> {
 
@@ -27,7 +27,7 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
 
     @Override
     protected GetEnrichPolicyAction.Response createTestInstance() {
-        EnrichPolicyDefinition policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
         return new GetEnrichPolicyAction.Response(policy);
     }
 
@@ -40,6 +40,6 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
     protected void assertEqualInstances(GetEnrichPolicyAction.Response expectedInstance, GetEnrichPolicyAction.Response newInstance) {
         assertNotSame(expectedInstance, newInstance);
         // the tests shuffle around the policy query source xcontent type, so this is needed here
-        assertEqualPolicies(expectedInstance.getPolicy(), newInstance.getPolicy());
+        assertEqualPolicyDefinitions(expectedInstance.getPolicy(), newInstance.getPolicy());
     }
 }

@@ -360,7 +360,7 @@ public class NioSelector implements Closeable {
 
             if (shouldFlushAfterQueuing) {
                 // We only attempt the write if the connect process is complete and the context is not
-                // signally that it should be closed.
+                // signalling that it should be closed.
                 if (context.isConnectComplete() && context.selectorShouldClose() == false) {
                     handleWrite(context);
                 }

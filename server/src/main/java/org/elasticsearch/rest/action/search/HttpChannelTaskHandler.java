@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.tasks.TaskId;
@@ -40,11 +41,6 @@ import java.util.function.Consumer;
  */
 final class HttpChannelTaskHandler {
     private final Map<HttpChannel, Set<TaskId>> httpChannels = new ConcurrentHashMap<>();
-    private final BiConsumer<Client, TaskId> onChannelClose;
-
-    HttpChannelTaskHandler(BiConsumer<Client, TaskId> onChannelClose) {
-        this.onChannelClose = onChannelClose;
-    }
 
     void linkChannelWithTask(HttpChannel httpChannel, Client client, TaskId taskId) {
         Set<TaskId> taskIds = httpChannels.computeIfAbsent(httpChannel, channel -> {
@@ -58,7 +54,12 @@ final class HttpChannelTaskHandler {
                     Set<TaskId> previousTaskIds = httpChannels.remove(httpChannel);
                     assert previousTaskIds != null : "channel not found in the map, already closed?";
                     for (TaskId previousTaskId : previousTaskIds) {
-                        onChannelClose.accept(client, previousTaskId);
+                        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                        cancelTasksRequest.setTaskId(previousTaskId);
+                        //TODO Note that cancel tasks fails if the user does not have the permissions to call it.
+                        // It may make sense to cancel the task directly from task manager without an api call, but cancellation of children tasks
+                        // is part of TransportCancelTasksAction. Maybe we should move that part to TaskManager?
+                        client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(r -> {}, e -> {}));
                     }
                 },
                 exception -> {}));

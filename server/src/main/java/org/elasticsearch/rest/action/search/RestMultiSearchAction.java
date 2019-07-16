@@ -19,7 +19,9 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
@@ -36,6 +38,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,6 +62,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
+    private final HttpChannelTaskHandler httpChannelTaskHandler = new HttpChannelTaskHandler();
     private final boolean allowExplicitIndex;
 
     public RestMultiSearchAction(Settings settings, RestController controller) {
@@ -78,7 +83,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
-        return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
+
+        return channel -> {
+            RestToXContentListener<MultiSearchResponse> listener = new RestToXContentListener<>(channel);
+            Task task = client.executeLocally(MultiSearchAction.INSTANCE, multiSearchRequest,
+                new HttpChannelTaskListener<>(httpChannelTaskHandler, listener, request.getHttpChannel(), client.getLocalNodeId()));
+            TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
+            httpChannelTaskHandler.linkChannelWithTask(request.getHttpChannel(), client, taskId);
+        };
     }
 
     /**

@@ -128,7 +128,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
         List<Double> values = buckets.stream()
             .map(b -> resolveBucketValue(histo, b, bucketsPaths()[0], gapPolicy))
-            .filter(v -> v != null && !v.isNaN())
+            .filter(v -> v != null && v.isNaN() == false)
             .collect(Collectors.toList());
 
         int index = 0;
@@ -139,7 +139,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
             // since we only change newBucket if we can add to it
             MultiBucketsAggregation.Bucket newBucket = bucket;
 
-            if (thisBucketValue != null && !thisBucketValue.isNaN()) {
+            if (thisBucketValue != null && thisBucketValue.isNaN() == false) {
 
                 // The custom context mandates that the script returns a double (not Double) so we
                 // don't need null checks, etc.

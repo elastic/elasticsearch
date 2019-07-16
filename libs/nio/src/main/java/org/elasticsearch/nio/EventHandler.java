@@ -180,9 +180,15 @@ public class EventHandler {
                 closeException(context, e);
             }
         } else {
-            SelectionKey selectionKey = context.getSelectionKey();
-            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
             boolean pendingWrites = context.readyForFlush();
+            SelectionKey selectionKey = context.getSelectionKey();
+            if (selectionKey == null) {
+                if (pendingWrites) {
+                    writeException(context, new IllegalStateException("Tried to write to an not yet registered channel"));
+                }
+                return;
+            }
+            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
             if (currentlyWriteInterested == false && pendingWrites) {
                 SelectionKeyUtils.setWriteInterested(selectionKey);
             } else if (currentlyWriteInterested && pendingWrites == false) {

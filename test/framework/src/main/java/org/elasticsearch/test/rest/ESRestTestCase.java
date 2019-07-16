@@ -538,7 +538,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * the snapshots intact in the repository.
      * @return Map of repository name to list of snapshots found in unfinished state
      */
-    private Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
+    protected Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
         final Map<String, List<Map<?, ?>>> inProgressSnapshots = new HashMap<>();
         for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();

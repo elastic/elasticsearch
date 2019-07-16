@@ -25,7 +25,9 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     private Set<String> found;
 
-    public DeletePrivilegesResponse() {
+    public DeletePrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public DeletePrivilegesResponse(Collection<String> found) {
@@ -44,8 +46,7 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

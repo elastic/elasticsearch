@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -57,8 +59,8 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
     }
 
     @Override
-    protected WatcherStatsResponse.Node newNodeResponse() {
-        return new WatcherStatsResponse.Node();
+    protected WatcherStatsResponse.Node newNodeResponse(StreamInput in) throws IOException {
+        return new WatcherStatsResponse.Node(in);
     }
 
     @Override

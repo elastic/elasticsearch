@@ -21,7 +21,7 @@ task 'leader-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters.'leader-cluster' {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'path.repo', repoDir.absolutePath
     setting 'xpack.ilm.enabled', 'true'
     setting 'xpack.ccr.enabled', 'true'
@@ -48,7 +48,7 @@ task 'follow-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters.'follow-cluster' {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'path.repo', repoDir.absolutePath
     setting 'xpack.ilm.enabled', 'true'
     setting 'xpack.ccr.enabled', 'true'

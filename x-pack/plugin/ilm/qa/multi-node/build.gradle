@@ -16,7 +16,7 @@ integTest.runner {
 }
 
 testClusters.integTest {
-    distribution = 'DEFAULT'
+    testDistribution = 'DEFAULT'
     numberOfNodes = 4
     
     setting 'path.repo', repoDir.absolutePath

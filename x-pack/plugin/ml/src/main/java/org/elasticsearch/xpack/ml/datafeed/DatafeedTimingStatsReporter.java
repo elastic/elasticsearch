@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 
 import java.util.Objects;
@@ -46,32 +47,55 @@ public class DatafeedTimingStatsReporter {
             return;
         }
         currentTimingStats.incrementTotalSearchTimeMs(searchDuration.millis());
+        flushIfDifferSignificantly();
+    }
+
+    /**
+     * Reports the data counts received from the autodetect process.
+     */
+    public void reportDataCounts(DataCounts dataCounts) {
+        if (dataCounts == null) {
+            return;
+        }
+        currentTimingStats.setBucketCount(dataCounts.getBucketCount());
+        flushIfDifferSignificantly();
+    }
+
+    private void flushIfDifferSignificantly() {
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
-            // TODO: Consider changing refresh policy to NONE here and only do IMMEDIATE on datafeed _stop action
-            flush(WriteRequest.RefreshPolicy.IMMEDIATE);
+            flush();
         }
     }
 
-    private void flush(WriteRequest.RefreshPolicy refreshPolicy) {
+    private void flush() {
         persistedTimingStats = new DatafeedTimingStats(currentTimingStats);
-        jobResultsPersister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
+        // TODO: Consider changing refresh policy to NONE here and only do IMMEDIATE on datafeed _stop action
+        jobResultsPersister.persistDatafeedTimingStats(persistedTimingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
     }
 
     /**
      * Returns true if given stats objects differ from each other by more than 10% for at least one of the statistics.
      */
     public static boolean differSignificantly(DatafeedTimingStats stats1, DatafeedTimingStats stats2) {
-        return differSignificantly(stats1.getTotalSearchTimeMs(), stats2.getTotalSearchTimeMs());
+        return differSignificantly(stats1.getTotalSearchTimeMs(), stats2.getTotalSearchTimeMs())
+            || differSignificantly(stats1.getAvgSearchTimePerBucketMs(), stats2.getAvgSearchTimePerBucketMs());
     }
 
     /**
-     * Returns {@code true} if one of the ratios { value1 / value2, value2 / value1 } is smaller than MIN_VALID_RATIO.
+     * Returns {@code true} if one of the ratios { value1 / value2, value2 / value1 } is smaller than MIN_VALID_RATIO or
+     * the absolute difference |value1 - value2| is greater than MAX_VALID_ABS_DIFFERENCE_MS.
      * This can be interpreted as values { value1, value2 } differing significantly from each other.
+     * This method also returns:
+     *   - {@code true} in case one value is {@code null} while the other is not.
+     *   - {@code false} in case both values are {@code null}.
      */
-    private static boolean differSignificantly(double value1, double value2) {
-        return (value2 / value1 < MIN_VALID_RATIO)
-            || (value1 / value2 < MIN_VALID_RATIO)
-            || Math.abs(value1 - value2) > MAX_VALID_ABS_DIFFERENCE_MS;
+    private static boolean differSignificantly(Double value1, Double value2) {
+        if (value1 != null && value2 != null) {
+            return (value2 / value1 < MIN_VALID_RATIO)
+                || (value1 / value2 < MIN_VALID_RATIO)
+                || Math.abs(value1 - value2) > MAX_VALID_ABS_DIFFERENCE_MS;
+        }
+        return (value1 != null) || (value2 != null);
     }
 
     /**

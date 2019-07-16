@@ -553,7 +553,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
                             try {
                                 deleteShardSnapshot(repositoryData, indexId, new ShardId(indexMetaData.getIndex(), shardId), snapshotId);
-                            } catch (SnapshotException ex) {
+                            } catch (Exception ex) {
                                 final int finalShardId = shardId;
                                 logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
                                     snapshotId, indexId.getName(), finalShardId), ex);

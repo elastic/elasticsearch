@@ -72,6 +72,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_rollup",
     "manage_saml",
     "manage_security",
+    "manage_slm",
     "manage_token",
     "manage_watcher",
     "monitor",
@@ -82,6 +83,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "none",
     "read_ccr",
     "read_ilm",
+    "read_slm",
     "transport_client"
   ],
   "index" : [

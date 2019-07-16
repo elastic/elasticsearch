@@ -179,16 +179,17 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
+            ccrLicenseChecker,
+            restoreSourceService,
+            new CcrRepositoryManager(settings, clusterService, client),
+            new AutoFollowCoordinator(
+                settings,
+                client,
+                clusterService,
                 ccrLicenseChecker,
-                restoreSourceService,
-                new CcrRepositoryManager(settings, clusterService, client),
-                new AutoFollowCoordinator(
-                        settings,
-                        client,
-                        clusterService,
-                        ccrLicenseChecker,
-                        threadPool::relativeTimeInMillis,
-                        threadPool::absoluteTimeInMillis));
+                threadPool::relativeTimeInMillis,
+                threadPool::absoluteTimeInMillis,
+                threadPool.generic()));
     }
 
     @Override

@@ -106,8 +106,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             Condition<?> condition = in.readNamedWriteable(Condition.class);
             this.conditions.put(condition.name, condition);
         }
-        createIndexRequest = new CreateIndexRequest();
-        createIndexRequest.readFrom(in);
+        createIndexRequest = new CreateIndexRequest(in);
     }
 
     RolloverRequest() {}

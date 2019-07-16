@@ -26,7 +26,6 @@ include::setup/setup-xclient.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]
 
-:edit_url:
 include::upgrade.asciidoc[]
 
 include::api-conventions.asciidoc[]
@@ -71,7 +70,6 @@ include::administering.asciidoc[]
 
 include::commands/index.asciidoc[]
 
-:edit_url:
 include::how-to.asciidoc[]
 
 include::testing.asciidoc[]

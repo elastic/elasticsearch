@@ -8,7 +8,7 @@ dependencies {
 }
 
 testClusters.integTest {
-  distribution = 'DEFAULT'
+  testDistribution = 'DEFAULT'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

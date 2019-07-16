@@ -59,11 +59,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected CreateIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected CreateIndexResponse read(StreamInput in) throws IOException {
         return new CreateIndexResponse(in);
     }

@@ -49,11 +49,6 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
     }
 
     @Override
-    protected Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected Response read(StreamInput in) throws IOException {
         return new Response(in);
     }

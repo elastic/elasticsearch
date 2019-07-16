@@ -58,7 +58,7 @@ public class NodeStatsTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             nodeStats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                NodeStats deserializedNodeStats = NodeStats.readNodeStats(in);
+                NodeStats deserializedNodeStats = new NodeStats(in);
                 assertEquals(nodeStats.getNode(), deserializedNodeStats.getNode());
                 assertEquals(nodeStats.getTimestamp(), deserializedNodeStats.getTimestamp());
                 if (nodeStats.getOs() == null) {

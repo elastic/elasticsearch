@@ -61,29 +61,8 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         this.returnDetailedInfo = returnDetailedInfo;
     }
 
-
-    public TimeValue getTook() {
-        return new TimeValue(tookInMillis);
-    }
-
-    public long getTookInMillis() {
-        return tookInMillis;
-    }
-
-    /**
-     * @return true if the time stated in {@link GraphExploreRequest#timeout(TimeValue)} was exceeded
-     * (not all hops may have been completed in this case)
-     */
-    public boolean isTimedOut() {
-        return this.timedOut;
-    }
-    public ShardOperationFailedException[] getShardFailures() {
-        return shardFailures;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public GraphExploreResponse(StreamInput in) throws IOException {
+        super(in);
         tookInMillis = in.readVLong();
         timedOut = in.readBoolean();
 
@@ -111,9 +90,34 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
             Connection e = new Connection(in, vertices);
             connections.put(e.getId(), e);
         }
-        
+
         returnDetailedInfo = in.readBoolean();
 
+    }
+
+
+    public TimeValue getTook() {
+        return new TimeValue(tookInMillis);
+    }
+
+    public long getTookInMillis() {
+        return tookInMillis;
+    }
+
+    /**
+     * @return true if the time stated in {@link GraphExploreRequest#timeout(TimeValue)} was exceeded
+     * (not all hops may have been completed in this case)
+     */
+    public boolean isTimedOut() {
+        return this.timedOut;
+    }
+    public ShardOperationFailedException[] getShardFailures() {
+        return shardFailures;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public Collection<Connection> getConnections() {

@@ -32,6 +32,15 @@ public class MonitoringBulkRequest extends ActionRequest {
 
     private final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
+    public MonitoringBulkRequest() {
+        super();
+    }
+
+    public MonitoringBulkRequest(StreamInput in) throws IOException {
+        super(in);
+        docs.addAll(in.readList(MonitoringBulkDoc::readFrom));
+    }
+
     /**
      * @return the list of {@link MonitoringBulkDoc} to be indexed
      */
@@ -97,8 +106,7 @@ public class MonitoringBulkRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        docs.addAll(in.readList(MonitoringBulkDoc::readFrom));
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -40,6 +40,13 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
         this.found = found;
     }
 
+    public DeleteWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        version = in.readVLong();
+        found = in.readBoolean();
+    }
+
     public String getId() {
         return id;
     }
@@ -81,10 +88,7 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        version = in.readVLong();
-        found = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

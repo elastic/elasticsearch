@@ -907,7 +907,7 @@ public class JobResultsProviderTests extends ESTestCase {
         Map<String, Object> sourceBarMap = new HashMap<>();
         sourceBarMap.put(Job.ID.getPreferredName(), "bar");
         sourceBarMap.put(DatafeedTimingStats.SEARCH_COUNT.getPreferredName(), 7);
-        sourceFooMap.put(DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 77);
+        sourceBarMap.put(DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 77);
         sourceBarMap.put(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0);
 
         List<Map<String, Object>> sourceFoo = Arrays.asList(sourceFooMap);

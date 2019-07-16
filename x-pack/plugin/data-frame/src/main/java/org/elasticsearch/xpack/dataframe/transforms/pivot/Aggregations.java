@@ -36,6 +36,7 @@ public final class Aggregations {
         MIN("min", SOURCE),
         SUM("sum", "double"),
         GEO_CENTROID("geo_centroid", "geo_point"),
+        GEO_BOUNDS("geo_bounds", "geo_shape"),
         SCRIPTED_METRIC("scripted_metric", DYNAMIC),
         WEIGHTED_AVG("weighted_avg", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC);

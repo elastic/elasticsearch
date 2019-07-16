@@ -349,7 +349,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         AutoFollower(final String remoteCluster,
                      final Consumer<List<AutoFollowResult>> statsUpdater,
                      final Supplier<ClusterState> followerClusterStateSupplier,
-                     LongSupplier relativeTimeProvider,
+                     final LongSupplier relativeTimeProvider,
                      final Executor executor) {
             this.remoteCluster = remoteCluster;
             this.statsUpdater = statsUpdater;

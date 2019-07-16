@@ -1,11 +1,13 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-apis]]
-== Machine learning APIs
+== {ml-cap} {anomaly-detect} APIs
 
-You can use the following APIs to perform {ml} activities.
-See <<ml-api-definitions, Definitions>> for the resource definitions used by the
+You can use the following APIs to perform {ml} {anomaly-detect} activities. See
+<<ml-api-definitions, Definitions>> for the resource definitions used by the
 machine learning APIs and in advanced job configuration options in Kibana.
+
+See also <<ml-df-analytics-apis>>. 
 
 [discrete]
 [[ml-api-anomaly-job-endpoint]]

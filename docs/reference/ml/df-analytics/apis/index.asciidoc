@@ -13,6 +13,8 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 * <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
 * <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
 
+See also <<ml-apis>>. 
+
 //CREATE
 include::put-dfanalytics.asciidoc[]
 //DELETE

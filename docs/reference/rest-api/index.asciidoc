@@ -19,7 +19,8 @@ not be included yet.
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
 * <<licensing-apis,Licensing APIs>>
-* <<ml-apis,Machine Learning APIs>>
+* <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
+* <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
 * <<security-api,Security APIs>>
 * <<watcher-api,Watcher APIs>>
 * <<rollup-apis,Rollup APIs>>

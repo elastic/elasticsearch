@@ -47,9 +47,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
-    public MultiSearchTemplateRequest() {
-        super();
-    }
+    public MultiSearchTemplateRequest() {}
 
     MultiSearchTemplateRequest(StreamInput in) throws IOException {
         super(in);

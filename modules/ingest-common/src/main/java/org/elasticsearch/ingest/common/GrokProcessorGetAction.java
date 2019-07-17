@@ -56,9 +56,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
     public static class Request extends ActionRequest {
 
-        public Request() {
-            super();
-        }
+        public Request() {}
 
         Request(StreamInput in) throws IOException {
             super(in);

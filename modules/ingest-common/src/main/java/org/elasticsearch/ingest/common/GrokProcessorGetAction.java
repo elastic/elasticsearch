@@ -22,7 +22,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
@@ -45,18 +45,13 @@ import java.util.Map;
 import static org.elasticsearch.ingest.common.IngestCommonPlugin.GROK_PATTERNS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class GrokProcessorGetAction extends StreamableResponseActionType<GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
 
     static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
     static final String NAME = "cluster:admin/ingest/processor/grok/get";
 
     private GrokProcessorGetAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response(null);
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -64,13 +59,24 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
         public ActionRequestValidationException validate() {
             return null;
         }
+
+        Request() {}
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private Map<String, String> grokPatterns;
+        private final Map<String, String> grokPatterns;
 
         Response(Map<String, String> grokPatterns) {
             this.grokPatterns = grokPatterns;
+        }
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         public Map<String, String> getGrokPatterns() {
@@ -87,9 +93,8 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -102,7 +107,7 @@ public class GrokProcessorGetAction extends StreamableResponseActionType<GrokPro
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, Request::new, actionFilters);
+            super(NAME, transportService, actionFilters, Request::new);
         }
 
         @Override

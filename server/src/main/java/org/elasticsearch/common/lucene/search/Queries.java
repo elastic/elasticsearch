@@ -65,7 +65,7 @@ public class Queries {
     }
 
     public static Query newNestedFilter() {
-        return filtered(new MatchAllDocsQuery(), newNonNestedFilter());
+        return not(newNonNestedFilter());
     }
 
     /**

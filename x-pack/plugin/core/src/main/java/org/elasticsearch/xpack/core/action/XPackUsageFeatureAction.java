@@ -44,7 +44,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     );
 
     private XPackUsageFeatureAction(String name) {
-        super(BASE_NAME + name);
+        super(BASE_NAME + name, XPackUsageFeatureResponse::new);
     }
 
     @Override

@@ -45,6 +45,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
     public XPackInfoResponse(StreamInput in) throws IOException {
         super(in);
+        this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
         this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
         this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
     }
@@ -86,7 +87,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.mockito.stubbing.Answer;
 import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
@@ -73,6 +74,7 @@ public class SSLChannelContextTests extends ESTestCase {
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
         context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+        context.setSelectionKey(mock(SelectionKey.class));
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         when(selector.getTaskScheduler()).thenReturn(nioTimer);
@@ -331,6 +333,7 @@ public class SSLChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realChannel);
             TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
             context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+            context.setSelectionKey(mock(SelectionKey.class));
             context.closeChannel();
             ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
             verify(selector).queueWrite(captor.capture());
@@ -345,18 +348,7 @@ public class SSLChannelContextTests extends ESTestCase {
         }
     }
 
-    public void testInitiateCloseFromDifferentThreadSchedulesCloseNotify() throws SSLException {
-        when(selector.isOnCurrentThread()).thenReturn(false, true);
-        context.closeChannel();
-
-        ArgumentCaptor<FlushReadyWrite> captor = ArgumentCaptor.forClass(FlushReadyWrite.class);
-        verify(selector).queueWrite(captor.capture());
-
-        context.queueWriteOperation(captor.getValue());
-        verify(sslDriver).initiateClose();
-    }
-
-    public void testInitiateCloseFromSameThreadSchedulesCloseNotify() throws SSLException {
+    public void testInitiateCloseSchedulesCloseNotify() throws SSLException {
         context.closeChannel();
 
         ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);
@@ -366,8 +358,15 @@ public class SSLChannelContextTests extends ESTestCase {
         verify(sslDriver).initiateClose();
     }
 
+    public void testInitiateUnregisteredScheduledDirectClose() throws SSLException {
+        context.setSelectionKey(null);
+        context.closeChannel();
+
+        verify(selector).queueChannelClose(channel);
+    }
+
     @SuppressWarnings("unchecked")
-    public void testRegisterInitiatesDriver() throws IOException {
+    public void testActiveInitiatesDriver() throws IOException {
         try (Selector realSelector = Selector.open();
              SocketChannel realSocket = SocketChannel.open()) {
             realSocket.configureBlocking(false);
@@ -375,7 +374,7 @@ public class SSLChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realSocket);
             TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
             context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
-            context.register();
+            context.channelActive();
             verify(sslDriver).init();
         }
     }

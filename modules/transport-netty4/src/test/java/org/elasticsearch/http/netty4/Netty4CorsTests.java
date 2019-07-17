@@ -29,6 +29,7 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.rest.RestStatus;
@@ -140,7 +141,7 @@ public class Netty4CorsTests extends ESTestCase {
         }
         httpRequest.headers().add(HttpHeaderNames.HOST, host);
         EmbeddedChannel embeddedChannel = new EmbeddedChannel();
-        embeddedChannel.pipeline().addLast(new Netty4CorsHandler(Netty4HttpServerTransport.buildCorsConfig(settings)));
+        embeddedChannel.pipeline().addLast(new Netty4CorsHandler(CorsHandler.fromSettings(settings)));
         Netty4HttpRequest nettyRequest = new Netty4HttpRequest(httpRequest, 0);
         embeddedChannel.writeOutbound(nettyRequest.createResponse(RestStatus.OK, new BytesArray("content")));
         return embeddedChannel.readOutbound();

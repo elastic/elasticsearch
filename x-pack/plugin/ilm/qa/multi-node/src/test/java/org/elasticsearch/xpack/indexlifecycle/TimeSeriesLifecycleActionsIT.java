@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
@@ -548,7 +547,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
-            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
+            assertThat(settings.get("index.frozen"), equalTo("true"));
         });
     }
 
@@ -586,7 +585,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
-            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
+            assertThat(settings.get("index.frozen"), equalTo("true"));
         }, 2, TimeUnit.MINUTES);
         // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));

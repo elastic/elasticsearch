@@ -1,4 +1,4 @@
-[[search-request-version]]
+[[request-body-search-version]]
 === Version
 
 Returns a version for each search hit.

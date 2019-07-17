@@ -27,7 +27,9 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 

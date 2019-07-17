@@ -1,6 +1,6 @@
 {
   "render_search_template": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-template.html",
+    "documentation": "https://www.elastic.co",
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {

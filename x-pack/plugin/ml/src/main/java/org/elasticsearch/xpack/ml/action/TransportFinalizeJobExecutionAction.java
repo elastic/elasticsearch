@@ -47,7 +47,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                Client client) {
         super(FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, FinalizeJobExecutionAction.Request::new);
+                FinalizeJobExecutionAction.Request::new, indexNameExpressionResolver);
         this.client = client;
     }
 

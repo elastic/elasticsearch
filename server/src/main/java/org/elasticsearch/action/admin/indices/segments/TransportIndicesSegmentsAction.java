@@ -87,9 +87,7 @@ public class TransportIndicesSegmentsAction
 
     @Override
     protected IndicesSegmentsRequest readRequestFrom(StreamInput in) throws IOException {
-        final IndicesSegmentsRequest request = new IndicesSegmentsRequest();
-        request.readFrom(in);
-        return request;
+        return new IndicesSegmentsRequest(in);
     }
 
     @Override

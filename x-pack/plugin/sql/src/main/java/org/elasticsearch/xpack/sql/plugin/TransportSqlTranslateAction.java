@@ -40,7 +40,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     public TransportSqlTranslateAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                        ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
                                        SqlLicenseChecker sqlLicenseChecker) {
-        super(SqlTranslateAction.NAME, transportService, actionFilters, (Writeable.Reader<SqlTranslateRequest>) SqlTranslateRequest::new);
+        super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
                 new SecurityContext(settings, threadPool.getThreadContext()) : null;

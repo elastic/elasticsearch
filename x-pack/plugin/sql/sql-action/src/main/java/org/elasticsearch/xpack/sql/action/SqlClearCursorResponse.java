@@ -30,7 +30,9 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
         this.succeeded = succeeded;
     }
 
-    SqlClearCursorResponse() {
+    SqlClearCursorResponse(StreamInput in) throws IOException {
+        super(in);
+        succeeded = in.readBoolean();
     }
 
     /**
@@ -60,8 +62,7 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        succeeded = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

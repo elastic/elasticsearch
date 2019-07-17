@@ -43,6 +43,13 @@ comma-separated list of {dfeeds} or a wildcard expression. You can close all
   (Required, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
   or a wildcard expression.
 
+[[ml-stop-datafeed-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_datafeeds`::
+  (Optional, boolean) If `false` and the `feed_id` does not match any {dfeed} an 
+  error will be returned. The default value is `true`.
+
 [[ml-stop-datafeed-request-body]]
 ==== {api-request-body-title}
 

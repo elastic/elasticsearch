@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -66,9 +67,9 @@ public abstract class TransportBroadcastAction<
 
     protected TransportBroadcastAction(String actionName, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                       IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
                                        Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(actionName, transportService, request, actionFilters);
+        super(actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

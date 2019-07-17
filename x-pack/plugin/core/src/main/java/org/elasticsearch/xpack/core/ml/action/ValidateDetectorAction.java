@@ -28,12 +28,7 @@ public class ValidateDetectorAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/validate/detector";
 
     protected ValidateDetectorAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {

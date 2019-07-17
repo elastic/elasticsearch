@@ -166,6 +166,7 @@ Therefore calling `ST_Z` function in the filtering, grouping or sorting will ret
 [[fields-from-source]]
 === Retrieving from _source
 
-Most of {es-sql}'s columns are retrieved from `_source`, even though the mapping may disable the <<mapping-source-field,`_source`>> field.
-If such a column is explicitly asked for in a query, {es-sql} will not return it. Field types NOT returned from `_source` include: `keyword`,
-`date`, `scaled_float`, `geo_point`, `geo_shape`.
+Most of {es-sql}'s columns are retrieved from the document's `_source` and there is no attempt to get the columns content from
+`docvalue_fields` not even in the case <<mapping-source-field,`_source`>> field is disabled in the mapping explicitly.
+If a column, for which there is no source stored, is asked for in a query, {es-sql} will not return it. Field types NOT returned
+from `_source` are: `keyword`, `date`, `scaled_float`, `geo_point`, `geo_shape`.

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -52,6 +54,8 @@ public class ReindexFailoverIT extends ReindexTestCase {
     }
 
     public void testReindexFailover() throws Throwable {
+        int scrollTimeout = randomIntBetween(5, 15);
+
         logger.info("--> start 4 nodes, 1 master, 3 data");
 
         final Settings sharedSettings = Settings.builder()
@@ -88,7 +92,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         ReindexRequest reindexRequest = copy.request();
-        reindexRequest.setScroll(TimeValue.timeValueSeconds(25));
+        reindexRequest.setScroll(TimeValue.timeValueSeconds(scrollTimeout));
         StartReindexJobAction.Request request = new StartReindexJobAction.Request(reindexRequest, false);
 
         copy.source().setSize(100);
@@ -122,6 +126,8 @@ public class ReindexFailoverIT extends ReindexTestCase {
                 }
             });
         }
+
+        assertBusy(MockSearchService::assertNoInFlightContext, 10 + scrollTimeout, TimeUnit.SECONDS);
 
         // TODO: Add mechanism to wait for reindex task to complete
     }

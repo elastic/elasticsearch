@@ -108,7 +108,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
             @Override
             public void onFailure(Exception e) {
-                logger.info("Failed to update reindex persistent task with ephemeral id.", e);
+                logger.info("Failed to update reindex persistent task with ephemeral id", e);
             }
         });
     }
@@ -151,7 +151,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.info("Failed to update task state to success.", e);
+                                logger.info("Failed to update task state to success", e);
                                 if (shouldStoreResult) {
                                     taskManager.storeResult(ReindexTask.this, e, ActionListener.wrap(() -> markAsFailed(e)));
                                 } else {
@@ -175,7 +175,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.info("Failed to update task state to failed.", e);
+                                logger.info("Failed to update task state to failed", e);
                                 ex.addSuppressed(e);
                                 if (shouldStoreResult) {
                                     taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));

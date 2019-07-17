@@ -111,8 +111,8 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
                 (parser, context) -> BulkByScrollResponse.fromXContent(parser), REINDEX_RESPONSE);
         }
 
-        private String taskId;
-        @Nullable private BulkByScrollResponse reindexResponse;
+        private final String taskId;
+        @Nullable private final BulkByScrollResponse reindexResponse;
 
         public Response(String taskId) {
             this(taskId, null);

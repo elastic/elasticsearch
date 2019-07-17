@@ -35,7 +35,7 @@ For more information, see <<security-privileges>>.
 
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
-For examples of stopping {dfeeds} in {kib}, see <<ml-gs-job1-manage>>.
+//For examples of stopping {dfeeds} in {kib}, see <<ml-gs-job1-manage>>.
 
 [float]
 [[stopping-all-ml-datafeeds]]

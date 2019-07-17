@@ -87,7 +87,6 @@ public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionTy
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeStringCollection(failedIndexes);
         }
 
@@ -114,6 +113,12 @@ public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionTy
 
         private String[] indices;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
 
         public Request() {
         }
@@ -147,13 +152,6 @@ public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionTy
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override

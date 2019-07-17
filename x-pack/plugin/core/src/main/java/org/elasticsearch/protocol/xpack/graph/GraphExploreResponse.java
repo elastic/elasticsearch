@@ -130,7 +130,6 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeBoolean(timedOut);
 

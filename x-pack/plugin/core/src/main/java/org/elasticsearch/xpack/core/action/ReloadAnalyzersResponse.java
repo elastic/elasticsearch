@@ -8,18 +8,21 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.ReloadResult;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -28,16 +31,31 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class ReloadAnalyzersResponse extends BroadcastResponse  {
 
-    private final Map<String, List<String>> reloadedIndicesNodes;
+    private final Map<String, ReloadDetails> reloadDetails;
+    private static final ParseField RELOAD_DETAILS_FIELD = new ParseField("reload_details");
+    private static final ParseField INDEX_FIELD = new ParseField("index");
+    private static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
+    private static final ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
+
 
     public ReloadAnalyzersResponse() {
-        reloadedIndicesNodes = Collections.emptyMap();
+        reloadDetails = Collections.emptyMap();
+    }
+
+    public ReloadAnalyzersResponse(StreamInput in) throws IOException {
+        super(in);
+        reloadDetails = null;
+        // TODO: this needs to deserialize reloadDetails, see https://github.com/elastic/elasticsearch/issues/44383
     }
 
     public ReloadAnalyzersResponse(int totalShards, int successfulShards, int failedShards,
-            List<DefaultShardOperationFailedException> shardFailures, Map<String, List<String>> reloadedIndicesNodes) {
+            List<DefaultShardOperationFailedException> shardFailures, Map<String, ReloadDetails> reloadedIndicesNodes) {
         super(totalShards, successfulShards, failedShards, shardFailures);
-        this.reloadedIndicesNodes = reloadedIndicesNodes;
+        this.reloadDetails = reloadedIndicesNodes;
+    }
+
+    public final Map<String, ReloadDetails> getReloadDetails() {
+        return this.reloadDetails;
     }
 
     /**
@@ -45,11 +63,13 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
      */
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("reloaded_nodes");
-        for (Entry<String, List<String>> indexNodesReloaded : reloadedIndicesNodes.entrySet()) {
+        builder.startArray(RELOAD_DETAILS_FIELD.getPreferredName());
+        for (Entry<String, ReloadDetails> indexDetails : reloadDetails.entrySet()) {
             builder.startObject();
-            builder.field("index", indexNodesReloaded.getKey());
-            builder.field("reloaded_node_ids", indexNodesReloaded.getValue());
+            ReloadDetails value = indexDetails.getValue();
+            builder.field(INDEX_FIELD.getPreferredName(), value.getIndexName());
+            builder.field(RELOADED_ANALYZERS_FIELD.getPreferredName(), value.getReloadedAnalyzers());
+            builder.field(RELOADED_NODE_IDS_FIELD.getPreferredName(), value.getReloadedIndicesNodes());
             builder.endObject();
         }
         builder.endArray();
@@ -59,31 +79,61 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
     private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>("reload_analyzer",
             true, arg -> {
                 BroadcastResponse response = (BroadcastResponse) arg[0];
-                List<Tuple<String, List<String>>> results = (List<Tuple<String, List<String>>>) arg[1];
-                Map<String, List<String>> reloadedNodeIds = new HashMap<>();
-                for (Tuple<String, List<String>> result : results) {
-                    reloadedNodeIds.put(result.v1(), result.v2());
+                List<ReloadDetails> results = (List<ReloadDetails>) arg[1];
+                Map<String, ReloadDetails> reloadedNodeIds = new HashMap<>();
+                for (ReloadDetails result : results) {
+                    reloadedNodeIds.put(result.getIndexName(), result);
                 }
                 return new ReloadAnalyzersResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
                         Arrays.asList(response.getShardFailures()), reloadedNodeIds);
             });
 
     @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<Tuple<String, List<String>>, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ReloadDetails, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
             "reload_analyzer.entry", true, arg -> {
-                String index = (String) arg[0];
-                List<String> nodeIds = (List<String>) arg[1];
-                return new Tuple<>(index, nodeIds);
+                return new ReloadDetails((String) arg[0], new HashSet<>((List<String>) arg[1]), new HashSet<>((List<String>) arg[2]));
             });
 
     static {
         declareBroadcastFields(PARSER);
-        PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, new ParseField("reloaded_nodes"));
-        ENTRY_PARSER.declareString(constructorArg(), new ParseField("index"));
-        ENTRY_PARSER.declareStringArray(constructorArg(), new ParseField("reloaded_node_ids"));
+        PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, RELOAD_DETAILS_FIELD);
+        ENTRY_PARSER.declareString(constructorArg(), INDEX_FIELD);
+        ENTRY_PARSER.declareStringArray(constructorArg(), RELOADED_ANALYZERS_FIELD);
+        ENTRY_PARSER.declareStringArray(constructorArg(), RELOADED_NODE_IDS_FIELD);
     }
 
     public static ReloadAnalyzersResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    public static class ReloadDetails {
+
+        private final String indexName;
+        private final Set<String> reloadedIndicesNodes;
+        private final Set<String> reloadedAnalyzers;
+
+        public ReloadDetails(String name, Set<String> reloadedIndicesNodes, Set<String> reloadedAnalyzers) {
+            this.indexName = name;
+            this.reloadedIndicesNodes = reloadedIndicesNodes;
+            this.reloadedAnalyzers = reloadedAnalyzers;
+        }
+
+        public String getIndexName() {
+            return indexName;
+        }
+
+        public Set<String> getReloadedIndicesNodes() {
+            return reloadedIndicesNodes;
+        }
+
+        public Set<String> getReloadedAnalyzers() {
+            return reloadedAnalyzers;
+        }
+
+        void merge(ReloadResult other) {
+            assert this.indexName == other.index;
+            this.reloadedAnalyzers.addAll(other.reloadedSearchAnalyzers);
+            this.reloadedIndicesNodes.add(other.nodeId);
+        }
     }
 }

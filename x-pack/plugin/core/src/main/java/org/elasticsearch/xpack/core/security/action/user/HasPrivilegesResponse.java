@@ -36,6 +36,15 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         this("", true, Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap());
     }
 
+    public HasPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        completeMatch = in.readBoolean();
+        cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
+        index = readResourcePrivileges(in);
+        application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
+        username = in.readString();
+    }
+
     public HasPrivilegesResponse(String username, boolean completeMatch, Map<String, Boolean> cluster, Collection<ResourcePrivileges> index,
                                  Map<String, Collection<ResourcePrivileges>> application) {
         super();
@@ -100,12 +109,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     }
 
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        completeMatch = in.readBoolean();
-        cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
-        index = readResourcePrivileges(in);
-        application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
-        username = in.readString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     private static Set<ResourcePrivileges> readResourcePrivileges(StreamInput in) throws IOException {
@@ -121,7 +125,6 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(completeMatch);
         out.writeMap(cluster, StreamOutput::writeString, StreamOutput::writeBoolean);
         writeResourcePrivileges(out, index);

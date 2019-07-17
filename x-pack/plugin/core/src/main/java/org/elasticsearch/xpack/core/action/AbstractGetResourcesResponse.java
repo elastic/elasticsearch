@@ -41,13 +41,11 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        resources = new QueryPage<>(in, getReader());
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         resources.writeTo(out);
     }
 
@@ -85,5 +83,6 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
     public final String toString() {
         return Strings.toString(this);
     }
+
     protected abstract Reader<T> getReader();
 }

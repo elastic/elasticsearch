@@ -30,7 +30,8 @@ import java.util.List;
 
 public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
-    NodesHotThreadsResponse() {
+    public NodesHotThreadsResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public NodesHotThreadsResponse(ClusterName clusterName, List<NodeHotThreads> nodes, List<FailedNodeException> failures) {
@@ -39,7 +40,7 @@ public class NodesHotThreadsResponse extends BaseNodesResponse<NodeHotThreads> {
 
     @Override
     protected List<NodeHotThreads> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeHotThreads::readNodeHotThreads);
+        return in.readList(NodeHotThreads::new);
     }
 
     @Override

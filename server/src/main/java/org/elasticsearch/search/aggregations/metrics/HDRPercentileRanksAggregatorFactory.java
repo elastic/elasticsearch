@@ -34,14 +34,14 @@ import java.util.List;
 import java.util.Map;
 
 class HDRPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, HDRPercentileRanksAggregatorFactory> {
+        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double[] values;
     private final int numberOfSignificantValueDigits;
     private final boolean keyed;
 
     HDRPercentileRanksAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] values,
-            int numberOfSignificantValueDigits, boolean keyed, SearchContext context, AggregatorFactory<?> parent,
+            int numberOfSignificantValueDigits, boolean keyed, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.values = values;

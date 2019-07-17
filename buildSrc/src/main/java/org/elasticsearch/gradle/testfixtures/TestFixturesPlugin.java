@@ -23,9 +23,7 @@ import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
-import org.elasticsearch.gradle.precommit.JarHellTask;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
-import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
@@ -37,6 +35,9 @@ import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
@@ -52,19 +53,25 @@ public class TestFixturesPlugin implements Plugin<Project> {
             "testFixtures", TestFixtureExtension.class, project
         );
 
-        if (project.file(DOCKER_COMPOSE_YML).exists()) {
-            // convenience boilerplate with build plugin
-            // Can't reference tasks that are implemented in Groovy, use reflection  instead
-            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
-            disableTaskByType(tasks, ThirdPartyAuditTask.class);
-            disableTaskByType(tasks, JarHellTask.class);
+        ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
+        File testfixturesDir = project.file("testfixtures_shared");
+        ext.set("testFixturesDir", testfixturesDir);
 
+        if (project.file(DOCKER_COMPOSE_YML).exists()) {
             // the project that defined a test fixture can also use it
             extension.fixtures.add(project);
 
             Task buildFixture = project.getTasks().create("buildFixture");
             Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
+            preProcessFixture.doFirst((task) -> {
+                try {
+                    Files.createDirectories(testfixturesDir.toPath());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+            preProcessFixture.getOutputs().dir(testfixturesDir);
             buildFixture.dependsOn(preProcessFixture);
             pullFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
@@ -92,6 +99,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 pullFixture.dependsOn(tasks.getByName("composePull"));
                 tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
                 tasks.getByName("composePull").mustRunAfter(preProcessFixture);
+                tasks.getByName("composeDown").doLast((task) -> {
+                    project.delete(testfixturesDir);
+                });
 
                 configureServiceInfoForTask(
                     postProcessFixture,
@@ -100,11 +110,19 @@ public class TestFixturesPlugin implements Plugin<Project> {
                         .getByType(ExtraPropertiesExtension.class).set(name, port)
                 );
             }
+        } else {
+            project.afterEvaluate(spec -> {
+                if (extension.fixtures.isEmpty()) {
+                    // if only one fixture is used, that's this one, but without a compose file that's not a valid configuration
+                    throw new IllegalStateException("No " + DOCKER_COMPOSE_YML + " found for " + project.getPath() +
+                        " nor does it use other fixtures.");
+                }
+            });
         }
 
         extension.fixtures
             .matching(fixtureProject -> fixtureProject.equals(project) == false)
-            .all(fixtureProject ->  project.evaluationDependsOn(fixtureProject.getPath()));
+            .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
 
         conditionTaskByType(tasks, extension, Test.class);
         conditionTaskByType(tasks, extension, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));

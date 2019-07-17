@@ -121,7 +121,6 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             node.writeTo(out);
             storeFileMetaData.writeTo(out);
             out.writeVLong(mappingVersion);

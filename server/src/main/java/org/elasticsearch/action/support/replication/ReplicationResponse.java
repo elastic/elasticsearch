@@ -50,15 +50,20 @@ public class ReplicationResponse extends ActionResponse {
 
     private ShardInfo shardInfo;
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public ReplicationResponse() {}
+
+    public ReplicationResponse(StreamInput in) throws IOException {
+        super(in);
         shardInfo = ReplicationResponse.ShardInfo.readShardInfo(in);
     }
 
     @Override
+    public final void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("Streamable no longer used");
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         shardInfo.writeTo(out);
     }
 

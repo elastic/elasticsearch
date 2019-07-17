@@ -71,7 +71,6 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(snapshots.size());
         for (SnapshotStatus snapshotInfo : snapshots) {
             snapshotInfo.writeTo(out);

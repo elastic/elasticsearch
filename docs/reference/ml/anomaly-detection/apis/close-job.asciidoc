@@ -64,6 +64,10 @@ results the job might have recently produced or might produce in the future.
 [[ml-close-job-query-parms]]
 ==== {api-query-parms-title}
 
+`allow_no_jobs`::
+  (Optional, boolean) If `false` and the `job_id` does not match any job an 
+  error will be returned. The default value is `true`.
+
 `force`::
   (Optional, boolean) Use to close a failed job, or to forcefully close a job
   which has not responded to its initial close request.
@@ -71,6 +75,13 @@ results the job might have recently produced or might produce in the future.
 `timeout`::
   (Optional, time units) Controls the time to wait until a job has closed.
   The default value is 30 minutes.
+
+[[ml-close-job-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_jobs` is `false`, this code indicates that there are no 
+  resources that match the request or only partial matches for the request.
 
 [[ml-close-job-example]]
 ==== {api-examples-title}

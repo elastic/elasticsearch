@@ -44,6 +44,13 @@ IMPORTANT: This API returns a maximum of 10,000 jobs.
   name, or a wildcard expression. If you do not specify one of these options,
   the API returns information for all jobs.
 
+[[ml-get-job-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_jobs`::
+  (Optional, boolean) If `false` and the `job_id` does not match any job an 
+  error will be returned. The default value is `true`.
+
 [[ml-get-job-results]]
 ==== {api-response-body-title}
 
@@ -52,6 +59,13 @@ The API returns the following information:
 `jobs`::
   (array) An array of job resources.
   For more information, see <<ml-job-resource,Job Resources>>.
+
+[[ml-get-job-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_jobs` is `false`, this code indicates that there are no 
+  resources that match the request or only partial matches for the request.
 
 [[ml-get-job-example]]
 ==== {api-examples-title}

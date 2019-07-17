@@ -37,10 +37,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.Licensing;
@@ -57,15 +55,12 @@ import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
-import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSet;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.rest.action.RestFreezeIndexAction;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
@@ -243,8 +238,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
         if (transportClientMode) {
             modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
-        } else {
-            modules.add(b -> bindFeatureSet(b, FrozenIndicesFeatureSet.class));
         }
         return modules;
     }
@@ -275,8 +268,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class));
-        actions.add(new ActionHandler<>(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
-            TransportFreezeIndexAction.class));
         actions.addAll(licensing.getActions());
         actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
         return actions;
@@ -304,7 +295,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction(settings, restController));
         handlers.add(new RestXPackUsageAction(settings, restController));
-        handlers.add(new RestFreezeIndexAction(settings, restController));
         handlers.add(new RestReloadAnalyzersAction(settings, restController));
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
@@ -374,8 +364,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
-        } else if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            return Optional.of(FrozenEngine::new);
         }
 
         return Optional.empty();
@@ -385,15 +373,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
-        settings.add(FrozenEngine.INDEX_FROZEN);
         return settings;
-    }
-
-    @Override
-    public void onIndexModule(IndexModule indexModule) {
-        if (FrozenEngine.INDEX_FROZEN.get(indexModule.getSettings())) {
-            indexModule.addSearchOperationListener(new FrozenEngine.ReacquireEngineSearcherListener());
-        }
-        super.onIndexModule(indexModule);
     }
 }

@@ -19,13 +19,10 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.CheckedRunnable;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
-import java.net.SocketException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.AbstractSelectableChannel;

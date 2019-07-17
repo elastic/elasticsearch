@@ -36,6 +36,12 @@ public class DeleteModelSnapshotAction extends ActionType<AcknowledgedResponse> 
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            snapshotId = in.readString();
+        }
+
         public Request(String jobId, String snapshotId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, ModelSnapshotField.SNAPSHOT_ID.getPreferredName());
@@ -56,9 +62,7 @@ public class DeleteModelSnapshotAction extends ActionType<AcknowledgedResponse> 
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            snapshotId = in.readString();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

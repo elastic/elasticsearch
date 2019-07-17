@@ -72,6 +72,11 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
             this.job = job;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            job = new Job(in);
+        }
+
         public Job getJob() {
             return job;
         }
@@ -89,8 +94,7 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            job = new Job(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

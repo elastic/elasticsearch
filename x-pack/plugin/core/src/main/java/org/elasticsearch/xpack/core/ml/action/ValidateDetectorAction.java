@@ -55,6 +55,11 @@ public class ValidateDetectorAction extends ActionType<AcknowledgedResponse> {
             this.detector = detector;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            detector = new Detector(in);
+        }
+
         public Detector getDetector() {
             return detector;
         }
@@ -72,8 +77,7 @@ public class ValidateDetectorAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            detector = new Detector(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

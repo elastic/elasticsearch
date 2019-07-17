@@ -21,18 +21,12 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class RethrottleAction extends ActionType<ListTasksResponse> {
     public static final RethrottleAction INSTANCE = new RethrottleAction();
     public static final String NAME = "cluster:admin/reindex/rethrottle";
 
     private RethrottleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<ListTasksResponse> getResponseReader() {
-        return ListTasksResponse::new;
+        super(NAME, ListTasksResponse::new);
     }
 }

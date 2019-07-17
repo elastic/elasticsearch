@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class CloseIndexAction extends ActionType<CloseIndexResponse> {
 
@@ -28,11 +27,6 @@ public class CloseIndexAction extends ActionType<CloseIndexResponse> {
     public static final String NAME = "indices:admin/close";
 
     private CloseIndexAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<CloseIndexResponse> getResponseReader() {
-        return CloseIndexResponse::new;
+        super(NAME, CloseIndexResponse::new);
     }
 }

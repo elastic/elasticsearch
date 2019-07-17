@@ -68,7 +68,8 @@ public class OpenJobAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            jobParams = new JobParams(in);
         }
 
         public Request() {
@@ -81,12 +82,6 @@ public class OpenJobAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobParams = new JobParams(in);
         }
 
         @Override

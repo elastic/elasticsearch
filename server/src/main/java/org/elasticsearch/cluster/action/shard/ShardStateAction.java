@@ -89,8 +89,19 @@ public class ShardStateAction {
      */
     public static final Setting<Priority> FOLLOW_UP_REROUTE_PRIORITY_SETTING
         = new Setting<>("cluster.routing.allocation.shard_state.reroute.priority", Priority.NORMAL.toString(),
-        name -> Priority.valueOf(name.toUpperCase(Locale.ROOT)),
-        Setting.Property.NodeScope, Setting.Property.Dynamic, Setting.Property.Deprecated);
+        ShardStateAction::parseReroutePriority, Setting.Property.NodeScope, Setting.Property.Dynamic, Setting.Property.Deprecated);
+
+    private static Priority parseReroutePriority(String priorityString) {
+        final Priority priority = Priority.valueOf(priorityString.toUpperCase(Locale.ROOT));
+        switch (priority) {
+            case NORMAL:
+            case HIGH:
+            case URGENT:
+                return priority;
+        }
+        throw new IllegalArgumentException(
+            "priority [" + priority + "] not supported for [" + FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey() + "]");
+    }
 
     private final TransportService transportService;
     private final ClusterService clusterService;

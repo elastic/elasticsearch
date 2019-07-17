@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.cluster.action.shard;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -34,6 +36,8 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardStateActionIT extends ESIntegTestCase {
@@ -118,9 +122,18 @@ public class ShardStateActionIT extends ESIntegTestCase {
             .putNull(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey())));
     }
 
+    public void testFollowupRerouteRejectsInvalidPriorities() {
+        final String invalidPriority = randomFrom("IMMEDIATE", "LOW", "LANGUID");
+        final ActionFuture<ClusterUpdateSettingsResponse> responseFuture = client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), invalidPriority))
+            .execute();
+        assertThat(expectThrows(IllegalArgumentException.class, responseFuture::actionGet).getMessage(),
+            allOf(containsString(invalidPriority), containsString(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey())));
+    }
+
     private String randomPriority() {
-        return randomFrom("immediate", "urgent", "high", "normal", "low");
-        // not "languid", because we use that to wait for no pending tasks
+        return randomFrom("normal", "high", "urgent", "NORMAL", "HIGH", "URGENT");
+        // not "languid" (because we use that to wait for no pending tasks) nor "low" or "immediate" (because these are unreasonable)
     }
 
 }

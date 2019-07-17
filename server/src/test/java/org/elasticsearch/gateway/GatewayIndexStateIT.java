@@ -211,7 +211,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44416")
     public void testJustMasterNode() throws Exception {
         logger.info("--> cleaning nodes");
 
@@ -221,11 +220,13 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).execute().actionGet();
 
-        logger.info("--> closing master node");
-        internalCluster().closeNonSharedNodes(false);
-
-        logger.info("--> starting 1 master node non data again");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        logger.info("--> restarting master node");
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
+            }
+        });
 
         logger.info("--> waiting for test index to be created");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test")
@@ -237,7 +238,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().hasIndex("test"), equalTo(true));
     }
 
-    public void testJustMasterNodeAndJustDataNode() throws Exception {
+    public void testJustMasterNodeAndJustDataNode() {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");

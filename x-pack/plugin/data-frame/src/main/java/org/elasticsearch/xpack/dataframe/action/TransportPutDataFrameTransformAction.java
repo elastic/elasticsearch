@@ -112,7 +112,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             .setVersion(Version.CURRENT);
 
         String transformId = config.getId();
-        // quick check whether a transform has already been created under that name
+        // quick validate whether a transform has already been created under that name
         if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, transformId) != null) {
             listener.onFailure(new ResourceAlreadyExistsException(
                     DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS, transformId)));
@@ -125,7 +125,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             return;
         }
 
-        // Early check to verify that the user can create the destination index and can read from the source
+        // Early validate to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
             final String destIndex = config.getDestination().getIndex();
             final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(clusterState,
@@ -139,7 +139,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             destPrivileges.add("read");
             destPrivileges.add("index");
             // If the destination index does not exist, we can assume that we may have to create it on start.
-            // We should check that the creating user has the privileges to create the index.
+            // We should validate that the creating user has the privileges to create the index.
             if (concreteDest.length == 0) {
                 destPrivileges.add("create_index");
                 // We need to read the source indices mapping to deduce the destination mapping
@@ -223,7 +223,19 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             }
         );
 
-        // <1> Validate our pivot
-        pivot.validate(client, config.getSource(), pivotValidationListener);
+        try {
+            pivot.validateConfig();
+        } catch (Exception e) {
+            listener.onFailure(
+                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                    e));
+            return;
+        }
+
+        if (request.isDeferValidation()) {
+            pivotValidationListener.onResponse(true);
+        } else {
+            pivot.validateQuery(client, config.getSource(), pivotValidationListener);
+        }
     }
 }

@@ -29,7 +29,7 @@ public class DataFrameConfigurationIndexIT extends DataFrameRestTestCase {
      * the persistent task disappeared
      *
      * test note: {@link DataFrameRestTestCase} checks for an empty index as part of the test case cleanup,
-     * so we do not need to check that the document has been deleted in this place
+     * so we do not need to validate that the document has been deleted in this place
      */
     public void testDeleteConfigurationLeftOver() throws IOException {
         String fakeTransformName = randomAlphaOfLengthBetween(5, 20);

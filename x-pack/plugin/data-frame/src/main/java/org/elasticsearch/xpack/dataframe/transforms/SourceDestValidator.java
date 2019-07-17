@@ -29,7 +29,7 @@ public final class SourceDestValidator {
 
     interface SourceDestValidation {
         boolean isDeferrable();
-        void check(DataFrameTransformConfig config, ClusterState clusterState, IndexNameExpressionResolver indexNameExpressionResolver);
+        void validate(DataFrameTransformConfig config, ClusterState clusterState, IndexNameExpressionResolver indexNameExpressionResolver);
     }
 
     private static final List<SourceDestValidation> VALIDATIONS = Arrays.asList(new SourceMissingValidation(),
@@ -57,7 +57,7 @@ public final class SourceDestValidator {
             if (shouldDefer && validation.isDeferrable()) {
                 continue;
             }
-            validation.check(config, clusterState, indexNameExpressionResolver);
+            validation.validate(config, clusterState, indexNameExpressionResolver);
         }
     }
 
@@ -69,9 +69,9 @@ public final class SourceDestValidator {
         }
 
         @Override
-        public void check(DataFrameTransformConfig config,
-                          ClusterState clusterState,
-                          IndexNameExpressionResolver indexNameExpressionResolver) {
+        public void validate(DataFrameTransformConfig config,
+                             ClusterState clusterState,
+                             IndexNameExpressionResolver indexNameExpressionResolver) {
             for(String src : config.getSource().getIndex()) {
                 String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState,
                     IndicesOptions.lenientExpandOpen(),
@@ -93,9 +93,9 @@ public final class SourceDestValidator {
         }
 
         @Override
-        public void check(DataFrameTransformConfig config,
-                          ClusterState clusterState,
-                          IndexNameExpressionResolver indexNameExpressionResolver) {
+        public void validate(DataFrameTransformConfig config,
+                             ClusterState clusterState,
+                             IndexNameExpressionResolver indexNameExpressionResolver) {
             final String destIndex = config.getDestination().getIndex();
             Set<String> concreteSourceIndexNames = new HashSet<>();
             for(String src : config.getSource().getIndex()) {
@@ -141,9 +141,9 @@ public final class SourceDestValidator {
         }
 
         @Override
-        public void check(DataFrameTransformConfig config,
-                          ClusterState clusterState,
-                          IndexNameExpressionResolver indexNameExpressionResolver) {
+        public void validate(DataFrameTransformConfig config,
+                             ClusterState clusterState,
+                             IndexNameExpressionResolver indexNameExpressionResolver) {
             final String destIndex = config.getDestination().getIndex();
             final String[] concreteDest =
                 indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);

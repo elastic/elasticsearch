@@ -23,7 +23,6 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-
 public class PutDataFrameTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     private String transformId;
 
@@ -40,11 +39,7 @@ public class PutDataFrameTransformActionRequestTests extends AbstractWireSeriali
     @Override
     protected Request createTestInstance() {
         DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfigWithoutHeaders(transformId);
-        Request request = new Request(config);
-        if (randomBoolean()) {
-            request.setDeferValidation(randomBoolean());
-        }
-        return request;
+        return new Request(config, randomBoolean());
     }
 
     @Override

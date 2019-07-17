@@ -142,7 +142,7 @@ public class TransportStopDataFrameTransformAction extends
 
         if (ids.contains(transformTask.getTransformId())) {
             // This should not occur as we validate that none of the tasks are in a failed state earlier
-            // Keep this check in here for insurance.
+            // Keep this validate in here for insurance.
             if (transformTask.getState().getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
                 listener.onFailure(
                     new ElasticsearchStatusException(

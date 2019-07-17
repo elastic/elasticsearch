@@ -70,7 +70,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertThat(XContentMapValues.extractValue("state.indexer_state", fullState), equalTo("started"));
         assertThat(XContentMapValues.extractValue("stats.search_failures", fullState), equalTo(1));
 
-        // get and check some users to verify we restarted
+        // get and validate some users to verify we restarted
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);

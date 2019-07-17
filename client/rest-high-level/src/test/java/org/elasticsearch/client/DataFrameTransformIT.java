@@ -187,7 +187,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
         DataFrameClient client = highLevelClient().dataFrame();
         PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(transform);
-        request.setDeferValidations(true);
+        request.setDeferValidation(true);
         AcknowledgedResponse ack = execute(request, client::putDataFrameTransform, client::putDataFrameTransformAsync);
         assertTrue(ack.isAcknowledged());
 

@@ -33,7 +33,7 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
 
     public static final String DEFER_VALIDATION = "defer_validation";
     private final DataFrameTransformConfig config;
-    private Boolean deferValidations;
+    private Boolean deferValidation;
 
     public PutDataFrameTransformRequest(DataFrameTransformConfig config) {
         this.config = config;
@@ -43,17 +43,17 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
         return config;
     }
 
-    public Boolean getDeferValidations() {
-        return deferValidations;
+    public Boolean getDeferValidation() {
+        return deferValidation;
     }
 
     /**
-     * Indicates if deferrable validations be skipped until the transform starts
+     * Indicates if deferrable validations should be skipped until the transform starts
      *
-     * @param deferValidations {@code true} will cause validations to be deferred
+     * @param deferValidation {@code true} will cause validations to be deferred
      */
-    public void setDeferValidations(Boolean deferValidations) {
-        this.deferValidations = deferValidations;
+    public void setDeferValidation(boolean deferValidation) {
+        this.deferValidation = deferValidation;
     }
 
     @Override

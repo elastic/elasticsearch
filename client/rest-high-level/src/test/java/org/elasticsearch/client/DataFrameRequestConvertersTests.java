@@ -50,6 +50,8 @@ import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.AL
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class DataFrameRequestConvertersTests extends ESTestCase {
 
@@ -66,7 +68,7 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         PutDataFrameTransformRequest putRequest = new PutDataFrameTransformRequest(
                 DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         Request request = DataFrameRequestConverters.putDataFrameTransform(putRequest);
-        assertFalse(request.getParameters().containsKey("defer_validation"));
+        assertThat(request.getParameters(), not(hasKey("defer_validation")));
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + putRequest.getConfig().getId()));
 
@@ -74,9 +76,9 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
             DataFrameTransformConfig parsedConfig = DataFrameTransformConfig.PARSER.apply(parser, null);
             assertThat(parsedConfig, equalTo(putRequest.getConfig()));
         }
-        putRequest.setDeferValidations(true);
+        putRequest.setDeferValidation(true);
         request = DataFrameRequestConverters.putDataFrameTransform(putRequest);
-        assertThat(request.getParameters().get("defer_validation"), equalTo(Boolean.toString(putRequest.getDeferValidations())));
+        assertThat(request.getParameters(), hasEntry("defer_validation", Boolean.toString(putRequest.getDeferValidation())));
     }
 
     public void testDeleteDataFrameTransform() {

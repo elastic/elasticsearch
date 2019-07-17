@@ -273,7 +273,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         logger.debug("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), getIndexer().getState());
 
-        // if it runs for the 1st time we just do it, if not we check for changes
+        // if it runs for the 1st time we just do it, if not we validate for changes
         if (currentCheckpoint.get() == 0 ) {
             logger.debug("Trigger initial run");
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
@@ -775,11 +775,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     }, e -> {
                         changed.set(false);
                         logger.warn(
-                                "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check",
+                                "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next validate",
                                 e);
 
                         auditor.warning(transformId,
-                                "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                                "Failed to detect changes for data frame transform, skipping update till next validate. Exception: "
                                         + e.getMessage());
                     }), latch));
 
@@ -789,10 +789,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     return changed.get();
                 }
             } catch (InterruptedException e) {
-                logger.warn("Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check", e);
+                logger.warn("Failed to detect changes for data frame transform [" + transformId + "], skipping update till next validate", e);
 
                 auditor.warning(transformId,
-                        "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                        "Failed to detect changes for data frame transform, skipping update till next validate. Exception: "
                                 + e.getMessage());
             }
 

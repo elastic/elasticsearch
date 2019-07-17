@@ -49,10 +49,11 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final DataFrameTransformConfig config;
-        private boolean deferValidation = false;
+        private final boolean deferValidation;
 
-        public Request(DataFrameTransformConfig config) {
+        public Request(DataFrameTransformConfig config, boolean deferValidation) {
             this.config = config;
+            this.deferValidation = deferValidation;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -65,8 +66,8 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
             }
         }
 
-        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
-            return new Request(DataFrameTransformConfig.fromXContent(parser, id, false));
+        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
+            return new Request(DataFrameTransformConfig.fromXContent(parser, id, false), deferValidation);
         }
 
         /**
@@ -128,10 +129,6 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
 
         public boolean isDeferValidation() {
             return deferValidation;
-        }
-
-        public void setDeferValidation(boolean deferValidation) {
-            this.deferValidation = deferValidation;
         }
 
         @Override

@@ -45,6 +45,17 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
+[[put-data-frame-transform-query-parms]]
+==== {api-query-parms-title}
+
+`defer_validations`::
+ (Optional, boolean) When `true`, this will cause deferrable validations to not run.
+ This option should be used with care as the created {dataframe-transform} will run
+ with the privileges of the user creating it. Meaning, if they do not have privileges,
+ such an error will not be visible until `_start` is called.
+
+ The default value is `false`.
+
 [[put-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 

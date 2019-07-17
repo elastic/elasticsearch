@@ -130,6 +130,11 @@ public class FileUtils {
         }
     }
 
+    /**
+     * Returns the content a {@link java.nio.file.Path} file. The file can be in plain text or GZIP format.
+     * @param file The {@link java.nio.file.Path} to the file.
+     * @return The content of {@code file}.
+     */
     public static String slurpTxtorGz(Path file) {
         ByteArrayOutputStream fileBuffer = new ByteArrayOutputStream();
         try (GZIPInputStream in = new GZIPInputStream(Channels.newInputStream(FileChannel.open(file)))) {
@@ -151,6 +156,16 @@ public class FileUtils {
         }
     }
 
+    /**
+     * Returns combined content of a text log file and rotated log files matching a pattern. Order of rotated log files is
+     * not guaranteed.
+     * @param logPath Base directory where log files reside.
+     * @param activeLogFile The currently active log file. This file needs to be plain text under {@code logPath}.
+     * @param rotatedLogFilesGlob A glob pattern to match rotated log files under {@code logPath}.
+     *                            See {@link java.nio.file.FileSystem#getPathMatcher(String)} for glob examples.
+     * @return Merges contents of {@code activeLogFile} and contents of filenames matching {@code rotatedLogFilesGlob}.
+     * File contents are separated by a newline. The order of rotated log files matched by {@code rotatedLogFilesGlob} is not guaranteed.
+     */
     public static String slurpAllLogs(Path logPath, String activeLogFile, String rotatedLogFilesGlob) {
         StringJoiner logFileJoiner = new StringJoiner("\n");
         try {

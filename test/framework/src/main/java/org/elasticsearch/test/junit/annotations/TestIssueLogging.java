@@ -29,7 +29,7 @@ import static java.lang.annotation.ElementType.TYPE;
 
 /**
  * Annotation used to set a custom log level when investigating test failures. Do not use this annotation to explicitly
- * control the logging level in tests.
+ * control the logging level in tests; instead, use {@link TestLogging}.
  *
  * It supports multiple logger:level comma-separated key-value pairs of logger:level (e.g.,
  * org.elasticsearch.cluster.metadata:TRACE). Use the _root keyword to set the root logger level.

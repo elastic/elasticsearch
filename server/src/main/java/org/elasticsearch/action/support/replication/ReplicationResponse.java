@@ -58,7 +58,7 @@ public class ReplicationResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public final void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("Streamable no longer used");
     }
 

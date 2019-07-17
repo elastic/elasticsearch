@@ -16,6 +16,13 @@ public class PostStartBasicRequest extends AcknowledgedRequest<PostStartBasicReq
 
     private boolean acknowledge = false;
 
+    public PostStartBasicRequest() {}
+
+    public PostStartBasicRequest(StreamInput in) throws IOException {
+        super(in);
+        acknowledge = in.readBoolean();
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -28,12 +35,6 @@ public class PostStartBasicRequest extends AcknowledgedRequest<PostStartBasicReq
 
     public boolean isAcknowledged() {
         return acknowledge;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        acknowledge = in.readBoolean();
     }
 
     @Override

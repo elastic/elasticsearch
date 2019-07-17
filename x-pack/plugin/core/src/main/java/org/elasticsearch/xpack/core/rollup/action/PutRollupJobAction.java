@@ -49,6 +49,11 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
             this.config = config;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new RollupJobConfig(in);
+        }
+
         public Request() {
 
         }
@@ -63,12 +68,6 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
         public void setConfig(RollupJobConfig config) {
             this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new RollupJobConfig(in);
         }
 
         @Override

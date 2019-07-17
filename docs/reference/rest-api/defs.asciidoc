@@ -17,7 +17,7 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<role-mapping-resources,Role mappings>>
 
 include::{es-repo-dir}/ml/apis/datafeedresource.asciidoc[]
-include::{es-repo-dir}/ml/apis/dfanalyticsresources.asciidoc[]
+include::{es-repo-dir}/ml/df-analytics/apis/dfanalyticsresources.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/transformresource.asciidoc[]
 include::{es-repo-dir}/ml/apis/evaluateresources.asciidoc[]
 include::{es-repo-dir}/ml/apis/jobresource.asciidoc[]

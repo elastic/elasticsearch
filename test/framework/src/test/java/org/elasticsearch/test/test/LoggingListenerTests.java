@@ -397,7 +397,7 @@ public class LoggingListenerTests extends ESTestCase {
     /**
      * Dummy class with duplicate logging levels between {@link TestLogging} and {@link TestIssueLogging} annotations.
      */
-    @TestLogging("abc:INFO")
+    @TestLogging(value = "abc:INFO", reason = "testing a duplicate logger level between TestLogging and TestIssueLogging annotations")
     @TestIssueLogging(value = "abc:DEBUG", issueUrl = "https://example.com")
     public static class DuplicateLoggerBetweenTestLoggingAndTestIssueLogging {
 

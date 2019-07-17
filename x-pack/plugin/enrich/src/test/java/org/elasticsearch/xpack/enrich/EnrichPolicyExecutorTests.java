@@ -80,7 +80,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
         EnrichPolicyTestExecutor(Settings settings, ClusterService clusterService, Client client, ThreadPool threadPool,
                                  IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier) {
-            super(settings, clusterService, client, threadPool, indexNameExpressionResolver, nowSupplier);
+            super(settings, clusterService, client, threadPool, indexNameExpressionResolver, new EnrichPolicyLocks(), nowSupplier);
         }
 
         private CountDownLatch currentLatch;

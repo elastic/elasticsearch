@@ -57,6 +57,8 @@ public class EnrichPolicyRunner implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
+    static final String ENRICH_POLICY_FIELD_NAME = "enrich_policy";
+
     private final String policyName;
     private final EnrichPolicy policy;
     private final ActionListener<PolicyExecutionResult> listener;
@@ -214,6 +216,7 @@ public class EnrichPolicyRunner implements Runnable {
                         .endObject()
                     .endObject()
                     .startObject("_meta")
+                        .field(ENRICH_POLICY_FIELD_NAME, policyName)
                         .field(ENRICH_KEY_FIELD_NAME, policy.getEnrichKey())
                     .endObject()
                 .endObject()

@@ -1,4 +1,4 @@
-[[search-request-inner-hits]]
+[[request-body-search-inner-hits]]
 === Inner hits
 
 The <<parent-join, parent-join>> and <<nested, nested>> features allow the return of documents that

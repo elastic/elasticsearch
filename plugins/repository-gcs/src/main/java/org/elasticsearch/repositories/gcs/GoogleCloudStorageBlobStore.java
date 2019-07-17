@@ -164,18 +164,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
-     * Returns true if the blob exists in the specific bucket
-     *
-     * @param blobName name of the blob
-     * @return true iff the blob exists
-     */
-    boolean blobExists(String blobName) throws IOException {
-        final BlobId blobId = BlobId.of(bucketName, blobName);
-        final Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
-        return blob != null;
-    }
-
-    /**
      * Returns an {@link java.io.InputStream} for the given blob name
      *
      * @param blobName name of the blob

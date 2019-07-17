@@ -1,4 +1,4 @@
-[[search-request-rescore]]
+[[request-body-search-rescore]]
 === Rescoring
 
 Rescoring can help to improve precision by reordering just the top (eg

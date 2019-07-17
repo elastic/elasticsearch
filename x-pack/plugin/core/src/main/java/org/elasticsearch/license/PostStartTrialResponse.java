@@ -50,7 +50,7 @@ class PostStartTrialResponse extends ActionResponse {
     private Map<String, String[]> acknowledgeMessages;
     private String acknowledgeMessage;
 
-    public PostStartTrialResponse(StreamInput in) throws IOException {
+    PostStartTrialResponse(StreamInput in) throws IOException {
         super(in);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();

@@ -269,7 +269,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         latch.await();
         for (IndexId indexId : repositoryData.get().getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
-                assertFalse(indicesBlobContainer.get().blobExists(indexId.getId())); // deleted index
+                assertFalse(BlobStoreTestUtil.blobExists(indicesBlobContainer.get(), indexId.getId())); // deleted index
             }
         }
     }

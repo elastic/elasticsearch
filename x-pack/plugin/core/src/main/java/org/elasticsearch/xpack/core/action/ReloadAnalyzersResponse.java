@@ -40,10 +40,6 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
     private static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
     private static final ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
 
-    public ReloadAnalyzersResponse() {
-        reloadDetails = new HashMap<>();
-    }
-
     public ReloadAnalyzersResponse(StreamInput in) throws IOException {
         super(in);
         this.reloadDetails = in.readMap(StreamInput::readString, ReloadDetails::new);

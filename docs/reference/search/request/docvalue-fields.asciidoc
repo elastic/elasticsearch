@@ -1,4 +1,4 @@
-[[search-request-docvalue-fields]]
+[[request-body-search-docvalue-fields]]
 === Doc value Fields
 
 Allows to return the <<doc-values,doc value>> representation of a field for each hit, for

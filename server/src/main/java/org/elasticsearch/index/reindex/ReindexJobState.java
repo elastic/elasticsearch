@@ -72,11 +72,7 @@ public class ReindexJobState implements Task.Status, PersistentTaskState {
 
     public ReindexJobState(StreamInput in) throws IOException {
         ephemeralTaskId = TaskId.readFromStream(in);
-        reindexResponse = in.readOptionalWriteable((input) -> {
-            BulkByScrollResponse response = new BulkByScrollResponse();
-            response.readFrom(input);
-            return response;
-        });
+        reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
         jobException = in.readException();
     }
 

@@ -67,11 +67,6 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             reindexRequest.writeTo(out);
@@ -126,7 +121,7 @@ public class StartReindexJobAction extends ActionType<StartReindexJobAction.Resp
         public Response(StreamInput in) throws IOException {
             super(in);
             taskId = in.readString();
-            reindexResponse = in.readOptionalStreamable(BulkByScrollResponse::new);
+            reindexResponse = in.readOptionalWriteable(BulkByScrollResponse::new);
         }
 
         @Override

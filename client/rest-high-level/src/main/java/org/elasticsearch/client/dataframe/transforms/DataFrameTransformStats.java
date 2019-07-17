@@ -30,7 +30,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class DataFrameTransformStateAndStatsInfo {
+public class DataFrameTransformStats {
 
     public static final ParseField ID = new ParseField("id");
     public static final ParseField TASK_STATE_FIELD = new ParseField("task_state");
@@ -39,9 +39,9 @@ public class DataFrameTransformStateAndStatsInfo {
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField CHECKPOINTING_INFO_FIELD = new ParseField("checkpointing");
 
-    public static final ConstructingObjectParser<DataFrameTransformStateAndStatsInfo, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataFrameTransformStats, Void> PARSER = new ConstructingObjectParser<>(
             "data_frame_transform_state_and_stats_info", true,
-            a -> new DataFrameTransformStateAndStatsInfo((String) a[0], (DataFrameTransformTaskState) a[1], (String) a[2],
+            a -> new DataFrameTransformStats((String) a[0], (DataFrameTransformTaskState) a[1], (String) a[2],
                 (NodeAttributes) a[3], (DataFrameIndexerTransformStats) a[4], (DataFrameTransformCheckpointingInfo) a[5]));
 
     static {
@@ -55,7 +55,7 @@ public class DataFrameTransformStateAndStatsInfo {
             (p, c) -> DataFrameTransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
     }
 
-    public static DataFrameTransformStateAndStatsInfo fromXContent(XContentParser parser) throws IOException {
+    public static DataFrameTransformStats fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -63,17 +63,17 @@ public class DataFrameTransformStateAndStatsInfo {
     private final String reason;
     private final DataFrameTransformTaskState taskState;
     private final NodeAttributes node;
-    private final DataFrameIndexerTransformStats transformStats;
+    private final DataFrameIndexerTransformStats indexerStats;
     private final DataFrameTransformCheckpointingInfo checkpointingInfo;
 
-    public DataFrameTransformStateAndStatsInfo(String id, DataFrameTransformTaskState taskState, String reason, NodeAttributes node,
-                                               DataFrameIndexerTransformStats stats,
-                                               DataFrameTransformCheckpointingInfo checkpointingInfo) {
+    public DataFrameTransformStats(String id, DataFrameTransformTaskState taskState, String reason, NodeAttributes node,
+                                   DataFrameIndexerTransformStats stats,
+                                   DataFrameTransformCheckpointingInfo checkpointingInfo) {
         this.id = id;
         this.taskState = taskState;
         this.reason = reason;
         this.node = node;
-        this.transformStats = stats;
+        this.indexerStats = stats;
         this.checkpointingInfo = checkpointingInfo;
     }
 
@@ -93,8 +93,8 @@ public class DataFrameTransformStateAndStatsInfo {
         return node;
     }
 
-    public DataFrameIndexerTransformStats getTransformStats() {
-        return transformStats;
+    public DataFrameIndexerTransformStats getIndexerStats() {
+        return indexerStats;
     }
 
     public DataFrameTransformCheckpointingInfo getCheckpointingInfo() {
@@ -103,7 +103,7 @@ public class DataFrameTransformStateAndStatsInfo {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, taskState, reason, node, transformStats, checkpointingInfo);
+        return Objects.hash(id, taskState, reason, node, indexerStats, checkpointingInfo);
     }
 
     @Override
@@ -116,13 +116,13 @@ public class DataFrameTransformStateAndStatsInfo {
             return false;
         }
 
-        DataFrameTransformStateAndStatsInfo that = (DataFrameTransformStateAndStatsInfo) other;
+        DataFrameTransformStats that = (DataFrameTransformStats) other;
 
         return Objects.equals(this.id, that.id)
             && Objects.equals(this.taskState, that.taskState)
             && Objects.equals(this.reason, that.reason)
             && Objects.equals(this.node, that.node)
-            && Objects.equals(this.transformStats, that.transformStats)
+            && Objects.equals(this.indexerStats, that.indexerStats)
             && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);
     }
 }

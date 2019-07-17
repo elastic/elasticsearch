@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -280,13 +280,13 @@ public class DataFrameTransformsConfigManager {
         }));
     }
 
-    public void putOrUpdateTransformStateAndStats(DataFrameTransformStateAndStats stats, ActionListener<Boolean> listener) {
+    public void putOrUpdateTransformStoredDoc(DataFrameTransformStoredDoc stats, ActionListener<Boolean> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.INDEX_NAME)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(DataFrameTransformStateAndStats.documentId(stats.getId()))
+                .id(DataFrameTransformStoredDoc.documentId(stats.getId()))
                 .source(source);
 
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
@@ -303,8 +303,8 @@ public class DataFrameTransformsConfigManager {
         }
     }
 
-    public void getTransformStateAndStats(String transformId, ActionListener<DataFrameTransformStateAndStats> resultListener) {
-        GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameTransformStateAndStats.documentId(transformId));
+    public void getTransformStoredDoc(String transformId, ActionListener<DataFrameTransformStoredDoc> resultListener) {
+        GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameTransformStoredDoc.documentId(transformId));
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
 
             if (getResponse.isExists() == false) {
@@ -316,7 +316,7 @@ public class DataFrameTransformsConfigManager {
             try (InputStream stream = source.streamInput();
                  XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-                resultListener.onResponse(DataFrameTransformStateAndStats.fromXContent(parser));
+                resultListener.onResponse(DataFrameTransformStoredDoc.fromXContent(parser));
             } catch (Exception e) {
                 logger.error(
                     DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION, transformId), e);
@@ -332,11 +332,11 @@ public class DataFrameTransformsConfigManager {
         }));
     }
 
-    public void getTransformStateAndStats(Collection<String> transformIds, ActionListener<List<DataFrameTransformStateAndStats>> listener) {
+    public void getTransformStoredDoc(Collection<String> transformIds, ActionListener<List<DataFrameTransformStoredDoc>> listener) {
 
         QueryBuilder builder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), transformIds))
-                .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformStateAndStats.NAME)));
+                .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformStoredDoc.NAME)));
 
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
                 .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
@@ -347,13 +347,13 @@ public class DataFrameTransformsConfigManager {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         searchResponse -> {
-                            List<DataFrameTransformStateAndStats> stats = new ArrayList<>();
+                            List<DataFrameTransformStoredDoc> stats = new ArrayList<>();
                             for (SearchHit hit : searchResponse.getHits().getHits()) {
                                 BytesReference source = hit.getSourceRef();
                                 try (InputStream stream = source.streamInput();
                                      XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                              .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                                    stats.add(DataFrameTransformStateAndStats.fromXContent(parser));
+                                    stats.add(DataFrameTransformStoredDoc.fromXContent(parser));
                                 } catch (IOException e) {
                                     listener.onFailure(
                                             new ElasticsearchParseException("failed to parse data frame stats from search hit", e));

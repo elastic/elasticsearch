@@ -27,20 +27,20 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public class DataFrameTransformStateAndStatsInfoTests extends ESTestCase {
+public class DataFrameTransformStatsTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser,
-            DataFrameTransformStateAndStatsInfoTests::randomInstance,
-            DataFrameTransformStateAndStatsInfoTests::toXContent,
-            DataFrameTransformStateAndStatsInfo::fromXContent)
+            DataFrameTransformStatsTests::randomInstance,
+            DataFrameTransformStatsTests::toXContent,
+            DataFrameTransformStats::fromXContent)
                 .supportsUnknownFields(true)
                 .randomFieldsExcludeFilter(field -> field.equals("node.attributes") || field.contains("position"))
                 .test();
     }
 
-    public static DataFrameTransformStateAndStatsInfo randomInstance() {
-        return new DataFrameTransformStateAndStatsInfo(randomAlphaOfLength(10),
+    public static DataFrameTransformStats randomInstance() {
+        return new DataFrameTransformStats(randomAlphaOfLength(10),
             randomBoolean() ? null : randomFrom(DataFrameTransformTaskState.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributesTests.createRandom(),
@@ -48,25 +48,25 @@ public class DataFrameTransformStateAndStatsInfoTests extends ESTestCase {
             randomBoolean() ? null : DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 
-    public static void toXContent(DataFrameTransformStateAndStatsInfo stateAndStatsInfo, XContentBuilder builder) throws IOException {
+    public static void toXContent(DataFrameTransformStats stats, XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field(DataFrameTransformStateAndStatsInfo.ID.getPreferredName(), stateAndStatsInfo.getId());
-        if (stateAndStatsInfo.getTaskState() != null) {
-            builder.field(DataFrameTransformStateAndStatsInfo.TASK_STATE_FIELD.getPreferredName(),
-                stateAndStatsInfo.getTaskState().value());
+        builder.field(DataFrameTransformStats.ID.getPreferredName(), stats.getId());
+        if (stats.getTaskState() != null) {
+            builder.field(DataFrameTransformStats.TASK_STATE_FIELD.getPreferredName(),
+                stats.getTaskState().value());
         }
-        if (stateAndStatsInfo.getReason() != null) {
-            builder.field(DataFrameTransformStateAndStatsInfo.REASON_FIELD.getPreferredName(), stateAndStatsInfo.getReason());
+        if (stats.getReason() != null) {
+            builder.field(DataFrameTransformStats.REASON_FIELD.getPreferredName(), stats.getReason());
         }
-        if (stateAndStatsInfo.getNode() != null) {
-            builder.field(DataFrameTransformStateAndStatsInfo.NODE_FIELD.getPreferredName());
-            stateAndStatsInfo.getNode().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        if (stats.getNode() != null) {
+            builder.field(DataFrameTransformStats.NODE_FIELD.getPreferredName());
+            stats.getNode().toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
-        builder.field(DataFrameTransformStateAndStatsInfo.STATS_FIELD.getPreferredName());
-        DataFrameIndexerTransformStatsTests.toXContent(stateAndStatsInfo.getTransformStats(), builder);
-        if (stateAndStatsInfo.getCheckpointingInfo() != null) {
-            builder.field(DataFrameTransformStateAndStatsInfo.CHECKPOINTING_INFO_FIELD.getPreferredName());
-            DataFrameTransformCheckpointingInfoTests.toXContent(stateAndStatsInfo.getCheckpointingInfo(), builder);
+        builder.field(DataFrameTransformStats.STATS_FIELD.getPreferredName());
+        DataFrameIndexerTransformStatsTests.toXContent(stats.getIndexerStats(), builder);
+        if (stats.getCheckpointingInfo() != null) {
+            builder.field(DataFrameTransformStats.CHECKPOINTING_INFO_FIELD.getPreferredName());
+            DataFrameTransformCheckpointingInfoTests.toXContent(stats.getCheckpointingInfo(), builder);
         }
         builder.endObject();
     }

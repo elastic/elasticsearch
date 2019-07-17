@@ -13,10 +13,10 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class DataFrameTransformStateAndStatsInfoTests extends AbstractSerializingTestCase<DataFrameTransformStateAndStatsInfo> {
+public class DataFrameTransformStatsTests extends AbstractSerializingTestCase<DataFrameTransformStats> {
 
-    public static DataFrameTransformStateAndStatsInfo randomDataFrameTransformStateAndStatsInfo() {
-        return new DataFrameTransformStateAndStatsInfo(randomAlphaOfLength(10),
+    public static DataFrameTransformStats randomDataFrameTransformStats() {
+        return new DataFrameTransformStats(randomAlphaOfLength(10),
             randomFrom(DataFrameTransformTaskState.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
@@ -25,18 +25,18 @@ public class DataFrameTransformStateAndStatsInfoTests extends AbstractSerializin
     }
 
     @Override
-    protected DataFrameTransformStateAndStatsInfo doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformStateAndStatsInfo.fromXContent(parser);
+    protected DataFrameTransformStats doParseInstance(XContentParser parser) throws IOException {
+        return DataFrameTransformStats.fromXContent(parser);
     }
 
     @Override
-    protected DataFrameTransformStateAndStatsInfo createTestInstance() {
-        return randomDataFrameTransformStateAndStatsInfo();
+    protected DataFrameTransformStats createTestInstance() {
+        return randomDataFrameTransformStats();
     }
 
     @Override
-    protected Reader<DataFrameTransformStateAndStatsInfo> instanceReader() {
-        return DataFrameTransformStateAndStatsInfo::new;
+    protected Reader<DataFrameTransformStats> instanceReader() {
+        return DataFrameTransformStats::new;
     }
 
     @Override

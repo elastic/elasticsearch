@@ -24,7 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -152,51 +152,51 @@ public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTr
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
-        private final QueryPage<DataFrameTransformStateAndStatsInfo> transformsStateAndStatsInfo;
+        private final QueryPage<DataFrameTransformStats> transformsStats;
 
-        public Response(List<DataFrameTransformStateAndStatsInfo> transformStateAndStats, long count) {
+        public Response(List<DataFrameTransformStats> transformStateAndStats, long count) {
             this(new QueryPage<>(transformStateAndStats, count, DataFrameField.TRANSFORMS));
         }
 
-        public Response(List<DataFrameTransformStateAndStatsInfo> transformStateAndStats,
+        public Response(List<DataFrameTransformStats> transformStateAndStats,
                         long count,
                         List<TaskOperationFailure> taskFailures,
                         List<? extends ElasticsearchException> nodeFailures) {
             this(new QueryPage<>(transformStateAndStats, count, DataFrameField.TRANSFORMS), taskFailures, nodeFailures);
         }
 
-        private Response(QueryPage<DataFrameTransformStateAndStatsInfo> transformsStateAndStatsInfo) {
-            this(transformsStateAndStatsInfo, Collections.emptyList(), Collections.emptyList());
+        private Response(QueryPage<DataFrameTransformStats> transformsStats) {
+            this(transformsStats, Collections.emptyList(), Collections.emptyList());
         }
 
-        private Response(QueryPage<DataFrameTransformStateAndStatsInfo> transformsStateAndStatsInfo,
+        private Response(QueryPage<DataFrameTransformStats> transformsStats,
                          List<TaskOperationFailure> taskFailures,
                          List<? extends ElasticsearchException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.transformsStateAndStatsInfo = ExceptionsHelper.requireNonNull(transformsStateAndStatsInfo, "transformsStateAndStatsInfo");
+            this.transformsStats = ExceptionsHelper.requireNonNull(transformsStats, "transformsStats");
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                transformsStateAndStatsInfo = new QueryPage<>(in, DataFrameTransformStateAndStatsInfo::new);
+                transformsStats = new QueryPage<>(in, DataFrameTransformStats::new);
             } else {
-                List<DataFrameTransformStateAndStatsInfo> stats = in.readList(DataFrameTransformStateAndStatsInfo::new);
-                transformsStateAndStatsInfo = new QueryPage<>(stats, stats.size(), DataFrameField.TRANSFORMS);
+                List<DataFrameTransformStats> stats = in.readList(DataFrameTransformStats::new);
+                transformsStats = new QueryPage<>(stats, stats.size(), DataFrameField.TRANSFORMS);
             }
         }
 
-        public List<DataFrameTransformStateAndStatsInfo> getTransformsStateAndStatsInfo() {
-            return transformsStateAndStatsInfo.results();
+        public List<DataFrameTransformStats> getTransformsStats() {
+            return transformsStats.results();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                transformsStateAndStatsInfo.writeTo(out);
+                transformsStats.writeTo(out);
             } else {
-                out.writeList(transformsStateAndStatsInfo.results());
+                out.writeList(transformsStats.results());
             }
         }
 
@@ -209,14 +209,14 @@ public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTr
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            transformsStateAndStatsInfo.doXContentBody(builder, params);
+            transformsStats.doXContentBody(builder, params);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(transformsStateAndStatsInfo);
+            return Objects.hash(transformsStats);
         }
 
         @Override
@@ -230,7 +230,7 @@ public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTr
             }
 
             final Response that = (Response) other;
-            return Objects.equals(this.transformsStateAndStatsInfo, that.transformsStateAndStatsInfo);
+            return Objects.equals(this.transformsStats, that.transformsStats);
         }
 
         @Override

@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDocTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
 import org.junit.Before;
 
@@ -245,40 +245,37 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
 
     }
 
-    public void testStateAndStats() throws InterruptedException {
-        String transformId = "transform_test_stats_create_read_update";
+    public void testStoredDoc() throws InterruptedException {
+        String transformId = "transform_test_stored_doc_create_read_update";
 
-        DataFrameTransformStateAndStats stateAndStats =
-                DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
+        DataFrameTransformStoredDoc storedDocs = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
 
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStateAndStats(stateAndStats, listener),
-            Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStateAndStats(transformId, listener), stateAndStats, null, null);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(storedDocs, listener), Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener), storedDocs, null, null);
 
-        DataFrameTransformStateAndStats updated =
-                DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStateAndStats(updated, listener), Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStateAndStats(transformId, listener), updated, null, null);
+        DataFrameTransformStoredDoc updated = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(updated, listener), Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener), updated, null, null);
     }
 
-    public void testGetStateAndStatsMultiple() throws InterruptedException {
+    public void testGetStoredDocMultiple() throws InterruptedException {
         int numStats = randomIntBetween(10, 15);
-        List<DataFrameTransformStateAndStats> expectedStats = new ArrayList<>();
+        List<DataFrameTransformStoredDoc> expectedDocs = new ArrayList<>();
         for (int i=0; i<numStats; i++) {
-            DataFrameTransformStateAndStats stat =
-                    DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(randomAlphaOfLength(6));
-            expectedStats.add(stat);
-            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStateAndStats(stat, listener), Boolean.TRUE, null, null);
+            DataFrameTransformStoredDoc stat =
+                    DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(randomAlphaOfLength(6));
+            expectedDocs.add(stat);
+            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(stat, listener), Boolean.TRUE, null, null);
         }
 
-        // remove one of the put stats so we don't retrieve all
-        if (expectedStats.size() > 1) {
-            expectedStats.remove(expectedStats.size() -1);
+        // remove one of the put docs so we don't retrieve all
+        if (expectedDocs.size() > 1) {
+            expectedDocs.remove(expectedDocs.size() - 1);
         }
-        List<String> ids = expectedStats.stream().map(DataFrameTransformStateAndStats::getId).collect(Collectors.toList());
+        List<String> ids = expectedDocs.stream().map(DataFrameTransformStoredDoc::getId).collect(Collectors.toList());
 
-        // get stats will be ordered by id
-        expectedStats.sort(Comparator.comparing(DataFrameTransformStateAndStats::getId));
-        assertAsync(listener -> transformsConfigManager.getTransformStateAndStats(ids, listener), expectedStats, null, null);
+        // returned docs will be ordered by id
+        expectedDocs.sort(Comparator.comparing(DataFrameTransformStoredDoc::getId));
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(ids, listener), expectedDocs, null, null);
     }
 }

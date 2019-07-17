@@ -25,7 +25,7 @@ import java.util.Objects;
  * A wrapper for grouping transform state and stats when persisting to an index.
  * Not intended to be returned in endpoint responses.
  */
-public class DataFrameTransformStateAndStats implements Writeable, ToXContentObject {
+public class DataFrameTransformStoredDoc implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_state_and_stats";
     public static final ParseField STATE_FIELD = new ParseField("state");
@@ -34,9 +34,9 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     private final DataFrameTransformState transformState;
     private final DataFrameIndexerTransformStats transformStats;
 
-    public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataFrameTransformStoredDoc, Void> PARSER = new ConstructingObjectParser<>(
             NAME, true,
-            a -> new DataFrameTransformStateAndStats((String) a[0],
+            a -> new DataFrameTransformStoredDoc((String) a[0],
                     (DataFrameTransformState) a[1],
                     (DataFrameIndexerTransformStats) a[2]));
 
@@ -47,7 +47,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
                 DataFrameField.STATS_FIELD);
     }
 
-    public static DataFrameTransformStateAndStats fromXContent(XContentParser parser) throws IOException {
+    public static DataFrameTransformStoredDoc fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -60,13 +60,13 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         return NAME + "-" + transformId;
     }
 
-    public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {
+    public DataFrameTransformStoredDoc(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {
         this.id = Objects.requireNonNull(id);
         this.transformState = Objects.requireNonNull(state);
         this.transformStats = Objects.requireNonNull(stats);
     }
 
-    public DataFrameTransformStateAndStats(StreamInput in) throws IOException {
+    public DataFrameTransformStoredDoc(StreamInput in) throws IOException {
         this.id = in.readString();
         this.transformState = new DataFrameTransformState(in);
         this.transformStats = new DataFrameIndexerTransformStats(in);
@@ -111,7 +111,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
             return false;
         }
 
-        DataFrameTransformStateAndStats that = (DataFrameTransformStateAndStats) other;
+        DataFrameTransformStoredDoc that = (DataFrameTransformStoredDoc) other;
 
         return Objects.equals(this.id, that.id)
             && Objects.equals(this.transformState, that.transformState)

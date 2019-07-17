@@ -28,12 +28,12 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 /**
  * Used as a wrapper for the objects returned from the stats endpoint.
- * Objects of this class are expected to be ephermeral.
+ * Objects of this class are expected to be ephemeral.
  * Do not persist objects of this class to cluster state or an index.
  */
-public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXContentObject {
+public class DataFrameTransformStats implements Writeable, ToXContentObject {
 
-    public static final String NAME = "data_frame_transform_state_and_stats_info";
+    public static final String NAME = "data_frame_transform_stats";
     public static final ParseField TASK_STATE_FIELD = new ParseField("task_state");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final ParseField NODE_FIELD = new ParseField("node");
@@ -45,13 +45,13 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
     private String reason;
     @Nullable
     private NodeAttributes node;
-    private final DataFrameIndexerTransformStats transformStats;
+    private final DataFrameIndexerTransformStats indexerStats;
     private final DataFrameTransformCheckpointingInfo checkpointingInfo;
 
-    public static final ConstructingObjectParser<DataFrameTransformStateAndStatsInfo, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataFrameTransformStats, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new DataFrameTransformStateAndStatsInfo((String) a[0],
+        a -> new DataFrameTransformStats((String) a[0],
             (DataFrameTransformTaskState) a[1],
             (String) a[2],
             (NodeAttributes) a[3],
@@ -70,17 +70,16 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
             (p, c) -> DataFrameTransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
     }
 
-    public static DataFrameTransformStateAndStatsInfo fromXContent(XContentParser parser) throws IOException {
+    public static DataFrameTransformStats fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public static DataFrameTransformStateAndStatsInfo initialStateAndStatsInfo(String id) {
-        return stoppedStateAndStatsInfo(id, new DataFrameIndexerTransformStats(id));
+    public static DataFrameTransformStats initialStats(String id) {
+        return stoppedStats(id, new DataFrameIndexerTransformStats(id));
     }
 
-    public static DataFrameTransformStateAndStatsInfo stoppedStateAndStatsInfo(String id,
-                                                                               DataFrameIndexerTransformStats indexerTransformStats) {
-        return new DataFrameTransformStateAndStatsInfo(id,
+    public static DataFrameTransformStats stoppedStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
+        return new DataFrameTransformStats(id,
             DataFrameTransformTaskState.STOPPED,
             null,
             null,
@@ -89,18 +88,18 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
     }
 
 
-    public DataFrameTransformStateAndStatsInfo(String id, DataFrameTransformTaskState taskState, @Nullable String reason,
-                                               @Nullable NodeAttributes node, DataFrameIndexerTransformStats stats,
-                                               DataFrameTransformCheckpointingInfo checkpointingInfo) {
+    public DataFrameTransformStats(String id, DataFrameTransformTaskState taskState, @Nullable String reason,
+                                   @Nullable NodeAttributes node, DataFrameIndexerTransformStats stats,
+                                   DataFrameTransformCheckpointingInfo checkpointingInfo) {
         this.id = Objects.requireNonNull(id);
         this.taskState = Objects.requireNonNull(taskState);
         this.reason = reason;
         this.node = node;
-        this.transformStats = Objects.requireNonNull(stats);
+        this.indexerStats = Objects.requireNonNull(stats);
         this.checkpointingInfo = Objects.requireNonNull(checkpointingInfo);
     }
 
-    public DataFrameTransformStateAndStatsInfo(StreamInput in) throws IOException {
+    public DataFrameTransformStats(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
             this.id = in.readString();
             this.taskState = in.readEnum(DataFrameTransformTaskState.class);
@@ -109,16 +108,17 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
             } else {
                 this.node = null;
             }
-            this.transformStats = new DataFrameIndexerTransformStats(in);
+            this.indexerStats = new DataFrameIndexerTransformStats(in);
             this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
 
         } else {
-            // Prior to version 7.4 DataFrameTransformStateAndStatsInfo didn't exist, and we have
-            // to do the best we can of reading from a DataFrameTransformStateAndStats object
+            // Prior to version 7.4 DataFrameTransformStats didn't exist, and we have
+            // to do the best we can of reading from a DataFrameTransformStoredDoc object
+            // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
             this.id = in.readString();
             this.taskState = new DataFrameTransformState(in).getTaskState();
             this.node = null;
-            this.transformStats = new DataFrameIndexerTransformStats(in);
+            this.indexerStats = new DataFrameIndexerTransformStats(in);
             this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
         }
     }
@@ -131,7 +131,7 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
         if (node != null) {
             builder.field(NODE_FIELD.getPreferredName(), node);
         }
-        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
+        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), indexerStats, params);
         builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
         builder.endObject();
         return builder;
@@ -148,11 +148,12 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
             } else {
                 out.writeBoolean(false);
             }
-            transformStats.writeTo(out);
+            indexerStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         } else {
-            // Prior to version 7.4 DataFrameTransformStateAndStatsInfo didn't exist, and we have
-            // to do the best we can of writing to a DataFrameTransformStateAndStats object
+            // Prior to version 7.4 DataFrameTransformStats didn't exist, and we have
+            // to do the best we can of writing to a DataFrameTransformStoredDoc object
+            // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
             out.writeString(id);
             new DataFrameTransformState(taskState,
                 checkpointingInfo.getNext().getIndexerState(),
@@ -161,14 +162,14 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
                 reason,
                 checkpointingInfo.getNext().getCheckpointProgress()).writeTo(out);
             out.writeBoolean(false);
-            transformStats.writeTo(out);
+            indexerStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, taskState, node, transformStats, checkpointingInfo);
+        return Objects.hash(id, taskState, node, indexerStats, checkpointingInfo);
     }
 
     @Override
@@ -181,12 +182,12 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
             return false;
         }
 
-        DataFrameTransformStateAndStatsInfo that = (DataFrameTransformStateAndStatsInfo) other;
+        DataFrameTransformStats that = (DataFrameTransformStats) other;
 
         return Objects.equals(this.id, that.id)
             && Objects.equals(this.taskState, that.taskState)
             && Objects.equals(this.node, that.node)
-            && Objects.equals(this.transformStats, that.transformStats)
+            && Objects.equals(this.indexerStats, that.indexerStats)
             && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);
     }
 
@@ -212,8 +213,8 @@ public class DataFrameTransformStateAndStatsInfo implements Writeable, ToXConten
         this.node = node;
     }
 
-    public DataFrameIndexerTransformStats getTransformStats() {
-        return transformStats;
+    public DataFrameIndexerTransformStats getIndexerStats() {
+        return indexerStats;
     }
 
     public DataFrameTransformCheckpointingInfo getCheckpointingInfo() {

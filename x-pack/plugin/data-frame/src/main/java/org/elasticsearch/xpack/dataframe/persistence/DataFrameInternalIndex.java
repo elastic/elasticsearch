@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransfo
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 
@@ -132,7 +132,7 @@ public final class DataFrameInternalIndex {
         // add the schema for transform configurations
         addDataFrameTransformsConfigMappings(builder);
         // add the schema for transform stats
-        addDataFrameTransformStateAndStatsMappings(builder);
+        addDataFrameTransformStoredDocMappings(builder);
         // end type
         builder.endObject();
         // end properties
@@ -143,9 +143,9 @@ public final class DataFrameInternalIndex {
     }
 
 
-    private static XContentBuilder addDataFrameTransformStateAndStatsMappings(XContentBuilder builder) throws IOException {
+    private static XContentBuilder addDataFrameTransformStoredDocMappings(XContentBuilder builder) throws IOException {
         return builder
-            .startObject(DataFrameTransformStateAndStats.STATE_FIELD.getPreferredName())
+            .startObject(DataFrameTransformStoredDoc.STATE_FIELD.getPreferredName())
                 .startObject(PROPERTIES)
                     .startObject(DataFrameTransformState.TASK_STATE.getPreferredName())
                         .field(TYPE, KEYWORD)

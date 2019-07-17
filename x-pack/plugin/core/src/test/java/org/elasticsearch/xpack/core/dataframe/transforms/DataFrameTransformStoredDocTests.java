@@ -14,24 +14,24 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import java.io.IOException;
 import java.util.Collections;
 
-public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStateAndStats> {
+public class DataFrameTransformStoredDocTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStoredDoc> {
 
     protected static ToXContent.Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
         Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true"));
 
-    public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats(String id) {
-        return new DataFrameTransformStateAndStats(id,
+    public static DataFrameTransformStoredDoc randomDataFrameTransformStoredDoc(String id) {
+        return new DataFrameTransformStoredDoc(id,
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats(id));
     }
 
-    public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats() {
-        return randomDataFrameTransformStateAndStats(randomAlphaOfLengthBetween(1, 10));
+    public static DataFrameTransformStoredDoc randomDataFrameTransformStoredDoc() {
+        return randomDataFrameTransformStoredDoc(randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override
-    protected DataFrameTransformStateAndStats doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformStateAndStats.PARSER.apply(parser, null);
+    protected DataFrameTransformStoredDoc doParseInstance(XContentParser parser) throws IOException {
+        return DataFrameTransformStoredDoc.PARSER.apply(parser, null);
     }
 
     @Override
@@ -42,13 +42,12 @@ public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDat
     }
 
     @Override
-    protected DataFrameTransformStateAndStats createTestInstance() {
-        return randomDataFrameTransformStateAndStats();
+    protected DataFrameTransformStoredDoc createTestInstance() {
+        return randomDataFrameTransformStoredDoc();
     }
 
     @Override
-    protected Reader<DataFrameTransformStateAndStats> instanceReader() {
-        return DataFrameTransformStateAndStats::new;
+    protected Reader<DataFrameTransformStoredDoc> instanceReader() {
+        return DataFrameTransformStoredDoc::new;
     }
-
 }

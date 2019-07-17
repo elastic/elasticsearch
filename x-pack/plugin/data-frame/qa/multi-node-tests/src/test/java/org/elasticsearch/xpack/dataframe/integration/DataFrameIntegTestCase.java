@@ -133,7 +133,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     protected void waitUntilCheckpoint(String id, long checkpoint, TimeValue waitTime) throws Exception {
         assertBusy(() ->
             assertEquals(checkpoint, getDataFrameTransformStats(id)
-                .getTransformsStateAndStats()
+                .getTransformsStats()
                 .get(0)
                 .getCheckpointingInfo()
                 .getNext()

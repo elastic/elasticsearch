@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransfo
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -35,8 +35,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class DataFrameTransformStateAndStatsInfoTests extends AbstractHlrcXContentTestCase<DataFrameTransformStateAndStatsInfo,
-    org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo> {
+public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<DataFrameTransformStats,
+    org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats> {
 
     public static NodeAttributes fromHlrc(org.elasticsearch.client.dataframe.transforms.NodeAttributes attributes) {
         return attributes == null ? null : new NodeAttributes(attributes.getId(),
@@ -46,36 +46,36 @@ public class DataFrameTransformStateAndStatsInfoTests extends AbstractHlrcXConte
             attributes.getAttributes());
     }
 
-    public static DataFrameTransformStateAndStatsInfo
-        fromHlrc(org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo instance) {
+    public static DataFrameTransformStats
+        fromHlrc(org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats instance) {
 
-        return new DataFrameTransformStateAndStatsInfo(instance.getId(),
+        return new DataFrameTransformStats(instance.getId(),
             DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
             instance.getReason(),
             fromHlrc(instance.getNode()),
-            DataFrameIndexerTransformStatsTests.fromHlrc(instance.getTransformStats()),
+            DataFrameIndexerTransformStatsTests.fromHlrc(instance.getIndexerStats()),
             DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
     }
 
     @Override
-    public org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo doHlrcParseInstance(XContentParser parser)
+    public org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats doHlrcParseInstance(XContentParser parser)
             throws IOException {
-        return org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo.fromXContent(parser);
+        return org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats.fromXContent(parser);
     }
 
     @Override
-    public DataFrameTransformStateAndStatsInfo convertHlrcToInternal(
-        org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsInfo instance) {
-        return new DataFrameTransformStateAndStatsInfo(instance.getId(),
+    public DataFrameTransformStats convertHlrcToInternal(
+        org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats instance) {
+        return new DataFrameTransformStats(instance.getId(),
                 DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
                 instance.getReason(),
                 fromHlrc(instance.getNode()),
-                DataFrameIndexerTransformStatsTests.fromHlrc(instance.getTransformStats()),
+                DataFrameIndexerTransformStatsTests.fromHlrc(instance.getIndexerStats()),
                 DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
     }
 
-    public static DataFrameTransformStateAndStatsInfo randomDataFrameTransformStateAndStatsInfo() {
-        return new DataFrameTransformStateAndStatsInfo(randomAlphaOfLength(10),
+    public static DataFrameTransformStats randomDataFrameTransformStats() {
+        return new DataFrameTransformStats(randomAlphaOfLength(10),
             randomFrom(DataFrameTransformTaskState.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : randomNodeAttributes(),
@@ -87,13 +87,13 @@ public class DataFrameTransformStateAndStatsInfoTests extends AbstractHlrcXConte
     }
 
     @Override
-    protected DataFrameTransformStateAndStatsInfo createTestInstance() {
-        return randomDataFrameTransformStateAndStatsInfo();
+    protected DataFrameTransformStats createTestInstance() {
+        return randomDataFrameTransformStats();
     }
 
     @Override
-    protected DataFrameTransformStateAndStatsInfo doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformStateAndStatsInfo.PARSER.apply(parser, null);
+    protected DataFrameTransformStats doParseInstance(XContentParser parser) throws IOException {
+        return DataFrameTransformStats.PARSER.apply(parser, null);
     }
 
     @Override
@@ -151,4 +151,3 @@ public class DataFrameTransformStateAndStatsInfoTests extends AbstractHlrcXConte
         return new String[] { "position" };
     }
 }
-

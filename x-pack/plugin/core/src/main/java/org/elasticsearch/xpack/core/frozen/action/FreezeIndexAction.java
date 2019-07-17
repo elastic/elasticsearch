@@ -15,11 +15,6 @@ public class FreezeIndexAction extends ActionType<FreezeResponse> {
     public static final String NAME = "indices:admin/freeze";
 
     private FreezeIndexAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<FreezeResponse> getResponseReader() {
-        return FreezeResponse::new;
+        super(NAME, FreezeResponse::new);
     }
 }

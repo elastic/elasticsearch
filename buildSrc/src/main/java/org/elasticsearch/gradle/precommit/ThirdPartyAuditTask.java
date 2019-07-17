@@ -51,10 +51,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -71,7 +68,12 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private static final Pattern VIOLATION_PATTERN = Pattern.compile(
         "\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)"
     );
-    public static final int SIG_KILL_EXIT_VALUE = 137;
+    private static final int SIG_KILL_EXIT_VALUE = 137;
+    private static final List<Integer> EXPECTED_EXIT_CODES = Arrays.asList(
+        CliMain.EXIT_SUCCESS,
+        CliMain.EXIT_VIOLATION,
+        CliMain.EXIT_UNSUPPORTED_JDK
+    );
 
     private Set<String> missingClassExcludes = new TreeSet<>();
 
@@ -361,11 +363,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         try (ByteArrayOutputStream outputStream = errorOut) {
             forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
         }
-        if (Arrays.asList(
-            CliMain.EXIT_SUCCESS,
-            CliMain.EXIT_VIOLATION,
-            CliMain.EXIT_UNSUPPORTED_JDK
-        ).contains(result.getExitValue()) == false) {
+        if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
         }
         return forbiddenApisOutput;

@@ -28,7 +28,7 @@ public class MultiSearchTemplateAction extends ActionType<MultiSearchTemplateRes
     public static final String NAME = "indices:data/read/msearch/template";
 
     private MultiSearchTemplateAction() {
-        super(NAME);
+        super(NAME, MultiSearchTemplateResponse::new);
     }
 
     @Override

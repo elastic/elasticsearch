@@ -145,7 +145,13 @@ public class TransportClusterHealthAction extends StreamableTransportMasterNodeR
                         final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                         final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                         request.timeout(newTimeout);
-                        executeHealth(request, newState, listener, waitCount,
+
+                        // we must use the state from the applier service, because if the state-not-recovered block is in place then the
+                        // applier service has a different view of the cluster state from the one supplied here
+                        final ClusterState appliedState = clusterService.state();
+                        assert newState.stateUUID().equals(appliedState.stateUUID())
+                            : newState.stateUUID() + " vs " + appliedState.stateUUID();
+                        executeHealth(request, appliedState, listener, waitCount,
                             observedState -> waitForEventsAndExecuteHealth(request, listener, waitCount, endTimeRelativeMillis));
                     }
 

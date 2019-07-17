@@ -603,21 +603,29 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 assertThat(buckets.size(), equalTo(valueCounts_empty_rnd.length));
                 assertThat(getTotalDocCountAcrossBuckets(buckets), equalTo(numDocsEmptyIdx_rnd));
 
-                double lastSumValue = Double.NaN;
+                Double lastSumValue = Double.NaN;
                 for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
                     Histogram.Bucket bucket = buckets.get(i);
                     checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
                     Sum sum = bucket.getAggregations().get("sum");
-                    double thisSumValue = sum.value();
+                    Double thisSumValue = sum.value();
                     if (bucket.getDocCount() == 0) {
-                        thisSumValue = gapPolicy == GapPolicy.INSERT_ZEROS ? 0 : Double.NaN;
+                        if (gapPolicy.equals(GapPolicy.INSERT_ZEROS)) {
+                            thisSumValue = 0.0;
+                        } else if (gapPolicy.equals(GapPolicy.SKIP)) {
+                            thisSumValue = Double.NaN;
+                        } else if (gapPolicy.equals(GapPolicy.NONE)) {
+                            thisSumValue = null;
+                        }
                     }
                     SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
                     if (i == 0) {
-                        assertThat(sumDeriv, nullValue());
+                        assertNull(sumDeriv);
                     } else {
-                        double expectedDerivative = thisSumValue - lastSumValue;
-                        if (Double.isNaN(expectedDerivative)) {
+                        Double expectedDerivative = thisSumValue == null || lastSumValue == null ? null : thisSumValue - lastSumValue;
+                        if (expectedDerivative == null) {
+                            assertNull(sumDeriv);
+                        } else if (Double.isNaN(expectedDerivative)) {
                             assertThat(sumDeriv.value(), equalTo(expectedDerivative));
                         } else {
                             assertThat(sumDeriv.value(), closeTo(expectedDerivative, 0.00001));

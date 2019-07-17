@@ -160,3 +160,85 @@ And the following may be the response:
 // TESTRESPONSE[s/"took": 11/"took": $body.took/]
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
+==== Accessing bucket document count
+
+It is often helpful to have the document count in a bucket script.  This is especially important
+when a bucket is empty and a different value should be generated.
+
+Bucket scripts have access to a special `params.doc_count` property which contains the document count
+for the particular bucket the script is evaluating:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search
+{
+    "size": 0,
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "calendar_interval" : "month"
+            },
+            "aggs": {
+                "total_sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                },
+                "doc_count_script": {
+                    "bucket_script": {
+                        "buckets_path": {
+                          "totalSales": "total_sales"
+                        },
+                        "script": "params.totalSales / params.doc_count" <1>
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+<1> `params.doc_count` is a special parameter which contains the bucket's document count
+
+By default, a `bucket_script` has a `skip` gap policy applied.  This means empty buckets (buckets with zero document
+count) are not evaluated by the script.  But if you wish to evaluate an empty bucket, you can use `gap_policy: none`
+and access the doc count in the script to determine how the result should be generated:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search
+{
+    "size": 0,
+    "aggs" : {
+        "sales_per_month" : {
+            "date_histogram" : {
+                "field" : "date",
+                "calendar_interval" : "month"
+            },
+            "aggs": {
+                "total_sales": {
+                    "sum": {
+                        "field": "price"
+                    }
+                },
+                "doc_count_script": {
+                    "bucket_script": {
+                        "buckets_path": {
+                          "totalSales": "total_sales"
+                        },
+                        "gap_policy": "none",  <1>
+                        "script": "if (params.doc_count == 0) {return -1.0} else {return 1.0}"  <2>
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+<1> The gap policy is set to "none", which means the script will evaluate on all buckets
+<2> The script checks the document count and emits a -1.0 if the bucket is empty, or a 1.0 if there are documents

@@ -103,6 +103,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                     skipBucket = true;
                     break;
                 }
+                vars.put(DOC_COUNT_NAME, bucket.getDocCount());
                 vars.put(varName, value);
             }
             if (skipBucket) {

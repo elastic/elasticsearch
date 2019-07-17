@@ -1,0 +1,230 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+            mappings:
+              properties:
+                value_field:
+                  type: integer
+                date:
+                  type: date
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test
+               _id:    1
+           - date: "2017-01-01T00:00:00"
+             value_field: 1
+           - index:
+               _index: test
+               _id:    2
+           - date: "2017-01-02T00:00:00"
+             value_field: 2
+           - index:
+               _index: test
+               _id:    3
+           - date: "2017-01-03T00:00:00"
+             value_field: 3
+           - index:
+               _index: test
+               _id:    4
+           - date: "2017-01-04T00:00:00"
+             value_field: 4
+           - index:
+               _index: test
+               _id:    5
+           - date: "2017-01-05T00:00:00"
+             value_field: 5
+           - index:
+               _index: test
+               _id:    6
+           - date: "2017-01-06T00:00:00"
+             value_field: 6
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"Bucket script with gap policy skip":
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test
+               _id:    7
+           - date: "2017-01-08T00:00:00"
+             value_field: 7
+           - index:
+               _index: test
+               _id:    8
+           - date: "2017-01-10T00:00:00"
+             value_field: 8
+
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_bucket_script:
+                  bucket_script:
+                    buckets_path:
+                      foo: "the_avg.value"
+                    script: "if (params.doc_count == 0) {return -1.0} else {return 1.0}"
+                    gap_policy: "skip"
+
+  - match: { hits.total: 8 }
+
+  - length: { aggregations.the_histo.buckets: 10 }
+
+  - match: { aggregations.the_histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.0.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.1.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.1.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.2.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.3.key_as_string: "2017-01-04T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.3.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.3.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.4.key_as_string: "2017-01-05T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.4.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.4.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.5.key_as_string: "2017-01-06T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.5.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.5.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.6.key_as_string: "2017-01-07T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.6.doc_count: 0 }
+  - is_false: aggregation..the_histo.buckets.6.the_bucket_script.value
+  - match: { aggregations.the_histo.buckets.6.the_avg.value: null }
+
+  - match: { aggregations.the_histo.buckets.7.key_as_string: "2017-01-08T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.7.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.7.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.8.key_as_string: "2017-01-09T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.8.doc_count: 0 }
+  - is_false: aggregations.the_histo.buckets.6.the_bucket_script.value
+  - match: { aggregations.the_histo.buckets.8.the_avg.value: null }
+
+  - match: { aggregations.the_histo.buckets.9.key_as_string: "2017-01-10T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.9.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.9.the_bucket_script.value: 1.0 }
+
+---
+"Bucket script with gap policy none":
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test
+               _id:    7
+           - date: "2017-01-08T00:00:00"
+             value_field: 7
+           - index:
+               _index: test
+               _id:    8
+           - date: "2017-01-10T00:00:00"
+             value_field: 8
+
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_bucket_script:
+                  bucket_script:
+                    buckets_path:
+                      foo: "the_avg.value"
+                    script: "if (params.doc_count == 0) {return -1.0} else {return 1.0}"
+                    gap_policy: "none"
+
+  - match: { hits.total: 8 }
+
+  - length: { aggregations.the_histo.buckets: 10 }
+
+  - match: { aggregations.the_histo.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.0.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.1.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.1.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.2.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.2.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.3.key_as_string: "2017-01-04T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.3.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.3.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.4.key_as_string: "2017-01-05T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.4.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.4.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.5.key_as_string: "2017-01-06T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.5.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.5.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.6.key_as_string: "2017-01-07T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.6.doc_count: 0 }
+  - match: { aggregations.the_histo.buckets.6.the_bucket_script.value: -1.0 }
+  - match: { aggregations.the_histo.buckets.6.the_avg.value: null }
+
+  - match: { aggregations.the_histo.buckets.7.key_as_string: "2017-01-08T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.7.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.7.the_bucket_script.value: 1.0 }
+
+  - match: { aggregations.the_histo.buckets.8.key_as_string: "2017-01-09T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.8.doc_count: 0 }
+  - match: { aggregations.the_histo.buckets.8.the_bucket_script.value: -1.0 }
+  - match: { aggregations.the_histo.buckets.8.the_avg.value: null }
+
+  - match: { aggregations.the_histo.buckets.9.key_as_string: "2017-01-10T00:00:00.000Z" }
+  - match: { aggregations.the_histo.buckets.9.doc_count: 1 }
+  - match: { aggregations.the_histo.buckets.9.the_bucket_script.value: 1.0 }

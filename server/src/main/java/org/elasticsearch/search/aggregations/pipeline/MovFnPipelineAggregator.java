@@ -115,16 +115,20 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
             vars.putAll(script.getParams());
         }
 
+
         MovingFunctionScript executableScript = scriptFactory.newInstance();
 
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+            vars.put(DOC_COUNT_NAME, bucket.getDocCount());
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
 
             // Default is to reuse existing bucket.  Simplifies the rest of the logic,
             // since we only change newBucket if we can add to it
             MultiBucketsAggregation.Bucket newBucket = bucket;
 
-            if (thisBucketValue != null && thisBucketValue.equals(Double.NaN) == false) {
+            // NONE allows null/NaN so go ahead and let the script deal with those values
+            if (gapPolicy.equals(BucketHelpers.GapPolicy.NONE)
+                || (thisBucketValue != null && thisBucketValue.equals(Double.NaN) == false)) {
 
                 // The custom context mandates that the script returns a double (not Double) so we
                 // don't need null checks, etc.

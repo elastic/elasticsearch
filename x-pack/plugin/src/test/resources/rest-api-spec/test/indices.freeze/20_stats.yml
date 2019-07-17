@@ -51,7 +51,7 @@ setup:
 
   # unfreeze index
   - do:
-      indices.freeze:
+      indices.unfreeze:
         index: test
   - is_true: acknowledged
 

@@ -38,7 +38,8 @@ import java.util.List;
  */
 public class NodesUsageResponse extends BaseNodesResponse<NodeUsage> implements ToXContentFragment {
 
-    NodesUsageResponse() {
+    public NodesUsageResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public NodesUsageResponse(ClusterName clusterName, List<NodeUsage> nodes, List<FailedNodeException> failures) {
@@ -47,7 +48,7 @@ public class NodesUsageResponse extends BaseNodesResponse<NodeUsage> implements 
 
     @Override
     protected List<NodeUsage> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeUsage::readNodeStats);
+        return in.readList(NodeUsage::new);
     }
 
     @Override

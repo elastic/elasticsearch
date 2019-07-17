@@ -279,18 +279,16 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             throw new IllegalArgumentException("old checkpoint is newer than new checkpoint");
         }
 
-        // all old indices must be contained in the new ones but not vice versa
-        if (newCheckpoint.indicesCheckpoints.keySet().containsAll(oldCheckpoint.indicesCheckpoints.keySet()) == false) {
-            return -1L;
-        }
-
         // get the sum of of shard checkpoints
         // note: we require shard checkpoints to strictly increase and never decrease
         long oldCheckPointSum = 0;
         long newCheckPointSum = 0;
 
-        for (long[] v : oldCheckpoint.indicesCheckpoints.values()) {
-            oldCheckPointSum += Arrays.stream(v).sum();
+        for (Entry<String, long[]> entry : oldCheckpoint.indicesCheckpoints.entrySet()) {
+            // ignore entries that aren't part of newCheckpoint, e.g. deleted indices
+            if (newCheckpoint.indicesCheckpoints.containsKey(entry.getKey())) {
+                oldCheckPointSum += Arrays.stream(entry.getValue()).sum();
+            }
         }
 
         for (long[] v : newCheckpoint.indicesCheckpoints.values()) {

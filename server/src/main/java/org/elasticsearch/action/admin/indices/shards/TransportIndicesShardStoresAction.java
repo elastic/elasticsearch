@@ -23,7 +23,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -66,7 +66,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * indices and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
  */
 public class TransportIndicesShardStoresAction
-        extends TransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
+        extends StreamableTransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
 
     private final NodeClient client;
 

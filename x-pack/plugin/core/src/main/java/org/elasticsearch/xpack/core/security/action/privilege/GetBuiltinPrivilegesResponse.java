@@ -37,6 +37,12 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
         this(Collections.emptySet(), Collections.emptySet());
     }
 
+    public GetBuiltinPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.clusterPrivileges = in.readStringArray();
+        this.indexPrivileges = in.readStringArray();
+    }
+
     public String[] getClusterPrivileges() {
         return clusterPrivileges;
     }
@@ -47,9 +53,7 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.clusterPrivileges = in.readStringArray();
-        this.indexPrivileges = in.readStringArray();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

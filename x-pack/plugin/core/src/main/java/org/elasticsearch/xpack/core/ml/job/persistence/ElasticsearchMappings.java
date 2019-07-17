@@ -936,6 +936,7 @@ public class ElasticsearchMappings {
 
     /**
      * {@link DatafeedTimingStats} mapping.
+     * Does not include mapping for BUCKET_COUNT as this mapping is added by {@link #addDataCountsMapping} method.
      *
      * @throws IOException On builder write error
      */
@@ -944,6 +945,7 @@ public class ElasticsearchMappings {
             .startObject(DatafeedTimingStats.SEARCH_COUNT.getPreferredName())
                 .field(TYPE, LONG)
             .endObject()
+            // re-used: BUCKET_COUNT
             .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
             .endObject();

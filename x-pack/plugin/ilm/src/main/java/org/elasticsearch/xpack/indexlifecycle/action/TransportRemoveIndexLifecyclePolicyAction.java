@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -28,14 +28,14 @@ import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportRemoveIndexLifecyclePolicyAction extends StreamableTransportMasterNodeAction<Request, Response> {
 
     @Inject
     public TransportRemoveIndexLifecyclePolicyAction(TransportService transportService, ClusterService clusterService,
                                                      ThreadPool threadPool, ActionFilters actionFilters,
                                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, Request::new);
+            Request::new, indexNameExpressionResolver);
     }
 
     @Override

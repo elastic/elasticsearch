@@ -5,23 +5,18 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * ActionType to retrieve a role from the security index
  */
-public class GetRolesAction extends StreamableResponseActionType<GetRolesResponse> {
+public class GetRolesAction extends ActionType<GetRolesResponse> {
 
     public static final GetRolesAction INSTANCE = new GetRolesAction();
     public static final String NAME = "cluster:admin/xpack/security/role/get";
 
 
     protected GetRolesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetRolesResponse newResponse() {
-        return new GetRolesResponse();
+        super(NAME, GetRolesResponse::new);
     }
 }

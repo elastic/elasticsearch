@@ -16,7 +16,10 @@ public class AuthenticateResponse extends ActionResponse {
 
     private Authentication authentication;
 
-    public AuthenticateResponse() {}
+    public AuthenticateResponse(StreamInput in) throws IOException {
+        super(in);
+        authentication = new Authentication(in);
+    }
 
     public AuthenticateResponse(Authentication authentication){
         this.authentication = authentication;
@@ -33,8 +36,7 @@ public class AuthenticateResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        authentication = new Authentication(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
 }

@@ -89,9 +89,7 @@ public class TransportUpgradeStatusAction
 
     @Override
     protected UpgradeStatusRequest readRequestFrom(StreamInput in) throws IOException {
-        UpgradeStatusRequest request = new UpgradeStatusRequest();
-        request.readFrom(in);
-        return request;
+        return new UpgradeStatusRequest(in);
     }
 
     @Override

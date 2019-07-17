@@ -1,4 +1,4 @@
-[[search-request-post-filter]]
+[[request-body-search-post-filter]]
 === Post filter
 
 The `post_filter` is applied to the search `hits` at the very end of a search

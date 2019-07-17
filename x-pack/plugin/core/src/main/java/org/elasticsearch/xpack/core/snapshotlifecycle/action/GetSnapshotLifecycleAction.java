@@ -44,6 +44,11 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
             this.lifecycleIds = Objects.requireNonNull(lifecycleIds, "ids may not be null");
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            lifecycleIds = in.readStringArray();
+        }
+
         public Request() {
             this.lifecycleIds = Strings.EMPTY_ARRAY;
         }
@@ -55,12 +60,6 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            lifecycleIds = in.readStringArray();
         }
 
         @Override

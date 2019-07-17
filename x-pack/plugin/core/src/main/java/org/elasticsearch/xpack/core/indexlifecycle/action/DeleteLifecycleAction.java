@@ -53,6 +53,11 @@ public class DeleteLifecycleAction extends ActionType<DeleteLifecycleAction.Resp
             this.policyName = policyName;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policyName = in.readString();
+        }
+
         public Request() {
         }
 
@@ -63,12 +68,6 @@ public class DeleteLifecycleAction extends ActionType<DeleteLifecycleAction.Resp
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            policyName = in.readString();
         }
 
         @Override

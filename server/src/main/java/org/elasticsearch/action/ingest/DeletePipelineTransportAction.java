@@ -43,7 +43,7 @@ public class DeletePipelineTransportAction extends TransportMasterNodeAction<Del
     public DeletePipelineTransportAction(ThreadPool threadPool, IngestService ingestService, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeletePipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
+            threadPool, actionFilters, DeletePipelineRequest::new, indexNameExpressionResolver);
         this.ingestService = ingestService;
     }
 

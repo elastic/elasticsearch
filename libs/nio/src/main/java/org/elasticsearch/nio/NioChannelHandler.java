@@ -29,9 +29,9 @@ import java.util.function.BiConsumer;
 public interface NioChannelHandler {
 
     /**
-     * This method is called when the channel is registered with its selector.
+     * This method is called when the channel is active for use.
      */
-    void channelRegistered();
+    void channelActive();
 
     /**
      * This method is called when a message is queued with a channel. It can be called from any thread.

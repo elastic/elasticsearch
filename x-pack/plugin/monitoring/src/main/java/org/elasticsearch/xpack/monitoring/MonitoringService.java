@@ -149,6 +149,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
         if (started.compareAndSet(false, true)) {
             try {
                 logger.debug("monitoring service is starting");
+                createLocalResources();
                 scheduleExecution();
                 logger.debug("monitoring service started");
             } catch (Exception e) {
@@ -193,6 +194,10 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 scheduler = null;
             }
         }
+    }
+
+    void createLocalResources() {
+        logger.debug("creating local resources");
     }
 
     /**

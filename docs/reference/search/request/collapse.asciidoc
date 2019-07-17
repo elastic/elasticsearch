@@ -1,4 +1,4 @@
-[[search-request-collapse]]
+[[request-body-search-collapse]]
 === Field Collapsing
 
 Allows to collapse search results based on field values.

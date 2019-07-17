@@ -1,4 +1,4 @@
-[[search-request-index-boost]]
+[[request-body-search-index-boost]]
 === Index Boost
 
 Allows to configure different boost level per index when searching

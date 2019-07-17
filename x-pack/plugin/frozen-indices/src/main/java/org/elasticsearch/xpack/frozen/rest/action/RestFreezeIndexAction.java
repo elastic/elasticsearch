@@ -3,19 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rest.action;
+package org.elasticsearch.xpack.frozen.rest.action;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
-import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction.FreezeIndexAction;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
     public RestFreezeIndexAction(Settings settings, RestController controller) {
@@ -27,8 +27,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         boolean freeze = request.path().endsWith("/_freeze");
-        TransportFreezeIndexAction.FreezeRequest freezeRequest =
-            new TransportFreezeIndexAction.FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         freezeRequest.timeout(request.paramAsTime("timeout", freezeRequest.timeout()));
         freezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeRequest.masterNodeTimeout()));
         freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));

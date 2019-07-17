@@ -156,6 +156,6 @@ include::authentication/configuring-saml-realm.asciidoc[]
 
 include::authentication/configuring-kerberos-realm.asciidoc[]
 
-include::fips-140-compliance.asciidoc[]
 include::{es-repo-dir}/security/reference/files.asciidoc[]
+include::fips-140-compliance.asciidoc[]
 

@@ -41,6 +41,11 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
 
         private String filterId;
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            filterId = in.readString();
+        }
+
         public Request() {
 
         }
@@ -56,12 +61,6 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filterId = in.readString();
         }
 
         @Override

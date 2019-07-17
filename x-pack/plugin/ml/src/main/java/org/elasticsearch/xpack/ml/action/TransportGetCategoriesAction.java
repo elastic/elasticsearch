@@ -25,8 +25,7 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
     @Inject
     public TransportGetCategoriesAction(TransportService transportService, ActionFilters actionFilters,
                                         JobResultsProvider jobResultsProvider, Client client, JobManager jobManager) {
-        super(GetCategoriesAction.NAME, transportService, GetCategoriesAction.Request::new, actionFilters
-        );
+        super(GetCategoriesAction.NAME, transportService, actionFilters, GetCategoriesAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
         this.jobManager = jobManager;

@@ -56,8 +56,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     @Inject
     public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
                                        JobManager jobManager, ClusterService clusterService) {
-        super(UpdateFilterAction.NAME, transportService, UpdateFilterAction.Request::new, actionFilters
-        );
+        super(UpdateFilterAction.NAME, transportService, actionFilters, UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
     }

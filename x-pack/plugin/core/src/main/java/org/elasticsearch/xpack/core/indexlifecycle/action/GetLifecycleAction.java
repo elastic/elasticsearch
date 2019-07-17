@@ -109,6 +109,11 @@ public class GetLifecycleAction extends StreamableResponseActionType<GetLifecycl
             this.policyNames = policyNames;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policyNames = in.readStringArray();
+        }
+
         public Request() {
             policyNames = Strings.EMPTY_ARRAY;
         }
@@ -120,12 +125,6 @@ public class GetLifecycleAction extends StreamableResponseActionType<GetLifecycl
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            policyNames = in.readStringArray();
         }
 
         @Override

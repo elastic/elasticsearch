@@ -83,7 +83,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         gapPolicy = BucketHelpers.GapPolicy.readFrom(in);
         bucketsPath = in.readString();
         window = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change this after backport
             shift = in.readInt();
         } else {
             shift = 0;
@@ -97,7 +97,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         gapPolicy.writeTo(out);
         out.writeString(bucketsPath);
         out.writeInt(window);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change this after backport
             out.writeInt(shift);
         }
     }

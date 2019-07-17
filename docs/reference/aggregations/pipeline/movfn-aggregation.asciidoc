@@ -180,6 +180,8 @@ Increasing `shift` by 1 moves starting window position by `1` to the right.
 - For center alignment (`n / 2` values before and after the current bucket), use `shift = window / 2`.
 - For right alignment (`n` values after the current bucket), use `shift = window`.
 
+If either of window edges moves outside the borders of data series, the window shrinks to include available values only.
+
 ==== Pre-built Functions
 
 For convenience, a number of functions have been prebuilt and are available inside the `moving_fn` script context:

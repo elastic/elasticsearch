@@ -17,9 +17,12 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class SnapshotRetentionConfiguration implements ToXContentObject, Writeable {
 
@@ -54,6 +57,26 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
 
     public TimeValue getExpireAfter() {
         return this.expireAfter;
+    }
+
+    /**
+     * Return a predicate by which a SnapshotInfo can be tested to see
+     * whether it should be deleted according to this retention policy.
+     * @param allSnapshots a list of all snapshot pertaining to this SLM policy and repository
+     */
+    public Predicate<SnapshotInfo> getSnapshotDeletionPredicate(final List<SnapshotInfo> allSnapshots) {
+        return si -> {
+            if (this.expireAfter != null) {
+                TimeValue snapshotAge = new TimeValue(System.currentTimeMillis() - si.startTime());
+                if (snapshotAge.compareTo(this.expireAfter) > 0) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            // If nothing matched, the snapshot is not eligible for deletion
+            return false;
+        };
     }
 
     @Override

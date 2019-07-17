@@ -47,6 +47,8 @@ import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.MAX_
 public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecyclePolicy>
     implements Writeable, Diffable<SnapshotLifecyclePolicy>, ToXContentObject {
 
+    public static final String POLICY_ID_METADATA_FIELD = "policy";
+
     private final String id;
     private final String name;
     private final String schedule;
@@ -61,7 +63,6 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final ParseField RETENTION = new ParseField("retention");
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
-    private static final String POLICY_ID_METADATA_FIELD = "policy";
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")

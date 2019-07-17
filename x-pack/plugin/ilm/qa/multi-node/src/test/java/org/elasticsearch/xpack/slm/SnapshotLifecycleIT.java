@@ -7,12 +7,15 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -22,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
 
@@ -222,6 +226,81 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         });
     }
 
+    public void testBasicTimeBasedRetenion() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        final String repoId = "my-repo";
+        int docCount = randomIntBetween(10, 50);
+        List<IndexRequestBuilder> indexReqs = new ArrayList<>();
+        for (int i = 0; i < docCount; i++) {
+            index(client(), indexName, "" + i, "foo", "bar");
+        }
+
+        // Create a snapshot repo
+        inializeRepo(repoId);
+
+        // Create a policy with a retention period of 1 millisecond
+        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true,
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1)));
+
+        // Manually create a snapshot
+        Response executeResp = client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "/_execute"));
+
+        final String snapshotName;
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(executeResp.getEntity()))) {
+            snapshotName = parser.mapStrings().get("snapshot_name");
+
+            // Check that the executed snapshot is created
+            assertBusy(() -> {
+                try {
+                    Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
+                    Map<String, Object> snapshotResponseMap;
+                    try (InputStream is = response.getEntity().getContent()) {
+                        snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                    }
+                    assertThat(snapshotResponseMap.size(), greaterThan(0));
+                    final Map<String, Object> metadata = extractMetadata(snapshotResponseMap, snapshotName);
+                    assertNotNull(metadata);
+                    assertThat(metadata.get("policy"), equalTo(policyName));
+                    assertHistoryIsPresent(policyName, true, repoId);
+                } catch (ResponseException e) {
+                    fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+                }
+            });
+        }
+
+        // Run retention every second
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
+        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
+        try (XContentBuilder builder = jsonBuilder()) {
+            req.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Request r = new Request("PUT", "/_cluster/settings");
+            r.setJsonEntity(Strings.toString(builder));
+            Response updateSettingsResp = client().performRequest(r);
+        }
+
+        // Check that the snapshot created by the policy has been removed by retention
+        assertBusy(() -> {
+            // We expect a failed response because the snapshot should not exist
+            try {
+                Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
+            } catch (ResponseException e) {
+                assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
+            }
+        });
+
+        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
+        assertOK(client().performRequest(delReq));
+
+        // It's possible there could have been a snapshot in progress when the
+        // policy is deleted, so wait for it to be finished
+        assertBusy(() -> {
+            assertThat(wipeSnapshots().size(), equalTo(0));
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> extractMetadata(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
         List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
@@ -284,6 +363,13 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
     private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,
                                       String indexPattern, boolean ignoreUnavailable) throws IOException {
+        createSnapshotPolicy(policyName, snapshotNamePattern, schedule, repoId, indexPattern,
+            ignoreUnavailable, SnapshotRetentionConfiguration.EMPTY);
+    }
+
+    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,
+                                      String indexPattern, boolean ignoreUnavailable,
+                                      SnapshotRetentionConfiguration retention) throws IOException {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", ignoreUnavailable);
@@ -295,8 +381,8 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                     () -> randomAlphaOfLength(5)), randomAlphaOfLength(4));
             }
         }
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig,
-            SnapshotRetentionConfiguration.EMPTY);
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule,
+            repoId, snapConfig, retention);
 
         Request putLifecycle = new Request("PUT", "/_slm/policy/" + policyName);
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();

@@ -1,5 +1,5 @@
 [[query-dsl-match-query]]
-=== Match Query
+=== Match query
 ++++
 <titleabbrev>Match</titleabbrev>
 ++++

@@ -57,7 +57,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * one of the networking threads which receive/handle the responses of the current pending file chunk requests. This process will continue
  * until all chunk requests are sent/responded.
  */
-abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest> implements Closeable {
+public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest> implements Closeable {
     private Status status = Status.PROCESSING;
     private final Logger logger;
     private final ActionListener<Void> listener;
@@ -195,7 +195,7 @@ abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest>
         }
     }
 
-    protected interface ChunkRequest {
+    public interface ChunkRequest {
         /**
          * @return {@code true} if this chunk request is the last chunk of the current file
          */

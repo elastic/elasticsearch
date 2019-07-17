@@ -178,7 +178,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry) {
         this.client = client;
-        if (enabled == false) {
+        if (enabled == false || tribeNode || tribeNodeClient) {
             return emptyList();
         }
 

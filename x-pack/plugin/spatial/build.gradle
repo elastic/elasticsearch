@@ -8,7 +8,6 @@ esplugin {
     classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
     extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-spatial'
 
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
@@ -18,4 +17,7 @@ dependencies {
     }
 }
 
+// xpack modules are installed in real clusters as the meta plugin, so
+// installing them as individual plugins for integ tests doesn't make sense,
+// so we disable integ tests
 integTest.enabled = false

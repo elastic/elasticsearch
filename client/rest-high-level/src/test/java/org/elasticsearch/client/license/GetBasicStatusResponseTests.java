@@ -37,7 +37,8 @@ public class GetBasicStatusResponseTests
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.license.GetBasicStatusResponse serverTestInstance, GetBasicStatusResponse clientInstance) {
+    protected void assertInstances(org.elasticsearch.license.GetBasicStatusResponse serverTestInstance,
+                                   GetBasicStatusResponse clientInstance) {
         org.elasticsearch.license.GetBasicStatusResponse serverInstance =
             new org.elasticsearch.license.GetBasicStatusResponse(clientInstance.isEligibleToStartBasic());
         assertEquals(serverTestInstance, serverInstance);

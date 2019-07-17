@@ -52,6 +52,7 @@ class PostStartTrialResponse extends ActionResponse {
 
     PostStartTrialResponse(StreamInput in) throws IOException {
         super(in);
+        status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
         Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
@@ -83,7 +84,7 @@ class PostStartTrialResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        status = in.readEnum(Status.class);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

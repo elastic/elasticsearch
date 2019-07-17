@@ -37,7 +37,8 @@ public class GetTrialStatusResponseTests extends
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.license.GetTrialStatusResponse serverTestInstance, GetTrialStatusResponse clientInstance) {
+    protected void assertInstances(org.elasticsearch.license.GetTrialStatusResponse serverTestInstance,
+                                   GetTrialStatusResponse clientInstance) {
         org.elasticsearch.license.GetTrialStatusResponse serverInstance =
             new org.elasticsearch.license.GetTrialStatusResponse(clientInstance.isEligibleToStartTrial());
         assertEquals(serverInstance, serverTestInstance);

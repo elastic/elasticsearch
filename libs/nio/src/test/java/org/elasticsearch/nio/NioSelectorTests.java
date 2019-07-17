@@ -355,8 +355,6 @@ public class NioSelectorTests extends ESTestCase {
     public void testQueueDirectlyInChannelBufferSuccessful() throws Exception {
         WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
 
-        assertEquals(0, (selectionKey.interestOps() & SelectionKey.OP_WRITE));
-
         when(channelContext.readyForFlush()).thenReturn(true);
         selector.queueWrite(writeOperation);
 
@@ -368,13 +366,23 @@ public class NioSelectorTests extends ESTestCase {
     public void testShouldFlushIfNoPendingFlushes() throws Exception {
         WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
 
-        assertEquals(0, (selectionKey.interestOps() & SelectionKey.OP_WRITE));
-
         when(channelContext.readyForFlush()).thenReturn(false);
         selector.queueWrite(writeOperation);
 
         verify(channelContext).queueWriteOperation(writeOperation);
         verify(eventHandler).handleWrite(channelContext);
+        verify(eventHandler).postHandling(channelContext);
+    }
+
+    public void testShouldNotFlushIfChannelNotConnectedPendingFlushes() throws Exception {
+        WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
+
+        when(channelContext.readyForFlush()).thenReturn(false);
+        when(channelContext.isConnectComplete()).thenReturn(false);
+        selector.queueWrite(writeOperation);
+
+        verify(channelContext).queueWriteOperation(writeOperation);
+        verify(eventHandler, times(0)).handleWrite(channelContext);
         verify(eventHandler).postHandling(channelContext);
     }
 

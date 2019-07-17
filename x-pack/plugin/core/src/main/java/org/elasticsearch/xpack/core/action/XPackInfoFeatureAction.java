@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
@@ -18,7 +18,7 @@ import java.util.List;
  * {@link XPackInfoAction} implementation iterates over the {@link #ALL} list of actions to form
  * the complete info result.
  */
-public class XPackInfoFeatureAction extends StreamableResponseActionType<XPackInfoFeatureResponse> {
+public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse> {
 
     private static final String BASE_NAME = "cluster:monitor/xpack/info/";
 
@@ -46,11 +46,6 @@ public class XPackInfoFeatureAction extends StreamableResponseActionType<XPackIn
 
     private XPackInfoFeatureAction(String name) {
         super(BASE_NAME + name);
-    }
-
-    @Override
-    public XPackInfoFeatureResponse newResponse() {
-        return new XPackInfoFeatureResponse();
     }
 
     @Override

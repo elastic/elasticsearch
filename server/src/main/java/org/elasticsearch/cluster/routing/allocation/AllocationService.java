@@ -110,8 +110,9 @@ public class AllocationService {
         applyStartedShards(allocation, startedShards);
         gatewayAllocator.applyStartedShards(allocation, startedShards);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
-        String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString());
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "] ...");
+        String startedShardsAsString
+            = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString(), logger.isDebugEnabled());
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
     protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
@@ -208,8 +209,9 @@ public class AllocationService {
         gatewayAllocator.applyFailedShards(allocation, failedShards);
 
         reroute(allocation);
-        String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.getRoutingEntry().shardId().toString());
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "] ...");
+        String failedShardsAsString
+            = firstListElementsToCommaDelimitedString(failedShards, s -> s.getRoutingEntry().shardId().toString(), logger.isDebugEnabled());
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "]");
     }
 
     /**
@@ -317,13 +319,14 @@ public class AllocationService {
      * @param <T>       The list element type.
      * @return A comma-separated string of the first few elements.
      */
-    private <T> String firstListElementsToCommaDelimitedString(List<T> elements, Function<T, String> formatter) {
+    static <T> String firstListElementsToCommaDelimitedString(List<T> elements, Function<T, String> formatter, boolean isDebugEnabled) {
         final int maxNumberOfElements = 10;
-        return elements
-                .stream()
-                .limit(maxNumberOfElements)
-                .map(formatter)
-                .collect(Collectors.joining(", "));
+        if (isDebugEnabled || elements.size() <= maxNumberOfElements) {
+            return elements.stream().map(formatter).collect(Collectors.joining(", "));
+        } else {
+            return elements.stream().limit(maxNumberOfElements).map(formatter).collect(Collectors.joining(", "))
+                + ", ... [" + elements.size() + " items in total]";
+        }
     }
 
     public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {

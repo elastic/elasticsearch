@@ -1211,11 +1211,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void onRetry() {
             super.onRetry();
             isRetrySet.set(true);

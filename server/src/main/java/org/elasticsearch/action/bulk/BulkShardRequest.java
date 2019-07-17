@@ -85,11 +85,6 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public String toString() {
         // This is included in error messages so we'll try to make it somewhat user friendly.
         StringBuilder b = new StringBuilder("BulkShardRequest [");

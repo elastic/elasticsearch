@@ -82,8 +82,8 @@ public class NioIPFilterTests extends ESTestCase {
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 12345);
         NioChannelHandler delegate = mock(NioChannelHandler.class);
         NioIPFilter nioIPFilter = new NioIPFilter(delegate, localhostAddr, ipFilter, profile);
-        nioIPFilter.channelRegistered();
-        verify(delegate).channelRegistered();
+        nioIPFilter.channelActive();
+        verify(delegate).channelActive();
         assertFalse(nioIPFilter.closeNow());
     }
 
@@ -91,8 +91,8 @@ public class NioIPFilterTests extends ESTestCase {
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("10.0.0.8"), 12345);
         NioChannelHandler delegate = mock(NioChannelHandler.class);
         NioIPFilter nioIPFilter = new NioIPFilter(delegate, localhostAddr, ipFilter, profile);
-        nioIPFilter.channelRegistered();
-        verify(delegate, times(0)).channelRegistered();
+        nioIPFilter.channelActive();
+        verify(delegate, times(0)).channelActive();
         assertTrue(nioIPFilter.closeNow());
     }
 }

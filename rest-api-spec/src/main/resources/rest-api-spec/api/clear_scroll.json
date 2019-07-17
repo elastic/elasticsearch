@@ -1,6 +1,6 @@
 {
   "clear_scroll": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll,
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll",
     "stability": "stable",
     "methods": ["DELETE"],
     "url": {

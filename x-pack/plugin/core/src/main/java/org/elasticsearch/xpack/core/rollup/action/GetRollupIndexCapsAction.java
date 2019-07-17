@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -57,6 +57,12 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.indices = in.readStringArray();
+            this.options = IndicesOptions.readIndicesOptions(in);
+        }
+
         @Override
         public IndicesOptions indicesOptions() {
             return options;
@@ -79,9 +85,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.indices = in.readStringArray();
-            this.options = IndicesOptions.readIndicesOptions(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -104,6 +104,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
     }
 
     @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
+    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return (field) ->
             // actions are plucked from the named registry, and it fails if the action is not in the named registry

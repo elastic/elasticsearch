@@ -248,6 +248,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return phaseExecutionInfo;
     }
 
+    public TimeValue getAge() {
+        if (lifecycleDate == null) {
+            return TimeValue.MINUS_ONE;
+        } else {
+            return TimeValue.timeValueMillis(System.currentTimeMillis() - lifecycleDate);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -257,8 +265,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
-                final TimeValue age = TimeValue.timeValueMillis(System.currentTimeMillis() - lifecycleDate);
-                builder.field(AGE_FIELD.getPreferredName(), age.toHumanReadableString(2));
+                builder.field(AGE_FIELD.getPreferredName(), getAge().toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

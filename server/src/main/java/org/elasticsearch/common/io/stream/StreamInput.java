@@ -392,20 +392,35 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
-    // we don't use a CharsRefBuilder since we exactly know the size of the character array up front
+    // Maximum char-count to de-serialize via the thread-local CharsRef buffer
+    private static final int SMALL_STRING_LIMIT = 1024;
+
+    // Thread-local buffer for smaller strings
+    private static final ThreadLocal<CharsRef> smallSpare = ThreadLocal.withInitial(() -> new CharsRef(SMALL_STRING_LIMIT));
+
+    // Larger buffer used for long strings that can't fit into the thread-local buffer
+    // We don't use a CharsRefBuilder since we exactly know the size of the character array up front
     // this prevents calling grow for every character since we don't need this
-    private final CharsRef spare = new CharsRef();
+    private CharsRef largeSpare;
 
     public String readString() throws IOException {
         // TODO it would be nice to not call readByte() for every character but we don't know how much to read up-front
         // we can make the loop much more complicated but that won't buy us much compared to the bounds checks in readByte()
         final int charCount = readArraySize();
-        if (spare.chars.length < charCount) {
-            // we don't use ArrayUtils.grow since there is no need to copy the array
-            spare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
+        final CharsRef charsRef;
+        if (charCount > SMALL_STRING_LIMIT) {
+            if (largeSpare == null) {
+                largeSpare = new CharsRef(ArrayUtil.oversize(charCount, Character.BYTES));
+            } else if (largeSpare.chars.length < charCount) {
+                // we don't use ArrayUtils.grow since there is no need to copy the array
+                largeSpare.chars = new char[ArrayUtil.oversize(charCount, Character.BYTES)];
+            }
+            charsRef = largeSpare;
+        } else {
+            charsRef = smallSpare.get();
         }
-        spare.length = charCount;
-        final char[] buffer = spare.chars;
+        charsRef.length = charCount;
+        final char[] buffer = charsRef.chars;
         for (int i = 0; i < charCount; i++) {
             final int c = readByte() & 0xff;
             switch (c >> 4) {
@@ -430,7 +445,7 @@ public abstract class StreamInput extends InputStream {
                     throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
             }
         }
-        return spare.toString();
+        return charsRef.toString();
     }
 
     public SecureString readSecureString() throws IOException {

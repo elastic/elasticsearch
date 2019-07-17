@@ -5,20 +5,15 @@
  */
 package org.elasticsearch.xpack.core.monitoring.action;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class MonitoringBulkAction extends StreamableResponseActionType<MonitoringBulkResponse> {
+public class MonitoringBulkAction extends ActionType<MonitoringBulkResponse> {
 
     public static final MonitoringBulkAction INSTANCE = new MonitoringBulkAction();
     public static final String NAME = "cluster:admin/xpack/monitoring/bulk";
 
     private MonitoringBulkAction() {
-        super(NAME);
-    }
-
-    @Override
-    public MonitoringBulkResponse newResponse() {
-        return new MonitoringBulkResponse();
+        super(NAME, MonitoringBulkResponse::new);
     }
 }
 

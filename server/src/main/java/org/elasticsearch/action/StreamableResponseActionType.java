@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 public abstract class StreamableResponseActionType<Response extends ActionResponse> extends ActionType<Response> {
 
     protected StreamableResponseActionType(String name) {
-        super(name);
+        super(name, null);
     }
 
     /**

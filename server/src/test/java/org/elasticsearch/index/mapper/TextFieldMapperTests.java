@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
+import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.DocValuesType;
@@ -30,6 +33,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -817,6 +822,28 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 new Term("synfield._index_phrase", "motor dogs"),
                 new Term("synfield._index_phrase", "motor dog")})
             .build()));
+
+        // https://github.com/elastic/elasticsearch/issues/43976
+        CannedTokenStream cts = new CannedTokenStream(
+            new Token("foo", 1, 0, 2, 2),
+            new Token("bar", 0, 0, 2),
+            new Token("baz", 1, 0, 2)
+        );
+        Analyzer synonymAnalyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                return new TokenStreamComponents(reader -> {}, cts);
+            }
+        };
+        matchQuery.setAnalyzer(synonymAnalyzer);
+        Query q7 = matchQuery.parse(MatchQuery.Type.BOOLEAN, "synfield", "foo");
+        assertThat(q7, is(new BooleanQuery.Builder().add(new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("synfield", "foo")), BooleanClause.Occur.SHOULD)
+            .add(new PhraseQuery.Builder()
+                .add(new Term("synfield", "bar"))
+                .add(new Term("synfield", "baz"))
+                .build(), BooleanClause.Occur.SHOULD)
+            .build(), BooleanClause.Occur.SHOULD).build()));
 
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()

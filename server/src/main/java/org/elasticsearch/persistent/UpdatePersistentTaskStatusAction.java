@@ -63,7 +63,13 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
         private long allocationId = -1L;
         private PersistentTaskState state;
 
-        public Request() {
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
+            allocationId = in.readLong();
+            state = in.readOptionalNamedWriteable(PersistentTaskState.class);
         }
 
         public Request(String taskId, long allocationId, PersistentTaskState state) {
@@ -82,14 +88,6 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
 
         public void setState(PersistentTaskState state) {
             this.state = state;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
-            allocationId = in.readLong();
-            state = in.readOptionalNamedWriteable(PersistentTaskState.class);
         }
 
         @Override
@@ -156,7 +154,7 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(UpdatePersistentTaskStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 

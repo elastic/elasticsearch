@@ -66,12 +66,6 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         public ActionRequestValidationException validate() {
             return null;
         }
-
-        Request() {}
-
-        Request(StreamInput in) throws IOException {
-            super(in);
-        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

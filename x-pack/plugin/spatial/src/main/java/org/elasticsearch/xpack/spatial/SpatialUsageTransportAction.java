@@ -17,7 +17,6 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -41,8 +40,7 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        SpatialFeatureSetUsage usage =
-            new SpatialFeatureSetUsage(licenseState.isSpatialAllowed(), XPackSettings.SPATIAL_ENABLED.get(settings));
+        SpatialFeatureSetUsage usage = new SpatialFeatureSetUsage(licenseState.isSpatialAllowed(), true);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

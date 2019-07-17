@@ -5,7 +5,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'spatial'
     description 'A plugin for Basic Spatial features'
-    classname 'org.elasticsearch.xpack.spatial.Spatial'
+    classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-spatial'

@@ -10,19 +10,15 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.util.Arrays;
 import java.util.List;
 
-public class Spatial extends Plugin implements ActionPlugin {
+public class SpatialPlugin extends Plugin implements ActionPlugin {
 
-    private final boolean enabled;
-
-    public Spatial(Settings settings) {
-        this.enabled = XPackSettings.SPATIAL_ENABLED.get(settings);
+    public SpatialPlugin(Settings settings) {
     }
 
     @Override

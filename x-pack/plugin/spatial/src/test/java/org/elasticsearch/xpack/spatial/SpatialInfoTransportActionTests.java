@@ -52,30 +52,23 @@ public class SpatialInfoTransportActionTests extends ESTestCase {
     }
 
     public void testEnabled() throws Exception {
-        boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.spatial.enabled", enabled);
-            }
-        } else {
-            settings.put("xpack.spatial.enabled", enabled);
-        }
         SpatialInfoTransportAction featureSet = new SpatialInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
+        assertThat(featureSet.enabled(), is(true));
+        assertTrue(featureSet.enabled());
 
         SpatialUsageTransportAction usageAction = new SpatialUsageTransportAction(mock(TransportService.class),
             null, null, mock(ActionFilters.class), null, settings.build(), licenseState);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
-        assertThat(usage.enabled(), is(enabled));
+        assertTrue(usage.enabled());
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new VectorsFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.enabled(), is(enabled));
+        assertTrue(serializedUsage.enabled());
     }
 
 }

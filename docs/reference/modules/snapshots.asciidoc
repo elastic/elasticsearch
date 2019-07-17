@@ -70,6 +70,7 @@ recommend testing the reindex from remote process with a subset of your data to
 understand the time requirements before proceeding.
 
 [float]
+[[snapshots-repositories]]
 === Repositories
 
 You must register a snapshot repository before you can perform snapshot and
@@ -329,6 +330,7 @@ POST /_snapshot/my_unverified_backup/_verify
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
 [float]
+[[snapshots-take-snapshot]]
 === Snapshot
 
 A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the

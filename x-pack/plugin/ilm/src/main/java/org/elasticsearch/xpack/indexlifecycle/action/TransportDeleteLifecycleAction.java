@@ -46,7 +46,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
     public TransportDeleteLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, Request::new);
+            Request::new, indexNameExpressionResolver);
     }
 
     @Override

@@ -1,4 +1,4 @@
-import static org.elasticsearch.gradle.Distribution.DEFAULT
+import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -38,12 +38,13 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 testClusters.integTest {
-  if (singleNode().distribution == DEFAULT) {
+  if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
   }
@@ -1184,4 +1185,14 @@ buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + 
               "outlier_detection": {}
             }
           }
+'''
+// Used by snapshot lifecycle management docs
+buildRestTests.setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
 '''

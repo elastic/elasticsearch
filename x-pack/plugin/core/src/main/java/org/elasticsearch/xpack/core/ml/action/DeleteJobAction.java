@@ -54,6 +54,12 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            force = in.readBoolean();
+        }
+
         public String getJobId() {
             return jobId;
         }
@@ -90,13 +96,6 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new JobDeletionTask(id, type, action, "delete-job-" + jobId, parentTaskId, headers);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            force = in.readBoolean();
         }
 
         @Override

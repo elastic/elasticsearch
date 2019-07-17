@@ -44,6 +44,11 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
         reloadDetails = new HashMap<>();
     }
 
+    public ReloadAnalyzersResponse(StreamInput in) throws IOException {
+        super(in);
+        this.reloadDetails = in.readMap(StreamInput::readString, ReloadDetails::new);
+    }
+
     public ReloadAnalyzersResponse(int totalShards, int successfulShards, int failedShards,
             List<DefaultShardOperationFailedException> shardFailures, Map<String, ReloadDetails> reloadedIndicesNodes) {
         super(totalShards, successfulShards, failedShards, shardFailures);
@@ -100,12 +105,6 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
 
     public static ReloadAnalyzersResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.reloadDetails.putAll(in.readMap(StreamInput::readString, ReloadDetails::new));
     }
 
     @Override

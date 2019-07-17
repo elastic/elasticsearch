@@ -57,7 +57,7 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
 
     public void testSerialization() throws IOException {
         ReloadAnalyzersResponse response = createTestInstance();
-        ReloadAnalyzersResponse copy = copyStreamable(response, writableRegistry(), ReloadAnalyzersResponse::new,
+        ReloadAnalyzersResponse copy = copyWriteable(response, writableRegistry(), ReloadAnalyzersResponse::new,
                 VersionUtils.randomVersion(random()));
         assertEquals(response.getReloadDetails(), copy.getReloadDetails());
     }

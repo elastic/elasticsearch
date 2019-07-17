@@ -29,8 +29,9 @@ public final class GetPrivilegesResponse extends ActionResponse {
         this(privileges.toArray(new ApplicationPrivilegeDescriptor[0]));
     }
 
-    public GetPrivilegesResponse() {
-        this(new ApplicationPrivilegeDescriptor[0]);
+    public GetPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.privileges = in.readArray(ApplicationPrivilegeDescriptor::new, ApplicationPrivilegeDescriptor[]::new);
     }
 
     public ApplicationPrivilegeDescriptor[] privileges() {
@@ -39,8 +40,7 @@ public final class GetPrivilegesResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.privileges = in.readArray(ApplicationPrivilegeDescriptor::new, ApplicationPrivilegeDescriptor[]::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

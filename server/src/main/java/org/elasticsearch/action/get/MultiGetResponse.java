@@ -133,8 +133,12 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     private MultiGetItemResponse[] responses;
 
-    MultiGetResponse() {
-    }
+    public MultiGetResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = new MultiGetItemResponse[in.readVInt()];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = MultiGetItemResponse.readItemResponse(in);
+        }    }
 
     public MultiGetResponse(MultiGetItemResponse[] responses) {
         this.responses = responses;
@@ -240,15 +244,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         } else {
             GetResponse getResponse = new GetResponse(getResult);
             return new MultiGetItemResponse(getResponse, null);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new MultiGetItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = MultiGetItemResponse.readItemResponse(in);
         }
     }
 

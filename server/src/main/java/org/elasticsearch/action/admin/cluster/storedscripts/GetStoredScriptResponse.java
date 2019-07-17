@@ -65,8 +65,15 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
     private String id;
     private StoredScriptSource source;
 
-    GetStoredScriptResponse() {
-    }
+    public GetStoredScriptResponse(StreamInput in) throws IOException {
+        super(in);
+
+        if (in.readBoolean()) {
+            source = new StoredScriptSource(in);
+        } else {
+            source = null;
+        }
+        id = in.readString();    }
 
     GetStoredScriptResponse(String id, StoredScriptSource source) {
         this.id = id;
@@ -106,18 +113,6 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
 
     public static GetStoredScriptResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        if (in.readBoolean()) {
-            source = new StoredScriptSource(in);
-        } else {
-            source = null;
-        }
-        id = in.readString();
     }
 
     @Override

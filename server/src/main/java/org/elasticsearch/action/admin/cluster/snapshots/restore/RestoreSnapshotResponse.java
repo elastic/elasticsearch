@@ -49,8 +49,9 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
         this.restoreInfo = restoreInfo;
     }
 
-    RestoreSnapshotResponse() {
-    }
+    public RestoreSnapshotResponse(StreamInput in) throws IOException {
+        super(in);
+        restoreInfo = RestoreInfo.readOptionalRestoreInfo(in);    }
 
     /**
      * Returns restore information if snapshot was completed before this method returned, null otherwise
@@ -59,12 +60,6 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
      */
     public RestoreInfo getRestoreInfo() {
         return restoreInfo;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        restoreInfo = RestoreInfo.readOptionalRestoreInfo(in);
     }
 
     @Override

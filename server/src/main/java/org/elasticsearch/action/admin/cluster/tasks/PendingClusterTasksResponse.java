@@ -35,8 +35,15 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
 
     private List<PendingClusterTask> pendingTasks;
 
-    PendingClusterTasksResponse() {
-    }
+    public PendingClusterTasksResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        pendingTasks = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            PendingClusterTask task = new PendingClusterTask();
+            task.readFrom(in);
+            pendingTasks.add(task);
+        }    }
 
     PendingClusterTasksResponse(List<PendingClusterTask> pendingTasks) {
         this.pendingTasks = pendingTasks;
@@ -98,18 +105,6 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         static final String TIME_IN_QUEUE_MILLIS = "time_in_queue_millis";
         static final String TIME_IN_QUEUE = "time_in_queue";
 
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        pendingTasks = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            PendingClusterTask task = new PendingClusterTask();
-            task.readFrom(in);
-            pendingTasks.add(task);
-        }
     }
 
     @Override

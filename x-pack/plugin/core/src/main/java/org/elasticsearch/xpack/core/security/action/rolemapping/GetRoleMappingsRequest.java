@@ -25,6 +25,11 @@ public class GetRoleMappingsRequest extends ActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
 
+    public GetRoleMappingsRequest(StreamInput in) throws IOException {
+        super(in);
+        names = in.readStringArray();
+    }
+
     public GetRoleMappingsRequest() {
     }
 
@@ -51,12 +56,6 @@ public class GetRoleMappingsRequest extends ActionRequest {
      */
     public String[] getNames() {
         return names;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        names = in.readStringArray();
     }
 
     @Override

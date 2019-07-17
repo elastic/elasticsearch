@@ -52,7 +52,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     public MultiSearchTemplateRequest(StreamInput in) throws IOException {
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
-        requests = in.readStreamableList(SearchTemplateRequest::new);
+        requests = in.readList(SearchTemplateRequest::new);
     }
 
     /**
@@ -121,11 +121,6 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     public MultiSearchTemplateRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

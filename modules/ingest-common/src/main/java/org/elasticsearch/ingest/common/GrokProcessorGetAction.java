@@ -55,15 +55,16 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     }
 
     public static class Request extends ActionRequest {
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
 
-        Request() {}
+        public Request() {}
 
         Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
     }
 
@@ -90,11 +91,6 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             builder.map(grokPatterns);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

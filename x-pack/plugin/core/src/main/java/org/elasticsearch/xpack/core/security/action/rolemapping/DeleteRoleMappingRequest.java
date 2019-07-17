@@ -23,6 +23,12 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public DeleteRoleMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public DeleteRoleMappingRequest() {
     }
 
@@ -52,13 +58,6 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
 
     public String getName() {
         return name;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override

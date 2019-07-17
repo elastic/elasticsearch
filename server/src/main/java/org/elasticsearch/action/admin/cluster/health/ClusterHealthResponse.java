@@ -142,8 +142,16 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
 
-    ClusterHealthResponse() {
-    }
+    public ClusterHealthResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterName = in.readString();
+        clusterHealthStatus = ClusterHealthStatus.fromValue(in.readByte());
+        clusterStateHealth = new ClusterStateHealth(in);
+        numberOfPendingTasks = in.readInt();
+        timedOut = in.readBoolean();
+        numberOfInFlightFetch = in.readInt();
+        delayedUnassignedShards= in.readInt();
+        taskMaxWaitingTime = in.readTimeValue();    }
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
@@ -277,22 +285,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     }
 
     public static ClusterHealthResponse readResponseFrom(StreamInput in) throws IOException {
-        ClusterHealthResponse response = new ClusterHealthResponse();
-        response.readFrom(in);
-        return response;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterName = in.readString();
-        clusterHealthStatus = ClusterHealthStatus.fromValue(in.readByte());
-        clusterStateHealth = new ClusterStateHealth(in);
-        numberOfPendingTasks = in.readInt();
-        timedOut = in.readBoolean();
-        numberOfInFlightFetch = in.readInt();
-        delayedUnassignedShards= in.readInt();
-        taskMaxWaitingTime = in.readTimeValue();
+        return new ClusterHealthResponse(in);
     }
 
     @Override

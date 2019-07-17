@@ -547,7 +547,7 @@ public abstract class TransportReplicationAction<
                         // opportunity to execute custom logic before the replica operation begins
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
                             replicaRequest,
-                            new ActionListenerResponseHandler<>(onCompletionListener, in -> new ReplicaResponse()));
+                            new ActionListenerResponseHandler<>(onCompletionListener, ReplicaResponse::new));
                     }
 
                     @Override
@@ -957,8 +957,10 @@ public abstract class TransportReplicationAction<
         private long localCheckpoint;
         private long globalCheckpoint;
 
-        ReplicaResponse() {
-
+        ReplicaResponse(StreamInput in) throws IOException {
+            super(in);
+            localCheckpoint = in.readZLong();
+            globalCheckpoint = in.readZLong();
         }
 
         public ReplicaResponse(long localCheckpoint, long globalCheckpoint) {
@@ -970,13 +972,6 @@ public abstract class TransportReplicationAction<
             assert localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO;
             this.localCheckpoint = localCheckpoint;
             this.globalCheckpoint = globalCheckpoint;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            localCheckpoint = in.readZLong();
-            globalCheckpoint = in.readZLong();
         }
 
         @Override
@@ -1034,11 +1029,8 @@ public abstract class TransportReplicationAction<
             }
             final ConcreteReplicaRequest<ReplicaRequest> replicaRequest = new ConcreteReplicaRequest<>(
                 request, replica.allocationId().getId(), primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
-            final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(listener, in -> {
-                ReplicaResponse replicaResponse = new ReplicaResponse();
-                replicaResponse.readFrom(in);
-                return replicaResponse;
-            });
+            final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(listener,
+                ReplicaResponse::new);
             transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
         }
 

@@ -108,11 +108,6 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         out.writeOptionalString(nonce);
     }
 
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     public String toString() {
         return "{realmName=" + realmName + ", issuer=" + issuer + ", login_hint=" +
             loginHint + ", state=" + state + ", nonce=" + nonce + "}";

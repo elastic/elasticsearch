@@ -24,6 +24,12 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
     @Nullable
     private String assertionConsumerServiceURL;
 
+    public SamlPrepareAuthenticationRequest(StreamInput in) throws IOException {
+        super(in);
+        realmName = in.readOptionalString();
+        assertionConsumerServiceURL = in.readOptionalString();
+    }
+
     public SamlPrepareAuthenticationRequest() {
     }
 
@@ -54,13 +60,6 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
                 "realmName=" + realmName +
                 ", assertionConsumerServiceURL=" + assertionConsumerServiceURL +
                 '}';
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realmName = in.readOptionalString();
-        assertionConsumerServiceURL = in.readOptionalString();
     }
 
     @Override

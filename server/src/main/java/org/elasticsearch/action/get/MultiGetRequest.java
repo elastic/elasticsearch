@@ -190,14 +190,6 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public void readFrom(StreamInput in) throws IOException {
             index = in.readString();
-            type = in.readOptionalString();
-            id = in.readString();
-            routing = in.readOptionalString();
-            storedFields = in.readOptionalStringArray();
-            version = in.readLong();
-            versionType = VersionType.fromValue(in.readByte());
-
-            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         }
 
         @Override
@@ -271,6 +263,21 @@ public class MultiGetRequest extends ActionRequest
     boolean realtime = true;
     boolean refresh;
     List<Item> items = new ArrayList<>();
+
+    public MultiGetRequest() {}
+
+    public MultiGetRequest(StreamInput in) throws IOException {
+        super(in);
+        preference = in.readOptionalString();
+        refresh = in.readBoolean();
+        realtime = in.readBoolean();
+
+        int size = in.readVInt();
+        items = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            items.add(Item.readItem(in));
+        }
+    }
 
     public List<Item> getItems() {
         return this.items;
@@ -528,20 +535,6 @@ public class MultiGetRequest extends ActionRequest
     @Override
     public Iterator<Item> iterator() {
         return Collections.unmodifiableCollection(items).iterator();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        preference = in.readOptionalString();
-        refresh = in.readBoolean();
-        realtime = in.readBoolean();
-
-        int size = in.readVInt();
-        items = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            items.add(Item.readItem(in));
-        }
     }
 
     @Override

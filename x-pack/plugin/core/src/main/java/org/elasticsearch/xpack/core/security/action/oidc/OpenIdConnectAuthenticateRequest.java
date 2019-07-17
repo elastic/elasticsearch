@@ -96,11 +96,6 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         out.writeString(nonce);
     }
 
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     public String toString() {
         return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + "}";
     }

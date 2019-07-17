@@ -63,9 +63,4 @@ public final class OpenIdConnectLogoutRequest extends ActionRequest {
         out.writeString(token);
         out.writeOptionalString(refreshToken);
     }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

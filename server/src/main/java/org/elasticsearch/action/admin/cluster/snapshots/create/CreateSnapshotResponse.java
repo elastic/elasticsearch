@@ -51,12 +51,15 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     @Nullable
     private SnapshotInfo snapshotInfo;
 
+    CreateSnapshotResponse() {}
+
     CreateSnapshotResponse(@Nullable SnapshotInfo snapshotInfo) {
         this.snapshotInfo = snapshotInfo;
     }
 
-    CreateSnapshotResponse() {
-    }
+    public CreateSnapshotResponse(StreamInput in) throws IOException {
+        super(in);
+        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::new);    }
 
     private void setSnapshotInfoFromBuilder(SnapshotInfoBuilder snapshotInfoBuilder) {
         this.snapshotInfo = snapshotInfoBuilder.build();
@@ -69,12 +72,6 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
      */
     public SnapshotInfo getSnapshotInfo() {
         return snapshotInfo;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::new);
     }
 
     @Override

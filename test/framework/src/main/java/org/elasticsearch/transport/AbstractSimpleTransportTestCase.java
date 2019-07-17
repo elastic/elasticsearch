@@ -1172,10 +1172,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             this.message = in.readString();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
+
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -1235,10 +1232,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             this.value1 = in.readInt();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
+
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -1264,10 +1258,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
+
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

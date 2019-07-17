@@ -41,6 +41,13 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     public AbstractBulkIndexByScrollRequest() {
     }
 
+    public AbstractBulkIndexByScrollRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            script = new Script(in);
+        }
+    }
+
     /**
      * Constructor for actual use.
      *
@@ -70,14 +77,6 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     @Override
     protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices) {
         return super.doForSlice(request, slicingTask, totalSlices).setScript(script);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            script = new Script(in);
-        }
     }
 
     @Override

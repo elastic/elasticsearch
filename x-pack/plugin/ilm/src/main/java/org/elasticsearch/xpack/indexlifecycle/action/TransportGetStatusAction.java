@@ -30,7 +30,7 @@ public class TransportGetStatusAction extends StreamableTransportMasterNodeActio
     public TransportGetStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, Request::new);
+            Request::new, indexNameExpressionResolver);
     }
 
     @Override

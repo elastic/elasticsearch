@@ -3,15 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.rollup.job;
-
-import org.elasticsearch.xpack.core.scheduler.Cron;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+package org.elasticsearch.xpack.core.scheduler;
 
 public class CronSchedule implements SchedulerEngine.Schedule {
     private final Cron cron;
 
-    CronSchedule(String cronExpression) {
+    public CronSchedule(String cronExpression) {
         this.cron = new Cron(cronExpression);
     }
 

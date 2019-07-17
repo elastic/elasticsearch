@@ -54,6 +54,12 @@ public class RetryAction extends ActionType<RetryAction.Response> {
             this.indices = indices;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
+
         public Request() {
         }
 
@@ -81,13 +87,6 @@ public class RetryAction extends ActionType<RetryAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.indices = in.readStringArray();
-            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override

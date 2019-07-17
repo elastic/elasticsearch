@@ -54,6 +54,7 @@ import java.util.function.Supplier;
  */
 public class DistributionDownloadPlugin implements Plugin<Project> {
 
+    private static final String CONTAINER_NAME = "elasticsearch_distributions";
     private static final String FAKE_IVY_GROUP = "elasticsearch-distribution";
     private static final String DOWNLOAD_REPO_NAME = "elasticsearch-downloads";
 
@@ -67,7 +68,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);
             return new ElasticsearchDistribution(name, project.getObjects(), fileConfiguration, extractedConfiguration);
         });
-        project.getExtensions().add("elasticsearch_distributions", distributionsContainer);
+        project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
 
         setupDownloadServiceRepo(project);
 
@@ -76,6 +77,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         // TODO: setup snapshot dependency instead of pointing to bwc distribution projects for external projects
 
         project.afterEvaluate(this::setupDistributions);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static NamedDomainObjectContainer<ElasticsearchDistribution> getContainer(Project project) {
+        return (NamedDomainObjectContainer<ElasticsearchDistribution>) project.getExtensions().getByName(CONTAINER_NAME);
     }
 
     // pkg private for tests

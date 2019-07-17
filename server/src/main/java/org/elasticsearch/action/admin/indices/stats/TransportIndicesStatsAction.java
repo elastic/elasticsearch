@@ -90,9 +90,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected IndicesStatsRequest readRequestFrom(StreamInput in) throws IOException {
-        IndicesStatsRequest request = new IndicesStatsRequest();
-        request.readFrom(in);
-        return request;
+        return new IndicesStatsRequest(in);
     }
 
     @Override

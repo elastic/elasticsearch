@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testGlobalPipelineOnBulkRequest() throws IOException {
         createFieldAddingPipleine("xyz", "fieldNameXYZ", "valueXYZ");
 
@@ -83,7 +82,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldXYZ"), nullValue())));
     }
 
-    @SuppressWarnings("unchecked")
     public void testMixPipelineOnRequestAndGlobal() throws IOException {
         createFieldAddingPipleine("globalId", "fieldXYZ", "valueXYZ");
         createFieldAddingPipleine("perIndexId", "someNewField", "someValue");
@@ -153,7 +151,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         assertThat(hits, everyItem(hasType("global_type")));
     }
 
-    @SuppressWarnings("unchecked")
     public void testTypeGlobalAndPerRequest() throws IOException {
         BulkRequest request = new BulkRequest(null, "global_type");
         request.add(new IndexRequest("index1", "local_type", "1")
@@ -171,7 +168,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
                 .and(hasType("global_type"))));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalRouting() throws IOException {
         createIndexWithMultipleShards("index");
         BulkRequest request = new BulkRequest(null);
@@ -189,7 +185,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
     }
 
-    @SuppressWarnings("unchecked")
     public void testMixLocalAndGlobalRouting() throws IOException {
         BulkRequest request = new BulkRequest(null);
         request.routing("globalRouting");

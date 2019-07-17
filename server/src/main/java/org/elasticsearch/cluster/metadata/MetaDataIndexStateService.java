@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCl
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -68,6 +69,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,6 +88,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -105,19 +108,18 @@ public class MetaDataIndexStateService {
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
-    private final TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction;
+    private final NodeClient client;
     private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public MetaDataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetaDataIndexUpgradeService metaDataIndexUpgradeService,
-                                     IndicesService indicesService, ThreadPool threadPool,
-                                     TransportVerifyShardBeforeCloseAction transportVerifyShardBeforeCloseAction) {
+                                     IndicesService indicesService, ThreadPool threadPool, NodeClient client) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.threadPool = threadPool;
-        this.transportVerifyShardBeforeCloseAction = transportVerifyShardBeforeCloseAction;
+        this.client = client;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
@@ -230,11 +232,11 @@ public class MetaDataIndexStateService {
                                              final ClusterState currentState) {
         final MetaData.Builder metadata = MetaData.builder(currentState.metaData());
 
-        final Set<IndexMetaData> indicesToClose = new HashSet<>();
+        final Set<Index> indicesToClose = new HashSet<>();
         for (Index index : indices) {
             final IndexMetaData indexMetaData = metadata.getSafe(index);
             if (indexMetaData.getState() != IndexMetaData.State.CLOSE) {
-                indicesToClose.add(indexMetaData);
+                indicesToClose.add(index);
             } else {
                 logger.debug("index {} is already closed, ignoring", index);
                 assert currentState.blocks().hasIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
@@ -246,16 +248,22 @@ public class MetaDataIndexStateService {
         }
 
         // Check if index closing conflicts with any running restores
-        RestoreService.checkIndexClosing(currentState, indicesToClose);
+        Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, indicesToClose);
+        if (restoringIndices.isEmpty() == false) {
+            throw new IllegalArgumentException("Cannot close indices that are being restored: " + restoringIndices);
+        }
+
         // Check if index closing conflicts with any running snapshots
-        SnapshotsService.checkIndexClosing(currentState, indicesToClose);
+        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToClose);
+        if (snapshottingIndices.isEmpty() == false) {
+            throw new SnapshotInProgressException("Cannot close indices that are being snapshotted: " + snapshottingIndices +
+                ". Try again after snapshot finishes or cancel the currently running snapshot.");
+        }
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
-        for (IndexMetaData indexToClose : indicesToClose) {
-            final Index index = indexToClose.getIndex();
-
+        for (Index index : indicesToClose) {
             ClusterBlock indexBlock = null;
             final Set<ClusterBlock> clusterBlocks = currentState.blocks().indices().get(index.getName());
             if (clusterBlocks != null) {
@@ -383,11 +391,26 @@ public class MetaDataIndexStateService {
             }
             final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), request.taskId());
             final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, parentTaskId);
+                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, true, parentTaskId);
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);
+            client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(ReplicationResponse replicationResponse) {
+                    final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
+                        new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
+                    if (request.ackTimeout() != null) {
+                        shardRequest.timeout(request.ackTimeout());
+                    }
+                    client.executeLocally(TransportVerifyShardBeforeCloseAction.TYPE, shardRequest, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 
@@ -429,6 +452,24 @@ public class MetaDataIndexStateService {
                     closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
                         "verification of shards before closing " + index + " succeeded but block has been removed in the meantime")));
                     logger.debug("verification of shards before closing {} succeeded but block has been removed in the meantime", index);
+                    continue;
+                }
+
+                // Check if index closing conflicts with any running restores
+                Set<Index> restoringIndices = RestoreService.restoringIndices(currentState, singleton(index));
+                if (restoringIndices.isEmpty() == false) {
+                    closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
+                        "verification of shards before closing " + index + " succeeded but index is being restored in the meantime")));
+                    logger.debug("verification of shards before closing {} succeeded but index is being restored in the meantime", index);
+                    continue;
+                }
+
+                // Check if index closing conflicts with any running snapshots
+                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, singleton(index));
+                if (snapshottingIndices.isEmpty() == false) {
+                    closingResults.put(result.getKey(), new IndexResult(result.getKey(), new IllegalStateException(
+                        "verification of shards before closing " + index + " succeeded but index is being snapshot in the meantime")));
+                    logger.debug("verification of shards before closing {} succeeded but index is being snapshot in the meantime", index);
                     continue;
                 }
 

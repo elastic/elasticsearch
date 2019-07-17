@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
-import org.elasticsearch.gradle.VersionProperties
+
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
@@ -32,12 +32,10 @@ import org.gradle.api.tasks.TaskState
 import org.gradle.api.tasks.options.Option
 import org.gradle.api.tasks.testing.Test
 import org.gradle.plugins.ide.idea.IdeaPlugin
-import org.gradle.process.CommandLineArgumentProvider
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.stream.Stream
-
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
@@ -59,7 +57,7 @@ class RestIntegTestTask extends DefaultTask {
     Boolean includePackaged = false
 
     RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", Test.class)
+        runner = project.tasks.create("${name}Runner", RestTestRunnerTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
@@ -69,17 +67,11 @@ class RestIntegTestTask extends DefaultTask {
         } else {
             project.testClusters {
                 "$name" {
-                    distribution = 'INTEG_TEST'
-                    version = VersionProperties.elasticsearch
                     javaHome = project.file(project.ext.runtimeJavaHome)
                 }
             }
             runner.useCluster project.testClusters."$name"
         }
-
-        // disable the build cache for rest test tasks
-        // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
-        runner.outputs.doNotCacheIf('Caching is disabled for REST integration tests') { true }
 
         // override/add more for rest tests
         runner.maxParallelForks = 1
@@ -252,7 +244,7 @@ class RestIntegTestTask extends DefaultTask {
             restSpec
         }
         project.dependencies {
-            restSpec "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
+            restSpec project.project(':rest-api-spec')
         }
         Task copyRestSpec = project.tasks.findByName('copyRestSpec')
         if (copyRestSpec != null) {
@@ -285,4 +277,5 @@ class RestIntegTestTask extends DefaultTask {
         }
         return copyRestSpec
     }
+
 }

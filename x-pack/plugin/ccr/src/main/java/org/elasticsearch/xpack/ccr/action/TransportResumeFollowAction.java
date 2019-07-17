@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,6 +42,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -101,8 +103,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -111,7 +113,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     }
 
     @Override
-    protected void masterOperation(final ResumeFollowAction.Request request,
+    protected void masterOperation(Task task, final ResumeFollowAction.Request request,
                                    ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {

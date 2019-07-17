@@ -79,23 +79,13 @@ public class GeoCentroidAggregationBuilder
 
     @Override
     protected GeoCentroidAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new GeoCentroidAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
-    }
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        return true;
     }
 
     @Override

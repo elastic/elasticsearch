@@ -18,8 +18,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -54,7 +54,7 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] usernames = request.paramAsStringArray("username", Strings.EMPTY_ARRAY);
 
-        return channel -> new SecurityClient(client).prepareGetUsers(usernames).execute(new RestBuilderListener<GetUsersResponse>(channel) {
+        return channel -> new GetUsersRequestBuilder(client).usernames(usernames).execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetUsersResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

@@ -140,17 +140,14 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardParent);
 
             final String shardIdFileName = path.getFileName().toString();
-            final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
             if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
-                && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID check
-                && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
                 indexName = indexMetaData.getIndex().getName();
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
-                    + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
+                    + " ], expected .../indices/[INDEX-UUID]/[SHARD-ID]");
             }
         } else {
             // otherwise resolve shardPath based on the index name and shard id
@@ -292,7 +289,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     terminal.println("Opening Lucene index at " + indexPath);
                     terminal.println("");
                     try {
-                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(shardPath, indexDir,
+                        indexCleanStatus = removeCorruptedLuceneSegmentsAction.getCleanStatus(indexDir,
                             writeIndexLock, printStream, verbose);
                     } catch (Exception e) {
                         terminal.println(e.getMessage());
@@ -358,7 +355,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                     confirm("Continue and remove corrupted data from the shard ?", terminal);
 
                     if (indexStatus != CleanStatus.CLEAN) {
-                        removeCorruptedLuceneSegmentsAction.execute(terminal, shardPath, indexDir,
+                        removeCorruptedLuceneSegmentsAction.execute(terminal, indexDir,
                             writeIndexLock, printStream, verbose);
                     }
 
@@ -376,7 +373,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
                 // newHistoryCommit obtains its own lock
                 addNewHistoryCommit(indexDir, terminal, translogStatus != CleanStatus.CLEAN);
-                newAllocationId(environment, shardPath, terminal);
+                newAllocationId(shardPath, terminal);
                 if (indexStatus != CleanStatus.CLEAN) {
                     dropCorruptMarkerFiles(terminal, indexPath, indexDir, indexStatus == CleanStatus.CLEAN_WITH_CORRUPTED_MARKER);
                 }
@@ -428,7 +425,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         }
     }
 
-    protected void newAllocationId(Environment environment, ShardPath shardPath, Terminal terminal) throws IOException {
+    private void newAllocationId(ShardPath shardPath, Terminal terminal) throws IOException {
         final Path shardStatePath = shardPath.getShardStatePath();
         final ShardStateMetaData shardStateMetaData =
             ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardStatePath);
@@ -475,8 +472,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 : new AllocateEmptyPrimaryAllocationCommand(index, id, nodeId, false));
 
         terminal.println("");
-        terminal.println("POST /_cluster/reroute'\n"
-            + Strings.toString(commands, true, true) + "'");
+        terminal.println("POST /_cluster/reroute\n" + Strings.toString(commands, true, true));
         terminal.println("");
         terminal.println("You must accept the possibility of data loss by changing parameter `accept_data_loss` to `true`.");
         terminal.println("");

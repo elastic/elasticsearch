@@ -30,8 +30,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -90,7 +89,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
+public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Response> {
 
     public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
     private static final String NAME = "cluster:admin/scripts/painless/execute";
@@ -100,8 +99,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
     }
 
     @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
@@ -258,9 +257,9 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         }
 
-        private Script script;
-        private ScriptContext<?> context = PainlessTestScript.CONTEXT;
-        private ContextSetup contextSetup;
+        private final Script script;
+        private final ScriptContext<?> context;
+        private final ContextSetup contextSetup;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -268,16 +267,20 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         Request(Script script, String scriptContextName, ContextSetup setup) {
             this.script = Objects.requireNonNull(script);
-            if (scriptContextName != null) {
-                this.context = fromScriptContextName(scriptContextName);
-            }
+            this.context = scriptContextName != null ? fromScriptContextName(scriptContextName) : PainlessTestScript.CONTEXT;
             if (setup != null) {
                 this.contextSetup = setup;
                 index(contextSetup.index);
+            } else {
+                contextSetup = null;
             }
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            script = new Script(in);
+            context = fromScriptContextName(in.readString());
+            contextSetup = in.readOptionalWriteable(ContextSetup::new);
         }
 
         public Script getScript() {
@@ -310,28 +313,11 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            script = new Script(in);
-            if (in.getVersion().before(Version.V_6_4_0)) {
-                byte scriptContextId = in.readByte();
-                assert scriptContextId == 0;
-            } else {
-                context = fromScriptContextName(in.readString());
-                contextSetup = in.readOptionalWriteable(ContextSetup::new);
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             script.writeTo(out);
-            if (out.getVersion().before(Version.V_6_4_0)) {
-                out.writeByte((byte) 0);
-            } else {
-                out.writeString(context.name);
-                out.writeOptionalWriteable(contextSetup);
-            }
+            out.writeString(context.name);
+            out.writeOptionalWriteable(contextSetup);
         }
 
         // For testing only:
@@ -401,7 +387,6 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeGenericValue(result);
         }
 

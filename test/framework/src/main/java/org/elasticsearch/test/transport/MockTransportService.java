@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -41,10 +39,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -68,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -90,7 +91,6 @@ public final class MockTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
-    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -105,13 +105,33 @@ public final class MockTransportService extends TransportService {
         return createNewService(settings, mockTransport, version, threadPool, clusterSettings, Collections.emptySet());
     }
 
-    public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+    /**
+     * Returns a unique port range for this JVM starting from the computed base port
+     */
+    public static String getPortRange() {
+        return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
+    }
+
+    protected static int getBasePort() {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
         // a different default port range per JVM unless the incoming settings override it
-        int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
-        settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
+        // use a non-default base port otherwise some cluster in this JVM might reuse a port
+
+        // We rely on Gradle implementation details here, the worker IDs are long values incremented by one  for the
+        // lifespan of the daemon this means that they can get larger than the allowed port range.
+        // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
+        // This is safe as long as we have fewer than 224 Gradle workers running in parallel
+        // See also: https://github.com/elastic/elasticsearch/issues/44134
+        final String workerId = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
+        final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
+        assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
+        return 10300 + (startAt * 100);
+    }
+
+    public static MockNioTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());
@@ -220,10 +240,8 @@ public final class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
-            listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated"));
-            return () -> {};
-        });
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
+            listener.onFailure(new ConnectTransportException(discoveryNode, "DISCONNECT: simulated")));
 
         transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
             connection.close();
@@ -276,13 +294,28 @@ public final class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(TransportAddress transportAddress) {
-        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) -> {
-            listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-            return () -> {};
-        });
+        transport().addConnectBehavior(transportAddress, (transport, discoveryNode, profile, listener) ->
+            listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated")));
 
-        transport().addSendBehavior(transportAddress, (connection, requestId, action, request, options) -> {
-            // don't send anything, the receiving node is unresponsive
+        transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
+            private Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
+            @Override
+            public void sendRequest(Transport.Connection connection, long requestId, String action,
+                                    TransportRequest request, TransportRequestOptions options) {
+                // don't send anything, the receiving node is unresponsive
+                toClose.add(connection);
+            }
+
+            @Override
+            public void clearCallback() {
+                // close to simulate that tcp-ip eventually times out and closes connection (necessary to ensure transport eventually
+                // responds).
+                try {
+                    IOUtils.close(toClose);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         });
     }
 
@@ -312,11 +345,12 @@ public final class MockTransportService extends TransportService {
         transport().addConnectBehavior(transportAddress, new StubbableTransport.OpenConnectionBehavior() {
             private CountDownLatch stopLatch = new CountDownLatch(1);
             @Override
-            public Releasable openConnection(Transport transport, DiscoveryNode discoveryNode,
+            public void openConnection(Transport transport, DiscoveryNode discoveryNode,
                                              ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
                 TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
-                    return original.openConnection(discoveryNode, profile, listener);
+                    original.openConnection(discoveryNode, profile, listener);
+                    return;
                 }
 
                 // TODO: Replace with proper setting
@@ -324,17 +358,13 @@ public final class MockTransportService extends TransportService {
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         stopLatch.await(delay.millis(), TimeUnit.MILLISECONDS);
-                        return original.openConnection(discoveryNode, profile, listener);
+                        original.openConnection(discoveryNode, profile, listener);
                     } else {
                         stopLatch.await(connectingTimeout.millis(), TimeUnit.MILLISECONDS);
                         listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                        return () -> {
-                        };
                     }
                 } catch (InterruptedException e) {
                     listener.onFailure(new ConnectTransportException(discoveryNode, "UNRESPONSIVE: simulated"));
-                    return () -> {
-                    };
                 }
             }
 
@@ -471,15 +501,6 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a node connected behavior that is used for the given delegate address.
-     *
-     * @return {@code true} if no other node connected behavior was registered for this address before.
-     */
-    public boolean addNodeConnectedBehavior(TransportAddress transportAddress, StubbableConnectionManager.NodeConnectedBehavior behavior) {
-        return connectionManager().addNodeConnectedBehavior(transportAddress, behavior);
-    }
-
-    /**
      * Adds a node connected behavior that is the default node connected behavior.
      *
      * @return {@code true} if no default node connected behavior was registered.
@@ -505,7 +526,7 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) {
         Transport.Connection connection = super.openConnection(node, profile);
 
         synchronized (openConnections) {

@@ -82,7 +82,6 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(recordId);
         XContentSource.writeTo(recordSource, out);
     }

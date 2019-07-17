@@ -20,19 +20,28 @@ import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeoutException;
 
 public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.Request, MlInfoAction.Response> {
 
     private final ClusterService clusterService;
+    private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
-        super(MlInfoAction.NAME, transportService, actionFilters, (Supplier<MlInfoAction.Request>) MlInfoAction.Request::new);
+    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters,
+                                 ClusterService clusterService, MlControllerHolder mlControllerHolder) {
+        super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new);
         this.clusterService = clusterService;
+
+        try {
+            nativeCodeInfo = mlControllerHolder.getMlController().getNativeCodeInfo();
+        } catch (TimeoutException e) {
+            throw new RuntimeException("Could not get native code info from native controller", e);
+        }
     }
 
     @Override
@@ -40,6 +49,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         Map<String, Object> info = new HashMap<>();
         info.put("defaults", defaults());
         info.put("limits", limits());
+        info.put("native_code", nativeCodeInfo);
         info.put(MlMetadata.UPGRADE_MODE.getPreferredName(), upgradeMode());
         listener.onResponse(new MlInfoAction.Response(info));
     }

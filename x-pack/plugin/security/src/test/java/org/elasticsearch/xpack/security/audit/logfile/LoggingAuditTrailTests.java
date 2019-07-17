@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -613,7 +614,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         indicesRequest(message, checkedFields, checkedArrayFields);
         opaqueId(threadContext, checkedFields);
         forwardedFor(threadContext, checkedFields);
-        
+
         assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
 
         // test disabled
@@ -1075,7 +1076,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
-        logLine = logLine.replaceFirst("\"@timestamp\":\"[^\"]*\"", "").replaceAll("[{},]", "");
+        logLine = logLine.replaceFirst("\"" + LoggingAuditTrail.LOG_TYPE + "\":\"audit\", ", "")
+                         .replaceFirst("\"" + LoggingAuditTrail.TIMESTAMP + "\":\"[^\"]*\"", "")
+                         .replaceAll("[{},]", "");
         // check no extra fields
         assertThat("Log event has extra unexpected content: " + logLine, Strings.hasText(logLine), is(false));
     }
@@ -1152,6 +1155,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
             }
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     static class MockIndicesRequest extends org.elasticsearch.action.MockIndicesRequest {

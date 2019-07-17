@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -134,10 +133,6 @@ public class Bucket implements ToXContentObject, Writeable {
         isInterim = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        // bwc for perPartitionNormalization
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            in.readList(Bucket::readOldPerPartitionNormalization);
-        }
         scheduledEvents = in.readStringList();
         if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();
@@ -156,10 +151,6 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeBoolean(isInterim);
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
-        // bwc for perPartitionNormalization
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeList(Collections.emptyList());
-        }
         out.writeStringCollection(scheduledEvents);
     }
 

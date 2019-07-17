@@ -19,125 +19,41 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AnalyzeResponseTests extends AbstractSerializingTestCase<AnalyzeResponse> {
+public class AnalyzeResponseTests extends AbstractWireSerializingTestCase<AnalyzeAction.Response> {
 
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return s -> s.contains("tokens.");
-    }
-
-    @Override
-    protected AnalyzeResponse doParseInstance(XContentParser parser) throws IOException {
-        return AnalyzeResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected Writeable.Reader<AnalyzeResponse> instanceReader() {
-        return AnalyzeResponse::new;
-    }
-
-    @Override
-    protected AnalyzeResponse createTestInstance() {
-        int tokenCount = randomIntBetween(1, 30);
-        AnalyzeResponse.AnalyzeToken[] tokens = new AnalyzeResponse.AnalyzeToken[tokenCount];
-        for (int i = 0; i < tokenCount; i++) {
-            tokens[i] = randomToken();
-        }
-        if (randomBoolean()) {
-            DetailAnalyzeResponse.CharFilteredText[] charfilters = null;
-            DetailAnalyzeResponse.AnalyzeTokenList[] tokenfilters = null;
-            if (randomBoolean()) {
-                charfilters = new DetailAnalyzeResponse.CharFilteredText[]{
-                    new DetailAnalyzeResponse.CharFilteredText("my_charfilter", new String[]{"one two"})
-                };
-            }
-            if (randomBoolean()) {
-                tokenfilters = new DetailAnalyzeResponse.AnalyzeTokenList[]{
-                    new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_1", tokens),
-                    new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_2", tokens)
-                };
-            }
-            DetailAnalyzeResponse dar = new DetailAnalyzeResponse(
-                charfilters,
-                new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens),
-                tokenfilters);
-            return new AnalyzeResponse(null, dar);
-        }
-        return new AnalyzeResponse(Arrays.asList(tokens), null);
-    }
-
-    private AnalyzeResponse.AnalyzeToken randomToken() {
-        String token = randomAlphaOfLengthBetween(1, 20);
-        int position = randomIntBetween(0, 1000);
-        int startOffset = randomIntBetween(0, 1000);
-        int endOffset = randomIntBetween(0, 1000);
-        int posLength = randomIntBetween(1, 5);
-        String type = randomAlphaOfLengthBetween(1, 20);
-        Map<String, Object> extras = new HashMap<>();
-        if (randomBoolean()) {
-            int entryCount = randomInt(6);
-            for (int i = 0; i < entryCount; i++) {
-                switch (randomInt(6)) {
-                    case 0:
-                    case 1:
-                    case 2:
-                    case 3:
-                        String key = randomAlphaOfLength(5);
-                        String value = randomAlphaOfLength(10);
-                        extras.put(key, value);
-                        break;
-                    case 4:
-                        String objkey = randomAlphaOfLength(5);
-                        Map<String, String> obj = new HashMap<>();
-                        obj.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
-                        extras.put(objkey, obj);
-                        break;
-                    case 5:
-                        String listkey = randomAlphaOfLength(5);
-                        List<String> list = new ArrayList<>();
-                        list.add(randomAlphaOfLength(4));
-                        list.add(randomAlphaOfLength(6));
-                        extras.put(listkey, list);
-                        break;
-                }
-            }
-        }
-        return new AnalyzeResponse.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);
-    }
-
+    @SuppressWarnings("unchecked")
     public void testNullResponseToXContent() throws IOException {
-        DetailAnalyzeResponse.CharFilteredText[] charfilters = null;
+        AnalyzeAction.CharFilteredText[] charfilters = null;
 
         String name = "test_tokens_null";
-        AnalyzeResponse.AnalyzeToken[] tokens = null;
-        DetailAnalyzeResponse.AnalyzeTokenList tokenizer = null;
+        AnalyzeAction.AnalyzeToken[] tokens = null;
+        AnalyzeAction.AnalyzeTokenList tokenizer = null;
 
 
-        DetailAnalyzeResponse.AnalyzeTokenList tokenfiltersItem = new DetailAnalyzeResponse.AnalyzeTokenList(name, tokens);
-        DetailAnalyzeResponse.AnalyzeTokenList[] tokenfilters = {tokenfiltersItem};
+        AnalyzeAction.AnalyzeTokenList tokenfiltersItem = new AnalyzeAction.AnalyzeTokenList(name, tokens);
+        AnalyzeAction.AnalyzeTokenList[] tokenfilters = {tokenfiltersItem};
 
-        DetailAnalyzeResponse detail = new DetailAnalyzeResponse(charfilters, tokenizer, tokenfilters);
+        AnalyzeAction.DetailAnalyzeResponse detail = new AnalyzeAction.DetailAnalyzeResponse(charfilters, tokenizer, tokenfilters);
 
-        AnalyzeResponse response = new AnalyzeResponse(null, detail);
+        AnalyzeAction.Response response = new AnalyzeAction.Response(null, detail);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Map<String, Object> converted = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
@@ -148,6 +64,64 @@ public class AnalyzeResponseTests extends AbstractSerializingTestCase<AnalyzeRes
             assertThat(nullTokens.size(), equalTo(0));
             assertThat(name, equalTo(nameValue));
         }
-
     }
+
+    public void testConstructorArgs() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new AnalyzeAction.Response(null, null));
+        assertEquals("Neither token nor detail set on AnalysisAction.Response", ex.getMessage());
+    }
+
+    @Override
+    protected AnalyzeAction.Response createTestInstance() {
+        int tokenCount = randomIntBetween(0, 30);
+        AnalyzeAction.AnalyzeToken[] tokens = new AnalyzeAction.AnalyzeToken[tokenCount];
+        for (int i = 0; i < tokenCount; i++) {
+            tokens[i] = RandomObjects.randomToken(random());
+        }
+        if (randomBoolean()) {
+            AnalyzeAction.CharFilteredText[] charfilters = null;
+            AnalyzeAction.AnalyzeTokenList[] tokenfilters = null;
+            if (randomBoolean()) {
+                charfilters = new AnalyzeAction.CharFilteredText[]{
+                    new AnalyzeAction.CharFilteredText("my_charfilter", new String[]{"one two"})
+                };
+            }
+            if (randomBoolean()) {
+                tokenfilters = new AnalyzeAction.AnalyzeTokenList[]{
+                    new AnalyzeAction.AnalyzeTokenList("my_tokenfilter_1", tokens),
+                    new AnalyzeAction.AnalyzeTokenList("my_tokenfilter_2", tokens)
+                };
+            }
+            AnalyzeAction.DetailAnalyzeResponse dar = new AnalyzeAction.DetailAnalyzeResponse(
+                charfilters,
+                new AnalyzeAction.AnalyzeTokenList("my_tokenizer", tokens),
+                tokenfilters);
+            return new AnalyzeAction.Response(null, dar);
+        }
+        return new AnalyzeAction.Response(Arrays.asList(tokens), null);
+    }
+
+    /**
+     * Either add a token to the token list or change the details token list name
+     */
+    @Override
+    protected AnalyzeAction.Response mutateInstance(AnalyzeAction.Response instance) throws IOException {
+        if (instance.getTokens() != null) {
+            List<AnalyzeToken> extendedList = new ArrayList<>(instance.getTokens());
+            extendedList.add(RandomObjects.randomToken(random()));
+            return new AnalyzeAction.Response(extendedList, null);
+        } else {
+            AnalyzeToken[] tokens = instance.detail().tokenizer().getTokens();
+            return new AnalyzeAction.Response(null, new AnalyzeAction.DetailAnalyzeResponse(
+                    instance.detail().charfilters(),
+                    new AnalyzeAction.AnalyzeTokenList("my_other_tokenizer", tokens),
+                    instance.detail().tokenfilters()));
+        }
+    }
+
+    @Override
+    protected Reader<AnalyzeAction.Response> instanceReader() {
+        return AnalyzeAction.Response::new;
+    }
+
 }

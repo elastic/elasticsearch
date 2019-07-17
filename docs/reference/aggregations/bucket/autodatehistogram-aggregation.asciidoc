@@ -258,6 +258,39 @@ Like with the normal <<search-aggregations-bucket-datehistogram-aggregation, `da
 scripts and value level scripts are supported. This aggregation does not however, support the `min_doc_count`, 
 `extended_bounds` and `order` parameters.  
 
+==== Minimum Interval parameter
+
+The `minimum_interval` allows the caller to specify the minimum rounding interval that should be used.
+This can make the collection process more efficient, as the aggregation will not attempt to round at
+any interval lower than `minimum_interval`.
+
+The accepted units for `minimum_interval` are:
+
+* year
+* month
+* day
+* hour
+* minute
+* second
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs" : {
+        "sale_date" : {
+             "auto_date_histogram" : {
+                 "field" : "date",
+                 "buckets": 10,
+                 "minimum_interval": "minute"
+             }
+         }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
 ==== Missing value
 
 The `missing` parameter defines how documents that are missing a value should be treated.

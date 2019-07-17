@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -32,8 +33,9 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
@@ -42,9 +44,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
@@ -58,6 +60,13 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePo
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
@@ -78,9 +87,19 @@ import org.elasticsearch.xpack.indexlifecycle.action.TransportRemoveIndexLifecyc
 import org.elasticsearch.xpack.indexlifecycle.action.TransportRetryAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStopILMAction;
+import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
+import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleTask;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestDeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestGetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestPutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportDeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportGetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportPutSnapshotLifecycleAction;
 
+import java.io.IOException;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -91,6 +110,8 @@ import static java.util.Collections.emptyList;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
+    private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
+    private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
 
@@ -104,19 +125,14 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         return Clock.systemUTC();
     }
 
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, IndexLifecycleFeatureSet.class));
-        return modules;
-    }
-
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
-            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
+            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
+            LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING);
     }
 
     @Override
@@ -129,12 +145,17 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         }
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
                 getClock(), System::currentTimeMillis, xContentRegistry));
-        return Collections.singletonList(indexLifecycleInitialisationService.get());
+        SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
+            client, xContentRegistry);
+        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone()));
+        snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
+            () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
+        return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get());
     }
 
     @Override
     public List<Entry> getNamedWriteables() {
-        return Arrays.asList();
+        return Collections.emptyList();
     }
 
     @Override
@@ -143,6 +164,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             // Custom Metadata
             new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
+            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(SnapshotLifecycleMetadata.TYPE),
+                parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)),
             // Lifecycle Types
             new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
                 (p, c) -> TimeseriesLifecycleType.INSTANCE),
@@ -176,14 +199,23 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestRetryAction(settings, restController),
                 new RestStopAction(settings, restController),
                 new RestStartILMAction(settings, restController),
-                new RestGetStatusAction(settings, restController)
+                new RestGetStatusAction(settings, restController),
+                // Snapshot lifecycle actions
+                new RestPutSnapshotLifecycleAction(settings, restController),
+                new RestDeleteSnapshotLifecycleAction(settings, restController),
+                new RestGetSnapshotLifecycleAction(settings, restController),
+                new RestExecuteSnapshotLifecycleAction(settings, restController)
             );
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction =
+            new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class);
+        var infoAction =
+            new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class);
         if (enabled == false) {
-            return emptyList();
+            return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
@@ -195,14 +227,22 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
                 new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
                 new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
-                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class));
+                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
+                // Snapshot lifecycle actions
+                new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
+                new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
+                new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
+                new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
+                usageAction,
+                infoAction);
     }
 
     @Override
     public void close() {
-        IndexLifecycleService lifecycleService = indexLifecycleInitialisationService.get();
-        if (lifecycleService != null) {
-            lifecycleService.close();
+        try {
+            IOUtils.close(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get());
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to close index lifecycle services", e);
         }
     }
 }

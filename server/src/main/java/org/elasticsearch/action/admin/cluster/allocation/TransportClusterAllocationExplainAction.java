@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -51,7 +52,7 @@ import java.util.List;
  * master node in the cluster.
  */
 public class TransportClusterAllocationExplainAction
-        extends TransportMasterNodeAction<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
+        extends StreamableTransportMasterNodeAction<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
 
     private final ClusterInfoService clusterInfoService;
     private final AllocationDeciders allocationDeciders;
@@ -88,7 +89,7 @@ public class TransportClusterAllocationExplainAction
     }
 
     @Override
-    protected void masterOperation(final ClusterAllocationExplainRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final ClusterAllocationExplainRequest request, final ClusterState state,
                                    final ActionListener<ClusterAllocationExplainResponse> listener) {
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();

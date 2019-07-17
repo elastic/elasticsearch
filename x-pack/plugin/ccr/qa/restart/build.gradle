@@ -1,60 +1,55 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(':x-pack:plugin:ccr:qa')
 }
 
-task leaderClusterTest(type: RestIntegTestTask) {
+task 'leader-cluster'(type: RestIntegTestTask) {
     mustRunAfter(precommit)
+    runner {
+        systemProperty 'tests.target_cluster', 'leader'
+    }
 }
-
-leaderClusterTestCluster {
-    numNodes = 1
-    clusterName = 'leader-cluster'
+testClusters.'leader-cluster' {
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
-    setting 'node.name', 'leader'
 }
 
-leaderClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'leader'
+task 'follow-cluster'(type: RestIntegTestTask) {
+    dependsOn 'leader-cluster'
+    useCluster testClusters.'leader-cluster'
+    runner {
+        systemProperty 'tests.target_cluster', 'follow'
+        nonInputProperties.systemProperty 'tests.leader_host',
+                "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
+    }
 }
-
-task followClusterTest(type: RestIntegTestTask) {}
-
-followClusterTestCluster {
-    dependsOn leaderClusterTestRunner
-    numNodes = 1
-    clusterName = 'follow-cluster'
+testClusters.'follow-cluster' {
+    testDistribution = 'DEFAULT'
     setting 'xpack.monitoring.collection.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-    setting 'node.name', 'follow'
+    setting 'cluster.remote.leader_cluster.seeds',
+            { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}\"" }
+    nameCustomization = { 'follow'  }
 }
 
-followClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-}
+task followClusterRestartTest(type: Test) {
+    dependsOn tasks.'follow-cluster'
+    useCluster testClusters.'leader-cluster'
+    useCluster testClusters.'follow-cluster'
 
-task followClusterRestartTest(type: RestIntegTestTask) {}
-
-followClusterRestartTestCluster {
-    dependsOn followClusterTestRunner, 'followClusterTestCluster#stop'
-    numNodes = 1
-    clusterName = 'follow-cluster'
-    dataDir = { nodeNumber -> followClusterTest.nodes[0].dataDir }
-    setting 'xpack.monitoring.collection.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-    setting 'node.name', 'follow'
-}
-
-followClusterRestartTestRunner {
+    maxParallelForks = 1
+    systemProperty 'tests.rest.load_packaged', 'false'
     systemProperty 'tests.target_cluster', 'follow-restart'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    finalizedBy 'leaderClusterTestCluster#stop'
+    doFirst {
+        testClusters.'follow-cluster'.restart()
+        nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
+        nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.'follow-cluster'.getAllHttpSocketURI().join(",")}"
+    }
+    outputs.doNotCacheIf "Caching of REST tests not implemented yet", { false }
 }
 
 check.dependsOn followClusterRestartTest

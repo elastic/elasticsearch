@@ -26,8 +26,8 @@ import java.util.Map;
 public class PutRoleMappingRequestBuilder extends ActionRequestBuilder<PutRoleMappingRequest, PutRoleMappingResponse> implements
         WriteRequestBuilder<PutRoleMappingRequestBuilder> {
 
-    public PutRoleMappingRequestBuilder(ElasticsearchClient client, PutRoleMappingAction action) {
-        super(client, action, new PutRoleMappingRequest());
+    public PutRoleMappingRequestBuilder(ElasticsearchClient client) {
+        super(client, PutRoleMappingAction.INSTANCE, new PutRoleMappingRequest());
     }
 
     /**

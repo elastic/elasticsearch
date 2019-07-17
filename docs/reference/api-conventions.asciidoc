@@ -86,6 +86,10 @@ Where:
 `date_format`:: is the optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`. Format should be compatible with java-time https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html
 `time_zone`:: is the optional time zone. Defaults to `utc`.
 
+NOTE: Pay attention to the usage of small vs capital letters used in the `date_format`. For example:
+`mm` denotes minute of hour, while `MM` denotes month of year. Similarly `hh` denotes the hour in the
+`1-12` range in combination with `AM/PM`, while `HH` denotes the hour in the `0-23` 24-hour range.
+
 Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
 calendars than the Gregorian calendar.
 

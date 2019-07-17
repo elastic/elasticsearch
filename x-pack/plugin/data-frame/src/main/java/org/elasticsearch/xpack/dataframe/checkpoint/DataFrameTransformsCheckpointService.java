@@ -14,12 +14,15 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Arrays;
@@ -84,13 +87,14 @@ public class DataFrameTransformsCheckpointService {
             ActionListener<DataFrameTransformCheckpoint> listener) {
         long timestamp = System.currentTimeMillis();
 
-        // placeholder for time based synchronization
-        long timeUpperBound = 0;
+        // for time based synchronization
+        long timeUpperBound = getTimeStampForTimeBasedSynchronization(transformConfig.getSyncConfig(), timestamp);
 
         // 1st get index to see the indexes the user has access to
         GetIndexRequest getIndexRequest = new GetIndexRequest()
             .indices(transformConfig.getSource().getIndex())
-            .features(new GetIndexRequest.Feature[0]);
+            .features(new GetIndexRequest.Feature[0])
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
         ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, GetIndexAction.INSTANCE,
                 getIndexRequest, ActionListener.wrap(getIndexResponse -> {
@@ -101,7 +105,8 @@ public class DataFrameTransformsCheckpointService {
                         IndicesStatsAction.INSTANCE,
                         new IndicesStatsRequest()
                             .indices(transformConfig.getSource().getIndex())
-                            .clear(),
+                            .clear()
+                            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
                         ActionListener.wrap(
                             response -> {
                                 if (response.getFailedShards() != 0) {
@@ -109,21 +114,18 @@ public class DataFrameTransformsCheckpointService {
                                         new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards"));
                                     return;
                                 }
-                                try {
-                                    Map<String, long[]> checkpointsByIndex = extractIndexCheckPoints(response.getShards(), userIndices);
-                                    listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(),
-                                        timestamp,
-                                        checkpoint,
-                                        checkpointsByIndex,
-                                        timeUpperBound));
-                                } catch (CheckpointException checkpointException) {
-                                    listener.onFailure(checkpointException);
-                                }
+
+                                Map<String, long[]> checkpointsByIndex = extractIndexCheckPoints(response.getShards(), userIndices);
+                                listener.onResponse(new DataFrameTransformCheckpoint(transformConfig.getId(),
+                                    timestamp,
+                                    checkpoint,
+                                    checkpointsByIndex,
+                                    timeUpperBound));
                             },
-                            listener::onFailure
+                            e-> listener.onFailure(new CheckpointException("Failed to create checkpoint", e))
                         ));
                 },
-                listener::onFailure
+                e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e))
             ));
 
     }
@@ -205,30 +207,55 @@ public class DataFrameTransformsCheckpointService {
         );
     }
 
+    private long getTimeStampForTimeBasedSynchronization(SyncConfig syncConfig, long timestamp) {
+        if (syncConfig instanceof TimeSyncConfig) {
+            TimeSyncConfig timeSyncConfig = (TimeSyncConfig) syncConfig;
+            return timestamp - timeSyncConfig.getDelay().millis();
+        }
+
+        return 0L;
+    }
+
     static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices) {
         Map<String, TreeMap<Integer, Long>> checkpointsByIndex = new TreeMap<>();
 
         for (ShardStats shard : shards) {
             String indexName = shard.getShardRouting().getIndexName();
+
             if (userIndices.contains(indexName)) {
+                // SeqNoStats could be `null`, assume the global checkpoint to be 0 in this case
+                long globalCheckpoint = shard.getSeqNoStats() == null ? 0 : shard.getSeqNoStats().getGlobalCheckpoint();
                 if (checkpointsByIndex.containsKey(indexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);
                     if (checkpoints.containsKey(shard.getShardRouting().getId())) {
                         // there is already a checkpoint entry for this index/shard combination, check if they match
-                        if (checkpoints.get(shard.getShardRouting().getId()) != shard.getSeqNoStats().getGlobalCheckpoint()) {
+                        if (checkpoints.get(shard.getShardRouting().getId()) != globalCheckpoint) {
                             throw new CheckpointException("Global checkpoints mismatch for index [" + indexName + "] between shards of id ["
                                     + shard.getShardRouting().getId() + "]");
                         }
                     } else {
                         // 1st time we see this shard for this index, add the entry for the shard
-                        checkpoints.put(shard.getShardRouting().getId(), shard.getSeqNoStats().getGlobalCheckpoint());
+                        checkpoints.put(shard.getShardRouting().getId(), globalCheckpoint);
                     }
                 } else {
                     // 1st time we see this index, create an entry for the index and add the shard checkpoint
                     checkpointsByIndex.put(indexName, new TreeMap<>());
-                    checkpointsByIndex.get(indexName).put(shard.getShardRouting().getId(), shard.getSeqNoStats().getGlobalCheckpoint());
+                    checkpointsByIndex.get(indexName).put(shard.getShardRouting().getId(), globalCheckpoint);
                 }
+            }
+        }
+
+        // checkpoint extraction is done in 2 steps:
+        // 1. GetIndexRequest to retrieve the indices the user has access to
+        // 2. IndicesStatsRequest to retrieve stats about indices
+        // between 1 and 2 indices could get deleted or created
+        if (logger.isDebugEnabled()) {
+            Set<String> userIndicesClone = new HashSet<>(userIndices);
+
+            userIndicesClone.removeAll(checkpointsByIndex.keySet());
+            if (userIndicesClone.isEmpty() == false) {
+                logger.debug("Original set of user indices contained more indexes [{}]", userIndicesClone);
             }
         }
 

@@ -33,11 +33,13 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
@@ -81,6 +83,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
@@ -98,6 +101,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
+    private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
     private final MasterService masterService;
     private final AllocationService allocationService;
@@ -138,18 +142,25 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
 
+    /**
+     * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
+     * @param onJoinValidators A collection of join validators to restrict which nodes may join the cluster.
+     */
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
-                       ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random) {
+                       ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random,
+                       RerouteService rerouteService, ElectionStrategy electionStrategy) {
         this.settings = settings;
         this.transportService = transportService;
         this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings));
+        this.electionStrategy = electionStrategy;
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
-            this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators);
+            this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators,
+            rerouteService);
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -158,13 +169,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
-        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen);
+        this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen, electionStrategy);
         configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
             this::handlePublishRequest, this::handleApplyCommit);
-        this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
+        this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure);
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
@@ -180,23 +191,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private ClusterFormationState getClusterFormationState() {
         return new ClusterFormationState(settings, getStateForMasterService(), peerFinder.getLastResolvedAddresses(),
-            StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()), getCurrentTerm());
+            Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false))
+                    .collect(Collectors.toList()), getCurrentTerm(), electionStrategy);
     }
 
-    private Runnable getOnLeaderFailure() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                synchronized (mutex) {
-                    becomeCandidate("onLeaderFailure");
-                }
+    private void onLeaderFailure(Exception e) {
+        synchronized (mutex) {
+            if (mode != Mode.CANDIDATE) {
+                assert lastKnownLeader.isPresent();
+                logger.info(new ParameterizedMessage("master node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
             }
-
-            @Override
-            public String toString() {
-                return "notification of leader failure";
-            }
-        };
+            becomeCandidate("onLeaderFailure");
+        }
     }
 
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
@@ -361,9 +367,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
-                if (electionQuorumContainsLocalNode(getLastAcceptedState()) == false) {
-                    logger.trace("skip election as local node is not part of election quorum: {}",
-                        getLastAcceptedState().coordinationMetaData());
+                if (localNodeMayWinElection(getLastAcceptedState()) == false) {
+                    logger.trace("skip election as local node may not win it: {}", getLastAcceptedState().coordinationMetaData());
                     return;
                 }
 
@@ -388,16 +393,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         becomeCandidate("after abdicating to " + newMaster);
     }
 
-    private static boolean electionQuorumContainsLocalNode(ClusterState lastAcceptedState) {
+    private static boolean localNodeMayWinElection(ClusterState lastAcceptedState) {
         final DiscoveryNode localNode = lastAcceptedState.nodes().getLocalNode();
         assert localNode != null;
-        return electionQuorumContains(lastAcceptedState, localNode);
+        return nodeMayWinElection(lastAcceptedState, localNode);
     }
 
-    private static boolean electionQuorumContains(ClusterState lastAcceptedState, DiscoveryNode node) {
+    private static boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
         return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId);
+            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId));
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
@@ -436,23 +442,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             return;
         }
 
-        transportService.connectToNode(joinRequest.getSourceNode());
+        transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
+            final ClusterState stateForJoinValidation = getStateForMasterService();
 
-        final ClusterState stateForJoinValidation = getStateForMasterService();
-
-        if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
-            onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
-            if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                // we do this in a couple of places including the cluster update thread. This one here is really just best effort
-                // to ensure we fail as fast as possible.
-                JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
-                    stateForJoinValidation.getNodes().getMinNodeVersion());
+            if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+                onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
+                if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
+                    // we do this in a couple of places including the cluster update thread. This one here is really just best effort
+                    // to ensure we fail as fast as possible.
+                    JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                        stateForJoinValidation.getNodes().getMinNodeVersion());
+                }
+                sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
+            } else {
+                processJoinRequest(joinRequest, joinCallback);
             }
-            sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
-
-        } else {
-            processJoinRequest(joinRequest, joinCallback);
-        }
+        }, joinCallback::onFailure));
     }
 
     // package private for tests
@@ -644,7 +649,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     protected void doStart() {
         synchronized (mutex) {
             CoordinationState.PersistedState persistedState = persistedStateSupplier.get();
-            coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
+            coordinationState.set(new CoordinationState(getLocalNode(), persistedState, electionStrategy));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
             final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
@@ -699,7 +704,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
-            assert applierState.nodes().getMasterNodeId() == null || applierState.metaData().clusterUUIDCommitted();
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -835,8 +839,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             metaDataBuilder.coordinationMetaData(coordinationMetaData);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metaData(metaDataBuilder).build());
-            assert electionQuorumContainsLocalNode(getLastAcceptedState()) :
-                "initial state does not have local node in its election quorum: " + getLastAcceptedState().coordinationMetaData();
+            assert localNodeMayWinElection(getLastAcceptedState()) :
+                "initial state does not allow local node to win election: " + getLastAcceptedState().coordinationMetaData();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
@@ -847,11 +851,23 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     ClusterState improveConfiguration(ClusterState clusterState) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
 
+        // exclude any nodes whose ID is in the voting config exclusions list ...
+        final Stream<String> excludedNodeIds = clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId);
+        // ... and also automatically exclude the node IDs of master-ineligible nodes that were previously master-eligible and are still in
+        // the voting config. We could exclude all the master-ineligible nodes here, but there could be quite a few of them and that makes
+        // the logging much harder to follow.
+        final Stream<String> masterIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+            .filter(n -> n.isMasterNode() == false
+                && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
+                || clusterState.getLastCommittedConfiguration().getNodeIds().contains(n.getId())))
+            .map(DiscoveryNode::getId);
+
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+            .filter(DiscoveryNode::isMasterNode).filter(coordinationState.get()::containsJoinVoteFor).collect(Collectors.toSet());
         final VotingConfiguration newConfig = reconfigurator.reconfigure(liveNodes,
-            clusterState.getVotingConfigExclusions().stream().map(VotingConfigExclusion::getNodeId).collect(Collectors.toSet()),
+            Stream.concat(masterIneligibleNodeIdsInVotingConfig, excludedNodeIds).collect(Collectors.toSet()),
             getLocalNode(), clusterState.getLastAcceptedConfiguration());
+
         if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
             assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
             return ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
@@ -889,9 +905,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    // for tests
-    boolean hasJoinVoteFrom(DiscoveryNode node) {
-        return coordinationState.get().containsJoinVoteFor(node);
+    // exposed for tests
+    boolean missingJoinVoteFrom(DiscoveryNode node) {
+        return node.isMasterNode() && coordinationState.get().containsJoinVoteFor(node) == false;
     }
 
     private void handleJoin(Join join) {
@@ -900,13 +916,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             if (coordinationState.get().electionWon()) {
                 // If we have already won the election then the actual join does not matter for election purposes, so swallow any exception
-                final boolean isNewJoin = handleJoinIgnoringExceptions(join);
+                final boolean isNewJoinFromMasterEligibleNode = handleJoinIgnoringExceptions(join);
 
                 // If we haven't completely finished becoming master then there's already a publication scheduled which will, in turn,
                 // schedule a reconfiguration if needed. It's benign to schedule a reconfiguration anyway, but it might fail if it wins the
                 // race against the election-winning publication and log a big error message, which we can prevent by checking this here:
                 final boolean establishedAsMaster = mode == Mode.LEADER && getLastAcceptedState().term() == getCurrentTerm();
-                if (isNewJoin && establishedAsMaster && publicationInProgress() == false) {
+                if (isNewJoinFromMasterEligibleNode && establishedAsMaster && publicationInProgress() == false) {
                     scheduleReconfigurationIfNeeded();
                 }
             } else {
@@ -1097,11 +1113,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             synchronized (mutex) {
                 final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
-                    final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
+                    final VoteCollection expectedVotes = new VoteCollection();
                     foundPeers.forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
-                    final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-                    final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
+                    final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
 
                     if (foundQuorum) {
                         if (electionScheduler == null) {
@@ -1132,8 +1147,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     if (mode == Mode.CANDIDATE) {
                         final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
 
-                        if (electionQuorumContainsLocalNode(lastAcceptedState) == false) {
-                            logger.trace("skip prevoting as local node is not part of election quorum: {}",
+                        if (localNodeMayWinElection(lastAcceptedState) == false) {
+                            logger.trace("skip prevoting as local node may not win election: {}",
                                 lastAcceptedState.coordinationMetaData());
                             return;
                         }
@@ -1165,9 +1180,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
      */
     boolean cancelCommittedPublication() {
         synchronized (mutex) {
-            if (currentPublication.isPresent() && currentPublication.get().isCommitted()) {
-                currentPublication.get().cancel("cancelCommittedPublication");
-                return true;
+            if (currentPublication.isPresent()) {
+                final CoordinatorPublication publication = currentPublication.get();
+                if (publication.isCommitted()) {
+                    publication.cancel("cancelCommittedPublication");
+                    logger.debug("Cancelled publication of [{}].", publication);
+                    return true;
+                }
             }
             return false;
         }
@@ -1290,16 +1309,32 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     updateMaxTermSeen(getCurrentTerm());
 
                                     if (mode == Mode.LEADER) {
+                                        // if necessary, abdicate to another node or improve the voting configuration
+                                        boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state
-                                        if (electionQuorumContainsLocalNode(state) == false) {
+                                        if (localNodeMayWinElection(state) == false) {
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
-                                                .filter(node -> electionQuorumContains(state, node))
+                                                .filter(node -> nodeMayWinElection(state, node))
+                                                .filter(node -> {
+                                                    // check if master candidate would be able to get an election quorum if we were to
+                                                    // abdicate to it. Assume that every node that completed the publication can provide
+                                                    // a vote in that next election and has the latest state.
+                                                    final long futureElectionTerm = state.term() + 1;
+                                                    final VoteCollection futureVoteCollection = new VoteCollection();
+                                                    completedNodes().forEach(completedNode -> futureVoteCollection.addJoinVote(
+                                                        new Join(completedNode, node, futureElectionTerm, state.term(), state.version())));
+                                                    return electionStrategy.isElectionQuorum(node, futureElectionTerm,
+                                                        state.term(), state.version(), state.getLastCommittedConfiguration(),
+                                                        state.getLastAcceptedConfiguration(), futureVoteCollection);
+                                                })
                                                 .collect(Collectors.toList());
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
+                                                attemptReconfiguration = false;
                                             }
-                                        } else {
+                                        }
+                                        if (attemptReconfiguration) {
                                             scheduleReconfigurationIfNeeded();
                                         }
                                     }
@@ -1326,14 +1361,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
 
         private void handleAssociatedJoin(Join join) {
-            if (join.getTerm() == getCurrentTerm() && hasJoinVoteFrom(join.getSourceNode()) == false) {
+            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getSourceNode())) {
                 logger.trace("handling {}", join);
                 handleJoin(join);
             }
         }
 
         @Override
-        protected boolean isPublishQuorum(CoordinationState.VoteCollection votes) {
+        protected boolean isPublishQuorum(VoteCollection votes) {
             assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
             return coordinationState.get().isPublishQuorum(votes);
         }
@@ -1364,7 +1399,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             // The remote node did not include a join vote in its publish response. We do not persist joins, so it could be that the remote
             // node voted for us and then rebooted, or it could be that it voted for a different node in this term. If we don't have a copy
             // of a join from this node then we assume the latter and bump our term to obtain a vote from this node.
-            if (hasJoinVoteFrom(discoveryNode) == false) {
+            if (missingJoinVoteFrom(discoveryNode)) {
                 final long term = publishRequest.getAcceptedState().term();
                 logger.debug("onMissingJoin: no join vote from {}, bumping term to exceed {}", discoveryNode, term);
                 updateMaxTermSeen(term + 1);

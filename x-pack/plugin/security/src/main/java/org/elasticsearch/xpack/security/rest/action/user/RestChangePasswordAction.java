@@ -19,9 +19,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -75,17 +75,16 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         }
 
         final String refresh = request.param("refresh");
-        return channel ->
-                new SecurityClient(client)
-                    .prepareChangePassword(username, request.requiredContent(), request.getXContentType(), passwordHasher)
-                        .setRefreshPolicy(refresh)
-                        .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(ChangePasswordResponse changePasswordResponse,
-                                                              XContentBuilder builder) throws Exception {
-                                return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
-                            }
-                        });
+        return channel -> new ChangePasswordRequestBuilder(client)
+            .username(username)
+            .source(request.requiredContent(), request.getXContentType(), passwordHasher)
+            .setRefreshPolicy(refresh)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(ChangePasswordResponse response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
+                }
+            });
     }
 
     private static final Set<String> FILTERED_FIELDS = Collections.singleton("password");

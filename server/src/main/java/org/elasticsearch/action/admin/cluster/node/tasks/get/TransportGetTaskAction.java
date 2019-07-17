@@ -54,7 +54,7 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskActio
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
 
 /**
- * Action to get a single task. If the task isn't running then it'll try to request the status from request index.
+ * ActionType to get a single task. If the task isn't running then it'll try to request the status from request index.
  *
  * The general flow is:
  * <ul>
@@ -73,7 +73,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     @Inject
     public TransportGetTaskAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, GetTaskRequest::new, actionFilters);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

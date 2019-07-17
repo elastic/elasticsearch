@@ -108,7 +108,6 @@ public class GetWatchResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(id);
         out.writeBoolean(found);
         if (found) {

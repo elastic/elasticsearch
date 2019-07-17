@@ -163,9 +163,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
 
-        disruptionScheme.stopDisrupting();
-
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        internalCluster().clearDisruptionScheme(true);
     }
 
     void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {
@@ -192,7 +190,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39688")
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
@@ -264,8 +261,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
-        disruptionScheme.stopDisrupting();
-
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").get();
+        internalCluster().clearDisruptionScheme(true);
     }
 }

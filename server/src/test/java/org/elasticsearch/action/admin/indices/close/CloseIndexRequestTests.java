@@ -28,8 +28,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-
 public class CloseIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
@@ -37,9 +35,9 @@ public class CloseIndexRequestTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
 
-            final CloseIndexRequest deserializedRequest = new CloseIndexRequest();
+            final CloseIndexRequest deserializedRequest;
             try (StreamInput in = out.bytes().streamInput()) {
-                deserializedRequest.readFrom(in);
+                deserializedRequest = new CloseIndexRequest(in);
             }
             assertEquals(request.timeout(), deserializedRequest.timeout());
             assertEquals(request.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
@@ -54,7 +52,8 @@ public class CloseIndexRequestTests extends ESTestCase {
         {
             final CloseIndexRequest request = randomRequest();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                out.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousVersion(Version.V_7_2_0)));
                 request.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -75,10 +74,11 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
 
-                final CloseIndexRequest deserializedRequest = new CloseIndexRequest();
+                final CloseIndexRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
-                    deserializedRequest.readFrom(in);
+                    in.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+                        VersionUtils.getPreviousVersion(Version.V_7_2_0)));
+                    deserializedRequest = new CloseIndexRequest(in);
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());
                 assertEquals(sample.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());

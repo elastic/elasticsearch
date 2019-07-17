@@ -1443,9 +1443,11 @@ public class FieldSortIT extends ESIntegTestCase {
         refresh();
 
         // We sort on nested field
+
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested.foo").setNestedPath("nested").order(SortOrder.DESC))
+                .addSort(SortBuilders.fieldSort("nested.foo")
+                    .setNestedSort(new NestedSortBuilder("nested")).order(SortOrder.DESC))
                 .get();
         assertNoFailures(searchResponse);
         SearchHit[] hits = searchResponse.getHits().getHits();
@@ -1474,7 +1476,8 @@ public class FieldSortIT extends ESIntegTestCase {
         // We sort on nested sub field
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(SortBuilders.fieldSort("nested.foo.sub").setNestedPath("nested").order(SortOrder.DESC))
+                .addSort(SortBuilders.fieldSort("nested.foo.sub")
+                    .setNestedSort(new NestedSortBuilder("nested")).order(SortOrder.DESC))
                 .get();
         assertNoFailures(searchResponse);
         hits = searchResponse.getHits().getHits();
@@ -1483,6 +1486,14 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(hits[1].getSortValues().length, is(1));
         assertThat(hits[0].getSortValues()[0], is("cba bca"));
         assertThat(hits[1].getSortValues()[0], is("bar bar"));
+
+        // missing nested path
+        SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+            () -> client().prepareSearch()
+                    .setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("nested.foo"))
+                    .get()
+        );
+        assertThat(exc.toString(), containsString("it is mandatory to set the [nested] context"));
     }
 
     public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {

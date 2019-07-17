@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -61,7 +61,7 @@ public class PivotTests extends ESTestCase {
     @Before
     public void registerAggregationNamedObjects() throws Exception {
         // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -154,8 +154,8 @@ public class PivotTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
 
             if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
@@ -214,6 +214,16 @@ public class PivotTests extends ESTestCase {
                 "\"bucket_script\":{" +
                 "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
                 "\"script\":\"return params.param_1\"}}}");
+        }
+        if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
+            return parseAggregations("{\n" +
+                "\"pivot_weighted_avg\": {\n" +
+                "  \"weighted_avg\": {\n" +
+                "   \"value\": {\"field\": \"values\"},\n" +
+                "   \"weight\": {\"field\": \"weights\"}\n" +
+                "  }\n" +
+                "}\n" +
+                "}");
         }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");

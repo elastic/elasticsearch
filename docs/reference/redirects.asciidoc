@@ -82,15 +82,13 @@ The `_uid` field has been removed in favour of the <<mapping-id-field,`_id` fiel
 === memcached
 
 The `memcached` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 [role="exclude",id="modules-thrift"]
 === Thrift
 
 The `thrift` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 // QUERY DSL
 
@@ -611,3 +609,42 @@ The `TransportClient` is deprecated in favour of the
 Elasticsearch 8.0. The
 {java-rest}/java-rest-high-level-migration.html[migration guide] describes all
 the steps needed to migrate.
+
+[role="exclude",id="query-dsl-common-terms-query"]
+=== Common Terms Query
+
+The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
+query>> instead. The `match` query skips blocks of documents efficiently,
+without any configuration, if the total number of hits is not tracked.
+
+[role="exclude",id="xpack-api"]
+=== X-Pack APIs
+
+{es} {xpack} APIs are now documented in <<rest-apis, REST APIs>>. 
+
+[role="exclude",id="ml-calendar-resource"]]
+=== Calendar resources
+
+See <<ml-get-calendar>> and 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="ml-filter-resource"]
+=== Filter resources
+
+See <<ml-get-filter>> and
+{stack-ov}/ml-rules.html[Machine learning custom rules].
+
+[role="exclude",id="ml-event-resource"]
+=== Scheduled event resources
+
+See <<ml-get-calendar-event>> and 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[role="exclude",id="_repositories"]
+=== Snapshot repositories
+See <<snapshots-repositories>>.
+
+[role="exclude",id="_snapshot"]
+=== Snapshot
+See <<snapshots-take-snapshot>>.
+

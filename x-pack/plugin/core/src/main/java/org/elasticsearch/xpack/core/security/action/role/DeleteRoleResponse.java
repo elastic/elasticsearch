@@ -20,7 +20,10 @@ public class DeleteRoleResponse extends ActionResponse implements ToXContentObje
 
     private boolean found = false;
 
-    public DeleteRoleResponse() {}
+    public DeleteRoleResponse(StreamInput in) throws IOException {
+        super(in);
+        found = in.readBoolean();
+    }
 
     public DeleteRoleResponse(boolean found) {
         this.found = found;
@@ -38,13 +41,11 @@ public class DeleteRoleResponse extends ActionResponse implements ToXContentObje
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        found = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(found);
     }
 

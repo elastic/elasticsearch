@@ -168,7 +168,7 @@ public abstract class TransportReplicationAction<
         return new ReplicasProxy();
     }
 
-    protected abstract Response newResponseInstance();
+    protected abstract Response newResponseInstance(StreamInput in) throws IOException;
 
     /**
      * Resolves derived values in the request. For example, the target shard id of the incoming request, if not set at request construction.
@@ -341,11 +341,7 @@ public abstract class TransportReplicationAction<
                     // phase is executed on local shard and all subsequent operations are executed on relocation target as primary phase.
                     final ShardRouting primary = primaryShardReference.routingEntry();
                     assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
-                    final Writeable.Reader<Response> reader = in -> {
-                        Response response = TransportReplicationAction.this.newResponseInstance();
-                        response.readFrom(in);
-                        return response;
-                    };
+                    final Writeable.Reader<Response> reader = TransportReplicationAction.this::newResponseInstance;
                     DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(primaryRequest.getRequest(), primary.allocationId().getRelocationId(),
@@ -526,7 +522,7 @@ public abstract class TransportReplicationAction<
                 final ReplicaResult replicaResult = shardOperationOnReplica(replicaRequest.getRequest(), replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 final TransportReplicationAction.ReplicaResponse response =
-                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
+                        new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastSyncedGlobalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
@@ -749,9 +745,7 @@ public abstract class TransportReplicationAction<
 
                 @Override
                 public Response read(StreamInput in) throws IOException {
-                    Response response = newResponseInstance();
-                    response.readFrom(in);
-                    return response;
+                    return newResponseInstance(in);
                 }
 
                 @Override
@@ -892,10 +886,6 @@ public abstract class TransportReplicationAction<
             operationLock.close();
         }
 
-        public long getLocalCheckpoint() {
-            return indexShard.getLocalCheckpoint();
-        }
-
         public ShardRouting routingEntry() {
             return indexShard.routingEntry();
         }
@@ -943,7 +933,12 @@ public abstract class TransportReplicationAction<
 
         @Override
         public long globalCheckpoint() {
-            return indexShard.getGlobalCheckpoint();
+            return indexShard.getLastSyncedGlobalCheckpoint();
+        }
+
+        @Override
+        public long computedGlobalCheckpoint() {
+            return indexShard.getLastKnownGlobalCheckpoint();
         }
 
         @Override
@@ -986,7 +981,6 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
         }

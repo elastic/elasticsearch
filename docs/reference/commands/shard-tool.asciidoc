@@ -51,14 +51,14 @@ $ bin/elasticsearch-shard remove-corrupted-data --index twitter --shard-id 0
   Please make a complete backup of your index before using this tool.
 
 
-Opening Lucene index at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
+Opening Lucene index at /var/lib/elasticsearchdata/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
 
- >> Lucene index is corrupted at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
+ >> Lucene index is corrupted at /var/lib/elasticsearchdata/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
 
-Opening translog at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
+Opening translog at /var/lib/elasticsearchdata/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
 
 
- >> Translog is clean at /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
+ >> Translog is clean at /var/lib/elasticsearchdata/indices/P45vf_YQRhqjfwLMUvSqDw/0/translog/
 
 
   Corrupted Lucene index segments found - 32 documents will be lost.
@@ -93,7 +93,7 @@ POST /_cluster/reroute
 
 You must accept the possibility of data loss by changing parameter `accept_data_loss` to `true`.
 
-Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag from /var/lib/elasticsearchdata/nodes/0/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
+Deleted corrupt marker corrupted_FzTSBSuxT7i3Tls_TgwEag from /var/lib/elasticsearchdata/indices/P45vf_YQRhqjfwLMUvSqDw/0/index/
 
 --------------------------------------------------
 

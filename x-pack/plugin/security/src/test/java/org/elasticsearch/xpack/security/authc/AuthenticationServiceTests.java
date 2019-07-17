@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -364,7 +366,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+        currentState = dummyState(previousState.indexHealth == ClusterHealthStatus.GREEN ?
             ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
         service.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, service.getNumInvalidation());
@@ -538,7 +540,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testAuthenticateTransportDisabledUser() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
-        User user = new User("username", new String[] { "r1", "r2" }, null, null, null, false);
+        User user = new User("username", new String[] { "r1", "r2" }, null, null, Map.of(), false);
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
@@ -552,7 +554,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticateRestDisabledUser() throws Exception {
-        User user = new User("username", new String[] { "r1", "r2" }, null, null, null, false);
+        User user = new User("username", new String[] { "r1", "r2" }, null, null, Map.of(), false);
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, user);
@@ -938,7 +940,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         final User user = new User("lookup user", new String[]{"user"}, "lookup user", "lookup@foo.foo",
-                Collections.singletonMap("foo", "bar"), true);
+                Map.of("foo", "bar"), true);
         mockAuthenticate(secondRealm, token, user);
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doAnswer((i) -> {
@@ -1070,7 +1072,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockRealmLookupReturnsNull(firstRealm, "run_as");
         doAnswer((i) -> {
             ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
-            listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, null, false));
+            listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, Map.of(), false));
             return null;
         }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
@@ -1092,7 +1094,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<User> listener = (ActionListener<User>) i.getArguments()[1];
-            listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, null, false));
+            listener.onResponse(new User("looked up user", new String[]{"some role"}, null, null, Map.of(), false));
             return null;
         }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
 
@@ -1309,6 +1311,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private static class InternalMessage extends TransportMessage {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     void assertThreadContextContainsAuthentication(Authentication authentication) throws IOException {
@@ -1402,6 +1406,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus);
+        return new SecurityIndexManager.State(
+            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetaData.State.OPEN);
     }
 }

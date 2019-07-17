@@ -1,9 +1,9 @@
 {
   "license.post_start_trial": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trial.html",
+    "stability": "stable",
     "methods": ["POST"],
     "url": {
-      "path": "/_license/start_trial",
       "paths": ["/_license/start_trial"],
       "parts" : {
       },

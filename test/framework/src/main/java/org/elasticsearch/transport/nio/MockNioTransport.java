@@ -67,6 +67,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -84,7 +85,7 @@ public class MockNioTransport extends TcpTransport {
                             PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                             CircuitBreakerService circuitBreakerService) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
-        this.transportThreadWatchdog = new TransportThreadWatchdog(threadPool);
+        this.transportThreadWatchdog = new TransportThreadWatchdog(threadPool, settings);
     }
 
     @Override
@@ -228,12 +229,25 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
             MockServerChannel nioServerChannel = new MockServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
-            ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
-                exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioServerChannel, null, selector, null,
+                exceptionHandler) {
+                @Override
+                public void acceptChannels(Supplier<NioSelector> selectorSupplier) throws IOException {
+                    int acceptCount = 0;
+                    NioSocketChannel acceptedChannel;
+                    while ((acceptedChannel = MockTcpChannelFactory.this.acceptNioChannel(this, selectorSupplier)) != null) {
+                        acceptChannel(acceptedChannel);
+                        ++acceptCount;
+                        if (acceptCount % 100 == 0) {
+                            logger.warn("Accepted [{}] connections in a single select loop iteration on [{}]", acceptCount, channel);
+                        }
+                    }
+                }
+            };
             nioServerChannel.setContext(context);
             return nioServerChannel;
         }
@@ -322,21 +336,20 @@ public class MockNioTransport extends TcpTransport {
     }
 
     static final class TransportThreadWatchdog {
-
-        private static final long WARN_THRESHOLD = TimeUnit.MILLISECONDS.toNanos(150);
-
         // Only check every 2s to not flood the logs on a blocked thread.
         // We mostly care about long blocks and not random slowness anyway and in tests would randomly catch slow operations that block for
         // less than 2s eventually.
         private static final TimeValue CHECK_INTERVAL = TimeValue.timeValueSeconds(2);
 
+        private final long warnThreshold;
         private final ThreadPool threadPool;
         private final ConcurrentHashMap<Thread, Long> registry = new ConcurrentHashMap<>();
 
         private volatile boolean stopped;
 
-        TransportThreadWatchdog(ThreadPool threadPool) {
+        TransportThreadWatchdog(ThreadPool threadPool, Settings settings) {
             this.threadPool = threadPool;
+            warnThreshold = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(settings).nanos() + TimeValue.timeValueMillis(100L).nanos();
             threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
         }
 
@@ -353,7 +366,7 @@ public class MockNioTransport extends TcpTransport {
 
         private void maybeLogElapsedTime(long startTime) {
             long elapsedTime = threadPool.relativeTimeInNanos() - startTime;
-            if (elapsedTime > WARN_THRESHOLD) {
+            if (elapsedTime > warnThreshold) {
                 logger.warn(
                     new ParameterizedMessage("Slow execution on network thread [{} milliseconds]",
                         TimeUnit.NANOSECONDS.toMillis(elapsedTime)),
@@ -363,12 +376,17 @@ public class MockNioTransport extends TcpTransport {
 
         private void logLongRunningExecutions() {
             for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
-                final long elapsedTime = threadPool.relativeTimeInMillis() - entry.getValue();
-                if (elapsedTime > WARN_THRESHOLD) {
+                final Long blockedSinceInNanos = entry.getValue();
+                final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - blockedSinceInNanos;
+                if (elapsedTimeInNanos > warnThreshold) {
                     final Thread thread = entry.getKey();
-                    logger.warn("Slow execution on network thread [{}] [{} milliseconds]: \n{}", thread.getName(),
-                        TimeUnit.NANOSECONDS.toMillis(elapsedTime),
-                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
+                    final String stackTrace =
+                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
+                    final Thread.State threadState = thread.getState();
+                    if (blockedSinceInNanos == registry.get(thread)) {
+                        logger.warn("Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
+                            thread.getName(), threadState, TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos), stackTrace);
+                    }
                 }
             }
             if (stopped == false) {

@@ -20,7 +20,7 @@ index shard prirep ip        segment generation docs.count docs.deleted size siz
 test  0     p      127.0.0.1 _0               0          1            0  3kb        2042 false     true       {lucene_version}   true
 test1 0     p      127.0.0.1 _0               0          1            0  3kb        2042 false     true       {lucene_version}   true
 --------------------------------------------------
-// TESTRESPONSE[s/3kb/\\d+(\\.\\d+)?[mk]?b/ s/2042/\\d+/ _cat]
+// TESTRESPONSE[s/3kb/\\d+(\\.\\d+)?[mk]?b/ s/2042/\\d+/ non_json]
 
 The output shows information about index names and shard numbers in the first
 two columns.

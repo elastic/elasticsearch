@@ -29,6 +29,8 @@ import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geo.utils.StandardValidator;
+import org.elasticsearch.geo.utils.GeometryValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
@@ -48,6 +50,12 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
     public static final String NAME = "geo";
 
     private final Geometry shape;
+
+    private static final GeometryValidator validator = new StandardValidator(true);
+
+    private static final GeometryParser GEOMETRY_PARSER = new GeometryParser(true, true, true);
+
+    private static final WellKnownText WKT_PARSER = new WellKnownText(true, validator);
 
     public GeoShape(double lon, double lat) {
         shape = new Point(lat, lon);
@@ -72,17 +80,17 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(WellKnownText.toWKT(shape));
+        out.writeString(WKT_PARSER.toWKT(shape));
     }
 
     @Override
     public String toString() {
-        return WellKnownText.toWKT(shape);
+        return WKT_PARSER.toWKT(shape);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(WellKnownText.toWKT(shape));
+        return builder.value(WKT_PARSER.toWKT(shape));
     }
 
     public Geometry toGeometry() {
@@ -216,7 +224,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value
-            return GeometryParser.parse(parser, true, true, true);
+            return GEOMETRY_PARSER.parse(parser);
         }
     }
 }

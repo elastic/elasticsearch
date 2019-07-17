@@ -15,7 +15,8 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
@@ -116,7 +117,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         }
 
         // put a watch that has watch level transform:
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
@@ -125,7 +126,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
         // put a watch that has a action level transform:
-        putWatchResponse = watcherClient().preparePutWatch("_id2")
+        putWatchResponse = new PutWatchRequestBuilder(client(), "_id2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
@@ -154,7 +155,6 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
     }
 
-    @TestLogging("org.elasticsearch.xpack.watcher:DEBUG")
     public void testSearchTransform() throws Exception {
         createIndex("my-condition-index", "my-payload-index");
         ensureGreen("my-condition-index", "my-payload-index");
@@ -165,7 +165,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         WatcherSearchTemplateRequest inputRequest = templateRequest(searchSource().query(matchAllQuery()), "my-condition-index");
         WatcherSearchTemplateRequest transformRequest = templateRequest(searchSource().query(matchAllQuery()), "my-payload-index");
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id1")
                 .setSource(watchBuilder()
                                 .trigger(schedule(interval("5s")))
                                 .input(searchInput(inputRequest))
@@ -173,7 +173,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                                 .addAction("_id", indexAction("output1", "result"))
                 ).get();
         assertThat(putWatchResponse.isCreated(), is(true));
-        putWatchResponse = watcherClient().preparePutWatch("_id2")
+        putWatchResponse = new PutWatchRequestBuilder(client(), "_id2")
                 .setSource(watchBuilder()
                                 .trigger(schedule(interval("5s")))
                                 .input(searchInput(inputRequest))
@@ -205,7 +205,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         Script script2 = mockScript("['key4' : ctx.payload.key3 + 10]");
 
         // put a watch that has watch level transform:
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
@@ -214,7 +214,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
         // put a watch that has a action level transform:
-        putWatchResponse = watcherClient().preparePutWatch("_id2")
+        putWatchResponse = new PutWatchRequestBuilder(client(), "_id2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput(MapBuilder.<String, Object>newMapBuilder().put("key1", 10).put("key2", 10)))
@@ -245,7 +245,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
     }
 
     private void executeWatch(String watchId) {
-        watcherClient().prepareExecuteWatch(watchId)
+        new ExecuteWatchRequestBuilder(client(), watchId)
             .setRecordExecution(true)
             .get();
     }

@@ -115,18 +115,15 @@ public class MetaDataIndexUpgradeService {
     }
 
     /**
-     * Elasticsearch v6.0 no longer supports indices created pre v5.0. All indices
-     * that were created before Elasticsearch v5.0 should be re-indexed in Elasticsearch 5.x
-     * before they can be opened by this version of elasticsearch.
+     * Elasticsearch does not support indices created before the previous major version. They must be reindexed using an earlier version
+     * before they can be opened here.
      */
     private void checkSupportedVersion(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
-        if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData,
-            minimumIndexCompatibilityVersion) == false) {
-            throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created with version ["
+        if (isSupportedVersion(indexMetaData, minimumIndexCompatibilityVersion) == false) {
+            throw new IllegalStateException("The index " + indexMetaData.getIndex() + " was created with version ["
                 + indexMetaData.getCreationVersion() + "] but the minimum compatible version is ["
-
-                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch " + minimumIndexCompatibilityVersion.major
-                + ".x before upgrading to " + Version.CURRENT + ".");
+                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch "
+                + minimumIndexCompatibilityVersion.major + ".x before upgrading to " + Version.CURRENT + ".");
         }
     }
 
@@ -195,7 +192,7 @@ public class MetaDataIndexUpgradeService {
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(indexSettings, analyzerMap, analyzerMap, analyzerMap)) {
+                     new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);

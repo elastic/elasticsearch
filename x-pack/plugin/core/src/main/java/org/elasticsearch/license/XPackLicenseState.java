@@ -454,12 +454,12 @@ public class XPackLicenseState {
     }
 
     /**
-     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the license {@link OperationMode}
+     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the current node/cluster state
      */
     public synchronized boolean isApiKeyServiceAllowed() {
         final OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-        return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+        return isSecurityCurrentlyEnabled;
     }
 
     /**
@@ -609,6 +609,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Voting only node functionality is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isVotingOnlyAllowed() {
+        return status.active;
+    }
+
+    /**
      * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
      * @return {@code true} as long as there is a valid license
      */
@@ -685,6 +694,24 @@ public class XPackLicenseState {
         boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
 
         return licensed && localStatus.active;
+    }
+
+    /**
+     * Determine if support for flattened object fields should be enabled.
+     * <p>
+     * Flattened fields are available for all license types except {@link OperationMode#MISSING}.
+     */
+    public synchronized boolean isFlattenedAllowed() {
+        return status.active;
+    }
+
+    /**
+     * Determine if Vectors support should be enabled.
+     * <p>
+     *  Vectors is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isVectorsAllowed() {
+        return status.active;
     }
 
     /**

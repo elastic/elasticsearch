@@ -1027,7 +1027,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.ShardNotInPrimaryModeException.class,
                 org.elasticsearch.index.shard.ShardNotInPrimaryModeException::new,
                 155,
-                Version.V_6_8_1);
+                UNKNOWN_VERSION_ADDED);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

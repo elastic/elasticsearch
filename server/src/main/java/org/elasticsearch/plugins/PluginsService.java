@@ -33,8 +33,6 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -114,7 +112,7 @@ public class PluginsService {
         List<PluginInfo> pluginsList = new ArrayList<>();
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
-        // first we load plugins that are on the classpath. this is for tests and transport clients
+        // first we load plugins that are on the classpath. this is for tests
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
@@ -237,29 +235,12 @@ public class PluginsService {
         return builder.put(this.settings).build();
     }
 
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().createGuiceModules());
-        }
-        return modules;
-    }
-
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final ArrayList<ExecutorBuilder<?>> builders = new ArrayList<>();
         for (final Tuple<PluginInfo, Plugin> plugin : plugins) {
             builders.addAll(plugin.v2().getExecutorBuilders(settings));
         }
         return builders;
-    }
-
-    /** Returns all classes injected into guice by plugins which extend {@link LifecycleComponent}. */
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        List<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            services.addAll(plugin.v2().getGuiceServiceClasses());
-        }
-        return services;
     }
 
     public void onIndexModule(IndexModule indexModule) {

@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
@@ -14,29 +15,18 @@ task restTest(type: RestIntegTestTask) {
     mustRunAfter(precommit)
 }
 
-restTestCluster {
-    distribution 'default'
+testClusters.restTest {
+    testDistribution = 'DEFAULT'
     // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
     // indexing a document directly in a follower index. In a rest test we like to test the exception
     // that is thrown in production when indexing a document directly in a follower index.
-    environment 'ES_JAVA_OPTS', '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
+    jvmArgs '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     // TODO: reduce the need for superuser here
-    setupCommand 'setup-ccr-user',
-            'bin/elasticsearch-users', 'useradd', 'ccr-user', '-p', 'ccr-user-password', '-r', 'superuser'
-    waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-                dest: tmpFile.toString(),
-                username: 'ccr-user',
-                password: 'ccr-user-password',
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
+    user username:'ccr-user', password: 'ccr-user-password', role: 'superuser'
 }
 
 check.dependsOn restTest

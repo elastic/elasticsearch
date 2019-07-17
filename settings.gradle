@@ -120,43 +120,47 @@ include projects.toArray(new String[0])
 
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
 
+project(":libs").children.each { libsProject ->
+    libsProject.name = "elasticsearch-${libsProject.name}"
+}
+
 if (isEclipse) {
   project(":server").projectDir = new File(rootProject.projectDir, 'server/src/main')
   project(":server").buildFileName = 'eclipse-build.gradle'
   project(":server-tests").projectDir = new File(rootProject.projectDir, 'server/src/test')
   project(":server-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:core").projectDir = new File(rootProject.projectDir, 'libs/core/src/main')
-  project(":libs:core").buildFileName = 'eclipse-build.gradle'
-  project(":libs:core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
-  project(":libs:core-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:dissect").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/main')
-  project(":libs:dissect").buildFileName = 'eclipse-build.gradle'
-  project(":libs:dissect-tests").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/test')
-  project(":libs:dissect-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:nio").projectDir = new File(rootProject.projectDir, 'libs/nio/src/main')
-  project(":libs:nio").buildFileName = 'eclipse-build.gradle'
-  project(":libs:nio-tests").projectDir = new File(rootProject.projectDir, 'libs/nio/src/test')
-  project(":libs:nio-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
-  project(":libs:x-content").buildFileName = 'eclipse-build.gradle'
-  project(":libs:x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')
-  project(":libs:x-content-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
-  project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
-  project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
-  project(":libs:secure-sm-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
-  project(":libs:grok").buildFileName = 'eclipse-build.gradle'
-  project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
-  project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:geo").projectDir = new File(rootProject.projectDir, 'libs/geo/src/main')
-  project(":libs:geo").buildFileName = 'eclipse-build.gradle'
-  project(":libs:geo-tests").projectDir = new File(rootProject.projectDir, 'libs/geo/src/test')
-  project(":libs:geo-tests").buildFileName = 'eclipse-build.gradle'
-  project(":libs:ssl-config").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/main')
-  project(":libs:ssl-config").buildFileName = 'eclipse-build.gradle'
-  project(":libs:ssl-config-tests").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/test')
-  project(":libs:ssl-config-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-core").projectDir = new File(rootProject.projectDir, 'libs/core/src/main')
+  project(":libs:elasticsearch-core").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-core-tests").projectDir = new File(rootProject.projectDir, 'libs/core/src/test')
+  project(":libs:elasticsearch-core-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-dissect").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/main')
+  project(":libs:elasticsearch-dissect").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-dissect-tests").projectDir = new File(rootProject.projectDir, 'libs/dissect/src/test')
+  project(":libs:elasticsearch-dissect-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-nio").projectDir = new File(rootProject.projectDir, 'libs/nio/src/main')
+  project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/nio/src/test')
+  project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
+  project(":libs:elasticsearch-x-content").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')
+  project(":libs:elasticsearch-x-content-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
+  project(":libs:elasticsearch-secure-sm").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
+  project(":libs:elasticsearch-secure-sm-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
+  project(":libs:elasticsearch-grok").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
+  project(":libs:elasticsearch-grok-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-geo").projectDir = new File(rootProject.projectDir, 'libs/geo/src/main')
+  project(":libs:elasticsearch-geo").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-geo-tests").projectDir = new File(rootProject.projectDir, 'libs/geo/src/test')
+  project(":libs:elasticsearch-geo-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-ssl-config").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/main')
+  project(":libs:elasticsearch-ssl-config").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-ssl-config-tests").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/test')
+  project(":libs:elasticsearch-ssl-config-tests").buildFileName = 'eclipse-build.gradle'
   project(":client:rest-high-level").projectDir = new File(rootProject.projectDir, 'client/rest-high-level/src/main')
   project(":client:rest-high-level").buildFileName = 'eclipse-build.gradle'
   project(":client:rest-high-level-tests").projectDir = new File(rootProject.projectDir, 'client/rest-high-level/src/test')
@@ -175,7 +179,3 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
-
-project(":libs:cli").name = 'elasticsearch-cli'
-project(":libs:geo").name = 'elasticsearch-geo'
-project(":libs:ssl-config").name = 'elasticsearch-ssl-config'

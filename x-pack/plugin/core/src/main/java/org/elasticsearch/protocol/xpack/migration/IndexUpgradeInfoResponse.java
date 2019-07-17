@@ -39,7 +39,6 @@ public class IndexUpgradeInfoResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeMap(actions, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
     }
 

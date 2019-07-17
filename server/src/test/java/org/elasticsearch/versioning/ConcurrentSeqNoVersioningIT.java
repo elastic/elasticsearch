@@ -38,7 +38,6 @@ import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -119,10 +118,6 @@ import static org.hamcrest.Matchers.greaterThan;
  * </ul>
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6)
-@TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
-    "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
-    "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
-    "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
 public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private static final Pattern EXTRACT_VERSION = Pattern.compile("current document has seqNo \\[(\\d+)\\] and primary term \\[(\\d+)\\]");
@@ -136,6 +131,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
+                .put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(3))
             ));
@@ -445,13 +441,17 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             logger.info("--> Linearizability checking history of size: {} for key: {} and initialVersion: {}: {}", history.size(),
                 id, initialVersion, history);
             LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
-            boolean linearizable = new LinearizabilityChecker().isLinearizable(spec, history, missingResponseGenerator());
-            // implicitly test that we can serialize all histories.
-            String serializedHistory = base64Serialize(history);
-            if (linearizable == false) {
-                // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
-                logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}", spec, initialVersion,
-                    serializedHistory);
+            boolean linearizable = false;
+            try {
+                linearizable = new LinearizabilityChecker().isLinearizable(spec, history, missingResponseGenerator());
+            } finally {
+                // implicitly test that we can serialize all histories.
+                String serializedHistory = base64Serialize(history);
+                if (linearizable == false) {
+                    // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
+                    logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}",
+                        spec, initialVersion, serializedHistory);
+                }
             }
             return linearizable;
         }

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -36,11 +36,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 
-public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
+public class TransportGetSettingsAction extends StreamableTransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;
     private final IndexScopedSettings indexScopedSettings;
@@ -79,7 +80,8 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
     }
 
     @Override
-    protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
+    protected void masterOperation(Task task, GetSettingsRequest request, ClusterState state,
+                                   ActionListener<GetSettingsResponse> listener) {
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> indexToDefaultSettingsBuilder = ImmutableOpenMap.builder();

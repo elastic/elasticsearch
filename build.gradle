@@ -109,6 +109,17 @@ subprojects {
  * *something* to test against. */
 BwcVersions versions = new BwcVersions(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
 
+task updateCIBwcVersions() {
+    doLast {
+        File yml = file(".ci/bwcVersions")
+        yml.text = ""
+        yml << "BWC_VERSION:\n"
+        versions.indexCompatible.each {
+            yml << "  - \"$it\"\n"
+        }
+    }
+}
+
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')
 if (buildMetadataValue == null) {
@@ -151,6 +162,12 @@ task verifyVersions {
                       .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
                       .collect { Version.fromString(it) }
       )
+    }
+    String ciYml = file(".ci/bwcVersions").text
+    bwcVersions.indexCompatible.each {
+        if (ciYml.contains("\"$it\"\n") == false) {
+            throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
+        }
     }
   }
 }

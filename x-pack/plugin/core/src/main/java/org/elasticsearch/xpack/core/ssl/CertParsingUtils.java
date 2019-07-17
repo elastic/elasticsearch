@@ -278,9 +278,9 @@ public class CertParsingUtils {
     }
 
     /**
-     * Checks that the {@code X509Certificate} array is ordered, such that the end-entity certificate is first and it is followed by any certificate
-     * authorities'. The check validates that the {@code issuer} of every certificate is the {@code subject} of the certificate in the next
-     * array position. No other certificate attributes are checked.
+     * Checks that the {@code X509Certificate} array is ordered, such that the end-entity certificate is first and it is followed by any
+     * certificate authorities'. The check validates that the {@code issuer} of every certificate is the {@code subject} of the certificate
+     * in the next array position. No other certificate attributes are checked.
      */
     public static boolean isOrderedCertificateChain(X509Certificate[] chain) {
         for (int i = 1; i < chain.length; i++) {

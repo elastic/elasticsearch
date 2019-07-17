@@ -34,6 +34,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -320,4 +322,10 @@ public class MultiSearchRequestTests extends ESTestCase {
         });
     }
 
+    public void testTaskIsCancellable() {
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+        Task task = multiSearchRequest.createTask(1, "type", "action", null, Collections.emptyMap());
+        assertThat(task, instanceOf(CancellableTask.class));
+        assertTrue(((CancellableTask)task).shouldCancelChildrenOnCancellation());
+    }
 }

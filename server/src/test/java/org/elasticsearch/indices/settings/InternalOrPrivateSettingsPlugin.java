@@ -77,8 +77,13 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             private String key;
             private String value;
 
-            Request() {
+            Request() {}
 
+            Request(StreamInput in) throws IOException {
+                super(in);
+                index = in.readString();
+                key = in.readString();
+                value = in.readString();
             }
 
             public Request(final String index, final String key, final String value) {
@@ -90,14 +95,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             @Override
             public ActionRequestValidationException validate() {
                 return null;
-            }
-
-            @Override
-            public void readFrom(final StreamInput in) throws IOException {
-                super.readFrom(in);
-                index = in.readString();
-                key = in.readString();
-                value = in.readString();
             }
 
             @Override
@@ -138,8 +135,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                     clusterService,
                     threadPool,
                     actionFilters,
-                    indexNameExpressionResolver,
-                    UpdateInternalOrPrivateAction.Request::new);
+                    UpdateInternalOrPrivateAction.Request::new,
+                    indexNameExpressionResolver);
         }
 
         @Override

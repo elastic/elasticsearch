@@ -86,7 +86,8 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            params = new DatafeedParams(in);
         }
 
         public Request() {
@@ -105,12 +106,6 @@ public class StartDatafeedAction extends ActionType<AcknowledgedResponse> {
                         + " [" + params.endTime + "]", e);
             }
             return e;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            params = new DatafeedParams(in);
         }
 
         @Override

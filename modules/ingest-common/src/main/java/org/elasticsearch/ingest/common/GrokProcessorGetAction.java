@@ -66,10 +66,16 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         public ActionRequestValidationException validate() {
             return null;
         }
+
+        Request() {}
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private Map<String, String> grokPatterns;
+        private final Map<String, String> grokPatterns;
 
         Response(Map<String, String> grokPatterns) {
             this.grokPatterns = grokPatterns;

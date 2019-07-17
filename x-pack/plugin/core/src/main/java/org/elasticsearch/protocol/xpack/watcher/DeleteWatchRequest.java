@@ -22,12 +22,16 @@ public class DeleteWatchRequest extends ActionRequest {
     private String id;
     private long version = Versions.MATCH_ANY;
 
-    public DeleteWatchRequest() {
-        this(null);
-    }
+    public DeleteWatchRequest() {}
 
     public DeleteWatchRequest(String id) {
         this.id = id;
+    }
+
+    public DeleteWatchRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        version = in.readLong();
     }
 
     /**
@@ -57,9 +61,7 @@ public class DeleteWatchRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        version = in.readLong();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

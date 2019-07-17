@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class CreateIndexAction extends ActionType<CreateIndexResponse> {
 
@@ -28,11 +27,7 @@ public class CreateIndexAction extends ActionType<CreateIndexResponse> {
     public static final String NAME = "indices:admin/create";
 
     private CreateIndexAction() {
-        super(NAME);
+        super(NAME, CreateIndexResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<CreateIndexResponse> getResponseReader() {
-        return CreateIndexResponse::new;
-    }
 }

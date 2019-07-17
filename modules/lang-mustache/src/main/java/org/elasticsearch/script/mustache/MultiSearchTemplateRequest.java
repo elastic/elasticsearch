@@ -55,7 +55,6 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         requests = in.readList(SearchTemplateRequest::new);
     }
 
-
     /**
      * Add a search template request to execute. Note, the order is important, the search response will be returned in the
      * same order as the search requests.
@@ -125,7 +124,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public void readFrom(StreamInput in) {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 

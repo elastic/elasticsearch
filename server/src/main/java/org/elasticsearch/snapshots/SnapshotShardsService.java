@@ -30,7 +30,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -428,8 +428,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         private ShardId shardId;
         private ShardSnapshotStatus status;
 
-        public UpdateIndexShardSnapshotStatusRequest() {
+        public UpdateIndexShardSnapshotStatusRequest() {}
 
+        public UpdateIndexShardSnapshotStatusRequest(StreamInput in) throws IOException {
+            super(in);
+            snapshot = new Snapshot(in);
+            shardId = new ShardId(in);
+            status = new ShardSnapshotStatus(in);
         }
 
         public UpdateIndexShardSnapshotStatusRequest(Snapshot snapshot, ShardId shardId, ShardSnapshotStatus status) {
@@ -443,14 +448,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            snapshot = new Snapshot(in);
-            shardId = new ShardId(in);
-            status = new ShardSnapshotStatus(in);
         }
 
         @Override
@@ -611,16 +608,17 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     static class UpdateIndexShardSnapshotStatusResponse extends ActionResponse {
-
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     private class UpdateSnapshotStatusAction
-        extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
+        extends StreamableTransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
             UpdateSnapshotStatusAction(TransportService transportService, ClusterService clusterService,
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
                     super(
                         SnapshotShardsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME, transportService, clusterService, threadPool,
-                        actionFilters, indexNameExpressionResolver, UpdateIndexShardSnapshotStatusRequest::new
+                        actionFilters, UpdateIndexShardSnapshotStatusRequest::new, indexNameExpressionResolver
                     );
         }
 

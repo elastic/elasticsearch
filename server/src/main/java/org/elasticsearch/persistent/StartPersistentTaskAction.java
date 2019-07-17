@@ -24,7 +24,7 @@ import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -69,22 +69,19 @@ public class StartPersistentTaskAction extends StreamableResponseActionType<Pers
 
         private PersistentTaskParams params;
 
-        public Request() {
+        public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
+            taskName = in.readString();
+            params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
         public Request(String taskId, String taskName, PersistentTaskParams params) {
             this.taskId = taskId;
             this.taskName = taskName;
             this.params = params;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
-            taskName = in.readString();
-            params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
         @Override
@@ -178,7 +175,7 @@ public class StartPersistentTaskAction extends StreamableResponseActionType<Pers
 
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    public static class TransportAction extends StreamableTransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
@@ -190,7 +187,7 @@ public class StartPersistentTaskAction extends StreamableResponseActionType<Pers
                                PersistentTasksService persistentTasksService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
             clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,

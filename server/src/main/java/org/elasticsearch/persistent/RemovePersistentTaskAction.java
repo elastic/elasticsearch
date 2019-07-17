@@ -24,7 +24,7 @@ import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -59,8 +59,11 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
 
         private String taskId;
 
-        public Request() {
+        public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
         }
 
         public Request(String taskId) {
@@ -69,12 +72,6 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
 
         public void setTaskId(String taskId) {
             this.taskId = taskId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
         }
 
         @Override
@@ -116,7 +113,7 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
 
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
+    public static class TransportAction extends StreamableTransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
@@ -126,7 +123,7 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 

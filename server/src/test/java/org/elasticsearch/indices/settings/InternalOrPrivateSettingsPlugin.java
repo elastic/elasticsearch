@@ -26,7 +26,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -78,8 +78,13 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             private String key;
             private String value;
 
-            Request() {
+            Request() {}
 
+            Request(StreamInput in) throws IOException {
+                super(in);
+                index = in.readString();
+                key = in.readString();
+                value = in.readString();
             }
 
             public Request(final String index, final String key, final String value) {
@@ -94,14 +99,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             }
 
             @Override
-            public void readFrom(final StreamInput in) throws IOException {
-                super.readFrom(in);
-                index = in.readString();
-                key = in.readString();
-                value = in.readString();
-            }
-
-            @Override
             public void writeTo(final StreamOutput out) throws IOException {
                 super.writeTo(out);
                 out.writeString(index);
@@ -112,7 +109,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         static class Response extends ActionResponse {
-
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {}
         }
 
         @Override
@@ -123,7 +121,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
     }
 
     public static class TransportUpdateInternalOrPrivateAction
-            extends TransportMasterNodeAction<UpdateInternalOrPrivateAction.Request, UpdateInternalOrPrivateAction.Response> {
+            extends StreamableTransportMasterNodeAction<UpdateInternalOrPrivateAction.Request, UpdateInternalOrPrivateAction.Response> {
 
         @Inject
         public TransportUpdateInternalOrPrivateAction(
@@ -138,8 +136,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                     clusterService,
                     threadPool,
                     actionFilters,
-                    indexNameExpressionResolver,
-                    UpdateInternalOrPrivateAction.Request::new);
+                    UpdateInternalOrPrivateAction.Request::new,
+                    indexNameExpressionResolver);
         }
 
         @Override

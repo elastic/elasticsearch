@@ -42,14 +42,13 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
         public Request() {
         }
 
-        public String[] getJobIds() {
-            return jobIds;
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobIds = in.readStringArray();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobIds = in.readStringArray();
+        public String[] getJobIds() {
+            return jobIds;
         }
 
         @Override

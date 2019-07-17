@@ -76,6 +76,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private Index concreteIndex;
 
+    public PutMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        type = in.readOptionalString();
+        source = in.readString();
+        concreteIndex = in.readOptionalWriteable(Index::new);
+        origin = in.readOptionalString();
+    }
+
     public PutMappingRequest() {
     }
 
@@ -297,17 +307,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         } catch (IOException e) {
             throw new UncheckedIOException("failed to convert source to json", e);
         }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
-        source = in.readString();
-        concreteIndex = in.readOptionalWriteable(Index::new);
-        origin = in.readOptionalString();
     }
 
     @Override

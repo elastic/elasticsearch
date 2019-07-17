@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupIndexCapsAction extends StreamableResponseActionType<GetRollupIndexCapsAction.Response> {
+public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsAction.Response> {
 
     public static final GetRollupIndexCapsAction INSTANCE = new GetRollupIndexCapsAction();
     public static final String NAME = "indices:data/read/xpack/rollup/get/index/caps";
@@ -39,12 +39,7 @@ public class GetRollupIndexCapsAction extends StreamableResponseActionType<GetRo
     private static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     private GetRollupIndexCapsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, GetRollupIndexCapsAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {
@@ -156,7 +151,6 @@ public class GetRollupIndexCapsAction extends StreamableResponseActionType<GetRo
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 

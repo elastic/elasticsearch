@@ -292,7 +292,6 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {

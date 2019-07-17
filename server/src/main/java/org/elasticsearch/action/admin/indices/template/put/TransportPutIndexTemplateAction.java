@@ -54,7 +54,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            IndexScopedSettings indexScopedSettings) {
         super(PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, PutIndexTemplateRequest::new);
+            PutIndexTemplateRequest::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -68,11 +68,6 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

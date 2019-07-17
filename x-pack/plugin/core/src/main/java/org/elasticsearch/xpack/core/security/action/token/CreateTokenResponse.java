@@ -30,6 +30,15 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
 
     CreateTokenResponse() {}
 
+    public CreateTokenResponse(StreamInput in) throws IOException {
+        super(in);
+        tokenString = in.readString();
+        expiresIn = in.readTimeValue();
+        scope = in.readOptionalString();
+        refreshToken = in.readOptionalString();
+        kerberosAuthenticationResponseToken = in.readOptionalString();
+    }
+
     public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope, String refreshToken,
                                String kerberosAuthenticationResponseToken) {
         this.tokenString = Objects.requireNonNull(tokenString);
@@ -61,7 +70,6 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(tokenString);
         out.writeTimeValue(expiresIn);
         out.writeOptionalString(scope);
@@ -71,12 +79,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tokenString = in.readString();
-        expiresIn = in.readTimeValue();
-        scope = in.readOptionalString();
-        refreshToken = in.readOptionalString();
-        kerberosAuthenticationResponseToken = in.readOptionalString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -167,8 +167,6 @@ if (useFixture) {
     'http://127.0.0.1:' + minioPort
   }
 
-  File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
-
   normalization {
     runtimeClasspath {
       // ignore generated address file for the purposes of build avoidance
@@ -178,12 +176,7 @@ if (useFixture) {
 
   thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    outputs.file(minioAddressFile)
-    doFirst {
-      file(minioAddressFile).text = "${ -> minioAddress.call() }"
-    }
-    // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
-    systemProperty 'test.s3.endpoint', minioAddressFile.name
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
 
   task integTestMinio(type: RestIntegTestTask) {
@@ -331,7 +324,17 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency 
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
 
 thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
+

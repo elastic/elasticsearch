@@ -23,8 +23,9 @@ public class IndexUpgradeInfoResponse extends ActionResponse implements ToXConte
 
     private Map<String, UpgradeActionRequired> actions;
 
-    public IndexUpgradeInfoResponse() {
-
+    public IndexUpgradeInfoResponse(StreamInput in) throws IOException {
+        super(in);
+        actions = in.readMap(StreamInput::readString, UpgradeActionRequired::readFromStream);
     }
 
     public IndexUpgradeInfoResponse(Map<String, UpgradeActionRequired> actions) {
@@ -33,13 +34,11 @@ public class IndexUpgradeInfoResponse extends ActionResponse implements ToXConte
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        actions = in.readMap(StreamInput::readString, UpgradeActionRequired::readFromStream);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeMap(actions, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
     }
 

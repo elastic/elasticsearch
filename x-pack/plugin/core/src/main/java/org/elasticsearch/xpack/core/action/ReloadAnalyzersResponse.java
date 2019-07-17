@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,7 +16,6 @@ import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.Reload
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,9 +36,10 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
     private static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
     private static final ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
 
-
-    public ReloadAnalyzersResponse() {
-        reloadDetails = Collections.emptyMap();
+    public ReloadAnalyzersResponse(StreamInput in) throws IOException {
+        super(in);
+        reloadDetails = null;
+        // TODO: this needs to deserialize reloadDetails, see https://github.com/elastic/elasticsearch/issues/44383
     }
 
     public ReloadAnalyzersResponse(int totalShards, int successfulShards, int failedShards,

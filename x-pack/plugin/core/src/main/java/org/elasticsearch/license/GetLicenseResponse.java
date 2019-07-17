@@ -15,7 +15,11 @@ public class GetLicenseResponse extends ActionResponse {
 
     private License license;
 
-    GetLicenseResponse() {
+    GetLicenseResponse(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            license = License.readLicense(in);
+        }
     }
 
     GetLicenseResponse(License license) {
@@ -28,15 +32,11 @@ public class GetLicenseResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            license = License.readLicense(in);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         if (license == null) {
             out.writeBoolean(false);
         } else {

@@ -32,7 +32,10 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
     private String recordId;
     private XContentSource recordSource;
 
-    public ExecuteWatchResponse() {
+    public ExecuteWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        recordId = in.readString();
+        recordSource = XContentSource.readFrom(in);
     }
 
     public ExecuteWatchResponse(String recordId, BytesReference recordSource, XContentType contentType) {
@@ -75,14 +78,11 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recordId = in.readString();
-        recordSource = XContentSource.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(recordId);
         XContentSource.writeTo(recordSource, out);
     }

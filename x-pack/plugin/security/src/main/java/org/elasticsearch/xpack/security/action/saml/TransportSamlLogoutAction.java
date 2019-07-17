@@ -42,7 +42,7 @@ public final class TransportSamlLogoutAction
     @Inject
     public TransportSamlLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms,
                                      TokenService tokenService) {
-        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
+        super(SamlLogoutAction.NAME, transportService, SamlLogoutRequest::new, actionFilters);
         this.realms = realms;
         this.tokenService = tokenService;
     }
@@ -112,7 +112,7 @@ public final class TransportSamlLogoutAction
         final String session = getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_SESSION);
         final LogoutRequest logout = realm.buildLogoutRequest(nameId.asXml(), session);
         if (logout == null) {
-            return new SamlLogoutResponse(null);
+            return new SamlLogoutResponse((String)null);
         }
         final String uri = new SamlRedirect(logout, realm.getSigningConfiguration()).getRedirectUrl();
         return new SamlLogoutResponse(uri);

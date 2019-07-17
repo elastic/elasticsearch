@@ -448,12 +448,15 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         Auditor auditor = new Auditor(client, clusterService.getNodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(env,
             settings,
             jobResultsProvider,
+            jobResultsPersister,
             clusterService,
             auditor,
             threadPool,
@@ -463,9 +466,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
         JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
-
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
 
         NativeStorageProvider nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
 
@@ -509,8 +509,16 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 xContentRegistry, auditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
                 autodetectProcessFactory, normalizerFactory, nativeStorageProvider);
         this.autodetectProcessManager.set(autodetectProcessManager);
-        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, settings, xContentRegistry,
-                auditor, System::currentTimeMillis);
+        DatafeedJobBuilder datafeedJobBuilder =
+            new DatafeedJobBuilder(
+                client,
+                xContentRegistry,
+                auditor,
+                System::currentTimeMillis,
+                jobConfigProvider,
+                jobResultsProvider,
+                datafeedConfigProvider,
+                jobResultsPersister);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
@@ -542,6 +550,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 mlLifeCycleService,
                 new MlControllerHolder(mlController),
                 jobResultsProvider,
+                jobResultsPersister,
                 jobConfigProvider,
                 datafeedConfigProvider,
                 jobManager,

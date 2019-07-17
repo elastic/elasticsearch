@@ -1,4 +1,4 @@
-[[search-suggesters-phrase]]
+[[phrase-suggester]]
 === Phrase Suggester
 
 NOTE: In order to understand the format of suggestions, please
@@ -33,12 +33,12 @@ PUT test
           "trigram": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["shingle"]
+            "filter": ["lowercase","shingle"]
           },
           "reverse": {
             "type": "custom",
             "tokenizer": "standard",
-            "filter": ["reverse"]
+            "filter": ["lowercase","reverse"]
           }
         },
         "filter": {

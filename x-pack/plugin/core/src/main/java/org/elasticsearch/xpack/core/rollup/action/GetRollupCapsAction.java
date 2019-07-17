@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
@@ -27,7 +27,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsAction extends StreamableResponseActionType<GetRollupCapsAction.Response> {
+public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response> {
 
     public static final GetRollupCapsAction INSTANCE = new GetRollupCapsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get/caps";
@@ -35,12 +35,7 @@ public class GetRollupCapsAction extends StreamableResponseActionType<GetRollupC
     public static final ParseField STATUS = new ParseField("status");
 
     private GetRollupCapsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, GetRollupCapsAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentFragment {
@@ -130,7 +125,6 @@ public class GetRollupCapsAction extends StreamableResponseActionType<GetRollupC
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         }
 

@@ -167,8 +167,6 @@ if (useFixture) {
     'http://127.0.0.1:' + minioPort
   }
 
-  File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
-
   normalization {
     runtimeClasspath {
       // ignore generated address file for the purposes of build avoidance
@@ -178,12 +176,7 @@ if (useFixture) {
 
   thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    outputs.file(minioAddressFile)
-    doFirst {
-      file(minioAddressFile).text = "${ -> minioAddress.call() }"
-    }
-    // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
-    systemProperty 'test.s3.endpoint', minioAddressFile.name
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
 
   task integTestMinio(type: RestIntegTestTask) {

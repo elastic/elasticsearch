@@ -38,8 +38,8 @@ public class TransportXPackUsageAction extends StreamableTransportMasterNodeActi
     public TransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
                                      ClusterService clusterService, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
-        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                XPackUsageRequest::new);
+        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, XPackUsageRequest::new,
+            indexNameExpressionResolver);
         this.client = client;
         this.usageActions = usageActions();
     }

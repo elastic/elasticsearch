@@ -93,7 +93,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
                 handlingSettings, corsConfig, selector.getTaskScheduler(), threadPool::relativeTimeInNanos);
             final NioChannelHandler handler;
             if (ipFilter != null) {
-                handler = new NioIPFilter(httpHandler, httpChannel.getRemoteAddress(), ipFilter, IPFilter.HTTP_PROFILE_NAME);
+                handler = new NioIPFilter(httpHandler, socketConfig.getRemoteAddress(), ipFilter, IPFilter.HTTP_PROFILE_NAME);
             } else {
                 handler = httpHandler;
             }

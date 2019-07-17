@@ -27,7 +27,7 @@ public class TransportPostStartTrialAction extends StreamableTransportMasterNode
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PostStartTrialAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartTrialRequest::new);
+                PostStartTrialRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 

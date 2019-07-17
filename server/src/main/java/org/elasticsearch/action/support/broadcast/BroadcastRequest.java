@@ -33,16 +33,13 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    public BroadcastRequest() {
-    }
-
     public BroadcastRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
-    protected BroadcastRequest(String[] indices) {
+    protected BroadcastRequest(String... indices) {
         this.indices = indices;
     }
 
@@ -87,9 +84,7 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
+    public final void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

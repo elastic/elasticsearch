@@ -48,7 +48,40 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     private boolean returnDetailedInfo;
     static final String RETURN_DETAILED_INFO_PARAM = "returnDetailedInfo";
 
-    public GraphExploreResponse() {
+    public GraphExploreResponse() {}
+
+    public GraphExploreResponse(StreamInput in) throws IOException {
+        super(in);
+        tookInMillis = in.readVLong();
+        timedOut = in.readBoolean();
+
+        int size = in.readVInt();
+        if (size == 0) {
+            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        } else {
+            shardFailures = new ShardSearchFailure[size];
+            for (int i = 0; i < shardFailures.length; i++) {
+                shardFailures[i] = readShardSearchFailure(in);
+            }
+        }
+        // read vertices
+        size = in.readVInt();
+        vertices = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            Vertex n = Vertex.readFrom(in);
+            vertices.put(n.getId(), n);
+        }
+
+        size = in.readVInt();
+
+        connections = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            Connection e = new Connection(in, vertices);
+            connections.put(e.getId(), e);
+        }
+
+        returnDetailedInfo = in.readBoolean();
+
     }
 
     public GraphExploreResponse(long tookInMillis, boolean timedOut, ShardOperationFailedException[] shardFailures,
@@ -83,37 +116,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tookInMillis = in.readVLong();
-        timedOut = in.readBoolean();
-
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
-        }
-        // read vertices
-        size = in.readVInt();
-        vertices = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            Vertex n = Vertex.readFrom(in);
-            vertices.put(n.getId(), n);
-        }
-
-        size = in.readVInt();
-
-        connections = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            Connection e = new Connection(in, vertices);
-            connections.put(e.getId(), e);
-        }
-        
-        returnDetailedInfo = in.readBoolean();
-
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public Collection<Connection> getConnections() {

@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
@@ -41,13 +41,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeprecationInfoAction extends StreamableResponseActionType<DeprecationInfoAction.Response> {
+public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Response> {
 
     public static final DeprecationInfoAction INSTANCE = new DeprecationInfoAction();
     public static final String NAME = "cluster:admin/xpack/deprecation/info";
 
     private DeprecationInfoAction() {
-        super(NAME);
+        super(NAME, DeprecationInfoAction.Response::new);
     }
 
     /**
@@ -79,18 +79,22 @@ public class DeprecationInfoAction extends StreamableResponseActionType<Deprecat
             }).collect(Collectors.toList());
     }
 
-    @Override
-    public Response newResponse() {
-        return new Response();
-    }
-
     public static class Response extends ActionResponse implements ToXContentObject {
         private List<DeprecationIssue> clusterSettingsIssues;
         private List<DeprecationIssue> nodeSettingsIssues;
         private Map<String, List<DeprecationIssue>> indexSettingsIssues;
         private List<DeprecationIssue> mlSettingsIssues;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            clusterSettingsIssues = in.readList(DeprecationIssue::new);
+            nodeSettingsIssues = in.readList(DeprecationIssue::new);
+            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                mlSettingsIssues = in.readList(DeprecationIssue::new);
+            } else {
+                mlSettingsIssues = Collections.emptyList();
+            }
         }
 
         public Response(List<DeprecationIssue> clusterSettingsIssues,
@@ -121,15 +125,7 @@ public class DeprecationInfoAction extends StreamableResponseActionType<Deprecat
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            clusterSettingsIssues = in.readList(DeprecationIssue::new);
-            nodeSettingsIssues = in.readList(DeprecationIssue::new);
-            indexSettingsIssues = in.readMapOfLists(StreamInput::readString, DeprecationIssue::new);
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                mlSettingsIssues = in.readList(DeprecationIssue::new);
-            } else {
-                mlSettingsIssues = Collections.emptyList();
-            }
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

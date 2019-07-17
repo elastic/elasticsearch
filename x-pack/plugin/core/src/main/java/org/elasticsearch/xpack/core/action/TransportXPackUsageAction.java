@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiConsumer;
 
-public class TransportXPackUsageAction extends StreamableTransportMasterNodeAction<XPackUsageRequest, XPackUsageResponse> {
+public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageResponse> {
 
     private final List<XPackFeatureSet> featureSets;
 
@@ -47,8 +49,8 @@ public class TransportXPackUsageAction extends StreamableTransportMasterNodeActi
     }
 
     @Override
-    protected XPackUsageResponse newResponse() {
-        return new XPackUsageResponse();
+    protected XPackUsageResponse read(StreamInput in) throws IOException {
+        return new XPackUsageResponse(in);
     }
 
     @Override

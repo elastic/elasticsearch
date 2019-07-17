@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction.Request;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class RemoveIndexLifecyclePolicyRequestTests extends AbstractStreamableTestCase<RemoveIndexLifecyclePolicyAction.Request> {
+public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -30,10 +31,10 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractStreamableTe
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
-
+    
     @Override
     protected Request mutateInstance(Request instance) throws IOException {
         String[] indices = instance.indices();

@@ -34,7 +34,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends StreamableTranspo
                                                      ThreadPool threadPool, ActionFilters actionFilters,
                                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, Request::new);
+            Request::new, indexNameExpressionResolver);
     }
 
     @Override

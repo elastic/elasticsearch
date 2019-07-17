@@ -39,6 +39,12 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
         private String calendarId;
         private String eventId;
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendarId = in.readString();
+            eventId = in.readString();
+        }
+
         public Request() {
         }
 
@@ -58,13 +64,6 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendarId = in.readString();
-            eventId = in.readString();
         }
 
         @Override

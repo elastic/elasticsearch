@@ -53,7 +53,8 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            this.enabled = in.readBoolean();
         }
 
         public Request() {
@@ -66,12 +67,6 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.enabled = in.readBoolean();
         }
 
         @Override

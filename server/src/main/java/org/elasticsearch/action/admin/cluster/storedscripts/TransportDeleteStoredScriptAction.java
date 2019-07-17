@@ -45,7 +45,7 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                              ScriptService scriptService) {
         super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteStoredScriptRequest::new);
+                DeleteStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 

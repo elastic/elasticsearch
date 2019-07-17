@@ -35,6 +35,11 @@ public class DeleteSnapshotLifecycleAction extends ActionType<DeleteSnapshotLife
 
         private String lifecycleId;
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            lifecycleId = in.readString();
+        }
+
         public Request() { }
 
         public Request(String lifecycleId) {
@@ -48,12 +53,6 @@ public class DeleteSnapshotLifecycleAction extends ActionType<DeleteSnapshotLife
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            lifecycleId = in.readString();
         }
 
         @Override

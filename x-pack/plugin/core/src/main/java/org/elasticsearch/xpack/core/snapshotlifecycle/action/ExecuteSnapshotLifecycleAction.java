@@ -45,16 +45,15 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
             this.lifecycleId = lifecycleId;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            lifecycleId = in.readString();
+        }
+
         public Request() { }
 
         public String getLifecycleId() {
             return this.lifecycleId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            lifecycleId = in.readString();
         }
 
         @Override

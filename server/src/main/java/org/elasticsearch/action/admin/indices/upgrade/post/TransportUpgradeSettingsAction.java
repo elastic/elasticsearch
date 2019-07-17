@@ -47,7 +47,7 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
                                           ThreadPool threadPool, MetaDataUpdateSettingsService updateSettingsService,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
         super(UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, UpgradeSettingsRequest::new);
+            UpgradeSettingsRequest::new, indexNameExpressionResolver);
         this.updateSettingsService = updateSettingsService;
     }
 

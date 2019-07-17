@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
@@ -32,7 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase<PutLifecycleAction.Request> {
+public class PutLifecycleRequestTests extends AbstractSerializingTestCase<Request> {
 
     private String lifecycleName;
 
@@ -47,8 +48,8 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

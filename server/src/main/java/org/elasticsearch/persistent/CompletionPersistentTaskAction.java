@@ -69,22 +69,19 @@ public class CompletionPersistentTaskAction extends StreamableResponseActionType
 
         private long allocationId = -1;
 
-        public Request() {
+        public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
+            allocationId = in.readLong();
+            exception = in.readException();
         }
 
         public Request(String taskId, long allocationId, Exception exception) {
             this.taskId = taskId;
             this.exception = exception;
             this.allocationId = allocationId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
-            allocationId = in.readLong();
-            exception = in.readException();
         }
 
         @Override
@@ -141,7 +138,7 @@ public class CompletionPersistentTaskAction extends StreamableResponseActionType
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 

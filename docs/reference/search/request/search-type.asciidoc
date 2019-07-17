@@ -1,4 +1,4 @@
-[[search-request-search-type]]
+[[request-body-search-search-type]]
 === Search Type
 
 There are different execution paths that can be done when executing a

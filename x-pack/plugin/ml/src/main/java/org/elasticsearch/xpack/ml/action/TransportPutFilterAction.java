@@ -40,7 +40,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
 
     @Inject
     public TransportPutFilterAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(PutFilterAction.NAME, transportService, PutFilterAction.Request::new, actionFilters);
+        super(PutFilterAction.NAME, transportService, actionFilters, PutFilterAction.Request::new);
         this.client = client;
     }
 

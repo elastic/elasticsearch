@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction.Response;
 
-public class DeleteExpiredDataActionResponseTests extends AbstractStreamableTestCase<Response> {
+public class DeleteExpiredDataActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -16,7 +17,7 @@ public class DeleteExpiredDataActionResponseTests extends AbstractStreamableTest
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 }

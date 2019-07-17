@@ -2234,16 +2234,15 @@ public final class InternalTestCluster extends TestCluster {
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
 
-                // Mute this assertion until we have a new Lucene snapshot with https://issues.apache.org/jira/browse/LUCENE-8809.
-                // try {
-                //    assertBusy(() -> {
-                //        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                //        assertThat("Accounting breaker not reset to 0 on node: " + name + ", are there still Lucene indices around?",
-                //            acctBreaker.getUsed(), equalTo(0L));
-                //    });
-                // } catch (Exception e) {
-                //    throw new AssertionError("Exception during check for accounting breaker reset to 0", e);
-                // }
+                try {
+                    assertBusy(() -> {
+                        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+                        assertThat("Accounting breaker not reset to 0 on node: " + name + ", are there still Lucene indices around?",
+                            acctBreaker.getUsed(), equalTo(0L));
+                    });
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for accounting breaker reset to 0", e);
+                }
 
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of

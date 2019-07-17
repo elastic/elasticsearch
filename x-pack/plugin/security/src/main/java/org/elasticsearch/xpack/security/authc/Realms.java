@@ -135,7 +135,7 @@ public class Realms implements Iterable<Realm> {
 
         final List<Realm> allowedRealms = this.asList();
         // Shortcut for the typical case, all the configured realms are allowed
-        if (allowedRealms.equals(this.realms.size())) {
+        if (allowedRealms.equals(this.realms)) {
             return Collections.emptyList();
         }
 

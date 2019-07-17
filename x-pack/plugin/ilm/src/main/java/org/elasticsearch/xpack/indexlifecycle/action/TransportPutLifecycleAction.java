@@ -45,8 +45,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     @Inject
     public TransportPutLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                Request::new);
+        super(PutLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
+            indexNameExpressionResolver);
     }
 
     @Override

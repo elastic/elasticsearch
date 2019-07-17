@@ -20,7 +20,9 @@ public final class SamlPrepareAuthenticationResponse extends ActionResponse {
     private String requestId;
     private String redirectUrl;
 
-    public SamlPrepareAuthenticationResponse() {
+    public SamlPrepareAuthenticationResponse(StreamInput in) throws IOException {
+        super(in);
+        redirectUrl = in.readString();
     }
 
     public SamlPrepareAuthenticationResponse(String realmName, String requestId, String redirectUrl) {
@@ -48,8 +50,7 @@ public final class SamlPrepareAuthenticationResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        redirectUrl = in.readString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
 }

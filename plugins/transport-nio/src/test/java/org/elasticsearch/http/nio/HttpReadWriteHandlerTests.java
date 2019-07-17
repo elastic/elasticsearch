@@ -99,7 +99,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         CorsHandler.Config corsConfig = CorsHandler.disabled();
         handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, System::nanoTime);
-        handler.channelRegistered();
+        handler.channelActive();
     }
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {
@@ -333,7 +333,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         Iterator<Integer> timeValues = Arrays.asList(0, 2, 4, 6, 8).iterator();
         handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, timeValues::next);
-        handler.channelRegistered();
+        handler.channelActive();
 
         prepareHandlerForResponse(handler);
         SocketChannelContext context = mock(SocketChannelContext.class);
@@ -380,7 +380,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         CorsHandler.Config corsConfig = CorsHandler.fromSettings(settings);
         HttpReadWriteHandler handler = new HttpReadWriteHandler(channel, transport, httpSettings, corsConfig, taskScheduler,
             System::nanoTime);
-        handler.channelRegistered();
+        handler.channelActive();
         prepareHandlerForResponse(handler);
         DefaultFullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         if (originValue != null) {

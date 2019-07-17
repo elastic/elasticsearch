@@ -84,9 +84,7 @@ public class TransportReloadAnalyzersAction
 
     @Override
     protected ReloadAnalyzersRequest readRequestFrom(StreamInput in) throws IOException {
-        final ReloadAnalyzersRequest request = new ReloadAnalyzersRequest();
-        request.readFrom(in);
-        return request;
+        return new ReloadAnalyzersRequest(in);
     }
 
     @Override

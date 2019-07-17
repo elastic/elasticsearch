@@ -51,6 +51,6 @@ public @interface TestLogging {
      *
      * @return the reason for adding the annotation
      */
-    String reason() default "";
+    String reason();
 
 }

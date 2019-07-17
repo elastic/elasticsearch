@@ -25,13 +25,6 @@ public class MonitoringBulkResponse extends ActionResponse {
     private Error error;
     private boolean ignored;
 
-    public MonitoringBulkResponse(StreamInput in) throws IOException {
-        super(in);
-        tookInMillis = in.readVLong();
-        error = in.readOptionalWriteable(Error::new);
-        ignored = in.readBoolean();
-    }
-
     public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
         this.tookInMillis = tookInMillis;
         this.ignored = ignored;

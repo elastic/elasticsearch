@@ -31,7 +31,13 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
     private long version;
     private boolean found;
 
-    public DeleteWatchResponse() {
+    public DeleteWatchResponse() {}
+
+    public DeleteWatchResponse(StreamInput in) throws IOException {
+        super(in);
+        id = in.readString();
+        version = in.readVLong();
+        found = in.readBoolean();
     }
 
     public DeleteWatchResponse(String id, long version, boolean found) {

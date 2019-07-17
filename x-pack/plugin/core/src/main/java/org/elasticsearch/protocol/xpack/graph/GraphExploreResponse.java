@@ -48,18 +48,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     private boolean returnDetailedInfo;
     static final String RETURN_DETAILED_INFO_PARAM = "returnDetailedInfo";
 
-    public GraphExploreResponse() {
-    }
-
-    public GraphExploreResponse(long tookInMillis, boolean timedOut, ShardOperationFailedException[] shardFailures,
-                                Map<VertexId, Vertex> vertices, Map<ConnectionId, Connection> connections, boolean returnDetailedInfo) {
-        this.tookInMillis = tookInMillis;
-        this.timedOut = timedOut;
-        this.shardFailures = shardFailures;
-        this.vertices = vertices;
-        this.connections = connections;
-        this.returnDetailedInfo = returnDetailedInfo;
-    }
+    public GraphExploreResponse() {}
 
     public GraphExploreResponse(StreamInput in) throws IOException {
         super(in);
@@ -93,6 +82,16 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
 
         returnDetailedInfo = in.readBoolean();
 
+    }
+
+    public GraphExploreResponse(long tookInMillis, boolean timedOut, ShardOperationFailedException[] shardFailures,
+                                Map<VertexId, Vertex> vertices, Map<ConnectionId, Connection> connections, boolean returnDetailedInfo) {
+        this.tookInMillis = tookInMillis;
+        this.timedOut = timedOut;
+        this.shardFailures = shardFailures;
+        this.vertices = vertices;
+        this.connections = connections;
+        this.returnDetailedInfo = returnDetailedInfo;
     }
 
 

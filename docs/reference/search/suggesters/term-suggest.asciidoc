@@ -1,4 +1,4 @@
-[[search-suggesters-term]]
+[[term-suggester]]
 === Term suggester
 
 NOTE: In order to understand the format of suggestions, please

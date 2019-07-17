@@ -35,7 +35,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
     public static final ParseField STATUS = new ParseField("status");
 
     private GetRollupCapsAction() {
-        super(NAME, Response::new);
+        super(NAME, GetRollupCapsAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentFragment {

@@ -39,7 +39,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
     private static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     private GetRollupIndexCapsAction() {
-        super(NAME, Response::new);
+        super(NAME, GetRollupIndexCapsAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {

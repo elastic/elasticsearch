@@ -20,11 +20,12 @@
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Supplier;
 
-public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTestCase<UpdateSettingsRequest> {
+public class UpdateSettingsRequestSerializationTests extends AbstractWireSerializingTestCase<UpdateSettingsRequest> {
 
     @Override
     protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
@@ -60,8 +61,8 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
     }
 
     @Override
-    protected UpdateSettingsRequest createBlankInstance() {
-        return new UpdateSettingsRequest();
+    protected Writeable.Reader<UpdateSettingsRequest> instanceReader() {
+        return UpdateSettingsRequest::new;
     }
 
     public static UpdateSettingsRequest createTestItem() {

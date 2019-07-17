@@ -180,11 +180,6 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
 
         @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);

@@ -62,6 +62,11 @@ public class PutLifecycleAction extends ActionType<PutLifecycleAction.Response> 
             this.policy = policy;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policy = new LifecyclePolicy(in);
+        }
+
         public Request() {
         }
 
@@ -84,12 +89,6 @@ public class PutLifecycleAction extends ActionType<PutLifecycleAction.Response> 
             builder.field(POLICY_FIELD.getPreferredName(), policy);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            policy = new LifecyclePolicy(in);
         }
 
         @Override

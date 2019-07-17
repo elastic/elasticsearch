@@ -1,4 +1,4 @@
-[[search-suggesters-phrase]]
+[[phrase-suggester]]
 === Phrase Suggester
 
 NOTE: In order to understand the format of suggestions, please

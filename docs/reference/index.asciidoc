@@ -28,19 +28,7 @@ include::setup/bootstrap-checks-xes.asciidoc[]
 
 include::upgrade.asciidoc[]
 
-include::api-conventions.asciidoc[]
-
-include::docs.asciidoc[]
-
-include::search.asciidoc[]
-
 include::aggregations.asciidoc[]
-
-include::indices.asciidoc[]
-
-include::cat.asciidoc[]
-
-include::cluster.asciidoc[]
 
 include::query-dsl.asciidoc[]
 

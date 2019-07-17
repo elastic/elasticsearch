@@ -65,7 +65,7 @@ public class Queries {
     }
 
     public static Query newNestedFilter() {
-        return new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
+        return filtered(new MatchAllDocsQuery(), newNonNestedFilter());
     }
 
     /**

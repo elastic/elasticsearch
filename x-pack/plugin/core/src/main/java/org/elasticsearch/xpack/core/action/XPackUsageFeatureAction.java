@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
@@ -18,7 +18,7 @@ import java.util.List;
  * {@link XPackUsageAction} implementationn iterates over the {@link #ALL} list of actions to form
  * the complete usage result.
  */
-public class XPackUsageFeatureAction extends StreamableResponseActionType<XPackUsageFeatureResponse> {
+public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureResponse> {
 
     private static final String BASE_NAME = "cluster:monitor/xpack/usage/";
 
@@ -45,11 +45,6 @@ public class XPackUsageFeatureAction extends StreamableResponseActionType<XPackU
 
     private XPackUsageFeatureAction(String name) {
         super(BASE_NAME + name);
-    }
-
-    @Override
-    public XPackUsageFeatureResponse newResponse() {
-        return new XPackUsageFeatureResponse();
     }
 
     @Override

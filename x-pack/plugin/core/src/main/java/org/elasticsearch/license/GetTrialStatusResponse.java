@@ -18,7 +18,9 @@ public class GetTrialStatusResponse extends ActionResponse implements ToXContent
 
     private boolean eligibleToStartTrial;
 
-    GetTrialStatusResponse() {
+    GetTrialStatusResponse(StreamInput in) throws IOException {
+        super(in);
+        eligibleToStartTrial = in.readBoolean();
     }
 
     public GetTrialStatusResponse(boolean eligibleToStartTrial) {
@@ -31,7 +33,7 @@ public class GetTrialStatusResponse extends ActionResponse implements ToXContent
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        eligibleToStartTrial = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

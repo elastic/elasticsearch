@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.Reload
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -36,11 +35,6 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField RELOADED_ANALYZERS_FIELD = new ParseField("reloaded_analyzers");
     private static final ParseField RELOADED_NODE_IDS_FIELD = new ParseField("reloaded_node_ids");
-
-
-    public ReloadAnalyzersResponse() {
-        reloadDetails = Collections.emptyMap();
-    }
 
     public ReloadAnalyzersResponse(StreamInput in) throws IOException {
         super(in);

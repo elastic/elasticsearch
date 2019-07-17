@@ -181,6 +181,11 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                         ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));
                 });
             }
+
+            @Override
+            public String getLocalNodeId() {
+                return "local_node_id";
+            }
         };
 
         TransportMultiSearchAction action =

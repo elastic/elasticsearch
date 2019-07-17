@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.frozen.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 
 public class FreezeIndexAction extends ActionType<FreezeResponse> {

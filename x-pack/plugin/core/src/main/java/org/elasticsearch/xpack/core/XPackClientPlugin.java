@@ -36,7 +36,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
@@ -58,6 +57,8 @@ import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
+import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
@@ -412,7 +413,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteSnapshotLifecycleAction.INSTANCE,
                 ExecuteSnapshotLifecycleAction.INSTANCE,
                 // Freeze
-                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
+                FreezeIndexAction.INSTANCE,
                 // Data Frame
                 PutDataFrameTransformAction.INSTANCE,
                 StartDataFrameTransformAction.INSTANCE,
@@ -534,7 +535,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Vectors
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VECTORS, VectorsFeatureSetUsage::new),
                 // Voting Only Node
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
+                // Frozen indices
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new)
         );
     }
 

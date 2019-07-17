@@ -60,8 +60,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
-        targetIndexRequest = new CreateIndexRequest();
-        targetIndexRequest.readFrom(in);
+        targetIndexRequest = new CreateIndexRequest(in);
         sourceIndex = in.readString();
         if (in.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
             type = in.readEnum(ResizeType.class);

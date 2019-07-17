@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -117,6 +118,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         }
     }
 
+    @Nullable
     static Compressor getCompressor(BytesReference message) {
         final int offset = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
         return CompressorFactory.COMPRESSOR.isCompressed(message.slice(offset, message.length() - offset))

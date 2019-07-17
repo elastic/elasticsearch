@@ -32,8 +32,8 @@ public class TransportStartILMAction extends TransportMasterNodeAction<StartILMR
     @Inject
     public TransportStartILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(StartILMAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                StartILMRequest::new);
+        super(StartILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StartILMRequest::new,
+            indexNameExpressionResolver);
     }
 
     @Override

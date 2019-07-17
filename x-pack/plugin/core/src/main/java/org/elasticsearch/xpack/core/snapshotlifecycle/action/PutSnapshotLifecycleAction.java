@@ -45,6 +45,12 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
             this.lifecycle = lifecycle;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            lifecycleId = in.readString();
+            lifecycle = new SnapshotLifecyclePolicy(in);
+        }
+
         public Request() { }
 
         public String getLifecycleId() {
@@ -57,13 +63,6 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
 
         public static Request parseRequest(String lifecycleId, XContentParser parser) {
             return new Request(lifecycleId, SnapshotLifecyclePolicy.parse(parser, lifecycleId));
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            lifecycleId = in.readString();
-            lifecycle = new SnapshotLifecyclePolicy(in);
         }
 
         @Override

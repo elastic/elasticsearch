@@ -44,8 +44,8 @@ public class TransportExecuteSnapshotLifecycleAction
     public TransportExecuteSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                    Client client, SnapshotHistoryStore historyStore) {
-        super(ExecuteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            ExecuteSnapshotLifecycleAction.Request::new);
+        super(ExecuteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            ExecuteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.historyStore = historyStore;
     }

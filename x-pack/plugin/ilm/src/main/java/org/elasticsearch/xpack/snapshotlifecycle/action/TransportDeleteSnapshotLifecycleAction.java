@@ -36,7 +36,7 @@ public class TransportDeleteSnapshotLifecycleAction extends
     public TransportDeleteSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, DeleteSnapshotLifecycleAction.Request::new);
+            DeleteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
     }
 
     @Override

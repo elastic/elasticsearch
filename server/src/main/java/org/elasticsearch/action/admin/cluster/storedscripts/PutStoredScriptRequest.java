@@ -44,6 +44,22 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     private XContentType xContentType;
     private StoredScriptSource source;
 
+    public PutStoredScriptRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+            in.readString(); // read lang from previous versions
+        }
+        id = in.readOptionalString();
+        content = in.readBytesReference();
+        xContentType = in.readEnum(XContentType.class);
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+            context = in.readOptionalString();
+            source = new StoredScriptSource(in);
+        } else {
+            source = StoredScriptSource.parse(content, xContentType == null ? XContentType.JSON : xContentType);
+        }
+    }
+
     public PutStoredScriptRequest() {
         super();
     }
@@ -112,24 +128,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         this.xContentType = Objects.requireNonNull(xContentType);
         this.source = StoredScriptSource.parse(content, xContentType);
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
-            in.readString(); // read lang from previous versions
-        }
-        id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
-            context = in.readOptionalString();
-            source = new StoredScriptSource(in);
-        } else {
-            source = StoredScriptSource.parse(content, xContentType == null ? XContentType.JSON : xContentType);
-        }
     }
 
     @Override

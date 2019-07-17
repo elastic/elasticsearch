@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -60,6 +61,14 @@ public final class BlobStoreTestUtil {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
+    public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
+        try (InputStream ignored = container.readBlob(blobName)) {
+            return true;
+        } catch (NoSuchFileException e) {
+            return false;
+        }
+    }
+
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
      * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata
@@ -74,11 +83,11 @@ public final class BlobStoreTestUtil {
             @Override
             protected void doRun() throws Exception {
                 final BlobContainer blobContainer = repository.blobContainer();
-                assertTrue(
-                    "Could not find index.latest blob for repo [" + repository + "]", blobContainer.blobExists("index.latest"));
                 final long latestGen;
                 try (DataInputStream inputStream = new DataInputStream(blobContainer.readBlob("index.latest"))) {
                     latestGen = inputStream.readLong();
+                } catch (NoSuchFileException e) {
+                    throw new AssertionError("Could not find index.latest blob for repo [" + repository + "]");
                 }
                 assertIndexGenerations(blobContainer, latestGen);
                 final RepositoryData repositoryData;

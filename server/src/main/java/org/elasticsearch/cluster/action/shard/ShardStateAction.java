@@ -626,11 +626,9 @@ public class ShardStateAction {
 
         @Override
         public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-            if (clusterChangedEvent.previousState() != clusterChangedEvent.state()) {
-                rerouteService.reroute("reroute after starting shards", prioritySupplier.get(), ActionListener.wrap(
-                    r -> logger.trace("reroute after starting shards succeeded"),
-                    e -> logger.debug("reroute after starting shards failed", e)));
-            }
+            rerouteService.reroute("reroute after starting shards", prioritySupplier.get(), ActionListener.wrap(
+                r -> logger.trace("reroute after starting shards succeeded"),
+                e -> logger.debug("reroute after starting shards failed", e)));
         }
     }
 

@@ -92,17 +92,16 @@ public class GetStatusAction extends StreamableResponseActionType<GetStatusActio
 
     public static class Request extends AcknowledgedRequest<Request> {
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public Request() {
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
         }
 
         @Override

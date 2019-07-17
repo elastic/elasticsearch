@@ -30,6 +30,14 @@ public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
         this.indices = indices;
     }
 
+    public FreezeRequest(StreamInput in) throws IOException {
+        super(in);
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        indices = in.readStringArray();
+        freeze = in.readBoolean();
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -46,15 +54,6 @@ public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
 
     public boolean freeze() {
         return freeze;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        indices = in.readStringArray();
-        freeze = in.readBoolean();
-        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     @Override

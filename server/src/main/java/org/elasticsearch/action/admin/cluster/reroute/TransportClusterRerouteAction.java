@@ -66,7 +66,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                                          ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver, ClusterRerouteRequest::new);
+              ClusterRerouteRequest::new, indexNameExpressionResolver);
         this.allocationService = allocationService;
     }
 

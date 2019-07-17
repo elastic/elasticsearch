@@ -36,8 +36,8 @@ public class TransportGetLifecycleAction extends StreamableTransportMasterNodeAc
     @Inject
     public TransportGetLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                Request::new);
+        super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
+            indexNameExpressionResolver);
     }
 
     @Override

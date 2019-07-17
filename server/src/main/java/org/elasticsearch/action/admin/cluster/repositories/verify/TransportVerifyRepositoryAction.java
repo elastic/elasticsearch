@@ -48,7 +48,7 @@ public class TransportVerifyRepositoryAction extends
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver, VerifyRepositoryRequest::new);
+              VerifyRepositoryRequest::new, indexNameExpressionResolver);
         this.repositoriesService = repositoriesService;
     }
 

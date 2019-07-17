@@ -20,11 +20,13 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
@@ -33,16 +35,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class MergedFieldCapabilitiesResponseTests extends AbstractStreamableXContentTestCase<FieldCapabilitiesResponse> {
+import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
+
+public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
     protected FieldCapabilitiesResponse doParseInstance(XContentParser parser) throws IOException {
         return FieldCapabilitiesResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected FieldCapabilitiesResponse createBlankInstance() {
-        return new FieldCapabilitiesResponse();
     }
 
     @Override
@@ -69,6 +68,11 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractStreamableXCon
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
         return new FieldCapabilitiesResponse(indices, responses);
+    }
+
+    @Override
+    protected Writeable.Reader<FieldCapabilitiesResponse> instanceReader() {
+        return FieldCapabilitiesResponse::new;
     }
 
     @Override

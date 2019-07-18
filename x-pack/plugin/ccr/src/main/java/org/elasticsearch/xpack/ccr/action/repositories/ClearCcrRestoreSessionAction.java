@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -29,12 +28,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ClearCcrRestoreSess
     public static final String NAME = "internal:admin/ccr/restore/session/clear";
 
     private ClearCcrRestoreSessionAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<ClearCcrRestoreSessionResponse> getResponseReader() {
-        return ClearCcrRestoreSessionResponse::new;
+        super(NAME, ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse::new);
     }
 
     public static class TransportDeleteCcrRestoreSessionAction

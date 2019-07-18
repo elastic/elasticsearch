@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClusterRerouteAction extends ActionType<ClusterRerouteResponse> {
 
@@ -28,11 +27,6 @@ public class ClusterRerouteAction extends ActionType<ClusterRerouteResponse> {
     public static final String NAME = "cluster:admin/reroute";
 
     private ClusterRerouteAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<ClusterRerouteResponse> getResponseReader() {
-        return ClusterRerouteResponse::new;
+        super(NAME, ClusterRerouteResponse::new);
     }
 }

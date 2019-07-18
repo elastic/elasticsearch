@@ -185,12 +185,4 @@ public class SettingsModuleTests extends ModuleTestCase {
             assertThat(e.getMessage(), containsString("Cannot register setting [foo.bar] twice"));
         }
     }
-
-    public void testOldMaxClauseCountSetting() {
-            Settings settings = Settings.builder().put("index.query.bool.max_clause_count", 1024).build();
-            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new SettingsModule(settings));
-            assertEquals("unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
-                ex.getMessage());
-    }
 }

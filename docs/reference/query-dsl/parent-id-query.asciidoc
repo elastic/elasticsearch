@@ -1,5 +1,8 @@
 [[query-dsl-parent-id-query]]
-=== Parent Id Query
+=== Parent ID query
+++++
+<titleabbrev>Parent ID</titleabbrev>
+++++
 
 The `parent_id` query can be used to find child documents which belong to a particular parent.
 Given the following mapping definition:

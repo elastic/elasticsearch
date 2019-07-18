@@ -52,12 +52,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, AnalyzeAction.Response::new);
     }
 
     /**

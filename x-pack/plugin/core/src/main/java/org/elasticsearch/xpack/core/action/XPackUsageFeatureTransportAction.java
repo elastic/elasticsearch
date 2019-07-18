@@ -24,7 +24,7 @@ public abstract class XPackUsageFeatureTransportAction extends TransportMasterNo
                                             ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
         super(name, transportService, clusterService, threadPool,
-              actionFilters, indexNameExpressionResolver, XPackUsageRequest::new);
+              actionFilters, XPackUsageRequest::new, indexNameExpressionResolver);
     }
 
     @Override

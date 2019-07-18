@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.GeometryCollection;
 import org.elasticsearch.geo.geometry.Line;
 import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
@@ -131,6 +132,9 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         if (numPoints == 0) {
             expectedGeom = MultiPoint.EMPTY;
             actual = new MultiPointBuilder();
+        } else if (numPoints == 1) {
+            expectedGeom = points.get(0);
+            actual = new MultiPointBuilder(coordinates);
         } else {
             expectedGeom = new MultiPoint(points);
             actual = new MultiPointBuilder(coordinates);
@@ -195,7 +199,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         }
         Geometry expectedGeom;
         if (lines.isEmpty()) {
-            expectedGeom = MultiLine.EMPTY;
+            expectedGeom = GeometryCollection.EMPTY;
         } else if (lines.size() == 1) {
             expectedGeom = new Line(lines.get(0).getLats(), lines.get(0).getLons());
         } else {

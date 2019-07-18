@@ -27,6 +27,15 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     private String username;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public SetEnabledRequest() {}
+
+    public SetEnabledRequest(StreamInput in) throws IOException {
+        super(in);
+        this.enabled = in.readBoolean();
+        this.username = in.readString();
+        this.refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -90,10 +99,7 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.enabled = in.readBoolean();
-        this.username = in.readString();
-        this.refreshPolicy = RefreshPolicy.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

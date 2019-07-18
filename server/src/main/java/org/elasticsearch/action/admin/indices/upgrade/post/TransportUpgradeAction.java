@@ -137,9 +137,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     @Override
     protected UpgradeRequest readRequestFrom(StreamInput in) throws IOException {
-        UpgradeRequest request = new UpgradeRequest();
-        request.readFrom(in);
-        return request;
+        return new UpgradeRequest(in);
     }
 
     /**

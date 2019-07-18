@@ -18,28 +18,29 @@
  */
 package org.elasticsearch.client.license;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
+
+import java.io.IOException;
 
 public class GetBasicStatusResponseTests
-    extends AbstractHlrcStreamableXContentTestCase<org.elasticsearch.license.GetBasicStatusResponse, GetBasicStatusResponse> {
+    extends AbstractResponseTestCase<org.elasticsearch.license.GetBasicStatusResponse, GetBasicStatusResponse> {
+
     @Override
-    public GetBasicStatusResponse doHlrcParseInstance(XContentParser parser) {
+    protected org.elasticsearch.license.GetBasicStatusResponse createServerTestInstance() {
+        return new org.elasticsearch.license.GetBasicStatusResponse(randomBoolean());
+    }
+
+    @Override
+    protected GetBasicStatusResponse doParseToClientInstance(XContentParser parser) throws IOException {
         return GetBasicStatusResponse.fromXContent(parser);
     }
 
     @Override
-    public org.elasticsearch.license.GetBasicStatusResponse convertHlrcToInternal(GetBasicStatusResponse instance) {
-        return new org.elasticsearch.license.GetBasicStatusResponse(instance.isEligibleToStartBasic());
-    }
-
-    @Override
-    protected org.elasticsearch.license.GetBasicStatusResponse createBlankInstance() {
-        return new org.elasticsearch.license.GetBasicStatusResponse(false);
-    }
-
-    @Override
-    protected org.elasticsearch.license.GetBasicStatusResponse createTestInstance() {
-        return new org.elasticsearch.license.GetBasicStatusResponse(randomBoolean());
+    protected void assertInstances(org.elasticsearch.license.GetBasicStatusResponse serverTestInstance,
+                                   GetBasicStatusResponse clientInstance) {
+        org.elasticsearch.license.GetBasicStatusResponse serverInstance =
+            new org.elasticsearch.license.GetBasicStatusResponse(clientInstance.isEligibleToStartBasic());
+        assertEquals(serverTestInstance, serverInstance);
     }
 }

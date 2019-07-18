@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class XPackUsageAction extends StreamableResponseActionType<XPackUsageResponse> {
+public class XPackUsageAction extends ActionType<XPackUsageResponse> {
 
     public static final String NAME = "cluster:monitor/xpack/usage";
     public static final XPackUsageAction INSTANCE = new XPackUsageAction();
 
     public XPackUsageAction() {
-        super(NAME);
-    }
-
-    @Override
-    public XPackUsageResponse newResponse() {
-        return new XPackUsageResponse();
+        super(NAME, XPackUsageResponse::new);
     }
 }

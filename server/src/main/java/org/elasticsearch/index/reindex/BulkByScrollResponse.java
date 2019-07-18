@@ -78,7 +78,13 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         Status.declareFields(PARSER);
     }
 
-    public BulkByScrollResponse() {
+    public BulkByScrollResponse(StreamInput in) throws IOException {
+        super(in);
+        took = in.readTimeValue();
+        status = new BulkByScrollTask.Status(in);
+        bulkFailures = in.readList(Failure::new);
+        searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
+        timedOut = in.readBoolean();
     }
 
     public BulkByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> bulkFailures,
@@ -195,12 +201,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        took = in.readTimeValue();
-        status = new BulkByScrollTask.Status(in);
-        bulkFailures = in.readList(Failure::new);
-        searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
-        timedOut = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

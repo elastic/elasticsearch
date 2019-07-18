@@ -1,8 +1,6 @@
 [[api-conventions]]
 = API conventions
 
-[partintro]
---
 The *Elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
 
 The conventions listed in this chapter can be applied throughout the REST
@@ -12,8 +10,6 @@ API, unless otherwise specified.
 * <<date-math-index-names>>
 * <<common-options>>
 * <<url-access-control>>
-
---
 
 [[multi-index]]
 == Multiple Indices

@@ -28,9 +28,9 @@ public final class NioIPFilter extends DelegatingHandler {
     }
 
     @Override
-    public void channelRegistered() {
+    public void channelActive() {
         if (filter.accept(profile, remoteAddress)) {
-            super.channelRegistered();
+            super.channelActive();
         } else {
             denied = true;
         }

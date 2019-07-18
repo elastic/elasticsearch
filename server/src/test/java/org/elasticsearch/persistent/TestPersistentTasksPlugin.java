@@ -401,12 +401,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public static final String NAME = "cluster:admin/persistent/task_test";
 
         private TestTaskAction() {
-            super(NAME);
-        }
-
-        @Override
-        public Writeable.Reader<TestTasksResponse> getResponseReader() {
-            return TestTasksResponse::new;
+            super(NAME, TestTasksResponse::new);
         }
     }
 

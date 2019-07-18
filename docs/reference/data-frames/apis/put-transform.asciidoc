@@ -78,6 +78,26 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 `source`::
   (Required, object) The source configuration, which consists of `index` and 
   optionally a `query`. See <<data-frame-transform-source>>.
+  
+`sync`::
+  (Optional, object) Defines the properties required to run continuously.
+  `time`:::
+    (Required, object) Specifies that the {dataframe-transform} uses a time
+    field to synchronize the source and destination indices.
+    `field`::::
+      (Required, string) The date field that is used to identify new documents
+      in the source.
++
+--
+TIP: In general, it’s a good idea to use a field that contains the
+<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+you might need to set the `delay` such that it accounts for data transmission
+delays.
+
+--
+    `delay`::::
+      (Optional, time units) The time delay between the current time and the
+      latest input data time. The default value is `60s`.
 
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}
@@ -96,11 +116,6 @@ PUT _data_frame/transforms/ecommerce_transform
       }
     }
   },
-  "dest": {
-    "index": "kibana_sample_data_ecommerce_transform",
-    "pipeline": "add_timestamp_pipeline"
-  },
-  "frequency": "5m",
   "pivot": {
     "group_by": {
       "customer_id": {
@@ -117,7 +132,18 @@ PUT _data_frame/transforms/ecommerce_transform
       }
     }
   },
-  "description": "Maximum priced ecommerce data by customer_id in Asia"
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "5m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "60s"
+    }
+  }
 }
 --------------------------------------------------
 // CONSOLE

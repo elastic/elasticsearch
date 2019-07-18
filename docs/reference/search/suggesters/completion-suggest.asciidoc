@@ -1,4 +1,4 @@
-[[search-suggesters-completion]]
+[[completion-suggester]]
 === Completion Suggester
 
 NOTE: In order to understand the format of suggestions, please

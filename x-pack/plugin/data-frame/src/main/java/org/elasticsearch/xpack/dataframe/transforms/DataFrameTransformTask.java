@@ -481,8 +481,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     static class ClientDataFrameIndexer extends DataFrameIndexer {
 
-        private static final int ON_FINISH_AUDIT_FREQUENCY = 1000;
-
+        private long logEvery = 1;
+        private long logCount = 0;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -709,7 +709,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
-                if (checkpoint % ON_FINISH_AUDIT_FREQUENCY == 0) {
+                if (shouldAuditOnFinish(checkpoint)) {
                     auditor.info(transformTask.getTransformId(),
                         "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 }
@@ -720,6 +720,26 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        /**
+         * Indicates if an audit message should be written when onFinish is called for the given checkpoint
+         * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
+         * Then we audit every 100, until completedCheckpoint == 999
+         *
+         * Then we always audit every 1_000 checkpoints
+         *
+         * @param completedCheckpoint The checkpoint that was just completed
+         * @return {@code true} if an audit message should be written
+         */
+        protected boolean shouldAuditOnFinish(long completedCheckpoint) {
+            if (++logCount % logEvery != 0) {
+                return false;
+            }
+            int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint + 1));
+            logEvery = log10Checkpoint >= 3  ? 1_000 : (int)Math.pow(10.0, log10Checkpoint);
+            logCount = 0;
+            return true;
         }
 
         @Override

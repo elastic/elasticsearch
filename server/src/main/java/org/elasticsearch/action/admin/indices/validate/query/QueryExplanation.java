@@ -79,8 +79,12 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
 
     private String error;
 
-    QueryExplanation() {
-
+    public QueryExplanation(StreamInput in) throws IOException {
+        index = in.readOptionalString();
+        shard = in.readInt();
+        valid = in.readBoolean();
+        explanation = in.readOptionalString();
+        error = in.readOptionalString();
     }
 
     public QueryExplanation(String index, int shard, boolean valid, String explanation,
@@ -113,27 +117,12 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readOptionalString();
-        shard = in.readInt();
-        valid = in.readBoolean();
-        explanation = in.readOptionalString();
-        error = in.readOptionalString();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(index);
         out.writeInt(shard);
         out.writeBoolean(valid);
         out.writeOptionalString(explanation);
         out.writeOptionalString(error);
-    }
-
-    public static QueryExplanation readQueryExplanation(StreamInput in)  throws IOException {
-        QueryExplanation exp = new QueryExplanation();
-        exp.readFrom(in);
-        return exp;
     }
 
     @Override

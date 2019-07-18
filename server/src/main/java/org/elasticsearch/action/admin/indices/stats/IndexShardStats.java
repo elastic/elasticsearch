@@ -34,7 +34,14 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
 
     private ShardStats[] shards;
 
-    private IndexShardStats() {}
+    public IndexShardStats(StreamInput in) throws IOException {
+        shardId = new ShardId(in);
+        int shardSize = in.readVInt();
+        shards = new ShardStats[shardSize];
+        for (int i = 0; i < shardSize; i++) {
+            shards[i] = new ShardStats(in);
+        }
+    }
 
     public IndexShardStats(ShardId shardId, ShardStats[] shards) {
         this.shardId = shardId;
@@ -89,16 +96,6 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardId = new ShardId(in);
-        int shardSize = in.readVInt();
-        shards = new ShardStats[shardSize];
-        for (int i = 0; i < shardSize; i++) {
-            shards[i] = ShardStats.readShardStats(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
         out.writeVInt(shards.length);
@@ -106,11 +103,4 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
             stats.writeTo(out);
         }
     }
-
-    public static IndexShardStats readIndexShardStats(StreamInput in) throws IOException {
-        IndexShardStats indexShardStats = new IndexShardStats();
-        indexShardStats.readFrom(in);
-        return indexShardStats;
-    }
-
 }

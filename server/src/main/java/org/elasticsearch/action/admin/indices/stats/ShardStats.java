@@ -59,7 +59,15 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
     private String statePath;
     private boolean isCustomDataPath;
 
-    ShardStats() {
+    public ShardStats(StreamInput in) throws IOException {
+        shardRouting = new ShardRouting(in);
+        commonStats = new CommonStats(in);
+        commitStats = CommitStats.readOptionalCommitStatsFrom(in);
+        statePath = in.readString();
+        dataPath = in.readString();
+        isCustomDataPath = in.readBoolean();
+        seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
+        retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
     }
 
     public ShardStats(
@@ -110,24 +118,6 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
 
     public boolean isCustomDataPath() {
         return isCustomDataPath;
-    }
-
-    public static ShardStats readShardStats(StreamInput in) throws IOException {
-        ShardStats stats = new ShardStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardRouting = new ShardRouting(in);
-        commonStats = new CommonStats(in);
-        commitStats = CommitStats.readOptionalCommitStatsFrom(in);
-        statePath = in.readString();
-        dataPath = in.readString();
-        isCustomDataPath = in.readBoolean();
-        seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
-        retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
     }
 
     @Override

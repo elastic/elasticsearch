@@ -64,8 +64,14 @@ public class Alias implements Streamable, ToXContentFragment {
     @Nullable
     private Boolean writeIndex;
 
-    private Alias() {
+    private Alias() {}
 
+    public Alias(StreamInput in) throws IOException {
+        name = in.readString();
+        filter = in.readOptionalString();
+        indexRouting = in.readOptionalString();
+        searchRouting = in.readOptionalString();
+        writeIndex = in.readOptionalBoolean();
     }
 
     public Alias(String name) {
@@ -183,24 +189,6 @@ public class Alias implements Streamable, ToXContentFragment {
     public Alias writeIndex(@Nullable Boolean writeIndex) {
         this.writeIndex = writeIndex;
         return this;
-    }
-
-    /**
-     * Allows to read an alias from the provided input stream
-     */
-    public static Alias read(StreamInput in) throws IOException {
-        Alias alias = new Alias();
-        alias.readFrom(in);
-        return alias;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        filter = in.readOptionalString();
-        indexRouting = in.readOptionalString();
-        searchRouting = in.readOptionalString();
-        writeIndex = in.readOptionalBoolean();
     }
 
     @Override

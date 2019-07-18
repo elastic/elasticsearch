@@ -38,8 +38,16 @@ class ShardUpgradeResult implements Streamable {
 
     private boolean primary;
 
+    public ShardUpgradeResult(StreamInput in) throws IOException {
+        shardId = new ShardId(in);
+        primary = in.readBoolean();
+        upgradeVersion = Version.readVersion(in);
+        try {
+            oldestLuceneSegment = org.apache.lucene.util.Version.parse(in.readString());
+        } catch (ParseException ex) {
+            throw new IOException("failed to parse lucene version [" + oldestLuceneSegment + "]", ex);
+        }
 
-    ShardUpgradeResult() {
     }
 
     ShardUpgradeResult(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
@@ -63,20 +71,6 @@ class ShardUpgradeResult implements Streamable {
 
     public boolean primary() {
         return primary;
-    }
-
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardId = new ShardId(in);
-        primary = in.readBoolean();
-        upgradeVersion = Version.readVersion(in);
-        try {
-            oldestLuceneSegment = org.apache.lucene.util.Version.parse(in.readString());
-        } catch (ParseException ex) {
-            throw new IOException("failed to parse lucene version [" + oldestLuceneSegment + "]", ex);
-        }
-
     }
 
     @Override

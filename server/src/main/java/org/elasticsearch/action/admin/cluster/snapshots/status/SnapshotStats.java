@@ -43,7 +43,20 @@ public class SnapshotStats implements Streamable, ToXContentObject {
     private long totalSize;
     private long processedSize;
 
-    SnapshotStats() {
+    SnapshotStats() {}
+
+    SnapshotStats(StreamInput in) throws IOException {
+        startTime = in.readVLong();
+        time = in.readVLong();
+
+        incrementalFileCount = in.readVInt();
+        processedFileCount = in.readVInt();
+
+        incrementalSize = in.readVLong();
+        processedSize = in.readVLong();
+
+        totalFileCount = in.readVInt();
+        totalSize = in.readVLong();
     }
 
     SnapshotStats(long startTime, long time,
@@ -135,21 +148,6 @@ public class SnapshotStats implements Streamable, ToXContentObject {
 
         out.writeVInt(totalFileCount);
         out.writeVLong(totalSize);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        startTime = in.readVLong();
-        time = in.readVLong();
-
-        incrementalFileCount = in.readVInt();
-        processedFileCount = in.readVInt();
-
-        incrementalSize = in.readVLong();
-        processedSize = in.readVLong();
-
-        totalFileCount = in.readVInt();
-        totalSize = in.readVLong();
     }
 
     static final class Fields {

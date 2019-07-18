@@ -37,7 +37,19 @@ public class ShardSegments implements Streamable, Iterable<Segment> {
 
     private List<Segment> segments;
 
-    ShardSegments() {
+    ShardSegments() {}
+
+    public ShardSegments(StreamInput in) throws IOException {
+        shardRouting = new ShardRouting(in);
+        int size = in.readVInt();
+        if (size == 0) {
+            segments = Collections.emptyList();
+        } else {
+            segments = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                segments.add(Segment.readSegment(in));
+            }
+        }
     }
 
     ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
@@ -76,26 +88,6 @@ public class ShardSegments implements Streamable, Iterable<Segment> {
             }
         }
         return count;
-    }
-
-    public static ShardSegments readShardSegments(StreamInput in) throws IOException {
-        ShardSegments shard = new ShardSegments();
-        shard.readFrom(in);
-        return shard;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardRouting = new ShardRouting(in);
-        int size = in.readVInt();
-        if (size == 0) {
-            segments = Collections.emptyList();
-        } else {
-            segments = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                segments.add(Segment.readSegment(in));
-            }
-        }
     }
 
     @Override

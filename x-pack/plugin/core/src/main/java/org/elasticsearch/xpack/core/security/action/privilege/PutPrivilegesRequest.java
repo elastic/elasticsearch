@@ -32,6 +32,12 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     private List<ApplicationPrivilegeDescriptor> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public PutPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public PutPrivilegesRequest() {
         privileges = Collections.emptyList();
     }
@@ -114,9 +120,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
-        refreshPolicy = RefreshPolicy.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

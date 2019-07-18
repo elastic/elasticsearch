@@ -72,6 +72,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     @Before
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void setUpTests() {
         client = mock(Client.class);
         timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
@@ -86,14 +87,12 @@ public class DataExtractorFactoryTests extends ESTestCase {
         when(getRollupIndexResponse.getJobs()).thenReturn(new HashMap<>());
 
         doAnswer(invocationMock -> {
-            @SuppressWarnings("raw_types")
             ActionListener listener = (ActionListener) invocationMock.getArguments()[2];
             listener.onResponse(fieldsCapabilities);
             return null;
         }).when(client).execute(same(FieldCapabilitiesAction.INSTANCE), any(), any());
 
         doAnswer(invocationMock -> {
-            @SuppressWarnings("raw_types")
             ActionListener listener = (ActionListener) invocationMock.getArguments()[2];
             listener.onResponse(getRollupIndexResponse);
             return null;

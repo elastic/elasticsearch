@@ -28,6 +28,15 @@ public class ChangePasswordRequest extends ActionRequest
     private char[] passwordHash;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public ChangePasswordRequest() {}
+
+    public ChangePasswordRequest(StreamInput in) throws IOException {
+        super(in);
+        username = in.readString();
+        passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(in.readBytesReference()));
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -78,10 +87,7 @@ public class ChangePasswordRequest extends ActionRequest
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        username = in.readString();
-        passwordHash = CharArrays.utf8BytesToChars(BytesReference.toBytes(in.readBytesReference()));
-        refreshPolicy = RefreshPolicy.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

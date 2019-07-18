@@ -1,0 +1,28 @@
+
+[role="xpack"]
+[[data-frames-settings]]
+=== Data frames settings in Elasticsearch
+++++
+<titleabbrev>{dataframe-transforms} settings</titleabbrev>
+++++
+
+You do not need to configure any settings to use {dataframe-transforms}. It is enabled by default.
+
+All of these settings can be added to the `elasticsearch.yml` configuration file. 
+The dynamic settings can also be updated across a cluster with the 
+<<cluster-update-settings,cluster update settings API>>.
+
+TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml` 
+file.
+
+[float]
+[[general-data-frames-settings]]
+==== General {dataframe-transforms} settings
+
+`xpack.data_frames.num_transform_failure_retries`::
+The number of times that a {dataframe-transform} retries when it experiences a
+non-fatal error. Once the number of retries is exhausted, the {dataframe-transform}
+task will be marked as `failed`. The default value is `10` with a valid minimum of `0`
+and maximum of `100`.
+If a {dataframe-transform} is already running, it will have to be restarted
+to use the changed setting.

@@ -1,5 +1,8 @@
 [[query-dsl-intervals-query]]
 === Intervals query
+++++
+<titleabbrev>Intervals</titleabbrev>
+++++
 
 An `intervals` query allows fine-grained control over the order and proximity of
 matching terms.  Matching rules are constructed from a small set of definitions,

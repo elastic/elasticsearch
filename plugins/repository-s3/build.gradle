@@ -235,7 +235,6 @@ task s3FixtureProperties {
       "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
   ]
 
-  outputs.upToDateWhen { false }
   doLast {
     file(s3FixtureFile).text = s3FixtureOptions.collect { k, v -> "$k = $v" }.join("\n")
   }

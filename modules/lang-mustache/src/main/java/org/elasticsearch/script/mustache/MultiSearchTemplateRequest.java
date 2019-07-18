@@ -49,10 +49,10 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
 
     public MultiSearchTemplateRequest() {}
 
-    public MultiSearchTemplateRequest(StreamInput in) throws IOException {
+    MultiSearchTemplateRequest(StreamInput in) throws IOException {
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
-        requests = in.readStreamableList(SearchTemplateRequest::new);
+        requests = in.readList(SearchTemplateRequest::new);
     }
 
     /**

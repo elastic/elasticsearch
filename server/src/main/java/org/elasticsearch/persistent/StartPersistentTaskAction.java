@@ -69,19 +69,10 @@ public class StartPersistentTaskAction extends StreamableResponseActionType<Pers
 
         private PersistentTaskParams params;
 
-        public Request() {
+        public Request() {}
 
-        }
-
-        public Request(String taskId, String taskName, PersistentTaskParams params) {
-            this.taskId = taskId;
-            this.taskName = taskName;
-            this.params = params;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             taskId = in.readString();
             taskName = in.readString();
             if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
@@ -89,6 +80,12 @@ public class StartPersistentTaskAction extends StreamableResponseActionType<Pers
             } else {
                 params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
             }
+        }
+
+        public Request(String taskId, String taskName, PersistentTaskParams params) {
+            this.taskId = taskId;
+            this.taskName = taskName;
+            this.params = params;
         }
 
         @Override
@@ -198,7 +195,7 @@ public class StartPersistentTaskAction extends StreamableResponseActionType<Pers
                                PersistentTasksService persistentTasksService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
             clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,

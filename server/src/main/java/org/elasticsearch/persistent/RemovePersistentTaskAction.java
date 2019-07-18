@@ -58,8 +58,11 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
 
         private String taskId;
 
-        public Request() {
+        public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
         }
 
         public Request(String taskId) {
@@ -68,12 +71,6 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
 
         public void setTaskId(String taskId) {
             this.taskId = taskId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
         }
 
         @Override
@@ -125,7 +122,7 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 

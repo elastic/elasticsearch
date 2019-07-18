@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * The response object for {@link TransportDelegatePkiAuthenticationAction} containing the issued access token.
+ * The response object for {@code TransportDelegatePkiAuthenticationAction} containing the issued access token.
  */
 public final class DelegatePkiAuthenticationResponse extends ActionResponse implements ToXContentObject {
 

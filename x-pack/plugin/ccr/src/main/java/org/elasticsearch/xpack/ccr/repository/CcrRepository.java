@@ -498,7 +498,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 }
 
                 @Override
-                protected void sendChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     final ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> threadedListener
                         = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, ActionListener.wrap(
                             r -> {

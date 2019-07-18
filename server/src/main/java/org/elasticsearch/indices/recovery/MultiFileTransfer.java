@@ -121,7 +121,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
                     return;
                 }
                 final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                sendChunkRequest(request.v2(), ActionListener.wrap(
+                executeChunkRequest(request.v2(), ActionListener.wrap(
                     r -> addItem(requestSeqId, request.v1(), null),
                     e -> addItem(requestSeqId, request.v1(), e)));
             }
@@ -179,7 +179,7 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
 
     protected abstract Request nextChunkRequest(StoreFileMetaData md) throws IOException;
 
-    protected abstract void sendChunkRequest(Request request, ActionListener<Void> listener);
+    protected abstract void executeChunkRequest(Request request, ActionListener<Void> listener);
 
     protected abstract void handleError(StoreFileMetaData md, Exception e) throws Exception;
 

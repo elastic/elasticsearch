@@ -728,7 +728,7 @@ public class RecoverySourceHandler {
                 }
 
                 @Override
-                protected void sendChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     cancellableThreads.execute(() -> recoveryTarget.writeFileChunk(
                         request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener));
                 }

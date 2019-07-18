@@ -166,13 +166,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final int BUFFER_SIZE = 4096;
 
-    private static final String SNAPSHOT_PREFIX = "snap-";
+    public static final String SNAPSHOT_PREFIX = "snap-";
 
-    private static final String SNAPSHOT_CODEC = "snapshot";
+    public static final String SNAPSHOT_CODEC = "snapshot";
 
     private static final String INDEX_FILE_PREFIX = "index-";
 
-    private static final String INDEX_LATEST_BLOB = "index.latest";
+    public static final String INDEX_LATEST_BLOB = "index.latest";
 
     private static final String TESTS_FILE = "tests-";
 
@@ -210,7 +210,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private ChecksumBlobStoreFormat<IndexMetaData> indexMetaDataFormat;
 
-    private ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
+    protected ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
 
     private final boolean readOnly;
 

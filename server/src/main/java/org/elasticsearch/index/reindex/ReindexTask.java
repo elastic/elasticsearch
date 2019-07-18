@@ -29,7 +29,13 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -126,8 +132,10 @@ public class ReindexTask extends AllocatedPersistentTask {
             client.get(getRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(GetResponse response) {
-                    try {
-                        ReindexRequest reindexRequest = ReindexRequest.fromXContentWithParams(null);
+                    BytesReference source = response.getSourceAsBytesRef();
+                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                        source, XContentType.JSON)) {
+                        ReindexRequest reindexRequest = ReindexRequest.fromXContentWithParams(parser);
                         reindexRequest.setParentTask(taskId);
                         submitChildTask(reindexJob, reindexRequest, context);
                     } catch (IOException e) {

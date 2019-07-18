@@ -259,7 +259,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalStreamable(warmer);
         out.writeOptionalStreamable(queryCache);
         out.writeOptionalStreamable(fieldData);
-        out.writeOptionalStreamable(completion);
+        out.writeOptionalWriteable(completion);
         out.writeOptionalStreamable(segments);
         out.writeOptionalStreamable(translog);
         out.writeOptionalStreamable(requestCache);

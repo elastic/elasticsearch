@@ -10,7 +10,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +36,7 @@ import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
 
-public class WatchStatus implements ToXContentObject, Streamable, Writeable {
+public class WatchStatus implements ToXContentObject, Writeable {
 
     public static final String INCLUDE_STATE = "include_state";
 

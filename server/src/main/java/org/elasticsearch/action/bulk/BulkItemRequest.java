@@ -23,12 +23,12 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class BulkItemRequest implements Streamable {
+public class BulkItemRequest implements Writeable {
 
     private int id;
     private DocWriteRequest<?> request;
@@ -97,6 +97,6 @@ public class BulkItemRequest implements Streamable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequest(out, request);
-        out.writeOptionalStreamable(primaryResponse);
+        out.writeOptionalWriteable(primaryResponse);
     }
 }

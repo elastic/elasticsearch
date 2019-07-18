@@ -21,7 +21,7 @@ package org.elasticsearch.common.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -32,7 +32,7 @@ import java.io.IOException;
  *
  *
  */
-public class BoundTransportAddress implements Streamable {
+public class BoundTransportAddress implements Writeable {
 
     private TransportAddress[] boundAddresses;
 

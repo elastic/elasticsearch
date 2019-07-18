@@ -20,7 +20,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class MultiSearchTemplateAction extends ActionType<MultiSearchTemplateResponse> {
 
@@ -29,10 +28,5 @@ public class MultiSearchTemplateAction extends ActionType<MultiSearchTemplateRes
 
     private MultiSearchTemplateAction() {
         super(NAME, MultiSearchTemplateResponse::new);
-    }
-
-    @Override
-    public Writeable.Reader<MultiSearchTemplateResponse> getResponseReader() {
-        return MultiSearchTemplateResponse::new;
     }
 }

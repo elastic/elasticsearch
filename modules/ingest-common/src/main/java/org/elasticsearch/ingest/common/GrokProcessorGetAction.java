@@ -55,15 +55,16 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     }
 
     public static class Request extends ActionRequest {
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
 
         Request() {}
 
         Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
     }
 

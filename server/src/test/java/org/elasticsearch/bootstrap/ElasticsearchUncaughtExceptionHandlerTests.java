@@ -19,6 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOError;
@@ -127,6 +129,38 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
         assertFatal(new IOError(new IOException()));
         assertNonFatal(new RuntimeException());
         assertNonFatal(new UncheckedIOException(new IOException()));
+    }
+
+    public void testStartupExceptionMessageWithoutElasticsearchException() {
+        final StartupException exception = new StartupException(new IndexOutOfBoundsException("test"));
+        final String message = ElasticsearchUncaughtExceptionHandler.describeStartupException(exception);
+        assertThat(message, equalTo("an exception was thrown that prevented this node from starting" +
+            " (java.lang.IndexOutOfBoundsException: test)"));
+    }
+
+    public void testStartupExceptionMessageWithElasticsearchException() {
+        final StartupException exception = new StartupException(new RuntimeException("test",
+            new ElasticsearchException("es-exception", new RuntimeException("the-cause", new IndexOutOfBoundsException("root-cause")))));
+        final String message = ElasticsearchUncaughtExceptionHandler.describeStartupException(exception);
+        assertThat(message, equalTo(
+            "an exception was thrown that prevented this node from starting (java.lang.RuntimeException: test)\n" +
+                "this was caused by:\n" +
+                " * es-exception (exception)\n" +
+                "   - caused by: the-cause (runtime_exception)\n" +
+                "     - caused by: root-cause (index_out_of_bounds_exception)"));
+    }
+
+    public void testStartupExceptionMessageWithChainOfElasticsearchExceptions() {
+        final StartupException exception = new StartupException(new RuntimeException("test", new ElasticsearchException("es-exception-1",
+            new ElasticsearchSecurityException("es-exception-2", new RuntimeException("the-cause",
+                new IndexOutOfBoundsException("root-cause"))))));
+        final String message = ElasticsearchUncaughtExceptionHandler.describeStartupException(exception);
+        assertThat(message, equalTo(
+            "an exception was thrown that prevented this node from starting (java.lang.RuntimeException: test)\n" +
+                "this was caused by:\n" +
+                " * es-exception-2 (security_exception)\n" +
+                "   - caused by: the-cause (runtime_exception)\n" +
+                "     - caused by: root-cause (index_out_of_bounds_exception)"));
     }
 
     private void assertFatal(Throwable cause) {

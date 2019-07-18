@@ -19,19 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class DeleteByQueryAction extends StreamableResponseActionType<BulkByScrollResponse> {
+public class DeleteByQueryAction extends ActionType<BulkByScrollResponse> {
 
     public static final DeleteByQueryAction INSTANCE = new DeleteByQueryAction();
     public static final String NAME = "indices:data/write/delete/byquery";
 
     private DeleteByQueryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public BulkByScrollResponse newResponse() {
-        return new BulkByScrollResponse();
+        super(NAME, BulkByScrollResponse::new);
     }
 }

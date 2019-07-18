@@ -1,5 +1,9 @@
 [[query-dsl-wildcard-query]]
-=== Wildcard Query
+=== Wildcard query
+++++
+<titleabbrev>Wildcard</titleabbrev>
+++++
+
 Returns documents that contain terms matching a wildcard pattern.
 
 A wildcard operator is a placeholder that matches one or more characters. For

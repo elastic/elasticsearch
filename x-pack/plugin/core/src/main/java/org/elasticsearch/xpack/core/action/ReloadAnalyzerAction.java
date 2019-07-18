@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class ReloadAnalyzerAction extends StreamableResponseActionType<ReloadAnalyzersResponse> {
+public class ReloadAnalyzerAction extends ActionType<ReloadAnalyzersResponse> {
 
     public static final ReloadAnalyzerAction INSTANCE = new ReloadAnalyzerAction();
     public static final String NAME = "indices:admin/reload_analyzers";
 
     private ReloadAnalyzerAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ReloadAnalyzersResponse newResponse() {
-        return new ReloadAnalyzersResponse();
+        super(NAME, ReloadAnalyzersResponse::new);
     }
 }

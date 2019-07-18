@@ -16,8 +16,9 @@ public class XPackInfoFeatureResponse extends ActionResponse {
 
     private FeatureSet info;
 
-    public XPackInfoFeatureResponse() {
-        // empty, for readFrom
+    public XPackInfoFeatureResponse(StreamInput in) throws IOException {
+        super(in);
+        info = new FeatureSet(in);
     }
 
     public XPackInfoFeatureResponse(FeatureSet info) {
@@ -35,7 +36,6 @@ public class XPackInfoFeatureResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        info = new FeatureSet(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

@@ -18,7 +18,14 @@ public class XPackUsageResponse extends ActionResponse {
 
     private List<XPackFeatureSet.Usage> usages;
 
-    public XPackUsageResponse() {}
+    public XPackUsageResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        usages = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class));
+        }
+    }
 
     public XPackUsageResponse(List<XPackFeatureSet.Usage> usages) {
         this.usages = usages;
@@ -38,11 +45,6 @@ public class XPackUsageResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        usages = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class));
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

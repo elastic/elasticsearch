@@ -9,6 +9,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
 import java.io.IOException;
@@ -53,4 +54,12 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
                 + "}",
                 output);
     }
+
+    public void testSerialization() throws IOException {
+        ReloadAnalyzersResponse response = createTestInstance();
+        ReloadAnalyzersResponse copy = copyWriteable(response, writableRegistry(), ReloadAnalyzersResponse::new,
+                VersionUtils.randomVersion(random()));
+        assertEquals(response.getReloadDetails(), copy.getReloadDetails());
+    }
+
 }

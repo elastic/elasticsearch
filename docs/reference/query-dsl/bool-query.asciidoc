@@ -1,5 +1,8 @@
 [[query-dsl-bool-query]]
-=== Bool Query
+=== Boolean query
+++++
+<titleabbrev>Boolean</titleabbrev>
+++++
 
 A query that matches documents matching boolean combinations of other
 queries. The bool query maps to Lucene `BooleanQuery`. It is built using

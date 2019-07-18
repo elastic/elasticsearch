@@ -1,5 +1,8 @@
 [[query-dsl-has-parent-query]]
-=== Has Parent Query
+=== Has parent query
+++++
+<titleabbrev>Has parent</titleabbrev>
+++++
 
 The `has_parent` query accepts a query and a parent type. The query is
 executed in the parent document space, which is specified by the parent

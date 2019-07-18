@@ -24,13 +24,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -180,8 +180,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
-        routingTable = service.applyStartedShards(clusterState,
-            routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int targetShards;
         do {
@@ -250,8 +249,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
-        routingTable = service.applyStartedShards(clusterState,
-            routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         MetaDataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
@@ -386,9 +384,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
 
         // now we start the shard
-        final RoutingTable routingTable = service.applyStartedShards(
-                routingTableClusterState,
-                initialRoutingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        final RoutingTable routingTable
+            = ESAllocationTestCase.startInitializingShardsAndReroute(service, routingTableClusterState, indexName).routingTable();
         final ClusterState clusterState = ClusterState.builder(routingTableClusterState).routingTable(routingTable).build();
 
         final Settings.Builder indexSettingsBuilder = Settings.builder().put("index.number_of_shards", 1).put(requestSettings);

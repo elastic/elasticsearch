@@ -181,6 +181,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             }
                             return existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false;
                         });
+                        if (updatedSettings.isEmpty()) {
+                            finalHandler.accept(leaderIMD.getSettingsVersion());
+                            return;
+                        }
                         // Figure out whether the updated settings are all dynamic settings and
                         // if so just update the follower index's settings:
                         if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {

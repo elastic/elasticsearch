@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -167,11 +169,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
                 watermarkBytes ? "5b" : "95%")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "150ms")).get();
-        // Create an index with 10 shards so we can check allocation for it
+        // Create an index with 6 shards so we can check allocation for it
         prepareCreate("test").setSettings(Settings.builder()
             .put("number_of_shards", 6)
-            .put("number_of_replicas", 0)
-            .put("index.routing.allocation.exclude._name", "")).get();
+            .put("number_of_replicas", 0)).get();
         ensureGreen("test");
 
         // Block until the "fake" cluster info is retrieved at least once
@@ -191,8 +192,8 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
         }
 
-        client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get();
-        refresh();
+        client().prepareIndex("test", "doc", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertSearchHits(client().prepareSearch().get(), "1");
 
         // Block all nodes so that re-balancing does not occur (BalancedShardsAllocator)
@@ -200,35 +201,32 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 3));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 3));
 
-        refresh();
         // Wait until index "test" is blocked
         assertBusy(() -> {
-            assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+            assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),
                 IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
         });
 
         // Cannot add further documents
-        assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("3").setSource("foo", "bar"),
+        assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
             IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
-        refresh();
-        assertSearchHits(client().prepareSearch().get(), "1", "2");
+        assertSearchHits(client().prepareSearch().get(), "1");
 
         // Update the disk usages so all nodes are back under the high and flood watermarks
         cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 11));
         cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 11));
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 11));
 
-        refresh();
         // Attempt to create a new document until DiskUsageMonitor unblocks the index
         assertBusy(() -> {
             try {
-                client().prepareIndex().setIndex("test").setType("doc").setId("3").setSource("foo", "bar").get();
+                client().prepareIndex("test", "doc", "3").setSource("{\"foo\": \"bar\"}", XContentType.JSON)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
             } catch (ClusterBlockException e) {
-                fail();
+                throw new AssertionError("retrying", e);
             }
         });
-        refresh();
-        assertSearchHits(client().prepareSearch().get(), "1", "2", "3");
+        assertSearchHits(client().prepareSearch().get(), "1", "3");
     }
 
 }

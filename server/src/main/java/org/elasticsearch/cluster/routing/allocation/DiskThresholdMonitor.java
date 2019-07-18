@@ -154,9 +154,9 @@ public class DiskThresholdMonitor {
             final DiskUsage usage = entry.value;
             warnAboutDiskIfNeeded(usage);
             RoutingNode routingNode = routingNodes.node(node);
+            // Only unblock index if all nodes that contain shards of it are below the high disk watermark
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-                // Only unblock index if all nodes that contain shards of it are below the high disk watermark
                 markIneligiblityForAutoRelease(routingNode, indicesNotToAutoRelease);
                 if (routingNode != null) { // this might happen if we haven't got the full cluster-state yet?!
                     for (ShardRouting routing : routingNode) {
@@ -165,7 +165,6 @@ public class DiskThresholdMonitor {
                 }
             } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-                // Only unblock index if all nodes that contain shards of it are below the high disk watermark
                 markIneligiblityForAutoRelease(routingNode, indicesNotToAutoRelease);
                 if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                     reroute = true;

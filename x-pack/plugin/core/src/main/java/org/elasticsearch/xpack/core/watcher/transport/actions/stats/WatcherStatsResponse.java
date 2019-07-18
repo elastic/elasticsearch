@@ -194,11 +194,11 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
             out.writeBoolean(snapshots != null);
             if (snapshots != null) {
-                out.writeStreamableList(snapshots);
+                out.writeList(snapshots);
             }
             out.writeBoolean(queuedWatches != null);
             if (queuedWatches != null) {
-                out.writeStreamableList(queuedWatches);
+                out.writeList(queuedWatches);
             }
             out.writeBoolean(stats != null);
             if (stats != null) {

@@ -34,12 +34,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.FrozenEngine;
+import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
+import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
-import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
-import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,8 +59,8 @@ public final class TransportFreezeIndexAction extends
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations,
                                       TransportCloseIndexAction transportCloseIndexAction) {
-        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            FreezeRequest::new);
+        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, FreezeRequest::new,
+            indexNameExpressionResolver);
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
         this.transportCloseIndexAction = transportCloseIndexAction;

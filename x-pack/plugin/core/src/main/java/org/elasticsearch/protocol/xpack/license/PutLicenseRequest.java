@@ -7,11 +7,19 @@ package org.elasticsearch.protocol.xpack.license;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
     private String licenseDefinition;
     private boolean acknowledge = false;
+
+    public PutLicenseRequest(StreamInput in) throws IOException {
+        super(in);
+
+    }
 
     public PutLicenseRequest() {
 

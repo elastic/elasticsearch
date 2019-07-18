@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,18 +25,13 @@ import java.util.Collection;
  * ActionType to obtain information about X.509 (SSL/TLS) certificates that are being used by X-Pack.
  * The primary use case is for tracking the expiry dates of certificates.
  */
-public class GetCertificateInfoAction extends StreamableResponseActionType<GetCertificateInfoAction.Response> {
+public class GetCertificateInfoAction extends ActionType<GetCertificateInfoAction.Response> {
 
     public static final GetCertificateInfoAction INSTANCE = new GetCertificateInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ssl/certificates/get";
 
     private GetCertificateInfoAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetCertificateInfoAction.Response newResponse() {
-        return new GetCertificateInfoAction.Response();
+        super(NAME, GetCertificateInfoAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -52,7 +47,13 @@ public class GetCertificateInfoAction extends StreamableResponseActionType<GetCe
 
         private Collection<CertificateInfo> certificates;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            this.certificates = new ArrayList<>();
+            int count = in.readVInt();
+            for (int i = 0; i < count; i++) {
+                certificates.add(new CertificateInfo(in));
+            }
         }
 
         public Response(Collection<CertificateInfo> certificates) {
@@ -78,12 +79,7 @@ public class GetCertificateInfoAction extends StreamableResponseActionType<GetCe
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.certificates = new ArrayList<>();
-            int count = in.readVInt();
-            for (int i = 0; i < count; i++) {
-                certificates.add(new CertificateInfo(in));
-            }
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
     }
 

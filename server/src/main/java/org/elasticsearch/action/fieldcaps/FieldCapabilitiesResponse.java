@@ -48,9 +48,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
 
-    private String[] indices;
-    private Map<String, Map<String, FieldCapabilities>> responseMap;
-    private List<FieldCapabilitiesIndexResponse> indexResponses;
+    private final String[] indices;
+    private final Map<String, Map<String, FieldCapabilities>> responseMap;
+    private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
     FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
         this(indices, responseMap, Collections.emptyList());
@@ -65,6 +65,17 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         this.responseMap = Objects.requireNonNull(responseMap);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
+    }
+
+    public FieldCapabilitiesResponse(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            indices = in.readStringArray();
+        } else {
+            indices = Strings.EMPTY_ARRAY;
+        }
+        this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
+        indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
     }
 
     /**
@@ -106,15 +117,8 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indices = in.readStringArray();
-        } else {
-            indices = Strings.EMPTY_ARRAY;
-        }
-        this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
-        indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {

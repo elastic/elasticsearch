@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.frozen.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 
 public class FreezeIndexAction extends ActionType<FreezeResponse> {
@@ -15,11 +14,6 @@ public class FreezeIndexAction extends ActionType<FreezeResponse> {
     public static final String NAME = "indices:admin/freeze";
 
     private FreezeIndexAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<FreezeResponse> getResponseReader() {
-        return FreezeResponse::new;
+        super(NAME, FreezeResponse::new);
     }
 }

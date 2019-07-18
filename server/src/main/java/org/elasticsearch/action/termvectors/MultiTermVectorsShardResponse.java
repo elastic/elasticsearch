@@ -54,7 +54,7 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
                 responses.add(null);
             }
             if (in.readBoolean()) {
-                failures.add(MultiTermVectorsResponse.Failure.readFailure(in));
+                failures.add(new MultiTermVectorsResponse.Failure(in));
             } else {
                 failures.add(null);
             }

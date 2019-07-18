@@ -32,8 +32,8 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
     @Inject
     public TransportStopILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                StopILMRequest::new);
+        super(StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StopILMRequest::new,
+            indexNameExpressionResolver);
     }
 
     @Override

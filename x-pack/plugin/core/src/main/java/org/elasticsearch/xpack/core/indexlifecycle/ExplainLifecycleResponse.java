@@ -49,7 +49,15 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
         return PARSER.apply(parser, null);
     }
 
-    public ExplainLifecycleResponse() {
+    public ExplainLifecycleResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            IndexLifecycleExplainResponse indexResponse = new IndexLifecycleExplainResponse(in);
+            indexResponses.put(indexResponse.getIndex(), indexResponse);
+        }
+        this.indexResponses = indexResponses;
     }
 
     public ExplainLifecycleResponse(Map<String, IndexLifecycleExplainResponse> indexResponses) {
@@ -80,13 +88,7 @@ public class ExplainLifecycleResponse extends ActionResponse implements ToXConte
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            IndexLifecycleExplainResponse indexResponse = new IndexLifecycleExplainResponse(in);
-            indexResponses.put(indexResponse.getIndex(), indexResponse);
-        }
-        this.indexResponses = indexResponses;
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

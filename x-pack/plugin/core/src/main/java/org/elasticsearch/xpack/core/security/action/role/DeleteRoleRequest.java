@@ -23,6 +23,12 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public DeleteRoleRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public DeleteRoleRequest() {
     }
 
@@ -56,9 +62,7 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

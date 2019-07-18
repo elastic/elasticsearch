@@ -153,7 +153,7 @@ public abstract class AbstractRepository implements Repository {
             GroupedActionListener<String> groupedOrphanedIndicesListener = new GroupedActionListener<>(orphanedIndicesFuture,
                     deletionCandidates.size());
             for (String candidate : deletionCandidates) {
-                executor.submit(new ActionRunnable<>(groupedOrphanedIndicesListener) {
+                executor.submit(new ActionRunnable<String>(groupedOrphanedIndicesListener) {
                     @Override
                     protected void doRun() {
                         if (isOrphaned(candidate, shiftedIndexNTimestamp)) {
@@ -181,7 +181,7 @@ public abstract class AbstractRepository implements Repository {
             GroupedActionListener<Void> groupedRemovalListener =
                     new GroupedActionListener<>(removalFuture, orphanedIndexIds.size());
             for (final String indexId : orphanedIndexIds) {
-                executor.submit(new ActionRunnable<>(groupedRemovalListener) {
+                executor.submit(new ActionRunnable<Void>(groupedRemovalListener) {
                     @Override
                     protected void doRun() {
                         terminal.println(Terminal.Verbosity.NORMAL, "Removing orphaned index " + indexId);

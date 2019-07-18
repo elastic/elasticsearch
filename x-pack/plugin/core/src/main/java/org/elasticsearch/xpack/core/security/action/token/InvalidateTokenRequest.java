@@ -150,5 +150,4 @@ public final class InvalidateTokenRequest extends ActionRequest {
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
     }
-
-    }
+}

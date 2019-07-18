@@ -222,5 +222,4 @@ public final class CreateTokenRequest extends ActionRequest {
         out.writeOptionalString(scope);
         out.writeOptionalSecureString(kerberosTicket);
     }
-
-    }
+}

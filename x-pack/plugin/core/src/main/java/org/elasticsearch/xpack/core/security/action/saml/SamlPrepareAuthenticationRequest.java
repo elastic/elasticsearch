@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Represents a request to prepare a SAML {@code &lt;AuthnRequest&gt;}.

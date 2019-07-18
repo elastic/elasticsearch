@@ -549,7 +549,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 }
             };
             multiFileTransfer.start();
-            restoreFilesFuture.actionGet(ccrSettings.getRecoveryActionTimeout());
+            restoreFilesFuture.actionGet();
             logger.trace("[{}] completed CCR restore", shardId);
         }
 

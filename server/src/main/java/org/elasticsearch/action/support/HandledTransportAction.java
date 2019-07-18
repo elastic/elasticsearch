@@ -64,17 +64,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
             new TransportHandler());
     }
 
-    /**
-     * @deprecated Use {@link #HandledTransportAction(String, boolean, TransportService, ActionFilters, Writeable.Reader, String)} instead.
-     */
-    @Deprecated
-    protected HandledTransportAction(String actionName, TransportService transportService, Supplier<Request> request,
-                                     ActionFilters actionFilters, String executor) {
-        super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, executor, false, true,
-            new TransportHandler());
-    }
-
     protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, ActionFilters actionFilters,
                                      Writeable.Reader<Request> requestReader) {

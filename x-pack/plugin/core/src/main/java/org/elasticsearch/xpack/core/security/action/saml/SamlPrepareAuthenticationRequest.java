@@ -24,6 +24,12 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
     @Nullable
     private String assertionConsumerServiceURL;
 
+    public SamlPrepareAuthenticationRequest(StreamInput in) throws IOException {
+        super(in);
+        realmName = in.readOptionalString();
+        assertionConsumerServiceURL = in.readOptionalString();
+    }
+
     public SamlPrepareAuthenticationRequest() {
     }
 
@@ -58,9 +64,7 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        realmName = in.readOptionalString();
-        assertionConsumerServiceURL = in.readOptionalString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

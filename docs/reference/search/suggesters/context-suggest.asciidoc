@@ -1,4 +1,4 @@
-[[suggester-context]]
+[[context-suggester]]
 === Context Suggester
 
 The completion suggester considers all documents in the index, but it is often

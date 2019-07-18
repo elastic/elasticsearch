@@ -41,8 +41,8 @@ public class TransportGetSnapshotLifecycleAction extends
     @Inject
     public TransportGetSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            GetSnapshotLifecycleAction.Request::new);
+        super(GetSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            GetSnapshotLifecycleAction.Request::new, indexNameExpressionResolver);
     }
     @Override
     protected String executor() {

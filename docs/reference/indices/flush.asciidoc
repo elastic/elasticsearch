@@ -47,7 +47,7 @@ POST _flush
 // CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-[[indices-synced-flush]]
+[[synced-flush-api]]
 === Synced Flush
 
 Elasticsearch tracks the indexing activity of each shard. Shards that have not

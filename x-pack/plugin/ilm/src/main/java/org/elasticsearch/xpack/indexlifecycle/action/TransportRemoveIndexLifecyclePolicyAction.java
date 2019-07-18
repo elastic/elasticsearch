@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,17 +26,18 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePo
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransportRemoveIndexLifecyclePolicyAction extends StreamableTransportMasterNodeAction<Request, Response> {
+public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
     public TransportRemoveIndexLifecyclePolicyAction(TransportService transportService, ClusterService clusterService,
                                                      ThreadPool threadPool, ActionFilters actionFilters,
                                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, Request::new);
+            Request::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -44,8 +46,8 @@ public class TransportRemoveIndexLifecyclePolicyAction extends StreamableTranspo
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
     @Override

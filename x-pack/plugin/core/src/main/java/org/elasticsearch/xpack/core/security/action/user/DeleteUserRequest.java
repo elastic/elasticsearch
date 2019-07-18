@@ -23,6 +23,12 @@ public class DeleteUserRequest extends ActionRequest implements UserRequest, Wri
     private String username;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public DeleteUserRequest(StreamInput in) throws IOException {
+        super(in);
+        username = in.readString();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public DeleteUserRequest() {
     }
 
@@ -65,9 +71,7 @@ public class DeleteUserRequest extends ActionRequest implements UserRequest, Wri
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        username = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

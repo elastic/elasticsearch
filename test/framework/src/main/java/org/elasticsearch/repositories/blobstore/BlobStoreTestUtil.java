@@ -213,8 +213,9 @@ public final class BlobStoreTestUtil {
                         return;
                     }
                     for (String file : indexToFiles.get(index)) {
-                        if (blobStore.blobContainer(repository.basePath().add("indices").add(index))
-                            .blobExists(file) == false) {
+                        try (InputStream ignored =
+                                     blobStore.blobContainer(repository.basePath().add("indices").add(index)).readBlob(file)) {
+                        } catch (NoSuchFileException e) {
                             future.onResponse(false);
                             return;
                         }

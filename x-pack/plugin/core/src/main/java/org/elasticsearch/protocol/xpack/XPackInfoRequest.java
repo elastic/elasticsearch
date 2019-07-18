@@ -44,7 +44,7 @@ public class XPackInfoRequest extends ActionRequest {
     public XPackInfoRequest() {}
 
     public XPackInfoRequest(StreamInput in) throws IOException {
-        super(in);
+        // NOTE: this does *not* call super, THIS IS A BUG
         this.verbose = in.readBoolean();
         EnumSet<Category> categories = EnumSet.noneOf(Category.class);
         int size = in.readVInt();

@@ -74,7 +74,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
 
-        // validate all the different ways to retrieve all stats
+        // check all the different ways to retrieve all stats
         Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
@@ -128,7 +128,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
 
 
-        // validate all the different ways to retrieve all transforms
+        // check all the different ways to retrieve all transforms
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT, authHeader);
         Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", transforms));

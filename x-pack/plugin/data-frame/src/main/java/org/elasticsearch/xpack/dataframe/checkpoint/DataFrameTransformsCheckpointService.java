@@ -226,10 +226,10 @@ public class DataFrameTransformsCheckpointService {
                 // SeqNoStats could be `null`, assume the global checkpoint to be 0 in this case
                 long globalCheckpoint = shard.getSeqNoStats() == null ? 0 : shard.getSeqNoStats().getGlobalCheckpoint();
                 if (checkpointsByIndex.containsKey(indexName)) {
-                    // we have already seen this index, just validate/add shards
+                    // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);
                     if (checkpoints.containsKey(shard.getShardRouting().getId())) {
-                        // there is already a checkpoint entry for this index/shard combination, validate if they match
+                        // there is already a checkpoint entry for this index/shard combination, check if they match
                         if (checkpoints.get(shard.getShardRouting().getId()) != globalCheckpoint) {
                             throw new CheckpointException("Global checkpoints mismatch for index [" + indexName + "] between shards of id ["
                                     + shard.getShardRouting().getId() + "]");

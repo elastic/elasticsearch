@@ -73,7 +73,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        // get and validate some users
+        // get and check some users
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
@@ -125,7 +125,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        // get and validate some users
+        // get and check some users
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
@@ -168,7 +168,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         startAndWaitForContinuousTransform(transformId, dataFrameIndex, null);
         assertTrue(indexExists(dataFrameIndex));
-        // get and validate some users
+        // get and check some users
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
@@ -347,7 +347,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        // get and validate some users
+        // get and check some users
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
 
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
@@ -581,7 +581,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        // get and validate some users
+        // get and check some users
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
@@ -632,7 +632,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        // get and validate some users
+        // get and check some users
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
@@ -680,7 +680,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
-        // get and validate some users
+        // get and check some users
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);

@@ -16,15 +16,6 @@ Currently, the only way to reload a file script in a watch is to delete
 the watch and recreate it.
 
 [discrete]
-=== Watcher UI
-
-When you create a new watch or edit an existing watch, if you navigate away
-from the page without saving your changes they will be lost without warning. 
-Make sure to save your changes before leaving the page.
-
-image::images/watcher-ui-edit-watch.png[Editing a watch in Kibana]
-
-[discrete]
 === Security integration
 
 When the {security-features} are enabled, a watch stores information about what

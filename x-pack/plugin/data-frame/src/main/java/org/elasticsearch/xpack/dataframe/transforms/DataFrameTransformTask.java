@@ -482,8 +482,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     static class ClientDataFrameIndexer extends DataFrameIndexer {
 
-        private static final int ON_FINISH_AUDIT_FREQUENCY = 1000;
-
+        private long logEvery = 1;
+        private long logCount = 0;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -591,21 +591,31 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 BulkAction.INSTANCE,
                 request,
                 ActionListener.wrap(bulkResponse -> {
-                    if (bulkResponse.hasFailures() && auditBulkFailures) {
+                    if (bulkResponse.hasFailures()) {
                         int failureCount = 0;
                         for(BulkItemResponse item : bulkResponse.getItems()) {
                             if (item.isFailed()) {
                                 failureCount++;
                             }
+                            // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
                         }
-                        auditor.warning(transformId,
-                            "Experienced at least [" +
-                                failureCount +
-                                "] bulk index failures. See the logs of the node running the transform for details. " +
-                                bulkResponse.buildFailureMessage());
-                        auditBulkFailures = false;
+                        if (auditBulkFailures) {
+                            auditor.warning(transformId,
+                                "Experienced at least [" +
+                                    failureCount +
+                                    "] bulk index failures. See the logs of the node running the transform for details. " +
+                                    bulkResponse.buildFailureMessage());
+                            auditBulkFailures = false;
+                        }
+                        // This calls AsyncTwoPhaseIndexer#finishWithIndexingFailure
+                        // It increments the indexing failure, and then calls the `onFailure` logic
+                        nextPhase.onFailure(
+                            new BulkIndexingException("Bulk index experienced failures. " +
+                                "See the logs of the node running the transform for details."));
+                    } else {
+                        auditBulkFailures = true;
+                        nextPhase.onResponse(bulkResponse);
                     }
-                    nextPhase.onResponse(bulkResponse);
                 }, nextPhase::onFailure));
         }
 
@@ -701,7 +711,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
-                if (checkpoint % ON_FINISH_AUDIT_FREQUENCY == 0) {
+                if (shouldAuditOnFinish(checkpoint)) {
                     auditor.info(transformTask.getTransformId(),
                         "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 }
@@ -712,6 +722,26 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        /**
+         * Indicates if an audit message should be written when onFinish is called for the given checkpoint
+         * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
+         * Then we audit every 100, until completedCheckpoint == 999
+         *
+         * Then we always audit every 1_000 checkpoints
+         *
+         * @param completedCheckpoint The checkpoint that was just completed
+         * @return {@code true} if an audit message should be written
+         */
+        protected boolean shouldAuditOnFinish(long completedCheckpoint) {
+            if (++logCount % logEvery != 0) {
+                return false;
+            }
+            int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint + 1));
+            logEvery = log10Checkpoint >= 3  ? 1_000 : (int)Math.pow(10.0, log10Checkpoint);
+            logCount = 0;
+            return true;
         }
 
         @Override
@@ -764,7 +794,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         }
                     }, e -> {
                         changed.set(false);
-                        logger.error("failure in update check", e);
+                        logger.warn(
+                                "Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check",
+                                e);
+
+                        auditor.warning(transformId,
+                                "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                                        + e.getMessage());
                     }), latch));
 
             try {
@@ -773,7 +809,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     return changed.get();
                 }
             } catch (InterruptedException e) {
-                logger.error("Failed to check for update", e);
+                logger.warn("Failed to detect changes for data frame transform [" + transformId + "], skipping update till next check", e);
+
+                auditor.warning(transformId,
+                        "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                                + e.getMessage());
             }
 
             return false;
@@ -805,6 +845,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     // Successfully marked as failed, reset counter so that task can be restarted
                     failureCount.set(0);
                 }, e -> {}));
+        }
+    }
+
+    // Considered a recoverable indexing failure
+    private static class BulkIndexingException extends ElasticsearchException {
+        BulkIndexingException(String msg, Object... args) {
+            super(msg, args);
         }
     }
 }

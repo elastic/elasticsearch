@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
 
@@ -193,11 +194,12 @@ public class BlobStoreFormatIT extends AbstractSnapshotIntegTestCase {
                     return null;
                 }
             });
+            // signalling
             block.await(5, TimeUnit.SECONDS);
-            assertFalse(blobContainer.blobExists("test-blob"));
+            assertFalse(BlobStoreTestUtil.blobExists(blobContainer, "test-blob"));
             unblock.countDown();
             future.get();
-            assertTrue(blobContainer.blobExists("test-blob"));
+            assertTrue(BlobStoreTestUtil.blobExists(blobContainer, "test-blob"));
         } finally {
             threadPool.shutdown();
         }

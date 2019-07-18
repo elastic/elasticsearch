@@ -72,12 +72,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 
     private PainlessContextAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PainlessContextAction.Response::new);
     }
 
     public static class Request extends ActionRequest {

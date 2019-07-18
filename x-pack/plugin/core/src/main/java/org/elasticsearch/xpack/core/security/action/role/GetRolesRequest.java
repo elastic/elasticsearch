@@ -22,6 +22,11 @@ public class GetRolesRequest extends ActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
 
+    public GetRolesRequest(StreamInput in) throws IOException {
+        super(in);
+        names = in.readStringArray();
+    }
+
     public GetRolesRequest() {
     }
 
@@ -44,8 +49,7 @@ public class GetRolesRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        names = in.readStringArray();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

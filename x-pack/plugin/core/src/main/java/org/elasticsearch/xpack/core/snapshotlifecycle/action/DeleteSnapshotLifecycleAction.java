@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
@@ -23,17 +22,17 @@ public class DeleteSnapshotLifecycleAction extends ActionType<DeleteSnapshotLife
     public static final String NAME = "cluster:admin/slm/delete";
 
     protected DeleteSnapshotLifecycleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, DeleteSnapshotLifecycleAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
         private String lifecycleId;
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            lifecycleId = in.readString();
+        }
 
         public Request() { }
 
@@ -48,12 +47,6 @@ public class DeleteSnapshotLifecycleAction extends ActionType<DeleteSnapshotLife
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            lifecycleId = in.readString();
         }
 
         @Override

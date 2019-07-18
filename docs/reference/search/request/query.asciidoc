@@ -1,4 +1,4 @@
-[[search-request-query]]
+[[request-body-search-query]]
 === Query
 
 The query element within the search request body allows to define a

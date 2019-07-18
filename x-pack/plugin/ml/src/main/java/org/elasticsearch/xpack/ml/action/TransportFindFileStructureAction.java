@@ -27,7 +27,7 @@ public class TransportFindFileStructureAction
 
     @Inject
     public TransportFindFileStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
-        super(FindFileStructureAction.NAME, transportService, FindFileStructureAction.Request::new, actionFilters);
+        super(FindFileStructureAction.NAME, transportService, actionFilters, FindFileStructureAction.Request::new);
         this.threadPool = threadPool;
     }
 

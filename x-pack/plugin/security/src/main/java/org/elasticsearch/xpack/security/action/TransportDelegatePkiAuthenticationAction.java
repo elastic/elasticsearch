@@ -39,8 +39,8 @@ import java.util.Map;
  * {@code PkiRealmSettings#USERNAME_PATTERN_SETTING}.
  * 
  * IMPORTANT: The association between the subject public key in the target certificate and the corresponding private key is <b>not</b>
- * validated. This is part of the TLS authentication process and it is delegated to the client calling this API. The proxy is <b>trusted</b>
- * to have performed the TLS authentication, and this API translates that authentication for an Elasticsearch access token.
+ * validated. This is part of the TLS authentication process and it is delegated to the proxy calling this API. The proxy is <b>trusted</b>
+ * to have performed the TLS authentication, and this API translates that authentication into an Elasticsearch access token.
  */
 public final class TransportDelegatePkiAuthenticationAction
         extends HandledTransportAction<DelegatePkiAuthenticationRequest, DelegatePkiAuthenticationResponse> {

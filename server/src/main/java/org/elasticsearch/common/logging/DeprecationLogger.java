@@ -134,7 +134,9 @@ public class DeprecationLogger {
      * @param params parameters to the message
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        deprecated(THREAD_CONTEXT, msg, keys.add(key), params);
+        String xOpaqueId = getXOpaqueId(THREAD_CONTEXT);
+        boolean log = keys.add(xOpaqueId + key);//todo that will create a lot of string in a pool. should we do this with weakhashmap?
+        deprecated(THREAD_CONTEXT, msg, log, params);
     }
 
     /*
@@ -223,14 +225,12 @@ public class DeprecationLogger {
     }
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
-        final String formattedMessage = LoggerMessageFormat.format(message, params);
-        final String warningHeaderValue = formatWarning(formattedMessage);
-        assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-        assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
-
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
-
+            final String formattedMessage = LoggerMessageFormat.format(message, params);
+            final String warningHeaderValue = formatWarning(formattedMessage);
+            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+            assert extractWarningValueFromWarningHeader(warningHeaderValue).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();
@@ -249,17 +249,22 @@ public class DeprecationLogger {
                     /**
                      * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
                      */
-                    String opaqueId = threadContexts.stream()
-                                                     .filter(t -> t.isClosed() == false)
-                                                     .findFirst()
-                                                     .map(t -> t.getHeader(Task.X_OPAQUE_ID))
-                                                     .orElse("");
+                    String opaqueId = getXOpaqueId(threadContexts);
 
                     logger.warn(new DeprecatedMessage(message, opaqueId, params));
                     return null;
                 }
             });
         }
+    }
+
+    public String getXOpaqueId(Set<ThreadContext> threadContexts) {
+        return threadContexts.stream()
+                                                         .filter(t -> t.isClosed() == false)
+                                                         .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
+                                                         .findFirst()
+                                                         .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+                                                         .orElse("");
     }
 
     /**

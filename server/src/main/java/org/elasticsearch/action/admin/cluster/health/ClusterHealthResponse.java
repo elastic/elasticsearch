@@ -142,6 +142,8 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private ClusterStateHealth clusterStateHealth;
     private ClusterHealthStatus clusterHealthStatus;
 
+    public ClusterHealthResponse() {}
+
     public ClusterHealthResponse(StreamInput in) throws IOException {
         super(in);
         clusterName = in.readString();

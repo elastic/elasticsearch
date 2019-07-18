@@ -138,5 +138,4 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         out.writeOptionalString(id);
         out.writeOptionalString(name);
     }
-
-    }
+}

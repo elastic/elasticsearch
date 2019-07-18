@@ -113,6 +113,8 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             logger.error(logs);
             fail();
         }
+        logger.error(dumpLogs());
+        fail();
     }
 
     public void test10InstallArchive() throws Exception {

@@ -79,12 +79,18 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     public static class Request extends InstanceShardOperationRequest<Request> {
         public Request() {}
-        public Request(StreamInput in) {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     public static class Response extends ActionResponse {
         public Response() {}
-        public Response(StreamInput in) {}
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+        }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {}

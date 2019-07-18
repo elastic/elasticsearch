@@ -18,19 +18,34 @@
  */
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -73,29 +88,39 @@ public class TransportStartReindexJobAction
         //  Eventually prevent this (perhaps by pre-generating UUID).
         String generatedId = UUIDs.randomBase64UUID();
 
-        ReindexRequest reindexRequest = request.getReindexRequest();
         // In the current implementation, we only need to store task results if we do not wait for completion
         boolean storeTaskResult = request.getWaitForCompletion() == false;
-        ReindexJob job = new ReindexJob(reindexRequest, storeTaskResult, threadPool.getThreadContext().getHeaders());
+        ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
 
-        // TODO: Task name
-        persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
+        boolean reindexIndexExists = state.routingTable().hasIndex(ReindexTask.REINDEX_INDEX);
+
+        createReindexTaskDoc(generatedId, request.getReindexRequest(), reindexIndexExists, new ActionListener<>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
-                if (request.getWaitForCompletion()) {
-                    waitForReindexDone(persistentTask.getId(), listener);
-                } else {
-                    waitForReindexTask(persistentTask.getId(), listener);
-                }
+            public void onResponse(Void v) {
+                // TODO: Task name
+                persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> persistentTask) {
+                        if (request.getWaitForCompletion()) {
+                            waitForReindexDone(persistentTask.getId(), listener);
+                        } else {
+                            waitForReindexTask(persistentTask.getId(), listener);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert e instanceof ResourceAlreadyExistsException == false : "UUID generation should not produce conflicts";
+                        listener.onFailure(e);
+                    }
+                });
             }
 
             @Override
             public void onFailure(Exception e) {
-                assert e instanceof ResourceAlreadyExistsException == false : "UUID generation should not produce conflicts";
                 listener.onFailure(e);
             }
         });
-
     }
 
     private void waitForReindexDone(String taskId, ActionListener<StartReindexJobAction.Response> listener) {
@@ -141,6 +166,55 @@ public class TransportStartReindexJobAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
+    private void createReindexTaskDoc(String taskId, ReindexRequest reindexRequest, boolean indexExists, ActionListener<Void> listener) {
+        if (indexExists) {
+            IndexRequest indexRequest = new IndexRequest(ReindexTask.REINDEX_INDEX).id(taskId);
+            try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
+                reindexRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                indexRequest.source(builder);
+            } catch (IOException e) {
+                listener.onFailure(new ElasticsearchException("Couldn't serialize reindex request into XContent", e));
+            }
+            client.index(indexRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+            createIndexRequest.settings(reindexIndexSettings());
+            createIndexRequest.index(ReindexTask.REINDEX_INDEX);
+            createIndexRequest.cause("auto(reindex api)");
+
+            client.admin().indices().create(createIndexRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(CreateIndexResponse result) {
+                    createReindexTaskDoc(taskId, reindexRequest, true, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                        try {
+                            createReindexTaskDoc(taskId, reindexRequest, true, listener);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            listener.onFailure(inner);
+                        }
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            });
+        }
+    }
+
     private class ReindexPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private boolean waitForDone;
@@ -176,5 +250,14 @@ public class TransportStartReindexJobAction
         private boolean isDone(ReindexJobState state) {
             return state != null && (state.getReindexResponse() != null || state.getJobException() != null);
         }
+    }
+
+    private Settings reindexIndexSettings() {
+        // TODO: Copied from task index
+        return Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
+            .put(IndexMetaData.SETTING_PRIORITY, Integer.MAX_VALUE)
+            .build();
     }
 }

@@ -43,6 +43,24 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
 
+    public PutRoleRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        clusterPrivileges = in.readStringArray();
+        int indicesSize = in.readVInt();
+        indicesPrivileges = new ArrayList<>(indicesSize);
+        for (int i = 0; i < indicesSize; i++) {
+            indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
+            conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
+        }
+        runAs = in.readStringArray();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        metadata = in.readMap();
+    }
+
     public PutRoleRequest() {
     }
 
@@ -160,21 +178,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        clusterPrivileges = in.readStringArray();
-        int indicesSize = in.readVInt();
-        indicesPrivileges = new ArrayList<>(indicesSize);
-        for (int i = 0; i < indicesSize; i++) {
-            indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
-            conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
-        }
-        runAs = in.readStringArray();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        metadata = in.readMap();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

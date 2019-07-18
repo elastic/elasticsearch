@@ -66,11 +66,10 @@ public class PutRoleRequestTests extends ESTestCase {
         }
         original.writeTo(out);
 
-        final PutRoleRequest copy = new PutRoleRequest();
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(out.getVersion());
-        copy.readFrom(in);
+        final PutRoleRequest copy = new PutRoleRequest(in);
 
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
     }

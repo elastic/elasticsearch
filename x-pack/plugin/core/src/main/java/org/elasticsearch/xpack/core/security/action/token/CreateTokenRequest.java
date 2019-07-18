@@ -69,6 +69,21 @@ public final class CreateTokenRequest extends ActionRequest {
     private String scope;
     private String refreshToken;
 
+    public CreateTokenRequest(StreamInput in) throws IOException {
+        super(in);
+        grantType = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            username = in.readOptionalString();
+            password = in.readOptionalSecureString();
+            refreshToken = in.readOptionalString();
+            kerberosTicket = in.readOptionalSecureString();
+        } else {
+            username = in.readString();
+            password = in.readSecureString();
+        }
+        scope = in.readOptionalString();
+    }
+
     public CreateTokenRequest() {}
 
     public CreateTokenRequest(String grantType, @Nullable String username, @Nullable SecureString password,
@@ -234,17 +249,6 @@ public final class CreateTokenRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        grantType = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            username = in.readOptionalString();
-            password = in.readOptionalSecureString();
-            refreshToken = in.readOptionalString();
-            kerberosTicket = in.readOptionalSecureString();
-        } else {
-            username = in.readString();
-            password = in.readSecureString();
-        }
-        scope = in.readOptionalString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

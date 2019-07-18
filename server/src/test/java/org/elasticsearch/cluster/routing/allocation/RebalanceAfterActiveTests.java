@@ -99,9 +99,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         }
 
         logger.info("start all the primary shards, replicas will start initializing");
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).shards().size(), equalTo(2));
@@ -116,7 +114,6 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
                 .add(newNode("node7")).add(newNode("node8")).add(newNode("node9")).add(newNode("node10")))
                 .build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        routingNodes = clusterState.getRoutingNodes();
 
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test").shard(i).shards().size(), equalTo(2));
@@ -127,9 +124,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         }
 
         logger.info("start the replica shards, rebalancing should start");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we only allow one relocation at a time
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
@@ -146,9 +141,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         }
 
         logger.info("complete relocation, other half of relocation should happen");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         // we now only relocate 3, since 2 remain where they are!
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(7));
@@ -163,9 +156,8 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
 
 
         logger.info("complete relocation, that's it!");
-        routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
-        routingNodes = clusterState.getRoutingNodes();
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(10));
         // make sure we have an even relocation

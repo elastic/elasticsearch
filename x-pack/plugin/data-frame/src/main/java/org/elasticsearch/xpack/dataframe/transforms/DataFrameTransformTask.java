@@ -253,6 +253,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         IndexerState state = getIndexer().stop();
+        stateReason.set(null);
         if (state == IndexerState.STOPPED) {
             getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -322,6 +323,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
         auditor.error(transform.getId(), reason);
+        // We should not keep retrying. Either the task will be stopped, or started
+        // If it is started again, it is registered again.
+        deregisterSchedulerJob();
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
@@ -482,8 +486,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     static class ClientDataFrameIndexer extends DataFrameIndexer {
 
-        private static final int ON_FINISH_AUDIT_FREQUENCY = 1000;
-
+        private long logEvery = 1;
+        private long logCount = 0;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -711,7 +715,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
-                if (checkpoint % ON_FINISH_AUDIT_FREQUENCY == 0) {
+                if (shouldAuditOnFinish(checkpoint)) {
                     auditor.info(transformTask.getTransformId(),
                         "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 }
@@ -722,6 +726,26 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        /**
+         * Indicates if an audit message should be written when onFinish is called for the given checkpoint
+         * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
+         * Then we audit every 100, until completedCheckpoint == 999
+         *
+         * Then we always audit every 1_000 checkpoints
+         *
+         * @param completedCheckpoint The checkpoint that was just completed
+         * @return {@code true} if an audit message should be written
+         */
+        protected boolean shouldAuditOnFinish(long completedCheckpoint) {
+            if (++logCount % logEvery != 0) {
+                return false;
+            }
+            int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint + 1));
+            logEvery = log10Checkpoint >= 3  ? 1_000 : (int)Math.pow(10.0, log10Checkpoint);
+            logCount = 0;
+            return true;
         }
 
         @Override

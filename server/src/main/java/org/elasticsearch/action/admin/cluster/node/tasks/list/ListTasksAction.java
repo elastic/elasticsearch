@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * ActionType for retrieving a list of currently running tasks
@@ -31,11 +30,7 @@ public class ListTasksAction extends ActionType<ListTasksResponse> {
     public static final String NAME = "cluster:monitor/tasks/lists";
 
     private ListTasksAction() {
-        super(NAME);
+        super(NAME, ListTasksResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<ListTasksResponse> getResponseReader() {
-        return ListTasksResponse::new;
-    }
 }

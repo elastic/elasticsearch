@@ -77,8 +77,16 @@ public class ValidateQueryResponse extends BroadcastResponse {
 
     private List<QueryExplanation> queryExplanations;
 
-    ValidateQueryResponse() {
-
+    ValidateQueryResponse(StreamInput in) throws IOException {
+        super(in);
+        valid = in.readBoolean();
+        int size = in.readVInt();
+        if (size > 0) {
+            queryExplanations = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                queryExplanations.add(readQueryExplanation(in));
+            }
+        }
     }
 
     ValidateQueryResponse(boolean valid, List<QueryExplanation> queryExplanations, int totalShards, int successfulShards, int failedShards,
@@ -106,19 +114,6 @@ public class ValidateQueryResponse extends BroadcastResponse {
             return Collections.emptyList();
         }
         return queryExplanations;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        valid = in.readBoolean();
-        int size = in.readVInt();
-        if (size > 0) {
-            queryExplanations = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                queryExplanations.add(readQueryExplanation(in));
-            }
-        }
     }
 
     @Override

@@ -38,8 +38,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
     public TransportMoveToStepAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                      IndexLifecycleService indexLifecycleService) {
-        super(MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            Request::new);
+        super(MoveToStepAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
+            indexNameExpressionResolver);
         this.indexLifecycleService = indexLifecycleService;
     }
 

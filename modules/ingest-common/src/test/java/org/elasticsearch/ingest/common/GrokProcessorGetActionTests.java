@@ -34,7 +34,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.nullValue;
 
-
 public class GrokProcessorGetActionTests extends ESTestCase {
     private static final Map<String, String> TEST_PATTERNS = Collections.singletonMap("PATTERN", "foo");
 
@@ -53,8 +52,7 @@ public class GrokProcessorGetActionTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        GrokProcessorGetAction.Response otherResponse = new GrokProcessorGetAction.Response(null);
-        otherResponse.readFrom(streamInput);
+        GrokProcessorGetAction.Response otherResponse = new GrokProcessorGetAction.Response(streamInput);
         assertThat(response.getGrokPatterns(), equalTo(TEST_PATTERNS));
         assertThat(response.getGrokPatterns(), equalTo(otherResponse.getGrokPatterns()));
     }

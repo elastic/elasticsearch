@@ -42,6 +42,19 @@ public class PutRoleMappingRequest extends ActionRequest
     private Map<String, Object> metadata = Collections.emptyMap();
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public PutRoleMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        this.name = in.readString();
+        this.enabled = in.readBoolean();
+        this.roles = in.readStringList();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            this.roleTemplates = in.readList(TemplateRoleName::new);
+        }
+        this.rules = ExpressionParser.readExpression(in);
+        this.metadata = in.readMap();
+        this.refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public PutRoleMappingRequest() {
     }
 
@@ -133,16 +146,7 @@ public class PutRoleMappingRequest extends ActionRequest
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.name = in.readString();
-        this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            this.roleTemplates = in.readList(TemplateRoleName::new);
-        }
-        this.rules = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
-        this.refreshPolicy = RefreshPolicy.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

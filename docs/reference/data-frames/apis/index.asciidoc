@@ -1,13 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[data-frame-apis]]
-== {dataframe-cap} APIs
+== {dataframe-transform-cap} APIs
 
-See also {stack-ov}/ml-dataframes.html[{dataframes-cap}].
-
-[float]
-[[data-frame-transform-apis]]
-=== {dataframe-transforms-cap}
+See also {stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}].
 
 * <<put-data-frame-transform>> 
 * <<delete-data-frame-transform>>

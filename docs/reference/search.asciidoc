@@ -1,9 +1,6 @@
 [[search]]
 = Search APIs
 
-[partintro]
---
-
 Most search APIs are <<search-multi-index,multi-index>>, with the
 exception of the <<search-explain>> endpoints.
 
@@ -159,8 +156,6 @@ for the request. This parameter should be used to protect a single request from
 overloading a cluster (e.g., a default request will hit all indices in a cluster
 which could cause shard request rejections if the number of shards per node is
 high). This default value is `5`.
-
---
 
 include::search/search.asciidoc[]
 

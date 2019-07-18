@@ -139,6 +139,7 @@ GET _analyze
 --------------------------------------------------
 // CONSOLE
 
+[[explain-analyze-api]]
 === Explain Analyze
 
 If you want to get more advanced details, set `explain` to `true` (defaults to `false`). It will output all token attributes for each token.

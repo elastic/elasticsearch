@@ -24,7 +24,7 @@ public class TransportPutRoleMappingAction
     @Inject
     public TransportPutRoleMappingAction(ActionFilters actionFilters, TransportService transportService,
                                          NativeRoleMappingStore roleMappingStore) {
-        super(PutRoleMappingAction.NAME, transportService, PutRoleMappingRequest::new, actionFilters);
+        super(PutRoleMappingAction.NAME, transportService, actionFilters, PutRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 

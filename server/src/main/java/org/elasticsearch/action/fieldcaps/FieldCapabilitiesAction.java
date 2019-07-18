@@ -19,19 +19,15 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class FieldCapabilitiesAction extends StreamableResponseActionType<FieldCapabilitiesResponse> {
+public class FieldCapabilitiesAction extends ActionType<FieldCapabilitiesResponse> {
 
     public static final FieldCapabilitiesAction INSTANCE = new FieldCapabilitiesAction();
     public static final String NAME = "indices:data/read/field_caps";
 
     private FieldCapabilitiesAction() {
-        super(NAME);
+        super(NAME, FieldCapabilitiesResponse::new);
     }
 
-    @Override
-    public FieldCapabilitiesResponse newResponse() {
-        return new FieldCapabilitiesResponse();
-    }
 }

@@ -1,4 +1,4 @@
-[[search-request-scroll]]
+[[request-body-search-scroll]]
 === Scroll
 
 While a `search` request returns a single ``page'' of results, the `scroll`

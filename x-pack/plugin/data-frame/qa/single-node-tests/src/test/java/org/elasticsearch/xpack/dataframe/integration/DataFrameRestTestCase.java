@@ -163,7 +163,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
             //Set frequency high for testing
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\"}},"
-            + " \"frequency\": \"1s\""
+            + " \"frequency\": \"1s\","
             + " \"pivot\": {"
             + "   \"group_by\": {"
             + "     \"reviewer\": {"

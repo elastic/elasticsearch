@@ -40,6 +40,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -111,7 +112,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService,
-                registry, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), executor);
+                registry, new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), executor);
 
         ClusterState state = createInitialClusterState(nonLocalNodesCount, Settings.EMPTY);
 
@@ -207,7 +208,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService,
-                registry, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), executor);
+                registry, new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), executor);
 
         ClusterState state = createInitialClusterState(1, Settings.EMPTY);
 
@@ -257,7 +258,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         int nonLocalNodesCount = randomInt(10);
         MockExecutor executor = new MockExecutor();
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(persistentTasksService,
                 registry, taskManager, executor);
 

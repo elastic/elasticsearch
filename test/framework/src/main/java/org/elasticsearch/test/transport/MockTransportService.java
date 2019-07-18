@@ -194,7 +194,7 @@ public final class MockTransportService extends TransportService {
     @Override
     protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-            return new MockTaskManager(settings, threadPool, taskHeaders);
+            return new MockTaskManager(settings, threadPool, taskHeaders, this);
         } else {
             return super.createTaskManager(settings, threadPool, taskHeaders);
         }

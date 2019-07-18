@@ -29,8 +29,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -84,7 +84,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         ActionFilters actionFilters = new ActionFilters(filters);
         TransportAction<TestRequest, TestResponse> transportAction =
             new TransportAction<TestRequest, TestResponse>(actionName, actionFilters,
-                new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
+                new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());
@@ -161,7 +161,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         String actionName = randomAlphaOfLength(randomInt(30));
         ActionFilters actionFilters = new ActionFilters(filters);
         TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(actionName,
-            actionFilters, new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
+            actionFilters, new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet())) {
             @Override
             protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
                 listener.onResponse(new TestResponse());

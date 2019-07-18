@@ -62,18 +62,13 @@ public class Task {
     private final long startTimeNanos;
 
     public Task(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
-        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers);
-    }
-
-    public Task(long id, String type, String action, String description, TaskId parentTask, long startTime, long startTimeNanos,
-                Map<String, String> headers) {
         this.id = id;
         this.type = type;
         this.action = action;
         this.description = description;
         this.parentTask = parentTask;
-        this.startTime = startTime;
-        this.startTimeNanos = startTimeNanos;
+        this.startTime = System.currentTimeMillis();
+        this.startTimeNanos = System.nanoTime();
         this.headers = headers;
     }
 

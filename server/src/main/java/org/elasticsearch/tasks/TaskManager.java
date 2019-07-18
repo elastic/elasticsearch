@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tasks;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -31,6 +32,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,6 +41,13 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -58,6 +69,8 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
 public class TaskManager implements ClusterStateApplier {
+
+    public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
@@ -82,10 +95,18 @@ public class TaskManager implements ClusterStateApplier {
 
     private final ByteSizeValue maxHeaderSize;
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+    private final TransportService transportService;
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, TransportService transportService) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.transportService = transportService;
+    }
+
+    public void registerBanRequestHandler() {
+        transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
+            new BanParentRequestHandler());
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -148,12 +169,66 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
+     * Cancels a task. The task manager also tries to cancel all children tasks
+     * of the current task, when requested. Once cancellation of the children tasks is done, the listener is triggered.
+     */
+    public void cancel(CancellableTask cancellableTask, String reason, ActionListener<TaskInfo> listener) {
+        final boolean cancelled;
+        if (cancellableTask.shouldCancelChildrenOnCancellation()) {
+            final BanLock banLock = new BanLock(lastDiscoveryNodes.getSize(), () -> removeBanOnNodes(cancellableTask, lastDiscoveryNodes));
+            cancelled = cancel(cancellableTask, reason, banLock::onTaskFinished);
+            if (cancelled) {
+                // /In case the task has some child tasks, we need to wait for until ban is set on all nodes
+                logger.trace("cancelling task {} on child nodes", cancellableTask.getId());
+                AtomicInteger responses = new AtomicInteger(lastDiscoveryNodes.getSize());
+                List<Exception> failures = new ArrayList<>();
+                setBanOnNodes(reason, cancellableTask, lastDiscoveryNodes, new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        processResponse();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        synchronized (failures) {
+                            failures.add(e);
+                        }
+                        processResponse();
+                    }
+
+                    private void processResponse() {
+                        banLock.onBanSet();
+                        if (responses.decrementAndGet() == 0) {
+                            if (failures.isEmpty() == false) {
+                                IllegalStateException exception = new IllegalStateException("failed to cancel children of the task [" +
+                                    cancellableTask.getId() + "]");
+                                failures.forEach(exception::addSuppressed);
+                                listener.onFailure(exception);
+                            } else {
+                                listener.onResponse(cancellableTask.taskInfo(lastDiscoveryNodes.getLocalNodeId(), false));
+                            }
+                        }
+                    }
+                });
+            }
+        } else {
+            cancelled = cancel(cancellableTask, reason,
+                () -> listener.onResponse(cancellableTask.taskInfo(lastDiscoveryNodes.getLocalNodeId(), false)));
+            if (cancelled) {
+                logger.trace("task {} doesn't have any children that should be cancelled", cancellableTask.getId());
+            }
+        }
+        if (cancelled == false) {
+            logger.trace("task {} is already cancelled", cancellableTask.getId());
+            throw new IllegalStateException("task with id " + cancellableTask.getId() + " is already cancelled");
+        }
+    }
+
+    /**
      * Cancels a task
      * <p>
-     * Returns true if cancellation was started successful, null otherwise.
-     *
-     * After starting cancellation on the parent task, the task manager tries to cancel all children tasks
-     * of the current task. Once cancellation of the children tasks is done, the listener is triggered.
+     * Returns true if cancellation was started successful, null otherwise. Once the cancellation has been completed,
+     * the provided runnable listener gerts invoked.
      */
     public boolean cancel(CancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
@@ -309,7 +384,7 @@ public class TaskManager implements ClusterStateApplier {
      * <p>
      * This method is called when a parent task that has children is cancelled.
      */
-    public void setBan(TaskId parentTaskId, String reason) {
+    private void setBan(TaskId parentTaskId, String reason) {
         logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
 
         // Set the ban first, so the newly created tasks cannot be registered
@@ -334,7 +409,7 @@ public class TaskManager implements ClusterStateApplier {
      * <p>
      * This method is called when a previously banned task finally cancelled
      */
-    public void removeBan(TaskId parentTaskId) {
+    private void removeBan(TaskId parentTaskId) {
         logger.trace("removing ban for the parent task {}", parentTaskId);
         banedParents.remove(parentTaskId);
     }
@@ -455,10 +530,9 @@ public class TaskManager implements ClusterStateApplier {
             if (listener != null) {
                 listener.run();
             }
-
         }
 
-        public boolean hasParent(TaskId parentTaskId) {
+        boolean hasParent(TaskId parentTaskId) {
             return task.getParentTaskId().equals(parentTaskId);
         }
 
@@ -467,4 +541,123 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
+    private void removeBanOnNodes(CancellableTask task, DiscoveryNodes nodes) {
+        BanParentTaskRequest request = BanParentTaskRequest.createRemoveBanParentTaskRequest(
+            new TaskId(lastDiscoveryNodes.getLocalNodeId(), task.getId()));
+        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getNodes()) {
+            logger.debug("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.key);
+            transportService.sendRequest(node.value, BAN_PARENT_ACTION_NAME, request, EmptyTransportResponseHandler
+                .INSTANCE_SAME);
+        }
+    }
+
+    private void setBanOnNodes(String reason, CancellableTask task, DiscoveryNodes nodes, ActionListener<Void> listener) {
+        BanParentTaskRequest request = BanParentTaskRequest.createSetBanParentTaskRequest(
+            new TaskId(lastDiscoveryNodes.getLocalNodeId(), task.getId()), reason);
+        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getNodes()) {
+            logger.trace("Sending ban for tasks with the parent [{}] to the node [{}], ban [{}]", request.parentTaskId, node.key,
+                request.ban);
+            transportService.sendRequest(node.value, BAN_PARENT_ACTION_NAME, request,
+                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        listener.onResponse(null);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.key);
+                        listener.onFailure(exp);
+                    }
+                });
+        }
+    }
+
+    private static class BanLock {
+        private final Runnable finish;
+        private final AtomicInteger counter;
+        private final int nodesSize;
+
+        BanLock(int nodesSize, Runnable finish) {
+            counter = new AtomicInteger(0);
+            this.finish = finish;
+            this.nodesSize = nodesSize;
+        }
+
+        void onBanSet() {
+            if (counter.decrementAndGet() == 0) {
+                finish();
+            }
+        }
+
+        void onTaskFinished() {
+            if (counter.addAndGet(nodesSize) == 0) {
+                finish();
+            }
+        }
+
+        public void finish() {
+            finish.run();
+        }
+    }
+
+    private static class BanParentTaskRequest extends TransportRequest {
+
+        private final TaskId parentTaskId;
+        private final boolean ban;
+        private final String reason;
+
+        static BanParentTaskRequest createSetBanParentTaskRequest(TaskId parentTaskId, String reason) {
+            return new BanParentTaskRequest(parentTaskId, reason);
+        }
+
+        static BanParentTaskRequest createRemoveBanParentTaskRequest(TaskId parentTaskId) {
+            return new BanParentTaskRequest(parentTaskId);
+        }
+
+        private BanParentTaskRequest(TaskId parentTaskId, String reason) {
+            this.parentTaskId = parentTaskId;
+            this.ban = true;
+            this.reason = reason;
+        }
+
+        private BanParentTaskRequest(TaskId parentTaskId) {
+            this.parentTaskId = parentTaskId;
+            this.ban = false;
+            this.reason = null;
+        }
+
+        private BanParentTaskRequest(StreamInput in) throws IOException {
+            super(in);
+            parentTaskId = TaskId.readFromStream(in);
+            ban = in.readBoolean();
+            reason = ban ? in.readString() : null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            parentTaskId.writeTo(out);
+            out.writeBoolean(ban);
+            if (ban) {
+                out.writeString(reason);
+            }
+        }
+    }
+
+    class BanParentRequestHandler implements TransportRequestHandler<BanParentTaskRequest> {
+        @Override
+        public void messageReceived(final BanParentTaskRequest request, final TransportChannel channel, Task task) throws Exception {
+            if (request.ban) {
+                logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
+                    lastDiscoveryNodes.getLocalNodeId(), request.reason);
+                setBan(request.parentTaskId, request.reason);
+            } else {
+                logger.debug("Removing ban for the parent [{}] on the node [{}]", request.parentTaskId,
+                    lastDiscoveryNodes.getLocalNodeId());
+                removeBan(request.parentTaskId);
+            }
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
 }

@@ -46,6 +46,7 @@ import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.tasks.MockTaskManager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -71,7 +72,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
     public void testSyncerSendsOffCorrectDocuments() throws Exception {
         IndexShard shard = newStartedShard(true);
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         AtomicBoolean syncActionCalled = new AtomicBoolean();
         List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction =
@@ -146,7 +147,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
-            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
+            new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
 
         int numDocs = 10;
@@ -205,7 +206,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 "_doc", Integer.toString(i), randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : i, primaryTerm, new byte[]{1}));
         }
         doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), anyLong());
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+        TaskManager taskManager = new MockTaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         List<Translog.Operation> sentOperations = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
             sentOperations.addAll(Arrays.asList(request.getOperations()));

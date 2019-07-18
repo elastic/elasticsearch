@@ -19,16 +19,16 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -59,7 +59,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(actionName, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet()));
+            super(actionName, EMPTY_FILTERS, new MockTaskManager(settings, threadPool, Collections.emptySet()));
         }
 
         @Override
@@ -67,6 +67,4 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
             listener.onFailure(new InternalException(actionName));
         }
     }
-
-
 }

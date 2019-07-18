@@ -195,7 +195,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        return new TaskManager(settings, threadPool, taskHeaders);
+        return new TaskManager(settings, threadPool, taskHeaders, this);
     }
 
     /**
@@ -217,6 +217,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     @Override
     protected void doStart() {
+        //TODO can't be done in TaskManager constructor as it's called during transport service initialization. Not so nice though.
+        taskManager.registerBanRequestHandler();
         transport.setMessageListener(this);
         connectionManager.addListener(this);
         transport.start();

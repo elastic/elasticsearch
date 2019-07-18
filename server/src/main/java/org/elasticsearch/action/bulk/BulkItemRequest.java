@@ -34,8 +34,12 @@ public class BulkItemRequest implements Streamable {
     private DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
-    BulkItemRequest() {
-
+    BulkItemRequest(StreamInput in) throws IOException {
+        id = in.readVInt();
+        request = DocWriteRequest.readDocumentRequest(in);
+        if (in.readBoolean()) {
+            primaryResponse = new BulkItemResponse(in);
+        }
     }
 
     // NOTE: public for testing only
@@ -86,21 +90,6 @@ public class BulkItemRequest implements Streamable {
                 throw new IllegalStateException(
                         "aborting item that with response [" + primaryResponse + "] that was previously processed", cause);
             }
-        }
-    }
-
-    public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
-        BulkItemRequest item = new BulkItemRequest();
-        item.readFrom(in);
-        return item;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        id = in.readVInt();
-        request = DocWriteRequest.readDocumentRequest(in);
-        if (in.readBoolean()) {
-            primaryResponse = BulkItemResponse.readBulkItem(in);
         }
     }
 

@@ -240,11 +240,6 @@ public class WatchStatus implements ToXContentObject, Streamable, Writeable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (params.paramAsBoolean(INCLUDE_STATE, true)) {

@@ -28,7 +28,21 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
     private String[] executedActions;
     private StackTraceElement[] executionStackTrace;
 
-    public WatchExecutionSnapshot() {
+    public WatchExecutionSnapshot(StreamInput in) throws IOException {
+        watchId = in.readString();
+        watchRecordId = in.readString();
+        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        phase = ExecutionPhase.resolve(in.readString());
+        int size = in.readVInt();
+        executionStackTrace = new StackTraceElement[size];
+        for (int i = 0; i < size; i++) {
+            String declaringClass = in.readString();
+            String methodName = in.readString();
+            String fileName = in.readOptionalString();
+            int lineNumber = in.readInt();
+            executionStackTrace[i] = new StackTraceElement(declaringClass, methodName, fileName, lineNumber);
+        }
     }
 
     public WatchExecutionSnapshot(WatchExecutionContext context, StackTraceElement[] executionStackTrace) {
@@ -70,24 +84,6 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
 
     public StackTraceElement[] executionStackTrace() {
         return executionStackTrace;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        watchId = in.readString();
-        watchRecordId = in.readString();
-        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
-        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
-        phase = ExecutionPhase.resolve(in.readString());
-        int size = in.readVInt();
-        executionStackTrace = new StackTraceElement[size];
-        for (int i = 0; i < size; i++) {
-            String declaringClass = in.readString();
-            String methodName = in.readString();
-            String fileName = in.readOptionalString();
-            int lineNumber = in.readInt();
-            executionStackTrace[i] = new StackTraceElement(declaringClass, methodName, fileName, lineNumber);
-        }
     }
 
     @Override

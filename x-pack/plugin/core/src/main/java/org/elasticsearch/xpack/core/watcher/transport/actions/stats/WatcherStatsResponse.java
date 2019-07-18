@@ -100,13 +100,13 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             watcherState = WatcherState.fromId(in.readByte());
 
             if (in.readBoolean()) {
-                snapshots = in.readStreamableList(WatchExecutionSnapshot::new);
+                snapshots = in.readList(WatchExecutionSnapshot::new);
             }
             if (in.readBoolean()) {
-                queuedWatches = in.readStreamableList(QueuedWatch::new);
+                queuedWatches = in.readList(QueuedWatch::new);
             }
             if (in.readBoolean()) {
-                stats = Counters.read(in);
+                stats = new Counters(in);
             }
         }
 

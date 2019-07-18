@@ -23,7 +23,11 @@ public class QueuedWatch implements Streamable, ToXContentObject {
     private ZonedDateTime triggeredTime;
     private ZonedDateTime executionTime;
 
-    public QueuedWatch() {
+    public QueuedWatch(StreamInput in) throws IOException {
+        watchId = in.readString();
+        watchRecordId = in.readString();
+        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
     }
 
     public QueuedWatch(WatchExecutionContext ctx) {
@@ -51,14 +55,6 @@ public class QueuedWatch implements Streamable, ToXContentObject {
 
     public void executionTime(ZonedDateTime executionTime) {
         this.executionTime = executionTime;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        watchId = in.readString();
-        watchRecordId = in.readString();
-        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
-        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
     }
 
     @Override

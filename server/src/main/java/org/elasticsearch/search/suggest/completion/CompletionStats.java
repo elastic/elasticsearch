@@ -67,11 +67,6 @@ public class CompletionStats implements Streamable, Writeable, ToXContentFragmen
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
         out.writeOptionalWriteable(fields);

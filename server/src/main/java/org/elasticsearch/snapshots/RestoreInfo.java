@@ -49,7 +49,18 @@ public class RestoreInfo implements ToXContentObject, Streamable {
 
     private int successfulShards;
 
-    RestoreInfo() {
+    RestoreInfo() {}
+
+    public RestoreInfo(StreamInput in) throws IOException {
+        name = in.readString();
+        int size = in.readVInt();
+        List<String> indicesListBuilder = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            indicesListBuilder.add(in.readString());
+        }
+        indices = Collections.unmodifiableList(indicesListBuilder);
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
     }
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
@@ -147,19 +158,6 @@ public class RestoreInfo implements ToXContentObject, Streamable {
 
     public static RestoreInfo fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            indicesListBuilder.add(in.readString());
-        }
-        indices = Collections.unmodifiableList(indicesListBuilder);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
     }
 
     @Override

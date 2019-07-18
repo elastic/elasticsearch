@@ -26,6 +26,13 @@ public class Counters implements Streamable {
 
     private ObjectLongHashMap<String> counters = new ObjectLongHashMap<>();
 
+    public Counters(StreamInput in) throws IOException {
+        int counters = in.readVInt();
+        for (int i = 0; i < counters; i++) {
+            inc(in.readString(), in.readVLong());
+        }
+    }
+
     public Counters(String ... names) {
         for (String name : names) {
             set(name);
@@ -103,26 +110,12 @@ public class Counters implements Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int counters = in.readVInt();
-        for (int i = 0; i < counters; i++) {
-            inc(in.readString(), in.readVLong());
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(counters.size());
         for (ObjectLongCursor<String> cursor : counters) {
             out.writeString(cursor.key);
             out.writeVLong(cursor.value);
         }
-    }
-
-    public static Counters read(StreamInput in) throws IOException {
-        Counters counters = new Counters();
-        counters.readFrom(in);
-        return counters;
     }
 
     public static Counters merge(List<Counters> counters) {

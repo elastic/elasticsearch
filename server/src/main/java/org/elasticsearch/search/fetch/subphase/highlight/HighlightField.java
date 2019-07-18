@@ -45,7 +45,19 @@ public class HighlightField implements ToXContentFragment, Streamable {
 
     private Text[] fragments;
 
-    HighlightField() {
+    public HighlightField(StreamInput in) throws IOException {
+        name = in.readString();
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            if (size == 0) {
+                fragments = Text.EMPTY_ARRAY;
+            } else {
+                fragments = new Text[size];
+                for (int i = 0; i < size; i++) {
+                    fragments[i] = in.readText();
+                }
+            }
+        }
     }
 
     public HighlightField(String name, Text[] fragments) {
@@ -84,28 +96,6 @@ public class HighlightField implements ToXContentFragment, Streamable {
     @Override
     public String toString() {
         return "[" + name + "], fragments[" + Arrays.toString(fragments) + "]";
-    }
-
-    public static HighlightField readHighlightField(StreamInput in) throws IOException {
-        HighlightField field = new HighlightField();
-        field.readFrom(in);
-        return field;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            if (size == 0) {
-                fragments = Text.EMPTY_ARRAY;
-            } else {
-                fragments = new Text[size];
-                for (int i = 0; i < size; i++) {
-                    fragments[i] = in.readText();
-                }
-            }
-        }
     }
 
     @Override

@@ -49,7 +49,13 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
     private String name;
     private List<Object> values;
 
-    private DocumentField() {
+    public DocumentField(StreamInput in) throws IOException {
+        name = in.readString();
+        int size = in.readVInt();
+        values = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            values.add(in.readGenericValue());
+        }
     }
 
     public DocumentField(String name, List<Object> values) {
@@ -91,22 +97,6 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
     @Override
     public Iterator<Object> iterator() {
         return values.iterator();
-    }
-
-    public static DocumentField readDocumentField(StreamInput in) throws IOException {
-        DocumentField result = new DocumentField();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        int size = in.readVInt();
-        values = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            values.add(in.readGenericValue());
-        }
     }
 
     @Override

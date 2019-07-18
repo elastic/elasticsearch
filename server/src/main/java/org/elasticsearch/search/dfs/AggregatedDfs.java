@@ -38,7 +38,18 @@ public class AggregatedDfs implements Streamable {
     private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics;
     private long maxDoc;
 
-    private AggregatedDfs() {
+    public AggregatedDfs(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        termStatistics = HppcMaps.newMap(size);
+        for (int i = 0; i < size; i++) {
+            Term term = new Term(in.readString(), in.readBytesRef());
+            TermStatistics stats = new TermStatistics(in.readBytesRef(),
+                in.readVLong(),
+                DfsSearchResult.subOne(in.readVLong()));
+            termStatistics.put(term, stats);
+        }
+        fieldStatistics = DfsSearchResult.readFieldStats(in);
+        maxDoc = in.readVLong();
     }
 
     public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics,
@@ -58,27 +69,6 @@ public class AggregatedDfs implements Streamable {
 
     public long maxDoc() {
         return maxDoc;
-    }
-
-    public static AggregatedDfs readAggregatedDfs(StreamInput in) throws IOException {
-        AggregatedDfs result = new AggregatedDfs();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        termStatistics = HppcMaps.newMap(size);
-        for (int i = 0; i < size; i++) {
-            Term term = new Term(in.readString(), in.readBytesRef());
-            TermStatistics stats = new TermStatistics(in.readBytesRef(),
-                    in.readVLong(),
-                    DfsSearchResult.subOne(in.readVLong()));
-            termStatistics.put(term, stats);
-        }
-        fieldStatistics = DfsSearchResult.readFieldStats(in);
-        maxDoc = in.readVLong();
     }
 
     @Override

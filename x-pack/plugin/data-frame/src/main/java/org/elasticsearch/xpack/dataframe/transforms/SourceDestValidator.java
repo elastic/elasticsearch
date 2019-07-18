@@ -49,10 +49,10 @@ public final class SourceDestValidator {
      * @param indexNameExpressionResolver A valid IndexNameExpressionResolver object
      * @throws ElasticsearchStatusException when a validation fails
      */
-    public static void check(DataFrameTransformConfig config,
-                             ClusterState clusterState,
-                             IndexNameExpressionResolver indexNameExpressionResolver,
-                             boolean shouldDefer) {
+    public static void validate(DataFrameTransformConfig config,
+                                ClusterState clusterState,
+                                IndexNameExpressionResolver indexNameExpressionResolver,
+                                boolean shouldDefer) {
         for (SourceDestValidation validation : VALIDATIONS) {
             if (shouldDefer && validation.isDeferrable()) {
                 continue;

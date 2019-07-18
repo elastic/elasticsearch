@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -82,15 +81,15 @@ public class Pivot {
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
-                listener.onFailure(new TestQueryException("Unexpected null response from test query"));
+                listener.onFailure(new RuntimeException("Unexpected null response from test query"));
                 return;
             }
             if (response.status() != RestStatus.OK) {
-                listener.onFailure(new TestQueryException("Unexpected status from response of test query: {} ", response.status()));
+                listener.onFailure(new RuntimeException("Unexpected status from response of test query: "+ response.status()));
                 return;
             }
             listener.onResponse(true);
-        }, e -> listener.onFailure(new TestQueryException("Failed to test query", e))));
+        }, e -> listener.onFailure(new RuntimeException("Failed to test query", e))));
     }
 
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
@@ -241,13 +240,4 @@ public class Pivot {
         return compositeAggregation;
     }
 
-    public static class TestQueryException extends ElasticsearchException {
-        TestQueryException(String msg, Object... args) {
-           super(msg, args);
-        }
-
-        TestQueryException(String msg, Exception cause) {
-            super(msg, cause);
-        }
-    }
 }

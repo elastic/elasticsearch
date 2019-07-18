@@ -119,7 +119,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             return;
         }
         try {
-            SourceDestValidator.check(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
+            SourceDestValidator.validate(config, clusterState, indexNameExpressionResolver, request.isDeferValidation());
         } catch (ElasticsearchStatusException ex) {
             listener.onFailure(ex);
             return;
@@ -212,15 +212,9 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
             validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
-            validationException -> {
-                if (validationException instanceof Pivot.TestQueryException && request.isDeferValidation()) {
-                    dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener);
-                } else {
-                    listener.onFailure(
-                        new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
-                            validationException));
-                }
-            }
+            validationException -> listener.onFailure(
+                    new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        validationException))
         );
 
         try {

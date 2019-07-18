@@ -30,7 +30,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     /** All Linux boxes that we test. These are all always supplied **/
     static final List<String> LINUX_BOXES = unmodifiableList([
-            'centos-6',
+            /* nocommit: disabled just to run only windows tests 'centos-6',
             'centos-7',
             'debian-8',
             'debian-9',
@@ -38,11 +38,11 @@ class VagrantTestPlugin implements Plugin<Project> {
             'fedora-29',
             'oel-6',
             'oel-7',
-            'opensuse-42',
+            'opensuse-42',*/
             /* TODO: need a real RHEL license now that it is out of beta 'rhel-8',*/
-            'sles-12',
+            /*'sles-12',
             'ubuntu-1604',
-            'ubuntu-1804'
+            'ubuntu-1804'*/
     ])
 
     /** All Windows boxes that we test, which may or may not be supplied **/

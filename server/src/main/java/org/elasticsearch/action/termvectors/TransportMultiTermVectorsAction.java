@@ -48,7 +48,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     public TransportMultiTermVectorsAction(TransportService transportService, ClusterService clusterService,
                                            TransportShardMultiTermsVectorAction shardAction, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(MultiTermVectorsAction.NAME, transportService, MultiTermVectorsRequest::new, actionFilters);
+        super(MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

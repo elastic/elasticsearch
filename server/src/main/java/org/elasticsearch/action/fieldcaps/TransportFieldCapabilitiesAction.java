@@ -57,7 +57,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                             ClusterService clusterService, ThreadPool threadPool,
                                             TransportFieldCapabilitiesIndexAction shardAction,
                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(FieldCapabilitiesAction.NAME, transportService, FieldCapabilitiesRequest::new, actionFilters);
+        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();

@@ -452,12 +452,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public static final String NAME = "cluster:admin/tasks/testunblock";
 
         private UnblockTestTasksAction() {
-            super(NAME);
-        }
-
-        @Override
-        public Writeable.Reader<UnblockTestTasksResponse> getResponseReader() {
-            return UnblockTestTasksResponse::new;
+            super(NAME, UnblockTestTasksResponse::new);
         }
     }
 

@@ -156,6 +156,9 @@ class S3Service implements Closeable {
         if (clientSettings.pathStyleAccess) {
             builder.enablePathStyleAccess();
         }
+        if (clientSettings.disableChunkedEncoding) {
+            builder.disableChunkedEncoding();
+        }
         return builder.build();
     }
 

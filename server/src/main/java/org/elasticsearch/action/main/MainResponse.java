@@ -42,7 +42,15 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
 
-    MainResponse() {
+    MainResponse() {}
+
+    MainResponse(StreamInput in) throws IOException {
+        super(in);
+        nodeName = in.readString();
+        version = Version.readVersion(in);
+        clusterName = new ClusterName(in);
+        clusterUuid = in.readString();
+        build = Build.readBuild(in);
     }
 
     public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
@@ -85,12 +93,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodeName = in.readString();
-        version = Version.readVersion(in);
-        clusterName = new ClusterName(in);
-        clusterUuid = in.readString();
-        build = Build.readBuild(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

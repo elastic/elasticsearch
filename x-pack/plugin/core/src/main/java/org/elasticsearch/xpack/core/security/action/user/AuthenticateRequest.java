@@ -16,6 +16,11 @@ public class AuthenticateRequest extends ActionRequest implements UserRequest {
 
     private String username;
 
+    public AuthenticateRequest(StreamInput in) throws IOException {
+        super(in);
+        username = in.readString();
+    }
+
     public AuthenticateRequest() {}
 
     public AuthenticateRequest(String username) {
@@ -43,8 +48,7 @@ public class AuthenticateRequest extends ActionRequest implements UserRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        username = in.readString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

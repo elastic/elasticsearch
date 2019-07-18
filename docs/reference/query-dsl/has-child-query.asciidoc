@@ -1,5 +1,8 @@
 [[query-dsl-has-child-query]]
-=== Has Child Query
+=== Has child query
+++++
+<titleabbrev>Has child</titleabbrev>
+++++
 
 Returns parent documents whose <<parent-join,joined>> child documents match a
 provided query. You can create parent-child relationships between documents in

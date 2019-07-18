@@ -255,6 +255,22 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         return new ProxyConnection(connection, remoteClusterNode);
     }
 
+    private Predicate<ClusterName> getRemoteClusterNamePredicate() {
+        return
+            new Predicate<ClusterName>() {
+                @Override
+                public boolean test(ClusterName c) {
+                    return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
+                }
+
+                @Override
+                public String toString() {
+                    return remoteClusterName.get() == null ? "any cluster name"
+                        : "expected remote cluster name [" + remoteClusterName.get().value() + "]";
+                }
+            };
+    }
+
 
     static final class ProxyConnection implements Transport.Connection {
         private final Transport.Connection proxyConnection;
@@ -454,10 +470,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                                 handshakeResponse = PlainActionFuture.get(fut ->
                                     transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                                        (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()), fut));
+                                        getRemoteClusterNamePredicate(), fut));
                             } catch (IllegalStateException ex) {
-                                logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
-                                    "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
+                                logger.warn(new ParameterizedMessage("failed to connect to seed node [{}]", connection.getNode()), ex);
                                 throw ex;
                             }
 

@@ -41,7 +41,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     public TransportHasPrivilegesAction(ThreadPool threadPool, TransportService transportService,
                                         ActionFilters actionFilters, AuthorizationService authorizationService,
                                         NativePrivilegeStore privilegeStore) {
-        super(HasPrivilegesAction.NAME, transportService, HasPrivilegesRequest::new, actionFilters);
+        super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;

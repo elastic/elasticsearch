@@ -93,9 +93,4 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
         this.repositories = repositories;
         return this;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

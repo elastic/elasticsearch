@@ -35,6 +35,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
@@ -107,7 +108,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
-        super(ReindexAction.NAME, transportService, actionFilters, (Writeable.Reader<ReindexRequest>)ReindexRequest::new);
+        super(ReindexAction.NAME, transportService, actionFilters, (Writeable.Reader<ReindexRequest>) ReindexRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -120,22 +121,30 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
-        ClusterState state = clusterService.state();
-        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
-            indexNameExpressionResolver, autoCreateIndex, state);
+        // We dispatch here because the new ReindexTask uses this action. When an action is executed locally,
+        // it is not dispatched from the ctor argument.
+        threadPool.generic().execute(new ActionRunnable<>(listener) {
 
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+            @Override
+            protected void doRun() {
+                checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+                ClusterState state = clusterService.state();
+                validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
+                    indexNameExpressionResolver, autoCreateIndex, state);
 
-        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
-            clusterService.localNode(),
-            () -> {
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
-                    bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request, state,
-                    listener).start();
+                BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+
+                BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
+                    clusterService.localNode(),
+                    () -> {
+                        ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                            bulkByScrollTask);
+                        new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, TransportReindexAction.this,
+                            request, state, listener).start();
+                    }
+                );
             }
-        );
+        });
     }
 
     static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {

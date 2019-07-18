@@ -91,6 +91,37 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
     }
 
+    public void testCopyManyPersistent() throws Exception {
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        int max = between(150, 500);
+        for (int i = 0; i < max; i++) {
+            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("foo", "a"));
+        }
+
+        indexRandom(true, docs);
+        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+
+        // Copy all the docs
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest", "type").refresh(true);
+        StartReindexJobAction.Request request = new StartReindexJobAction.Request(copy.request(), true);
+        // Use a small batch size so we have to use more than one batch
+        copy.source().setSize(5);
+        BulkByScrollResponse reindexResponse = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
+        assertThat(reindexResponse, matcher().created(max).batches(max, 5));
+        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
+
+        // Copy some of the docs
+        int half = max / 2;
+        copy = reindex().source("source").destination("dest_half", "type").refresh(true);
+        // Use a small batch size so we have to use more than one batch
+        copy.source().setSize(5);
+        copy.maxDocs(half);
+        request = new StartReindexJobAction.Request(copy.request(), true);
+        BulkByScrollResponse reindexResponse2 = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
+        assertThat(reindexResponse2, matcher().created(half).batches(half, 5));
+        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
+    }
+
     public void testCopyManyWithSlices() throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>();
         int max = between(150, 500);

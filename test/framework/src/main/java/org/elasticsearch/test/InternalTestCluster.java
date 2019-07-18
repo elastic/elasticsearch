@@ -1981,6 +1981,15 @@ public final class InternalTestCluster extends TestCluster {
                 .put(Node.NODE_DATA_SETTING.getKey(), true).build());
     }
 
+    public List<String> startDataOnlyNodes(int numNodes, Settings settings) {
+        Settings settings1 = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .put(Node.NODE_DATA_SETTING.getKey(), true)
+            .build();
+        return startNodes(numNodes, settings1);
+    }
+
     private int getMasterNodesCount() {
         return (int) nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
     }

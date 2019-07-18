@@ -48,7 +48,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     public static final int AUTO_SLICES = 0;
     public static final String AUTO_SLICES_VALUE = "auto";
-    private static final int DEFAULT_SLICES = 1;
+    protected static final int DEFAULT_SLICES = 1;
+    protected static final TimeValue DEFAULT_TIMEOUT = ReplicationRequest.DEFAULT_TIMEOUT;
 
     /**
      * The search to be executed.
@@ -74,7 +75,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Timeout to wait for the shards on to be available for each bulk request?
      */
-    private TimeValue timeout = ReplicationRequest.DEFAULT_TIMEOUT;
+    private TimeValue timeout = DEFAULT_TIMEOUT;
 
     /**
      * The number of shard copies that must be active before proceeding with the write.

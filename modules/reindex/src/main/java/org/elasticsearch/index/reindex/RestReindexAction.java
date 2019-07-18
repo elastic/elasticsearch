@@ -19,13 +19,22 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -47,7 +56,55 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return doPrepareRequest(request, client, true, true);
+        boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", true);
+
+        // Build the internal request
+        StartReindexJobAction.Request internal = new StartReindexJobAction.Request(setCommonOptions(request, buildRequest(request)),
+            waitForCompletion);
+        /*
+         * Let's try and validate before forking so the user gets some error. The
+         * task can't totally validate until it starts but this is better than
+         * nothing.
+         */
+        ActionRequestValidationException validationException = internal.getReindexRequest().validate();
+        if (validationException != null) {
+            throw validationException;
+        }
+
+        // Executes the request and waits for completion
+        if (waitForCompletion) {
+            Map<String, String> params = new HashMap<>();
+            params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(true));
+            params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(true));
+
+            return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new ActionListener<>() {
+
+                private BulkIndexByScrollResponseContentListener listener = new BulkIndexByScrollResponseContentListener(channel, params);
+
+                @Override
+                public void onResponse(StartReindexJobAction.Response response) {
+                    listener.onResponse(response.getReindexResponse());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            return channel -> client.execute(StartReindexJobAction.INSTANCE, internal, new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(StartReindexJobAction.Response response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    // This is the ephemeral task-id from the first node that is assigned the task (for BWC).
+                    builder.field("task", response.getTaskId());
+
+                    // TODO: Are there error conditions for the non-wait case?
+                    return new BytesRestResponse(RestStatus.OK, builder.endObject());
+                }
+            });
+        }
+
     }
 
     @Override

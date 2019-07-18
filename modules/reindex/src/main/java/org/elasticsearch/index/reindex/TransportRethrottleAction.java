@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -29,14 +30,17 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
-public class TransportRethrottleAction extends TransportTasksAction<BulkByScrollTask, RethrottleRequest, ListTasksResponse, TaskInfo> {
+public class TransportRethrottleAction extends TransportTasksAction<Task, RethrottleRequest, ListTasksResponse, TaskInfo> {
     private final Client client;
 
     @Inject
@@ -48,13 +52,34 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     }
 
     @Override
-    protected void taskOperation(RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
-        rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
+    protected void taskOperation(RethrottleRequest request, Task task, ActionListener<TaskInfo> listener) {
+        if (task instanceof BulkByScrollTask) {
+            BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+            rethrottle(logger, clusterService.localNode().getId(), client, bulkByScrollTask, request.getRequestsPerSecond(), listener);
+        } else if (task instanceof ReindexTask) {
+            BulkByScrollTask childTask = ((ReindexTask) task).getChildTask();
+            long startNanos = System.nanoTime();
+            while (childTask == null || (childTask.isLeader() == false && childTask.isWorker() == false)) {
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+                childTask = ((ReindexTask) task).getChildTask();
+                if ((System.nanoTime() - startNanos) > TimeUnit.SECONDS.toNanos(15)) {
+                    break;
+                }
+            }
+
+            if (childTask == null) {
+                listener.onFailure(new ResourceNotFoundException("Child BulkByScrollTask could not be found."));
+            } else {
+                rethrottle(logger, clusterService.localNode().getId(), client, childTask, request.getRequestsPerSecond(), listener);
+
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid task type. Must be ReindexTask or BulkByScrollTask. Found: " + task.getClass());
+        }
     }
 
     static void rethrottle(Logger logger, String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
-            ActionListener<TaskInfo> listener) {
-
+                           ActionListener<TaskInfo> listener) {
         if (task.isWorker()) {
             rethrottleChildTask(logger, localNodeId, task, newRequestsPerSecond, listener);
             return;

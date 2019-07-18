@@ -196,7 +196,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         builder.field("running_time_in_nanos", runningTimeNanos);
         builder.field("cancellable", cancellable);
-        if (parentTaskId.isSet()) {
+        // TODO: The task index does not currently support serializing parent task-ids. For persistent
+        //  reindex we need to serialized the allocated a ephemeral task which has cluster as the parent
+        //  task-id. Exclude it from serialization for now.
+        if (parentTaskId.isSet() && parentTaskId.getNodeId().equals("cluster") == false) {
             builder.field("parent_task_id", parentTaskId.toString());
         }
         builder.startObject("headers");

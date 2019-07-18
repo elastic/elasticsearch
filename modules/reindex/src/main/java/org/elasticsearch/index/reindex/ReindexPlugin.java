@@ -25,16 +25,22 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -50,9 +56,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
+public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
     @Override
@@ -60,13 +65,27 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
                 new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
                 new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
+                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class),
+                new ActionHandler<>(StartReindexJobAction.INSTANCE, TransportStartReindexJobAction.class)
+            );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return singletonList(
-                new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+        return Arrays.asList(
+            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ReindexJob.NAME, ReindexJob::new),
+            new NamedWriteableRegistry.Entry(Task.Status.class, ReindexJobState.NAME, ReindexJobState::new),
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, ReindexJobState.NAME, ReindexJobState::new));
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return Arrays.asList(
+            new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(ReindexJob.NAME), ReindexJob::fromXContent),
+            new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(ReindexJobState.NAME), ReindexJobState::fromXContent),
+            new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(ReindexJobState.NAME),
+                ReindexJobState::fromXContent));
     }
 
     @Override
@@ -94,5 +113,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool, Client client,
+                                                                       SettingsModule settingsModule) {
+        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client));
     }
 }

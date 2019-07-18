@@ -41,7 +41,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
-  (string) Required. Identifier for the {dataframe-transform}. This identifier
+  (Required, string) Identifier for the {dataframe-transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
@@ -49,7 +49,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 ==== {api-request-body-title}
 
 `description`::
-  (string) Optional. Free text description of the {dataframe-transform}.
+  (Optional, string) Free text description of the {dataframe-transform}.
 
 `dest`::
   (Required, object) Required. The destination configuration, which has the
@@ -59,12 +59,22 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
     (Required, string) The _destination index_ for the {dataframe-transform}.
 
 `pivot`::
-  (object) Required. Defines the pivot function `group by` fields and the
+  (Required, object) Defines the pivot function `group by` fields and the
   aggregation to reduce the data. See <<data-frame-transform-pivot>>.
 
 `source`::
-  (object) Required. The source configuration, which consists of `index` and 
-  optionally a `query`. See <<data-frame-transform-source>>.
+  (Required, object) The source configuration, which has the following
+  properties:
+  
+  `index`:::
+    (Required, string or array) The _source indices_ for the
+    {dataframe-transform}. It can be a single index, an index pattern (for
+    example, `"myindex*"`), or an array of indices (for example,
+    `["index1", "index2"]`).
+    
+    `query`:::
+      (Optional, object) A query clause that retrieves a subset of data from the
+      source index. See <<query-dsl>>.
 
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}

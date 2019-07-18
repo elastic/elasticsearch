@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 
 import java.util.List;
@@ -20,7 +21,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
     static final String TYPE = "enrich";
     private final Client client;
-    volatile Map<String, EnrichPolicyDefinition> policies = Map.of();
+    volatile Map<String, EnrichPolicy> policies = Map.of();
 
     EnrichProcessorFactory(Client client) {
         this.client = client;
@@ -29,12 +30,13 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     @Override
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
-        EnrichPolicyDefinition policy = policies.get(policyName);
+        EnrichPolicy policy = policies.get(policyName);
         if (policy == null) {
             throw new IllegalArgumentException("policy [" + policyName + "] does not exists");
         }
+        EnrichPolicyDefinition policyDefinition = policy.getDefinition();
 
-        String enrichKey = ConfigurationUtils.readStringProperty(TYPE, tag, config, "enrich_key", policy.getEnrichKey());
+        String enrichKey = ConfigurationUtils.readStringProperty(TYPE, tag, config, "enrich_key", policyDefinition.getEnrichKey());
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
 
         final List<EnrichSpecification> specifications;
@@ -45,17 +47,17 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             .collect(Collectors.toList());
 
         for (EnrichSpecification specification : specifications) {
-            if (policy.getEnrichValues().contains(specification.sourceField) == false) {
+            if (policyDefinition.getEnrichValues().contains(specification.sourceField) == false) {
                 throw new IllegalArgumentException("source field [" + specification.sourceField + "] does not exist in policy [" +
                     policyName + "]");
             }
         }
 
-        switch (policy.getType()) {
+        switch (policyDefinition.getType()) {
             case EnrichPolicyDefinition.EXACT_MATCH_TYPE:
                 return new ExactMatchProcessor(tag, client, policyName, enrichKey, ignoreMissing, specifications);
             default:
-                throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");
+                throw new IllegalArgumentException("unsupported policy type [" + policyDefinition.getType() + "]");
         }
     }
 

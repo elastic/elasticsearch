@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -215,83 +214,6 @@ public final class EnrichPolicyDefinition implements Writeable, ToXContentFragme
         @Override
         public int hashCode() {
             return Objects.hash(query, contentType);
-        }
-    }
-
-    public static class NamedPolicy implements Writeable, ToXContent {
-
-        static final ParseField NAME = new ParseField("name");
-        @SuppressWarnings("unchecked")
-        static final ConstructingObjectParser<NamedPolicy, Void> PARSER = new ConstructingObjectParser<>("named_policy",
-            args -> new NamedPolicy(
-                (String) args[0],
-                new EnrichPolicyDefinition((String) args[1],
-                    (QuerySource) args[2],
-                    (List<String>) args[3],
-                    (String) args[4],
-                    (List<String>) args[5])
-            )
-        );
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-            declareParserOptions(PARSER);
-        }
-
-        private final String name;
-        private final EnrichPolicyDefinition policy;
-
-        public NamedPolicy(String name, EnrichPolicyDefinition policy) {
-            this.name = name;
-            this.policy = policy;
-        }
-
-        public NamedPolicy(StreamInput in) throws IOException {
-            name = in.readString();
-            policy = new EnrichPolicyDefinition(in);
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public EnrichPolicyDefinition getPolicy() {
-            return policy;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            policy.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field(NAME.getPreferredName(), name);
-                policy.toXContent(builder, params);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        public static NamedPolicy fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NamedPolicy that = (NamedPolicy) o;
-            return name.equals(that.name) &&
-                policy.equals(that.policy);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, policy);
         }
     }
 }

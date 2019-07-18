@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -35,8 +36,8 @@ public class EnrichRestartIT extends ESIntegTestCase {
         final int numPolicies = randomIntBetween(2, 4);
         internalCluster().startNode();
 
-        EnrichPolicyDefinition enrichPolicy =
-            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
+        EnrichPolicyDefinition enrichPolicy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null,
+            List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
@@ -55,11 +56,11 @@ public class EnrichRestartIT extends ESIntegTestCase {
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            Optional<EnrichPolicyDefinition.NamedPolicy> result = response.getPolicies().stream()
-                .filter(namedPolicy -> namedPolicy.getName().equals(policyName))
+            Optional<EnrichPolicy> result = response.getPolicies().stream()
+                .filter(policy -> policy.getName().equals(policyName))
                 .findFirst();
             assertThat(result.isPresent(), is(true));
-            assertThat(result.get().getPolicy(), equalTo(enrichPolicy));
+            assertThat(result.get().getDefinition(), equalTo(enrichPolicy));
         }
     }
 

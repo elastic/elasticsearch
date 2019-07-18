@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
@@ -57,7 +57,7 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
     protected void masterOperation(Task task, GetEnrichPolicyAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
-        final EnrichPolicyDefinition policy = EnrichStore.getPolicy(request.getName(), state);
+        final EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
         if (policy == null) {
             throw new ResourceNotFoundException("Policy [{}] was not found", request.getName());
         }

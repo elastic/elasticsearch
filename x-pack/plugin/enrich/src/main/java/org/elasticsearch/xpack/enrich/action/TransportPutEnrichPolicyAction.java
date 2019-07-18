@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,6 +25,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -103,7 +105,8 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     }
 
     private void putPolicy(PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener ) {
-        EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, e -> {
+        EnrichPolicy enrichPolicy = new EnrichPolicy(request.getName(), Version.CURRENT, request.getPolicy());
+        EnrichStore.putPolicy(request.getName(), enrichPolicy, clusterService, e -> {
             if (e == null) {
                 listener.onResponse(new AcknowledgedResponse(true));
             } else {

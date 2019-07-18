@@ -61,14 +61,16 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            EnrichPolicyDefinition enrichPolicy =
-                new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
+            EnrichPolicyDefinition enrichPolicy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null,
+                List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
 
-            EnrichPolicyDefinition result =
-                client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request(policyName)).actionGet().getPolicy();
+            EnrichPolicyDefinition result = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request(policyName))
+                .actionGet()
+                .getPolicy()
+                .getDefinition();
             assertThat(result, equalTo(enrichPolicy));
             String enrichIndexPrefix = EnrichPolicyDefinition.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);
@@ -156,8 +158,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
     }
 
     private static void createAndExecutePolicy() {
-        EnrichPolicyDefinition enrichPolicy =
-            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
+        EnrichPolicyDefinition enrichPolicy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null,
+            List.of(SOURCE_INDEX_NAME), KEY_FIELD, List.of(DECORATE_FIELDS));
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(POLICY_NAME)).actionGet();

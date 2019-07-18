@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
 import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification;
 
@@ -25,8 +27,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicyDefinition policy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key",
-            enrichValues);
+        EnrichPolicy policy = new EnrichPolicy("majestic", Version.CURRENT,
+            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues));
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.policies = Map.of("majestic", policy);
 
@@ -94,8 +96,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testPolicyNameMissing() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicyDefinition policy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key",
-            enrichValues);
+        EnrichPolicy policy = new EnrichPolicy("_name", Version.CURRENT,
+            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues));
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.policies = Map.of("_name", policy);
 
@@ -124,7 +126,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testUnsupportedPolicy() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicyDefinition policy = new EnrichPolicyDefinition("unsupported", null, List.of("source_index"), "my_key", enrichValues);
+        EnrichPolicy policy = new EnrichPolicy("majestic", Version.CURRENT,
+            new EnrichPolicyDefinition("unsupported", null, List.of("source_index"), "my_key", enrichValues));
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.policies = Map.of("majestic", policy);
 
@@ -154,8 +157,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testNonExistingDecorateField() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichPolicyDefinition policy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key",
-            enrichValues);
+        EnrichPolicy policy = new EnrichPolicy("majestic", Version.CURRENT,
+            new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues));
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.policies = Map.of("majestic", policy);
 

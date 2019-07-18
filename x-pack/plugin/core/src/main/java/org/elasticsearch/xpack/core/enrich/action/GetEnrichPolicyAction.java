@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -75,14 +75,14 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final EnrichPolicyDefinition policy;
+        private final EnrichPolicy policy;
 
-        public Response(EnrichPolicyDefinition policy) {
+        public Response(EnrichPolicy policy) {
             this.policy = Objects.requireNonNull(policy, "policy cannot be null");
         }
 
         public Response(StreamInput in) throws IOException {
-            policy = new EnrichPolicyDefinition(in);
+            policy = new EnrichPolicy(in);
         }
 
         @Override
@@ -101,7 +101,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
             return builder;
         }
 
-        public EnrichPolicyDefinition getPolicy() {
+        public EnrichPolicy getPolicy() {
             return policy;
         }
 

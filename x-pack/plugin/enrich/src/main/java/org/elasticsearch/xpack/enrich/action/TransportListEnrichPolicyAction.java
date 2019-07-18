@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
@@ -56,7 +56,7 @@ public class TransportListEnrichPolicyAction
     @Override
     protected void masterOperation(Task task, ListEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<ListEnrichPolicyAction.Response> listener) throws Exception {
-        Map<String, EnrichPolicyDefinition> policies = EnrichStore.getPolicies(clusterService.state());
+        Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
         listener.onResponse(new ListEnrichPolicyAction.Response(policies));
     }
 

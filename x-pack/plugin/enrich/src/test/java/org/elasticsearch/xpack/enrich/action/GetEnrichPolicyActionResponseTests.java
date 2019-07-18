@@ -5,29 +5,29 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import java.io.IOException;
+
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
-import java.io.IOException;
-
-import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.assertEqualPolicyDefinitions;
-import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolicies;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 
 public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestCase<GetEnrichPolicyAction.Response> {
 
     @Override
     protected GetEnrichPolicyAction.Response doParseInstance(XContentParser parser) throws IOException {
-        EnrichPolicyDefinition policy = EnrichPolicyDefinition.fromXContent(parser);
+        EnrichPolicy policy = EnrichPolicy.fromXContent(parser);
         return new GetEnrichPolicyAction.Response(policy);
     }
 
     @Override
     protected GetEnrichPolicyAction.Response createTestInstance() {
-        EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
         return new GetEnrichPolicyAction.Response(policy);
     }
 
@@ -40,6 +40,6 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
     protected void assertEqualInstances(GetEnrichPolicyAction.Response expectedInstance, GetEnrichPolicyAction.Response newInstance) {
         assertNotSame(expectedInstance, newInstance);
         // the tests shuffle around the policy query source xcontent type, so this is needed here
-        assertEqualPolicyDefinitions(expectedInstance.getPolicy(), newInstance.getPolicy());
+        assertEqualPolicies(expectedInstance.getPolicy(), newInstance.getPolicy());
     }
 }

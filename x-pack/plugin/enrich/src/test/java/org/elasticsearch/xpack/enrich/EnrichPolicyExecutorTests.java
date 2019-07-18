@@ -90,7 +90,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         }
 
         @Override
-        protected Runnable createPolicyRunner(String policyName, EnrichPolicyDefinition policy, ActionListener<PolicyExecutionResult> listener) {
+        protected Runnable createPolicyRunner(String policyName, EnrichPolicyDefinition policy,
+                                              ActionListener<PolicyExecutionResult> listener) {
             if (currentLatch == null) {
                 throw new IllegalStateException("Use the testRunPolicy method on this test instance");
             }
@@ -100,8 +101,8 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     public void testNonConcurrentPolicyExecution() throws InterruptedException {
         String testPolicyName = "test_policy";
-        EnrichPolicyDefinition testPolicy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null, List.of("some_index"), "keyfield",
-            List.of("valuefield"));
+        EnrichPolicyDefinition testPolicy = new EnrichPolicyDefinition(EnrichPolicyDefinition.EXACT_MATCH_TYPE, null,
+            List.of("some_index"), "keyfield", List.of("valuefield"));
         final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(Settings.EMPTY, null, null, testThreadPool,
             new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);
 

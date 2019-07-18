@@ -9,7 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicyDefinition;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 
 import java.io.IOException;
@@ -17,14 +17,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.assertEqualPolicyDefinitions;
-import static org.elasticsearch.xpack.enrich.EnrichPolicyDefinitionTests.randomEnrichPolicyDefinition;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolicies;
+import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ListEnrichPolicyActionResponseTests extends AbstractSerializingTestCase<ListEnrichPolicyAction.Response> {
     @Override
     protected ListEnrichPolicyAction.Response doParseInstance(XContentParser parser) throws IOException {
-        Map<String, EnrichPolicyDefinition> policies = new HashMap<>();
+        Map<String, EnrichPolicy> policies = new HashMap<>();
         assert parser.nextToken() == XContentParser.Token.START_OBJECT;
         assert parser.nextToken() == XContentParser.Token.FIELD_NAME;
         assert parser.currentName().equals("policies");
@@ -33,8 +33,8 @@ public class ListEnrichPolicyActionResponseTests extends AbstractSerializingTest
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             assert token == XContentParser.Token.START_OBJECT;
-            EnrichPolicyDefinition.NamedPolicy policy = EnrichPolicyDefinition.NamedPolicy.fromXContent(parser);
-            policies.put(policy.getName(), policy.getPolicy());
+            EnrichPolicy policy = EnrichPolicy.fromXContent(parser);
+            policies.put(policy.getName(), policy);
         }
 
         return new ListEnrichPolicyAction.Response(policies);
@@ -42,10 +42,10 @@ public class ListEnrichPolicyActionResponseTests extends AbstractSerializingTest
 
     @Override
     protected ListEnrichPolicyAction.Response createTestInstance() {
-        Map<String, EnrichPolicyDefinition> items = new HashMap<>();
+        Map<String, EnrichPolicy> items = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 3); i++) {
-            EnrichPolicyDefinition policy = randomEnrichPolicyDefinition(XContentType.JSON);
-            items.put(randomAlphaOfLength(3), policy);
+            EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+            items.put(policy.getName(), policy);
         }
         return new ListEnrichPolicyAction.Response(items);
     }
@@ -58,14 +58,14 @@ public class ListEnrichPolicyActionResponseTests extends AbstractSerializingTest
     @Override
     protected void assertEqualInstances(ListEnrichPolicyAction.Response expectedInstance, ListEnrichPolicyAction.Response newInstance) {
         assertThat(expectedInstance.getPolicies().size(), equalTo(newInstance.getPolicies().size()));
-        for (EnrichPolicyDefinition.NamedPolicy expectedPolicy: expectedInstance.getPolicies()) {
+        for (EnrichPolicy expectedPolicy: expectedInstance.getPolicies()) {
             // contains and indexOf cannot be used here as the query source may be represented differently, so we need to check
             // if the name is the same and if it is, use that to ensure the policies are the same
-            Optional<EnrichPolicyDefinition.NamedPolicy> maybePolicy = newInstance.getPolicies().stream()
+            Optional<EnrichPolicy> maybePolicy = newInstance.getPolicies().stream()
                 .filter(p -> p.getName().equals(expectedPolicy.getName())).findFirst();
             assertTrue(maybePolicy.isPresent());
-            EnrichPolicyDefinition.NamedPolicy newPolicy = maybePolicy.get();
-            assertEqualPolicyDefinitions(expectedPolicy.getPolicy(), newPolicy.getPolicy());
+            EnrichPolicy newPolicy = maybePolicy.get();
+            assertEqualPolicies(expectedPolicy, newPolicy);
             assertThat(expectedPolicy.getName(), equalTo(newPolicy.getName()));
         }
     }

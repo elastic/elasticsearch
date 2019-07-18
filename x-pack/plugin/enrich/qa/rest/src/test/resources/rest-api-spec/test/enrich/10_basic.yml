@@ -19,19 +19,20 @@
   - do:
       enrich.get_policy:
         name: policy-crud
-  - match: { type: exact_match }
-  - match: { indices: ["bar*"] }
-  - match: { enrich_key: baz }
-  - match: { enrich_values: ["a", "b"] }
+  - match: { name: policy-crud }
+  - match: { definition.type: exact_match }
+  - match: { definition.indices: ["bar*"] }
+  - match: { definition.enrich_key: baz }
+  - match: { definition.enrich_values: ["a", "b"] }
 
   - do:
       enrich.list_policy: {}
   - length: { policies: 1 }
   - match: { policies.0.name: policy-crud }
-  - match: { policies.0.type: exact_match }
-  - match: { policies.0.indices: ["bar*"] }
-  - match: { policies.0.enrich_key: baz }
-  - match: { policies.0.enrich_values: ["a", "b"] }
+  - match: { policies.0.definition.type: exact_match }
+  - match: { policies.0.definition.indices: ["bar*"] }
+  - match: { policies.0.definition.enrich_key: baz }
+  - match: { policies.0.definition.enrich_values: ["a", "b"] }
 
   - do:
       enrich.delete_policy:

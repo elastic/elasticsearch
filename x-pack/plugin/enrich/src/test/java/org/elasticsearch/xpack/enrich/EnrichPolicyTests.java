@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.xpack.enrich;
 
 import java.io.IOException;
@@ -42,6 +47,10 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
     @Override
     protected void assertEqualInstances(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
         assertNotSame(expectedInstance, newInstance);
+        assertEqualPolicies(expectedInstance, newInstance);
+    }
+
+    public static void assertEqualPolicies(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
         assertEquals(expectedInstance.getName(), newInstance.getName());
         assertEquals(expectedInstance.getVersionCreated(), newInstance.getVersionCreated());
         EnrichPolicyDefinitionTests.assertEqualPolicyDefinitions(expectedInstance.getDefinition(), newInstance.getDefinition());

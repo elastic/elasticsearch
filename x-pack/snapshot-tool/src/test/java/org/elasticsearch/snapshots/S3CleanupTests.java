@@ -245,7 +245,7 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
                             .prepareGetSnapshots("test-repo")
                             .setSnapshots("snap1")
                             .get()
-                            .getSnapshots("test-repo")
+                            .getSnapshots()
                             .get(0)
                             .state(),
                     equalTo(SnapshotState.SUCCESS));

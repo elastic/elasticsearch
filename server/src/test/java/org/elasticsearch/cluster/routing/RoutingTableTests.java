@@ -38,7 +38,6 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,8 +103,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
 
     private void startInitializingShards(String index) {
         logger.info("start primary shards for index {}", index);
-        this.clusterState = ALLOCATION_SERVICE.applyStartedShards(this.clusterState,
-            this.clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(ALLOCATION_SERVICE, clusterState, index);
     }
 
     private IndexMetaData.Builder createIndexMetaData(String indexName) {

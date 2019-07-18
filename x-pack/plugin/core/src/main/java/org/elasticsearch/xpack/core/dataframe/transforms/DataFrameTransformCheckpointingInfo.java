@@ -93,13 +93,10 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (last.getTimestampMillis() > 0) {
-            builder.field(LAST_CHECKPOINT.getPreferredName(), last);
-        }
-        if (next.getTimestampMillis() > 0) {
+        builder.field(LAST_CHECKPOINT.getPreferredName(), last);
+        if (next.getCheckpoint() > 0) {
             builder.field(NEXT_CHECKPOINT.getPreferredName(), next);
         }
-
         builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
         builder.endObject();
         return builder;

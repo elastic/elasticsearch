@@ -136,7 +136,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
                 .getTransformsStats()
                 .get(0)
                 .getCheckpointingInfo()
-                .getNext()
+                .getLast()
                 .getCheckpoint()),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS);

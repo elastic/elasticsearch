@@ -137,11 +137,13 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
         if (checkpointProgress != null) {
             builder.field(DataFrameField.CHECKPOINT_PROGRESS.getPreferredName(), checkpointProgress);
         }
-        builder.timeField(DataFrameField.TIMESTAMP_MILLIS.getPreferredName(), DataFrameField.TIMESTAMP.getPreferredName(),
-                getTimestampMillis());
+        if (timestampMillis > 0) {
+            builder.timeField(DataFrameField.TIMESTAMP_MILLIS.getPreferredName(), DataFrameField.TIMESTAMP.getPreferredName(),
+                timestampMillis);
+        }
         if (timeUpperBoundMillis > 0) {
             builder.timeField(DataFrameField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), DataFrameField.TIME_UPPER_BOUND.getPreferredName(),
-                    timeUpperBoundMillis);
+                timeUpperBoundMillis);
         }
         builder.endObject();
         return builder;

@@ -760,7 +760,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             TimeUnit.SECONDS);
 
         Map<?, ?> state = getDataFrameState(transformId);
-        assertThat((String) XContentMapValues.extractValue("state.reason", state),
+        assertThat((String) XContentMapValues.extractValue("reason", state),
             containsString("task encountered more than 10 failures; latest failure: Bulk index experienced failures."));
 
         // Force stop the transform as bulk indexing caused it to go into a failed state

@@ -151,6 +151,8 @@ public class DataFrameTransformsCheckpointService {
      * @param transformId The data frame task
      * @param currentCheckpoint the current checkpoint
      * @param inProgressCheckpoint in progress checkpoint
+     * @param inProgressIndexerState indexer state for in progress checkpoint
+     * @param inProgressPosition position for in progress checkpoint
      * @param listener listener to retrieve the result
      */
     public void getCheckpointStats(

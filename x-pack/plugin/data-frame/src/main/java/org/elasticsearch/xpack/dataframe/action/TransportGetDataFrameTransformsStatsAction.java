@@ -41,6 +41,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class TransportGetDataFrameTransformsStatsAction extends
@@ -171,35 +172,32 @@ public class TransportGetDataFrameTransformsStatsAction extends
         // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
         assert transformsWithoutTasks.size() <= Request.MAX_SIZE_RETURN;
 
+        // If the persistent task does NOT exist, it is STOPPED
+        // There is a potential race condition where the saved document does not actually have a STOPPED state
+        // as the task is cancelled before we persist state.
         ActionListener<List<DataFrameTransformStoredDoc>> searchStatsListener = ActionListener.wrap(
-            stats -> {
+            statsForTransformsWithoutTasks -> {
                 List<DataFrameTransformStats> allStateAndStats = response.getTransformsStats();
-                // If the persistent task does NOT exist, it is STOPPED
-                // There is a potential race condition where the saved document does not actually have a STOPPED state
-                //    as the task is cancelled before we persist state.
-                stats.forEach(stat ->
-                    allStateAndStats.add(new DataFrameTransformStats(
-                        stat.getId(),
-                        DataFrameTransformTaskState.STOPPED,
-                        null,
-                        null,
-                        stat.getTransformStats(),
-                        DataFrameTransformCheckpointingInfo.EMPTY)) // TODO !!!
-                );
-                transformsWithoutTasks.removeAll(stats.stream().map(DataFrameTransformStoredDoc::getId).collect(Collectors.toSet()));
+                addCheckpointingInfoForTransformsWithoutTasks(allStateAndStats, statsForTransformsWithoutTasks,
+                    ActionListener.wrap(
+                        aVoid -> {
+                            transformsWithoutTasks.removeAll(statsForTransformsWithoutTasks.stream()
+                                .map(DataFrameTransformStoredDoc::getId).collect(Collectors.toSet()));
 
-                // Transforms that have not been started and have no state or stats.
-                transformsWithoutTasks.forEach(transformId ->
-                    allStateAndStats.add(DataFrameTransformStats.initialStats(transformId)));
+                            // Transforms that have not been started and have no state or stats.
+                            transformsWithoutTasks.forEach(
+                                transformId -> allStateAndStats.add(DataFrameTransformStats.initialStats(transformId)));
 
-                // Any transform in collection could NOT have a task, so, even though the list is initially sorted
-                // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs
-                allStateAndStats.sort(Comparator.comparing(DataFrameTransformStats::getId));
+                            // Any transform in collection could NOT have a task, so, even though the list is initially sorted
+                            // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs
+                            allStateAndStats.sort(Comparator.comparing(DataFrameTransformStats::getId));
 
-                listener.onResponse(new Response(allStateAndStats,
-                    allStateAndStats.size(),
-                    response.getTaskFailures(),
-                    response.getNodeFailures()));
+                            listener.onResponse(new Response(allStateAndStats,
+                                allStateAndStats.size(),
+                                response.getTaskFailures(),
+                                response.getNodeFailures()));
+                        },
+                        listener::onFailure));
             },
             e -> {
                 if (e instanceof IndexNotFoundException) {
@@ -211,5 +209,50 @@ public class TransportGetDataFrameTransformsStatsAction extends
         );
 
         dataFrameTransformsConfigManager.getTransformStoredDoc(transformsWithoutTasks, searchStatsListener);
+    }
+
+    private void populateSingleStoppedTransformStat(DataFrameTransformStoredDoc transform,
+                                                    ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+        transformsCheckpointService.getCheckpointStats(transform.getId(), transform.getTransformState().getCheckpoint(),
+            transform.getTransformState().getCheckpoint() + 1, transform.getTransformState().getIndexerState(),
+            transform.getTransformState().getPosition(),
+            ActionListener.wrap(
+                listener::onResponse,
+                e -> {
+                    logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
+                    listener.onResponse(DataFrameTransformCheckpointingInfo.EMPTY);
+                }
+            ));
+    }
+
+    private void addCheckpointingInfoForTransformsWithoutTasks(List<DataFrameTransformStats> allStateAndStats,
+                                                               List<DataFrameTransformStoredDoc> statsForTransformsWithoutTasks,
+                                                               ActionListener<Void> listener) {
+
+        if (statsForTransformsWithoutTasks.isEmpty()) {
+            // No work to do, but we must respond to the listener
+            listener.onResponse(null);
+        }
+
+        AtomicInteger numberRemaining = new AtomicInteger(statsForTransformsWithoutTasks.size());
+
+        statsForTransformsWithoutTasks.forEach(stat -> populateSingleStoppedTransformStat(stat,
+            ActionListener.wrap(
+                checkpointingInfo -> {
+                    synchronized (allStateAndStats) {
+                        allStateAndStats.add(new DataFrameTransformStats(
+                            stat.getId(),
+                            DataFrameTransformTaskState.STOPPED,
+                            null,
+                            null,
+                            stat.getTransformStats(),
+                            checkpointingInfo));
+                    }
+                    if (numberRemaining.decrementAndGet() == 0) {
+                        listener.onResponse(null);
+                    }
+                },
+                listener::onFailure
+            )));
     }
 }

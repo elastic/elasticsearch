@@ -42,7 +42,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
     private final String id;
     private final DataFrameTransformTaskState taskState;
     @Nullable
-    private String reason;
+    private final String reason;
     @Nullable
     private NodeAttributes node;
     private final DataFrameIndexerTransformStats indexerStats;
@@ -103,6 +103,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
             this.id = in.readString();
             this.taskState = in.readEnum(DataFrameTransformTaskState.class);
+            this.reason = in.readOptionalString();
             if (in.readBoolean()) {
                 this.node = new NodeAttributes(in);
             } else {
@@ -116,7 +117,9 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
             // to do the best we can of reading from a DataFrameTransformStoredDoc object
             // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
             this.id = in.readString();
-            this.taskState = new DataFrameTransformState(in).getTaskState();
+            DataFrameTransformState state = new DataFrameTransformState(in);
+            this.taskState = state.getTaskState();
+            this.reason = state.getReason();
             this.node = null;
             this.indexerStats = new DataFrameIndexerTransformStats(in);
             this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
@@ -127,7 +130,10 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), id);
-        builder.field(TASK_STATE_FIELD.getPreferredName(), taskState);
+        builder.field(TASK_STATE_FIELD.getPreferredName(), taskState.value());
+        if (reason != null) {
+            builder.field(REASON_FIELD.getPreferredName(), reason);
+        }
         if (node != null) {
             builder.field(NODE_FIELD.getPreferredName(), node);
         }
@@ -142,6 +148,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
             out.writeString(id);
             out.writeEnum(taskState);
+            out.writeOptionalString(reason);
             if (node != null) {
                 out.writeBoolean(true);
                 node.writeTo(out);
@@ -169,7 +176,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, taskState, node, indexerStats, checkpointingInfo);
+        return Objects.hash(id, taskState, reason, node, indexerStats, checkpointingInfo);
     }
 
     @Override
@@ -186,6 +193,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
 
         return Objects.equals(this.id, that.id)
             && Objects.equals(this.taskState, that.taskState)
+            && Objects.equals(this.reason, that.reason)
             && Objects.equals(this.node, that.node)
             && Objects.equals(this.indexerStats, that.indexerStats)
             && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);

@@ -71,8 +71,18 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   reduce the data. See <<data-frame-transform-pivot>>.
 
 `source`::
-  (Required, object) The source configuration, which consists of `index` and 
-  optionally a `query`. See <<data-frame-transform-source>>.
+  (Required, object) The source configuration, which has the following
+  properties:
+  
+  `index`:::
+    (Required, string or array) The _source indices_ for the
+    {dataframe-transform}. It can be a single index, an index pattern (for
+    example, `"myindex*"`), or an array of indices (for example,
+    `["index1", "index2"]`).
+    
+    `query`:::
+      (Optional, object) A query clause that retrieves a subset of data from the
+      source index. See <<query-dsl>>.
   
 `sync`::
   (Optional, object) Defines the properties required to run continuously.

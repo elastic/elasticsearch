@@ -29,7 +29,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/44583")
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
     private static final String TRANSFORM_ID = "failure_pivot_1";

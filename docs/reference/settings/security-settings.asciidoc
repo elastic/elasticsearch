@@ -861,6 +861,14 @@ Defaults to `20m`.
 Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
 
+`delegation.enabled`::
+Generally, in order for the clients to be authenticated by the PKI realm they
+must connect directly to {es}. That is, they must not pass through proxies
+which terminate the TLS connection.  In order to allow for a *trusted* and
+*smart* proxy, such as Kibana, to sit before {es} and terminate TLS
+connections, but still allow clients to be authenticated on {es} by this realm,
+you need to toggle this to `true`. Defaults to `false`.
+
 [[ref-saml-settings]]
 [float]
 ===== SAML realm settings

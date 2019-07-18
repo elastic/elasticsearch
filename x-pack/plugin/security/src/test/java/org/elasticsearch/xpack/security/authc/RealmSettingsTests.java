@@ -192,6 +192,9 @@ public class RealmSettingsTests extends ESTestCase {
         } else {
             builder.putList("certificate_authorities", generateRandomStringArray(5, 32, false, false));
         }
+        if (randomBoolean()) {
+            builder.put("delegation.enabled", randomBoolean());
+        }
         return builder;
     }
 

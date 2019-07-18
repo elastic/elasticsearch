@@ -76,6 +76,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     private final UserRoleMapper roleMapper;
     private final Cache<BytesKey, User> cache;
     private DelegatedAuthorizationSupport delegatedRealms;
+    private final boolean delegationEnabled;
 
     public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, NativeRoleMappingStore nativeRoleMappingStore) {
         this(config, new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore));
@@ -93,6 +94,7 @@ public class PkiRealm extends Realm implements CachingRealm {
                 .setMaximumWeight(config.getSetting(PkiRealmSettings.CACHE_MAX_USERS_SETTING))
                 .build();
         this.delegatedRealms = null;
+        this.delegationEnabled = config.getSetting(PkiRealmSettings.DELEGATION_ENABLED_SETTING);
     }
 
     @Override
@@ -151,6 +153,8 @@ public class PkiRealm extends Realm implements CachingRealm {
                 }
             } else if (isCertificateChainTrusted(trustManager, token, logger) == false) {
                 listener.onResponse(AuthenticationResult.unsuccessful("Certificate for " + token.dn() + " is not trusted", null));
+            } else if (false == delegationEnabled && token.isDelegated()) {
+                listener.onResponse(AuthenticationResult.unsuccessful("Realm does not permit delegation for " + token.dn(), null));
             } else {
                 // parse the principal again after validating the cert chain, and do not rely on the token.principal one, because that could
                 // be set by a different realm that failed trusted chain validation. We SHOULD NOT parse the principal BEFORE this step, but

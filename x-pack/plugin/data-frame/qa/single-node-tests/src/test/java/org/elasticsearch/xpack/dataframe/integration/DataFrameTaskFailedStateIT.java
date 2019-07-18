@@ -44,7 +44,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         createReviewsIndex();
         String dataFrameIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(dataFrameIndex);
-        createPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
+        createContinuousPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
         startDataframeTransform(TRANSFORM_ID, false);
         awaitState(TRANSFORM_ID, DataFrameTransformTaskState.FAILED);
         Map<?, ?> fullState = getDataFrameState(TRANSFORM_ID);
@@ -77,7 +77,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         createReviewsIndex();
         String dataFrameIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(dataFrameIndex);
-        createPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
+        createContinuousPivotReviewsTransform(TRANSFORM_ID, dataFrameIndex, null);
         startDataframeTransform(TRANSFORM_ID, false);
         awaitState(TRANSFORM_ID, DataFrameTransformTaskState.FAILED);
         Map<?, ?> fullState = getDataFrameState(TRANSFORM_ID);

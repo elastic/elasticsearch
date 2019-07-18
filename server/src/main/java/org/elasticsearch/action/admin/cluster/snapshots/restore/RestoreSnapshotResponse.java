@@ -51,7 +51,8 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
 
     public RestoreSnapshotResponse(StreamInput in) throws IOException {
         super(in);
-        restoreInfo = RestoreInfo.readOptionalRestoreInfo(in);    }
+        restoreInfo = RestoreInfo.readOptionalRestoreInfo(in);
+    }
 
     /**
      * Returns restore information if snapshot was completed before this method returned, null otherwise

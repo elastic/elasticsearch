@@ -64,7 +64,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             defaultSettingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
         }
         indexToSettings = settingsBuilder.build();
-        indexToDefaultSettings = defaultSettingsBuilder.build();    }
+        indexToDefaultSettings = defaultSettingsBuilder.build();
+    }
 
     /**
      * Returns a map of index name to {@link Settings} object.  The returned {@link Settings}

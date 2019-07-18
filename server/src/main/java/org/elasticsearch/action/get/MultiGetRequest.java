@@ -190,6 +190,14 @@ public class MultiGetRequest extends ActionRequest
         @Override
         public void readFrom(StreamInput in) throws IOException {
             index = in.readString();
+            type = in.readOptionalString();
+            id = in.readString();
+            routing = in.readOptionalString();
+            storedFields = in.readOptionalStringArray();
+            version = in.readLong();
+            versionType = VersionType.fromValue(in.readByte());
+
+            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         }
 
         @Override

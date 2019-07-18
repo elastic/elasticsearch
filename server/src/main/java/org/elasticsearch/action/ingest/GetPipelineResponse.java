@@ -50,7 +50,8 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         pipelines = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             pipelines.add(PipelineConfiguration.readFrom(in));
-        }    }
+        }
+    }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines) {
         this.pipelines = pipelines;

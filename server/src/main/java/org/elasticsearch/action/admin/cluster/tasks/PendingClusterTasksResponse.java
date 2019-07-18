@@ -43,7 +43,8 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
             PendingClusterTask task = new PendingClusterTask();
             task.readFrom(in);
             pendingTasks.add(task);
-        }    }
+        }
+    }
 
     PendingClusterTasksResponse(List<PendingClusterTask> pendingTasks) {
         this.pendingTasks = pendingTasks;

@@ -51,5 +51,4 @@ public final class SamlInvalidateSessionResponse extends ActionResponse {
         out.writeInt(count);
         out.writeString(redirectUrl);
     }
-
-    }
+}

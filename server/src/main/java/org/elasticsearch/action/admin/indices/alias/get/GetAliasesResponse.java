@@ -53,7 +53,8 @@ public class GetAliasesResponse extends ActionResponse {
             }
             aliasesBuilder.put(key, Collections.unmodifiableList(value));
         }
-        aliases = aliasesBuilder.build();    }
+        aliases = aliasesBuilder.build();
+    }
 
     public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
         return aliases;

@@ -117,7 +117,8 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
                 simulateDocumentResult = new SimulateDocumentBaseResult(in);
             }
             results.add(simulateDocumentResult);
-        }    }
+        }
+    }
 
     public SimulatePipelineResponse(String pipelineId, boolean verbose, List<SimulateDocumentResult> responses) {
         this.pipelineId = pipelineId;

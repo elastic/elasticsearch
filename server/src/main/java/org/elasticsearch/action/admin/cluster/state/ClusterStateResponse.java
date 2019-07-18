@@ -47,7 +47,8 @@ public class ClusterStateResponse extends ActionResponse {
         if (in.getVersion().before(Version.V_7_0_0)) {
             new ByteSizeValue(in);
         }
-        waitForTimedOut = in.readBoolean();    }
+        waitForTimedOut = in.readBoolean();
+    }
 
     public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
         this.clusterName = clusterName;

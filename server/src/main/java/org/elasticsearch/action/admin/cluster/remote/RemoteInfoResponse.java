@@ -36,7 +36,8 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
 
     public RemoteInfoResponse(StreamInput in) throws IOException {
         super(in);
-        infos = in.readList(RemoteConnectionInfo::new);    }
+        infos = in.readList(RemoteConnectionInfo::new);
+    }
 
     RemoteInfoResponse(Collection<RemoteConnectionInfo> infos) {
         this.infos = List.copyOf(infos);

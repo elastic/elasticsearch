@@ -39,7 +39,8 @@ public class GetTaskResponse extends ActionResponse implements ToXContentObject 
 
     public GetTaskResponse(StreamInput in) throws IOException {
         super(in);
-        task = in.readOptionalWriteable(TaskResult::new);    }
+        task = in.readOptionalWriteable(TaskResult::new);
+    }
 
     public GetTaskResponse(TaskResult task) {
         this.task = requireNonNull(task, "task is required");

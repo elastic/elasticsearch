@@ -73,7 +73,8 @@ public class GetStoredScriptResponse extends ActionResponse implements StatusToX
         } else {
             source = null;
         }
-        id = in.readString();    }
+        id = in.readString();
+    }
 
     GetStoredScriptResponse(String id, StoredScriptSource source) {
         this.id = id;

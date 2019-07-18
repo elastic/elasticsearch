@@ -138,7 +138,8 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         responses = new MultiGetItemResponse[in.readVInt()];
         for (int i = 0; i < responses.length; i++) {
             responses[i] = MultiGetItemResponse.readItemResponse(in);
-        }    }
+        }
+    }
 
     public MultiGetResponse(MultiGetItemResponse[] responses) {
         this.responses = responses;

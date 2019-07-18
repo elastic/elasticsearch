@@ -52,8 +52,11 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   (string) Optional. Free text description of the {dataframe-transform}.
 
 `dest`::
-  (object) Required. The destination configuration, consisting of `index`. See
-  <<data-frame-transform-dest>>.
+  (Required, object) Required. The destination configuration, which has the
+  following properties:
+  
+  `index`:::
+    (Required, string) The _destination index_ for the {dataframe-transform}.
 
 `pivot`::
   (object) Required. Defines the pivot function `group by` fields and the

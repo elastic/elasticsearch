@@ -45,7 +45,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     private String nodeId;
     private ShardId shardId;
 
-    private SnapshotShardFailure(StreamInput in) throws IOException {
+    SnapshotShardFailure(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
         shardId = new ShardId(in);
         super.shardId = shardId.getId();
@@ -87,16 +87,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Nullable
     public String nodeId() {
         return nodeId;
-    }
-
-    /**
-     * Reads shard failure information from stream input
-     *
-     * @param in stream input
-     * @return shard failure information
-     */
-    static SnapshotShardFailure readSnapshotShardFailure(StreamInput in) throws IOException {
-        return new SnapshotShardFailure(in);
     }
 
     @Override

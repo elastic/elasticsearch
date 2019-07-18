@@ -11,6 +11,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -18,8 +19,9 @@ public class ReloadDetailsTests extends AbstractWireSerializingTestCase<ReloadDe
 
     @Override
     protected ReloadDetails createTestInstance() {
-        return new ReloadDetails(randomAlphaOfLengthBetween(5, 10), Set.of(generateRandomStringArray(5, 5, false)),
-                Set.of(generateRandomStringArray(5, 5, false)));
+        return new ReloadDetails(randomAlphaOfLengthBetween(5, 10), 
+                new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false))),
+                new HashSet<>(Arrays.asList(generateRandomStringArray(5, 5, false))));
     }
 
     @Override

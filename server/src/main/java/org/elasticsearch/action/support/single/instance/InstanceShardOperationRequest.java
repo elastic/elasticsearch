@@ -48,6 +48,19 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     protected InstanceShardOperationRequest() {
     }
 
+    protected InstanceShardOperationRequest(StreamInput in) throws IOException {
+        super(in);
+        index = in.readString();
+        if (in.readBoolean()) {
+            shardId = new ShardId(in);
+        } else {
+            shardId = null;
+        }
+        timeout = in.readTimeValue();
+        concreteIndex = in.readOptionalString();
+    }
+
+
     public InstanceShardOperationRequest(String index) {
         this.index = index;
     }
@@ -111,15 +124,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        index = in.readString();
-        if (in.readBoolean()) {
-            shardId = new ShardId(in);
-        } else {
-            shardId = null;
-        }
-        timeout = in.readTimeValue();
-        concreteIndex = in.readOptionalString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -35,19 +35,20 @@ import static java.util.Objects.requireNonNull;
  * Returns the list of tasks currently running on the nodes
  */
 public class GetTaskResponse extends ActionResponse implements ToXContentObject {
-    private TaskResult task;
-
-    public GetTaskResponse() {
-    }
+    private final TaskResult task;
 
     public GetTaskResponse(TaskResult task) {
         this.task = requireNonNull(task, "task is required");
     }
 
+    public GetTaskResponse(StreamInput in) throws IOException {
+        super(in);
+        task = in.readOptionalWriteable(TaskResult::new);
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        task = in.readOptionalWriteable(TaskResult::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

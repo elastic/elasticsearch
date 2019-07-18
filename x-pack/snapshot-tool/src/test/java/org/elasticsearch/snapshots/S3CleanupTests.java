@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -150,51 +151,59 @@ public class S3CleanupTests extends ESSingleNodeTestCase {
         assertThat(ex.getMessage(), containsString(message));
     }
 
+    private static Map<String, String> mapOf(String... args) {
+        HashMap<String, String> map = new HashMap<>();
+        for (int i = 0; i < args.length; i+=2) {
+            map.put(args[i], args[i+1]);
+        }
+        return map;
+    }
+
     public void testNoRegionNoEndpoint() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("region", "", "endpoint", "")),
+                        executeCommand(false, mapOf("region", "", "endpoint", "")),
                 "region or endpoint option is required for cleaning up S3 repository");
     }
 
     public void testRegionAndEndpointSpecified() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("region", "test_region", "endpoint", "test_endpoint")),
+                        executeCommand(false, mapOf("region", "test_region", "endpoint", "test_endpoint")),
                 "you must not specify both region and endpoint");
     }
 
     public void testNoBucket() {
         expectThrows(() ->
-                executeCommand(false, Map.of("bucket", "")),
+                executeCommand(false, mapOf("bucket", "")),
                 "bucket option is required for cleaning up S3 repository");
     }
 
     public void testNoAccessKey() {
         expectThrows(() ->
-                executeCommand(false, Map.of("access_key", "")),
+                executeCommand(false, mapOf("access_key", "")),
                 "access_key option is required for cleaning up S3 repository");
     }
 
     public void testNoSecretKey() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("secret_key", "")),
+                        executeCommand(false, mapOf("secret_key", "")),
                 "secret_key option is required for cleaning up S3 repository");
     }
 
     public void testNegativeSafetyGap() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("safety_gap_millis", "-10")),
+                        executeCommand(false, mapOf("safety_gap_millis", "-10")),
                 "safety_gap_millis should be non-negative");
     }
 
     public void testInvalidParallelism() {
         expectThrows(() ->
-                executeCommand(false, Map.of("parallelism", "0")),
+                executeCommand(false, mapOf("parallelism", "0")),
                 "parallelism should be at least 1");
     }
 
     public void testBasePathTrailingSlash() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("base_path", getBasePath() + "/")),
+                        executeCommand(false, mapOf("base_path", getBasePath() + "/")),
                 "there should be not trailing slash in the base path");
     }
 

@@ -49,9 +49,13 @@ public class Netty4HttpRequest implements HttpRequest {
     private final BytesReference content;
     private final HttpHeadersMap headers;
     private final int sequence;
-    private final AtomicBoolean released = new AtomicBoolean(false);
+    private final AtomicBoolean released;
 
     Netty4HttpRequest(FullHttpRequest request, int sequence) {
+        this(request, sequence, new AtomicBoolean(false));
+    }
+
+    private Netty4HttpRequest(FullHttpRequest request, int sequence, AtomicBoolean released) {
         this.request = request;
         headers = new HttpHeadersMap(request.headers());
         this.sequence = sequence;
@@ -60,6 +64,7 @@ public class Netty4HttpRequest implements HttpRequest {
         } else {
             this.content = BytesArray.EMPTY;
         }
+        this.released = released;
     }
 
     @Override
@@ -155,7 +160,7 @@ public class Netty4HttpRequest implements HttpRequest {
         trailingHeaders.remove(header);
         FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(request.protocolVersion(), request.method(), request.uri(),
             request.content(), headersWithoutContentTypeHeader, trailingHeaders);
-        return new Netty4HttpRequest(requestWithoutHeader, sequence);
+        return new Netty4HttpRequest(requestWithoutHeader, sequence, released);
     }
 
     @Override

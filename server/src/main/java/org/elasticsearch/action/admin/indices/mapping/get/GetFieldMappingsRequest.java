@@ -48,6 +48,8 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
+    public GetFieldMappingsRequest() {}
+
     public GetFieldMappingsRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
@@ -56,10 +58,6 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         local = in.readBoolean();
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
-    }
-
-    public GetFieldMappingsRequest() {
-
     }
 
     /**
@@ -140,5 +138,4 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
     }
-
-    }
+}

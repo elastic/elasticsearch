@@ -42,9 +42,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
 
-    public MainResponse() {}
+    MainResponse() {}
 
-    public MainResponse(StreamInput in) throws IOException {
+    MainResponse(StreamInput in) throws IOException {
         super(in);
         nodeName = in.readString();
         version = Version.readVersion(in);

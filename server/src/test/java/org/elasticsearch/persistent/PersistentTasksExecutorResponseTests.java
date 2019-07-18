@@ -38,7 +38,7 @@ public class PersistentTasksExecutorResponseTests extends AbstractWireSerializin
                             new TestPersistentTasksPlugin.TestParams("test"),
                             randomLong(), PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT));
         } else {
-            return new PersistentTaskResponse((PersistentTask<?>)null);
+            return new PersistentTaskResponse((PersistentTask<?>) null);
         }
     }
 

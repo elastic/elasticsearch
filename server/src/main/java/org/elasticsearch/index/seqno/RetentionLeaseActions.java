@@ -367,8 +367,7 @@ public class RetentionLeaseActions {
 
     public static class Response extends ActionResponse {
 
-        public Response() {
-        }
+        public Response() {}
 
         Response(final StreamInput in) throws IOException {
             super(in);

@@ -43,7 +43,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
             .assertEqualsConsumer(this::assertEqualInstances)
-            .assertToXContentEquivalence(true)
+            .assertToXContentEquivalence(assertToXContentEquivalence())
             .test();
     }
 
@@ -81,6 +81,16 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      */
     protected String[] getShuffleFieldsExceptions() {
         return Strings.EMPTY_ARRAY;
+    }
+
+    /**
+     * Whether or not to assert equivalence of the {@link org.elasticsearch.common.xcontent.XContent} of the test instance and the instance
+     * parsed from the {@link org.elasticsearch.common.xcontent.XContent} of the test instance.
+     *
+     * @return true if equivalence should be asserted, otherwise false
+     */
+    protected boolean assertToXContentEquivalence() {
+        return true;
     }
 
     /**

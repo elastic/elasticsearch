@@ -109,12 +109,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private int slices = DEFAULT_SLICES;
 
-    /**
-     * Constructor for deserialization.
-     */
-    public AbstractBulkByScrollRequest() {
-    }
-
     public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
         super(in);
         searchRequest = new SearchRequest(in);

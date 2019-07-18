@@ -78,6 +78,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     private long sizeInBytes = 0;
 
+    public BulkRequest() {}
+
     public BulkRequest(StreamInput in) throws IOException {
         super(in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
@@ -87,9 +89,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-    }
-
-    public BulkRequest() {
     }
 
     public BulkRequest(@Nullable String globalIndex) {

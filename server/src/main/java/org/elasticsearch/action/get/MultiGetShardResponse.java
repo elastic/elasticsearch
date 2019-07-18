@@ -54,7 +54,7 @@ public class MultiGetShardResponse extends ActionResponse {
                 responses.add(null);
             }
             if (in.readBoolean()) {
-                failures.add(MultiGetResponse.Failure.readFailure(in));
+                failures.add(new MultiGetResponse.Failure(in));
             } else {
                 failures.add(null);
             }

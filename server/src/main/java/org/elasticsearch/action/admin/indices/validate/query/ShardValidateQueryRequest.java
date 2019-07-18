@@ -42,9 +42,6 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     private long nowInMillis;
     private AliasFilter filteringAliases;
 
-    public ShardValidateQueryRequest() {
-    }
-
     public ShardValidateQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);

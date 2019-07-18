@@ -35,12 +35,6 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
      */
     private Script script;
 
-    /**
-     * Constructor for deserialization.
-     */
-    public AbstractBulkIndexByScrollRequest() {
-    }
-
     public AbstractBulkIndexByScrollRequest(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {

@@ -34,7 +34,7 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
 
     private List<RemoteConnectionInfo> infos;
 
-    public RemoteInfoResponse(StreamInput in) throws IOException {
+    RemoteInfoResponse(StreamInput in) throws IOException {
         super(in);
         infos = in.readList(RemoteConnectionInfo::new);
     }

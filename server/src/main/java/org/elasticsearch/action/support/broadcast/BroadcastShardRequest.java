@@ -35,7 +35,7 @@ public abstract class BroadcastShardRequest extends TransportRequest implements 
 
     protected OriginalIndices originalIndices;
 
-    public BroadcastShardRequest() {}
+    protected BroadcastShardRequest() {}
 
     public BroadcastShardRequest(StreamInput in) throws IOException {
         super(in);

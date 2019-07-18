@@ -56,6 +56,8 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     private long tookInMillis;
     private long ingestTookInMillis;
 
+    BulkResponse() {}
+
     public BulkResponse(StreamInput in) throws IOException {
         super(in);
         responses = new BulkItemResponse[in.readVInt()];

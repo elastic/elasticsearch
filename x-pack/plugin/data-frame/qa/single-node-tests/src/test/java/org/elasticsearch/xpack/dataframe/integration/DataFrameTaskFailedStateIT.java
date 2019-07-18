@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,15 +31,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
     private static final String TRANSFORM_ID = "failure_pivot_1";
-
-    @Before
-    public void updateClusterSettings() throws IOException {
-        // Make the number of failure retries just 1 so that we fail quickly
-        Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
-        addFailureRetrySetting.setJsonEntity(
-            "{\"persistent\": {\"xpack.data_frames.num_transform_failure_retries\": \"" + 0 + "\"}}");
-        client().performRequest(addFailureRetrySetting);
-    }
 
     @After
     public void cleanUpPotentiallyFailedTransform() throws Exception {

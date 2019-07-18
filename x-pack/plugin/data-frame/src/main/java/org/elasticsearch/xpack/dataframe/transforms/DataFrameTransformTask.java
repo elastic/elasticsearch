@@ -68,7 +68,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private volatile int numFailureRetries = DEFAULT_FAILURE_RETRIES;
     // How many times a task
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
-        "xpack.data_frames.num_transform_failure_retries",
+        "xpack.data_frame.num_transform_failure_retries",
         DEFAULT_FAILURE_RETRIES,
         0,
         100,

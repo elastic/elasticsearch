@@ -19,7 +19,18 @@ file.
 [[general-data-frames-settings]]
 ==== General {dataframe-transforms} settings
 
-`xpack.data_frames.num_transform_failure_retries`::
+`xpack.data_frame.enabled`::
+Set to `true` (default) to enable {dataframe-transforms} on the node. +
++
+If set to `false` in `elasticsearch.yml`, the {dataframe-transform} APIs are disabled on the node.
+Therefore the node cannot start or administrate transforms or receive transport (internal)
+communication requests related to {data-frametransform} APIs.
++
+IMPORTANT: If you want to use {dataframe-transform} features in your cluster, you must have
+`xpack.data_frame.enabled` set to `true` on all master-eligible nodes. This is the
+default behavior.
+
+`xpack.data_frame.num_transform_failure_retries`::
 The number of times that a {dataframe-transform} retries when it experiences a
 non-fatal error. Once the number of retries is exhausted, the {dataframe-transform}
 task will be marked as `failed`. The default value is `10` with a valid minimum of `0`

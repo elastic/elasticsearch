@@ -48,7 +48,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     }
 
     RankEvalRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);

@@ -36,7 +36,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
     }
 
     public OpenIdConnectPrepareAuthenticationResponse(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         authenticationRequestUrl = in.readString();
         state = in.readString();
         nonce = in.readString();

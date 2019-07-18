@@ -27,7 +27,7 @@ public final class OpenIdConnectLogoutRequest extends ActionRequest {
     }
 
     public OpenIdConnectLogoutRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         token = in.readString();
         refreshToken = in.readOptionalString();
     }

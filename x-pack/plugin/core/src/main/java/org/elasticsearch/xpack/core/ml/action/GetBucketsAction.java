@@ -86,7 +86,7 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
         }
 
         public Request(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             jobId = in.readString();
             timestamp = in.readOptionalString();
             expand = in.readBoolean();

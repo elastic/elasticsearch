@@ -16,7 +16,7 @@ public final class OpenIdConnectLogoutResponse extends ActionResponse {
     private String endSessionUrl;
 
     public OpenIdConnectLogoutResponse(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         this.endSessionUrl = in.readString();
     }
 

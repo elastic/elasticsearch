@@ -43,7 +43,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
     }
 
     public OpenIdConnectAuthenticateRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         redirectUri = in.readString();
         state = in.readString();
         nonce = in.readString();

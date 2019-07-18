@@ -78,7 +78,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     public OpenIdConnectPrepareAuthenticationRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         realmName = in.readOptionalString();
         issuer = in.readOptionalString();
         loginHint = in.readOptionalString();

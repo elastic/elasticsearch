@@ -4,9 +4,9 @@
 <titleabbrev>Geoshape</titleabbrev>
 ++++
 
-Returns documents containing matching a provided geometric shape, called a
-geoshape. To use the `geo_shape` query, your index must include a
-<<geo-shape,geoshape>> field mapping.
+Returns documents matching a provided geometric shape, called a geoshape. To use
+the `geo_shape` query, your index must include a <<geo-shape,geoshape>> field
+mapping.
 
 This query uses the same <<prefix-trees,grid square representation>> as the geo
 shape field mapping to find documents that have a shape that intersects with the
@@ -123,8 +123,8 @@ You can use this parameter to query multiple indices that may not contain the
 You can use shape lookup parameters to search for a geoshape already indexed in
 another index.
 
-This is useful if you want to reference pre-defined geoshapes using a name,
-such as `New Zealand`, rather than coordinates. 
+This is useful if you want to reference pre-defined geoshapes using a name, such
+as `New Zealand`, or document ID rather than coordinates. 
 
 [[shape-lookup-parms]]
 ====== Shape lookup parameters
@@ -169,7 +169,7 @@ PUT /shapes
 // CONSOLE
 --
 
-. Index a geoshape to this index.
+. Index a document containing a pre-defined geoshape.
 +
 --
 [source,js]

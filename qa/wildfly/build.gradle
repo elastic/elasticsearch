@@ -211,6 +211,7 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
     integTestRunner.finalizedBy(stopWildfly)
 } else {
     integTest.enabled = false
+    testingConventions.enabled = false
 }
 
 check.dependsOn(integTest)

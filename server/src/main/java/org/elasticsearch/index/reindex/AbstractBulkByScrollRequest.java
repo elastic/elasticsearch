@@ -115,10 +115,18 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      */
     private int slices = DEFAULT_SLICES;
 
-    /**
-     * Constructor for deserialization.
-     */
-    public AbstractBulkByScrollRequest() {
+    public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
+        super(in);
+        searchRequest = new SearchRequest(in);
+        abortOnVersionConflict = in.readBoolean();
+        maxDocs = in.readVInt();
+        refresh = in.readBoolean();
+        timeout = in.readTimeValue();
+        activeShardCount = ActiveShardCount.readFrom(in);
+        retryBackoffInitialTime = in.readTimeValue();
+        maxRetries = in.readVInt();
+        requestsPerSecond = in.readFloat();
+        slices = in.readVInt();
     }
 
     /**
@@ -449,17 +457,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        searchRequest = new SearchRequest(in);
-        abortOnVersionConflict = in.readBoolean();
-        maxDocs = in.readVInt();
-        refresh = in.readBoolean();
-        timeout = in.readTimeValue();
-        activeShardCount = ActiveShardCount.readFrom(in);
-        retryBackoffInitialTime = in.readTimeValue();
-        maxRetries = in.readVInt();
-        requestsPerSecond = in.readFloat();
-        slices = in.readVInt();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

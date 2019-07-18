@@ -62,6 +62,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.ingest.IngestService;
@@ -681,7 +682,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 new BulkItemResponse(currentSlot, indexRequest.opType(),
                     new UpdateResponse(
                         new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
-                        indexRequest.type(), indexRequest.id(), indexRequest.version(), DocWriteResponse.Result.NOOP
+                        indexRequest.type(), indexRequest.id(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                        indexRequest.version(), DocWriteResponse.Result.NOOP
                     )
                 )
             );

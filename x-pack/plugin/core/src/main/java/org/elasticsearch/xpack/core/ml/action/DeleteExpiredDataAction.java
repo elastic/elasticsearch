@@ -33,6 +33,10 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;

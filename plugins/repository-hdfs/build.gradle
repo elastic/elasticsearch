@@ -125,7 +125,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     description = "Runs rest tests against an elasticsearch cluster with HDFS."
     dependsOn(project.bundlePlugin)
 
-    if ((project.ext.has('inFipsJvm') && project.ext.inFipsJvm) || disabledIntegTestTaskNames.contains(integTestTaskName)) {
+    if (disabledIntegTestTaskNames.contains(integTestTaskName)) {
       enabled = false;
     }
 
@@ -138,6 +138,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     runner {
+      onlyIf { project.inFipsJvm == false }
       if (integTestTaskName.contains("Ha")) {
         if (integTestTaskName.contains("Secure")) {
           Path path = buildDir.toPath()
@@ -182,7 +183,6 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
   }
 }
 
-
 // Determine HDFS Fixture compatibility for the current build environment.
 boolean fixtureSupported = false
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -211,6 +211,7 @@ if (legalPath == false) {
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTest.runner {
+  onlyIf { project.inFipsJvm == false }
   exclude('**/Ha*TestSuiteIT.class')
 }
 

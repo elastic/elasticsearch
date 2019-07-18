@@ -22,6 +22,10 @@ import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * The request object for {@link TransportDelegatePkiAuthenticationAction} containing the certificate chain for the target subject
+ * distinguished name to be granted an access token.
+ */
 public final class DelegatePkiAuthenticationRequest extends ActionRequest {
 
     private X509Certificate[] certificates;

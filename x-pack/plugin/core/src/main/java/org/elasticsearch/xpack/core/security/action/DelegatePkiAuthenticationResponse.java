@@ -10,11 +10,16 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public final class DelegatePkiAuthenticationResponse extends ActionResponse {
+/**
+ * The response object for {@link TransportDelegatePkiAuthenticationAction} containing the issued access token.
+ */
+public final class DelegatePkiAuthenticationResponse extends ActionResponse implements ToXContentObject {
 
     private String tokenString;
     private TimeValue expiresIn;
@@ -63,5 +68,14 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse {
     @Override
     public int hashCode() {
         return Objects.hash(tokenString, expiresIn);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+            .field("access_token", tokenString)
+            .field("type", "Bearer")
+            .field("expires_in", expiresIn.seconds());
+        return builder.endArray();
     }
 }

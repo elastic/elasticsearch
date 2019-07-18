@@ -29,7 +29,20 @@ import org.elasticsearch.xpack.security.authc.pki.X509AuthenticationToken;
 
 import java.util.Map;
 
-public class TransportDelegatePkiAuthenticationAction
+/**
+ * Implements the exchange of an {@code X509Certificate} chain into an access token. The certificate chain is represented as an array where
+ * the first element is the target certificate containing the subject distinguished name that is requesting access. This may be followed by
+ * additional certificates, with each subsequent certificate being the one used to certify the previous one. The certificate chain is
+ * validated according to RFC 5280, by sequentially considering the trust configuration of every installed {@code PkiRealm} that has
+ * {@code PkiRealmSettings#DELEGATION_ENABLED_SETTING} set to {@code true} (default is {@code false}). A successfully trusted target
+ * certificate is also subject to the validation of the subject distinguished name according to that respective's realm
+ * {@code PkiRealmSettings#USERNAME_PATTERN_SETTING}.
+ * 
+ * IMPORTANT: The association between the subject public key in the target certificate and the corresponding private key is <b>not</b>
+ * validated. This is part of the TLS authentication process and it is delegated to the client calling this API. The proxy is <b>trusted</b>
+ * to have performed the TLS authentication, and this API translates that authentication for an Elasticsearch access token.
+ */
+public final class TransportDelegatePkiAuthenticationAction
         extends HandledTransportAction<DelegatePkiAuthenticationRequest, DelegatePkiAuthenticationResponse> {
 
     private static final String ACTION_NAME = "cluster:admin/xpack/security/delegate_pki";

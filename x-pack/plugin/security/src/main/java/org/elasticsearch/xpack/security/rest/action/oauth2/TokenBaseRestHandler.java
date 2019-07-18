@@ -17,11 +17,11 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 /**
  * A base rest handler that handles licensing for Token actions
  */
-abstract class TokenBaseRestHandler extends SecurityBaseRestHandler {
+public abstract class TokenBaseRestHandler extends SecurityBaseRestHandler {
 
     protected Logger logger = LogManager.getLogger(getClass());
 
-    TokenBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
+    protected TokenBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 

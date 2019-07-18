@@ -8,18 +8,21 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetLicenseAction extends StreamableTransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
+import java.io.IOException;
+
+public class TransportGetLicenseAction extends TransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
 
     private final LicenseService licenseService;
 
@@ -38,8 +41,8 @@ public class TransportGetLicenseAction extends StreamableTransportMasterNodeRead
     }
 
     @Override
-    protected GetLicenseResponse newResponse() {
-        return new GetLicenseResponse();
+    protected GetLicenseResponse read(StreamInput in) throws IOException {
+        return new GetLicenseResponse(in);
     }
 
     @Override

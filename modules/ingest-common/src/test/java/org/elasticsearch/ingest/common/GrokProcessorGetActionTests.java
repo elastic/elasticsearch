@@ -34,7 +34,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.nullValue;
 
-
 public class GrokProcessorGetActionTests extends ESTestCase {
     private static final Map<String, String> TEST_PATTERNS = Collections.singletonMap("PATTERN", "foo");
 

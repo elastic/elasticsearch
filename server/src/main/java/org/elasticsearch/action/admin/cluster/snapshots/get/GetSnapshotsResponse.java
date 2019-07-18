@@ -61,6 +61,16 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         this.snapshots = Collections.unmodifiableList(snapshots);
     }
 
+    GetSnapshotsResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        List<SnapshotInfo> builder = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            builder.add(new SnapshotInfo(in));
+        }
+        snapshots = Collections.unmodifiableList(builder);
+    }
+
     /**
      * Returns the list of snapshots
      *
@@ -72,13 +82,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        List<SnapshotInfo> builder = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            builder.add(new SnapshotInfo(in));
-        }
-        snapshots = Collections.unmodifiableList(builder);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -51,12 +51,12 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     static final String NAME = "cluster:admin/ingest/processor/grok/get";
 
     private GrokProcessorGetAction() {
-        super(NAME, GrokProcessorGetAction.Response::new);
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest {
 
-        public Request() {}
+        Request() {}
 
         Request(StreamInput in) throws IOException {
             super(in);
@@ -69,16 +69,15 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
-        }
-
-        private Map<String, String> grokPatterns;
+        private final Map<String, String> grokPatterns;
 
         Response(Map<String, String> grokPatterns) {
             this.grokPatterns = grokPatterns;
+        }
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         public Map<String, String> getGrokPatterns() {
@@ -95,7 +94,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public void readFrom(StreamInput in) {
             throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
@@ -109,7 +108,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, Request::new, actionFilters);
+            super(NAME, transportService, actionFilters, Request::new);
         }
 
         @Override

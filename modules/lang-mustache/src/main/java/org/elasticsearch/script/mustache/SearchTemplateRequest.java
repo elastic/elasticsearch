@@ -54,8 +54,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private String script;
     private Map<String, Object> scriptParams;
 
-    public SearchTemplateRequest() {
-    }
+    public SearchTemplateRequest() {}
 
     public SearchTemplateRequest(SearchRequest searchRequest) {
         this.request = searchRequest;
@@ -231,7 +230,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public void readFrom(StreamInput in) {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 

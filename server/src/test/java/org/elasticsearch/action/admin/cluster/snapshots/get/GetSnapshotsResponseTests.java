@@ -20,13 +20,14 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,16 +37,11 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-public class GetSnapshotsResponseTests extends AbstractStreamableXContentTestCase<GetSnapshotsResponse> {
+public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSnapshotsResponse> {
 
     @Override
     protected GetSnapshotsResponse doParseInstance(XContentParser parser) throws IOException {
         return GetSnapshotsResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected GetSnapshotsResponse createBlankInstance() {
-        return new GetSnapshotsResponse();
     }
 
     @Override
@@ -61,6 +57,11 @@ public class GetSnapshotsResponseTests extends AbstractStreamableXContentTestCas
                 SnapshotInfoTests.randomUserMetadata()));
         }
         return new GetSnapshotsResponse(snapshots);
+    }
+
+    @Override
+    protected Writeable.Reader<GetSnapshotsResponse> instanceReader() {
+        return GetSnapshotsResponse::new;
     }
 
     @Override

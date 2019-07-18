@@ -182,7 +182,7 @@ public final class BlobStoreTestUtil {
             throws InterruptedException, ExecutionException {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final AtomicLong totalSize = new AtomicLong();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+        repository.threadPool().generic().execute(new ActionRunnable<Void>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repository.blobStore();
@@ -202,7 +202,7 @@ public final class BlobStoreTestUtil {
 
     public static void assertCorruptionVisible(BlobStoreRepository repository, Map<String, Set<String>> indexToFiles) {
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+        repository.threadPool().generic().execute(new ActionRunnable<Boolean>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repository.blobStore();
@@ -229,7 +229,7 @@ public final class BlobStoreTestUtil {
 
     public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs) {
         final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
-        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+        repository.threadPool().generic().execute(new ActionRunnable<Map<String, BlobMetaData>>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repository.blobStore();

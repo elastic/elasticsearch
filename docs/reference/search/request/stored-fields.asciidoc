@@ -1,5 +1,5 @@
 [[request-body-search-stored-fields]]
-=== Stored Fields
+==== Stored Fields
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
 stored in the mapping, which is off by default and generally not recommended.
@@ -54,7 +54,7 @@ objects -- if a field contains a nested object in its path, then no data will
 be returned for that stored field. To access nested fields, `stored_fields`
 must be used within an <<search-request-inner-hits, `inner_hits`>> block.
 
-==== Disable stored fields entirely
+===== Disable stored fields entirely
 
 To disable the stored fields (and metadata fields) entirely use: `_none_`:
 

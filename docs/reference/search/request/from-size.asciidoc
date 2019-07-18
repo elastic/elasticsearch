@@ -1,5 +1,5 @@
 [[request-body-search-from-size]]
-=== From / Size
+==== From / Size
 
 Pagination of results can be done by using the `from` and `size`
 parameters. The `from` parameter defines the offset from the first

@@ -1,5 +1,5 @@
 [[request-body-search-collapse]]
-=== Field Collapsing
+==== Field Collapsing
 
 Allows to collapse search results based on field values.
 The collapsing is done by selecting only the top sorted document per collapse key.
@@ -35,7 +35,7 @@ The field used for collapsing must be a single valued <<keyword, `keyword`>> or 
 NOTE: The collapsing is applied to the top hits only and does not affect aggregations.
 
 
-==== Expand collapse results
+===== Expand collapse results
 
 It is also possible to expand each collapsed top hits with the `inner_hits` option.
 
@@ -117,7 +117,7 @@ The default is based on the number of data nodes and the default search thread p
 WARNING: `collapse` cannot be used in conjunction with <<search-request-scroll, scroll>>,
 <<search-request-rescore, rescore>> or <<search-request-search-after, search after>>.
 
-==== Second level of collapsing
+===== Second level of collapsing
 
 Second level of collapsing is also supported and is applied to `inner_hits`.
 For example, the following request finds the top scored tweets for

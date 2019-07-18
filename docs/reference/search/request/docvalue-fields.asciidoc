@@ -1,5 +1,5 @@
 [[request-body-search-docvalue-fields]]
-=== Doc value Fields
+==== Doc value Fields
 
 Allows to return the <<doc-values,doc value>> representation of a field for each hit, for
 example:
@@ -55,7 +55,7 @@ Note that if the fields parameter specifies fields without docvalues it will try
 causing the terms for that field to be loaded to memory (cached), which will result in more memory consumption.
 
 [float]
-==== Custom formats
+====== Custom formats
 
 While most fields do not support custom formats, some of them do:
 

@@ -82,11 +82,10 @@ public class PutRoleRequestTests extends ESTestCase {
         out.setVersion(version);
         original.writeTo(out);
 
-        final PutRoleRequest copy = new PutRoleRequest();
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(version);
-        copy.readFrom(in);
+        final PutRoleRequest copy = new PutRoleRequest(in);
 
         assertThat(copy.name(), equalTo(original.name()));
         assertThat(copy.cluster(), equalTo(original.cluster()));
@@ -107,10 +106,9 @@ public class PutRoleRequestTests extends ESTestCase {
         out.setVersion(version);
         original.writeTo(out);
 
-        final PutRoleRequest copy = new PutRoleRequest();
         final StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
-        copy.readFrom(in);
+        final PutRoleRequest copy = new PutRoleRequest(in);
 
         assertThat(copy.name(), equalTo(original.name()));
         assertThat(copy.cluster(), equalTo(original.cluster()));

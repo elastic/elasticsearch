@@ -1121,16 +1121,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a list of {@link Streamable} objects
-     */
-    public void writeStreamableList(List<? extends Streamable> list) throws IOException {
-        writeVInt(list.size());
-        for (Streamable obj: list) {
-            obj.writeTo(this);
-        }
-    }
-
-    /**
      * Writes a collection to this stream. The corresponding collection can be read from a stream input using
      * {@link StreamInput#readList(Writeable.Reader)}.
      *

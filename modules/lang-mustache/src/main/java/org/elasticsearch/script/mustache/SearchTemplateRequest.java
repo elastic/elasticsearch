@@ -237,7 +237,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(request);
+        out.writeOptionalWriteable(request);
         out.writeBoolean(simulate);
         out.writeBoolean(explain);
         out.writeBoolean(profile);

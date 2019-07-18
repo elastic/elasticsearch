@@ -1,5 +1,8 @@
 [[query-dsl-boosting-query]]
-=== Boosting Query
+=== Boosting query
+++++
+<titleabbrev>Boosting</titleabbrev>
+++++
 
 Returns documents matching a `positive` query while reducing the
 <<query-filter-context, relevance score>> of documents that also match a

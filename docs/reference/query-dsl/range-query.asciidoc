@@ -1,5 +1,8 @@
 [[query-dsl-range-query]]
-=== Range Query
+=== Range query
+++++
+<titleabbrev>Range</titleabbrev>
+++++
 
 Returns documents that contain terms within a provided range.
 

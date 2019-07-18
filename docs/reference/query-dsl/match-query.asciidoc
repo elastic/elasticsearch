@@ -1,5 +1,8 @@
 [[query-dsl-match-query]]
-=== Match Query
+=== Match query
+++++
+<titleabbrev>Match</titleabbrev>
+++++
 
 
 `match` queries accept text/numerics/dates, analyzes

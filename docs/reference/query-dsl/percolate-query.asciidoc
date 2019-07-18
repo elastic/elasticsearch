@@ -1,5 +1,8 @@
 [[query-dsl-percolate-query]]
-=== Percolate Query
+=== Percolate query
+++++
+<titleabbrev>Percolate</titleabbrev>
+++++
 
 The `percolate` query can be used to match queries
 stored in an index. The `percolate` query itself

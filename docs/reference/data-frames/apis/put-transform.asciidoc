@@ -50,9 +50,10 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 
 `defer_validations`::
  (Optional, boolean) When `true`, this will cause deferrable validations to not run.
- This option should be used with care as the created {dataframe-transform} will run
- with the privileges of the user creating it. Meaning, if they do not have privileges,
- such an error will not be visible until `_start` is called.
+ Deferred validations are always run when the {dataframe-transform} is started, 
+ with the exception of privilege checks. If the user who created the transform does 
+ not have the required privileges on the source and destination indices then the 
+ transform will start but then fail when it attempts the unauthorized operation.
 
  The default value is `false`.
 

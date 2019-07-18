@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class Netty4HttpRequest implements HttpRequest {
@@ -48,6 +49,7 @@ public class Netty4HttpRequest implements HttpRequest {
     private final BytesReference content;
     private final HttpHeadersMap headers;
     private final int sequence;
+    private final AtomicBoolean released = new AtomicBoolean(false);
 
     Netty4HttpRequest(FullHttpRequest request, int sequence) {
         this.request = request;
@@ -108,6 +110,12 @@ public class Netty4HttpRequest implements HttpRequest {
         return content;
     }
 
+    @Override
+    public void release() {
+        if (released.compareAndSet(false, true)) {
+            request.release();
+        }
+    }
 
     @Override
     public final Map<String, List<String>> getHeaders() {
@@ -152,11 +160,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
-        try {
-            return new Netty4HttpResponse(this, status, content);
-        } finally {
-            request.release();
-        }
+        return new Netty4HttpResponse(this, status, content);
     }
 
     public FullHttpRequest nettyRequest() {

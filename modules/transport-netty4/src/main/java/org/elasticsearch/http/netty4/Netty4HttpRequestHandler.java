@@ -40,8 +40,8 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         FullHttpRequest request = msg.getRequest();
         boolean success = false;
+        Netty4HttpRequest httpRequest = new Netty4HttpRequest(request, msg.getSequence());
         try {
-            Netty4HttpRequest httpRequest = new Netty4HttpRequest(request, msg.getSequence());
             if (request.decoderResult().isFailure()) {
                 Throwable cause = request.decoderResult().cause();
                 if (cause instanceof Error) {
@@ -56,7 +56,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
             success = true;
         } finally {
             if (success == false) {
-                request.release();
+                httpRequest.release();
             }
         }
     }

@@ -100,7 +100,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             }
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
-
+            httpRequest.release();
             // TODO: Ideally we should move the setting of Cors headers into :server
             // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 
@@ -130,6 +130,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             success = true;
         } finally {
             if (success == false) {
+                httpRequest.release();
                 Releasables.close(toClose);
             }
         }

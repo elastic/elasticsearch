@@ -25,7 +25,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
@@ -356,7 +355,6 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertEquals(1, statsResponse.getTransformsStats().size());
         DataFrameTransformStats stats = statsResponse.getTransformsStats().get(0);
         assertEquals(DataFrameTransformTaskState.STOPPED, stats.getTaskState());
-        assertEquals(IndexerState.STOPPED, stats.getCheckpointingInfo().getNext().getIndexerState());
 
         DataFrameIndexerTransformStats zeroIndexerStats = new DataFrameIndexerTransformStats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
         assertEquals(zeroIndexerStats, stats.getIndexerStats());
@@ -373,8 +371,6 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             assertNotEquals(zeroIndexerStats, stateAndStats.getIndexerStats());
             assertThat(stateAndStats.getTaskState(),
                 is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
-            assertThat(stateAndStats.getCheckpointingInfo().getNext().getIndexerState(),
-                is(oneOf(IndexerState.STARTED, IndexerState.STOPPED)));
             assertNotNull(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress());
             assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getPercentComplete(), equalTo(100.0));
             assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getTotalDocs(), greaterThan(0L));

@@ -541,7 +541,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 stateAndStatsInfo.getNode(); // <6>
             // end::get-data-frame-transform-stats-response
 
-            assertEquals(IndexerState.STOPPED, indexerState);
             assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
             assertNotNull(transformStats);
             assertNull(progress);

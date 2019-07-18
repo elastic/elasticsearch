@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -232,7 +233,14 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             this.nodeId = nodeId;
         }
 
-        private Failure() {
+        private Failure(StreamInput in) throws IOException {
+            if (in.getVersion().before(Version.V_7_4_0)) {
+                nodeId = in.readString();
+            }
+            readFrom(in, this);
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+                nodeId = in.readString();
+            }
         }
 
         public String nodeId() {
@@ -240,21 +248,18 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         static Failure readFailure(StreamInput in) throws IOException {
-            Failure failure = new Failure();
-            failure.readFrom(in);
-            return failure;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            nodeId = in.readString();
-            super.readFrom(in);
+            return new Failure(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(nodeId);
+            if (out.getVersion().before(Version.V_7_4_0)) {
+                out.writeString(nodeId);
+            }
             super.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+                out.writeString(nodeId);
+            }
         }
 
         @Override

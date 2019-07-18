@@ -75,7 +75,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
@@ -825,20 +824,6 @@ public abstract class StreamInput extends InputStream {
         return readBoolean() ? readArray(reader, arraySupplier) : null;
     }
 
-    /**
-     * Serializes a potential null value.
-     */
-    @Nullable
-    public <T extends Streamable> T readOptionalStreamable(Supplier<T> supplier) throws IOException {
-        if (readBoolean()) {
-            T streamable = supplier.get();
-            streamable.readFrom(this);
-            return streamable;
-        } else {
-            return null;
-        }
-    }
-
     @Nullable
     public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
@@ -989,29 +974,6 @@ public abstract class StreamInput extends InputStream {
             return readNamedWriteable(categoryClass);
         }
         return null;
-    }
-
-    /**
-     * Read a {@link List} of {@link Streamable} objects, using the {@code constructor} to instantiate each instance.
-     * <p>
-     * This is expected to take the form:
-     * <code>
-     * List&lt;MyStreamableClass&gt; list = in.readStreamList(MyStreamableClass::new);
-     * </code>
-     *
-     * @param constructor Streamable instance creator
-     * @return Never {@code null}.
-     * @throws IOException if any step fails
-     */
-    public <T extends Streamable> List<T> readStreamableList(Supplier<T> constructor) throws IOException {
-        int count = readArraySize();
-        List<T> builder = new ArrayList<>(count);
-        for (int i=0; i<count; i++) {
-            T instance = constructor.get();
-            instance.readFrom(this);
-            builder.add(instance);
-        }
-        return builder;
     }
 
     /**

@@ -69,7 +69,7 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalStreamable(restoreInfo);
+        out.writeOptionalWriteable(restoreInfo);
     }
 
     public RestStatus status() {

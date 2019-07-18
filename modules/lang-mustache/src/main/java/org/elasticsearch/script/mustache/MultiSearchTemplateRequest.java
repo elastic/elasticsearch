@@ -47,6 +47,14 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
+    public MultiSearchTemplateRequest() {}
+
+    MultiSearchTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        maxConcurrentSearchRequests = in.readVInt();
+        requests = in.readList(SearchTemplateRequest::new);
+    }
+
     /**
      * Add a search template request to execute. Note, the order is important, the search response will be returned in the
      * same order as the search requests.

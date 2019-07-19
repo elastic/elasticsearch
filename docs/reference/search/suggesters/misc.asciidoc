@@ -1,4 +1,4 @@
-[[returning-suggesters-type]]
+[[return-suggesters-type]]
 === Returning the type of the suggester
 
 Sometimes you need to know the exact type of a suggester in order to parse its results. The `typed_keys` parameter

@@ -84,7 +84,7 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     }
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
+    public final void readFrom(StreamInput in) {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

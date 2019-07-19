@@ -34,6 +34,10 @@ import java.util.function.Supplier;
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
+    /**
+     * @deprecated Use {@link #HandledTransportAction(String, TransportService, ActionFilters, Writeable.Reader)} instead.
+     */
+    @Deprecated
     protected HandledTransportAction(String actionName, TransportService transportService,
                                      Supplier<Request> request, ActionFilters actionFilters) {
         this(actionName, true, transportService, request, actionFilters);
@@ -49,17 +53,14 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         this(actionName, true, transportService, actionFilters, requestReader, executor);
     }
 
+    /**
+     * @deprecated Use {@link #HandledTransportAction(String, boolean, TransportService, ActionFilters, Writeable.Reader)} instead.
+     */
+    @Deprecated
     protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
                                      TransportService transportService, Supplier<Request> request, ActionFilters actionFilters) {
         super(actionName, actionFilters, transportService.getTaskManager());
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
-            new TransportHandler());
-    }
-
-    protected HandledTransportAction(String actionName, TransportService transportService, Supplier<Request> request,
-                                     ActionFilters actionFilters, String executor) {
-        super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, executor, false, true,
             new TransportHandler());
     }
 

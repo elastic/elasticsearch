@@ -85,13 +85,12 @@ public class SyncedFlushUnitTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         testPlan.result.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        SyncedFlushResponse readResponse = new SyncedFlushResponse();
-        readResponse.readFrom(in);
+        SyncedFlushResponse readResponse = new SyncedFlushResponse(in);
         assertThat(readResponse.totalShards(), equalTo(testPlan.totalCounts.total));
         assertThat(readResponse.successfulShards(), equalTo(testPlan.totalCounts.successful));
         assertThat(readResponse.failedShards(), equalTo(testPlan.totalCounts.failed));
         assertThat(readResponse.restStatus(), equalTo(testPlan.totalCounts.failed > 0 ? RestStatus.CONFLICT : RestStatus.OK));
-        assertThat(readResponse.shardsResultPerIndex.size(), equalTo(testPlan.result.getShardsResultPerIndex().size()));
+        assertThat(readResponse.getShardsResultPerIndex().size(), equalTo(testPlan.result.getShardsResultPerIndex().size()));
         for (Map.Entry<String, List<ShardsSyncedFlushResult>> entry : readResponse.getShardsResultPerIndex().entrySet()) {
             List<ShardsSyncedFlushResult> originalShardsResults = testPlan.result.getShardsResultPerIndex().get(entry.getKey());
             assertNotNull(originalShardsResults);

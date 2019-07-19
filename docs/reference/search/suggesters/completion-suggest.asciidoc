@@ -1,4 +1,4 @@
-[[search-suggesters-completion]]
+[[completion-suggester]]
 === Completion Suggester
 
 NOTE: In order to understand the format of suggestions, please
@@ -214,7 +214,7 @@ The configured weight for a suggestion is returned as `_score`. The
 return the full document `_source` by default. The size of the `_source`
 can impact performance due to disk fetch and network transport overhead.
 To save some network overhead, filter out unnecessary fields from the `_source`
-using <<search-request-source-filtering, source filtering>> to minimize
+using <<request-body-search-source-filtering, source filtering>> to minimize
 `_source` size. Note that the _suggest endpoint doesn't support source
 filtering but using suggest on the `_search` endpoint does:
 
@@ -291,7 +291,7 @@ The basic completion suggester query supports the following parameters:
 `skip_duplicates`:: Whether duplicate suggestions should be filtered out (defaults to `false`).
 
 NOTE: The completion suggester considers all documents in the index.
-See <<suggester-context>> for an explanation of how to query a subset of
+See <<context-suggester>> for an explanation of how to query a subset of
 documents instead.
 
 NOTE: In case of completion queries spanning more than one shard, the suggest

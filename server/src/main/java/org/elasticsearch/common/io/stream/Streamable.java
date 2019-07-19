@@ -38,7 +38,9 @@ public interface Streamable {
     /**
      * Set this object's fields from a {@linkplain StreamInput}.
      */
-    void readFrom(StreamInput in) throws IOException;
+    default void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
 
     /**
      * Write this object's fields to a {@linkplain StreamOutput}.

@@ -1,4 +1,4 @@
-[[search-request-explain]]
+[[request-body-search-explain]]
 === Explain
 
 Enables explanation for each hit on how its score was computed.

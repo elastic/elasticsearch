@@ -4,7 +4,7 @@
 === {dataframe-transforms-cap}  settings in Elasticsearch
 [subs="attributes"]
 ++++
-<titleabbrev>{dataframe-transforms} settings</titleabbrev>
+<titleabbrev>{dataframe-transforms-cap} settings</titleabbrev>
 ++++
 
 You do not need to configure any settings to use {dataframe-transforms}. It is enabled by default.

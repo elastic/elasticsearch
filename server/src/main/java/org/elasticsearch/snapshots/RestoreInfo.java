@@ -49,8 +49,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
 
     private int successfulShards;
 
-    RestoreInfo() {
-    }
+    RestoreInfo() {}
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
         this.name = name;

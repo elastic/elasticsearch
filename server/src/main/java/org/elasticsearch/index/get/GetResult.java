@@ -390,7 +390,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         } else {
             fields = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
-                DocumentField field = DocumentField.readDocumentField(in);
+                DocumentField field = new DocumentField(in);
                 fields.put(field.getName(), field);
             }
         }

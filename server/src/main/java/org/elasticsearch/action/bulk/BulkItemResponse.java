@@ -360,8 +360,24 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private Failure failure;
 
-    BulkItemResponse() {
+    BulkItemResponse() {}
 
+    BulkItemResponse(StreamInput in) throws IOException {
+        id = in.readVInt();
+        opType = OpType.fromId(in.readByte());
+
+        byte type = in.readByte();
+        if (type == 0) {
+            response = new IndexResponse(in);
+        } else if (type == 1) {
+            response = new DeleteResponse(in);
+        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
+            response = new UpdateResponse(in);
+        }
+
+        if (in.readBoolean()) {
+            failure = new Failure(in);
+        }
     }
 
     public BulkItemResponse(int id, OpType opType, DocWriteResponse response) {

@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -175,9 +174,9 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
-            () -> HandshakeRequest.INSTANCE,
             ThreadPool.Names.SAME,
             false, false,
+            in -> HandshakeRequest.INSTANCE,
             (request, channel, task) -> channel.sendResponse(
                 new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
     }
@@ -832,23 +831,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * Registers a new request handler
      *
      * @param action         The action the request handler is associated with
-     * @param requestFactory a callable to be used construct new instances for streaming
-     * @param executor       The executor the request handling will be executed on
-     * @param handler        The handler itself that implements the request handling
-     */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory,
-                                                    String executor, TransportRequestHandler<Request> handler) {
-        validateActionName(action);
-        handler = interceptor.interceptHandler(action, executor, false, handler);
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
-            action, Streamable.newWriteableReader(requestFactory), taskManager, handler, executor, false, true);
-        transport.registerRequestHandler(reg);
-    }
-
-    /**
-     * Registers a new request handler
-     *
-     * @param action         The action the request handler is associated with
      * @param requestReader  a callable to be used construct new instances for streaming
      * @param executor       The executor the request handling will be executed on
      * @param handler        The handler itself that implements the request handling
@@ -860,27 +842,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         handler = interceptor.interceptHandler(action, executor, false, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
             action, requestReader, taskManager, handler, executor, false, true);
-        transport.registerRequestHandler(reg);
-    }
-
-    /**
-     * Registers a new request handler
-     *
-     * @param action                The action the request handler is associated with
-     * @param request               The request class that will be used to construct new instances for streaming
-     * @param executor              The executor the request handling will be executed on
-     * @param forceExecution        Force execution on the executor queue and never reject it
-     * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
-     * @param handler               The handler itself that implements the request handling
-     */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request,
-                                                                          String executor, boolean forceExecution,
-                                                                          boolean canTripCircuitBreaker,
-                                                                          TransportRequestHandler<Request> handler) {
-        validateActionName(action);
-        handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
-            action, Streamable.newWriteableReader(request), taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         transport.registerRequestHandler(reg);
     }
 

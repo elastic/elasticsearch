@@ -19,13 +19,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-
-import java.io.IOException;
-
-public class VerificationFailure implements Streamable {
+public class VerificationFailure {
 
     private String nodeId;
 
@@ -46,24 +40,6 @@ public class VerificationFailure implements Streamable {
 
     public Throwable cause() {
         return cause;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        nodeId = in.readOptionalString();
-        cause = in.readException();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(nodeId);
-        out.writeException(cause);
-    }
-
-    public static VerificationFailure readNode(StreamInput in) throws IOException {
-        VerificationFailure failure = new VerificationFailure();
-        failure.readFrom(in);
-        return failure;
     }
 
     @Override

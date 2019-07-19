@@ -19,14 +19,13 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -43,7 +42,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,7 +52,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static org.elasticsearch.indices.recovery.PeerRecoveryTargetService.getStartRecoveryRequest;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -155,19 +152,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
-        CheckedFunction<IndexShard, Long, Exception> getStartingSeqno = shard -> {
-            RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, null);
-            try (Closeable ignored = recoveryTarget::decRef) {
-                return getStartRecoveryRequest(logger, localNode, recoveryTarget).startingSeqNo();
-            }
-        };
-
         // empty copy
         IndexShard shard = newShard(false);
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, localNode));
         shard.prepareForIndexRecovery();
-        expectThrows(IndexNotFoundException.class, shard::snapshotStoreMetadata);
-        assertThat(getStartingSeqno.apply(shard), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(shard.recoverLocallyUpToGlobalCheckpoint(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
         closeShards(shard);
 
         // good copy
@@ -177,7 +166,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             RecoverySource.PeerRecoverySource.INSTANCE));
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(getStartingSeqno.apply(replica), equalTo(globalCheckpoint + 1));
+        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(globalCheckpoint + 1));
         closeShards(replica);
 
         // corrupted copy
@@ -190,7 +179,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             RecoverySource.PeerRecoverySource.INSTANCE));
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(getStartingSeqno.apply(replica), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
         closeShards(replica);
 
         // copy with truncated translog
@@ -205,7 +194,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             .map(commitInfo -> commitInfo.localCheckpoint + 1).orElse(SequenceNumbers.UNASSIGNED_SEQ_NO);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         replica.prepareForIndexRecovery();
-        assertThat(getStartingSeqno.apply(replica), equalTo(startingSeqNo));
+        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(startingSeqNo));
         closeShards(replica);
     }
 }

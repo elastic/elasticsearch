@@ -627,7 +627,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(logger, rNode, recoveryTarget);
+        final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+        final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
+            logger, rNode, recoveryTarget, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));

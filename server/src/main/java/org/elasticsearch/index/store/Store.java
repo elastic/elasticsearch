@@ -80,7 +80,6 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -1564,22 +1563,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     /**
      * Returns a {@link org.elasticsearch.index.seqno.SequenceNumbers.CommitInfo} of the safe commit if exists.
-     * If the index is not found or corrupted or translog is corrupted, this method won't throw exception but return an empty result.
      */
-    public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(Path translogPath) {
-        try {
-            String translogUUID = readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            List<IndexCommit> commits = DirectoryReader.listCommits(directory);
-            IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
-            SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
-            // max_seq_no of the safe commit must be at most the global checkpoint
-            if (commitInfo.maxSeqNo <= globalCheckpoint) {
-                return Optional.of(commitInfo);
-            } else {
-                return Optional.empty();
-            }
-        } catch (final TranslogCorruptedException | IOException e) {
+    public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(Path translogPath) throws IOException {
+        final String translogUUID = readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
+        final List<IndexCommit> commits = DirectoryReader.listCommits(directory);
+        final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
+        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
+        // all operations of the safe commit must be at most the global checkpoint.
+        if (commitInfo.maxSeqNo <= globalCheckpoint) {
+            return Optional.of(commitInfo);
+        } else {
             return Optional.empty();
         }
     }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -48,35 +49,30 @@ import java.util.Map;
  */
 public class RecoveryState implements ToXContentFragment, Streamable, Writeable {
 
-    public enum Stage implements Writeable {
+    public enum Stage {
         INIT((byte) 0),
-
-        /**
-         * Locally recover the index up to the global checkpoint before performing a peer recovery
-         */
-        PREPARE_INDEX((byte) 1),
 
         /**
          * recovery of lucene files, either reusing local ones are copying new ones
          */
-        INDEX((byte) 2),
+        INDEX((byte) 1),
 
         /**
          * potentially running check index
          */
-        VERIFY_INDEX((byte) 3),
+        VERIFY_INDEX((byte) 2),
 
         /**
          * starting up the engine, replaying the translog
          */
-        TRANSLOG((byte) 4),
+        TRANSLOG((byte) 3),
 
         /**
          * performing final task after all translog ops have been done
          */
-        FINALIZE((byte) 5),
+        FINALIZE((byte) 4),
 
-        DONE((byte) 6);
+        DONE((byte) 5);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
 
@@ -97,28 +93,16 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             return id;
         }
 
-        public static Stage fromId(StreamInput in) throws IOException {
-            byte id = in.readByte();
-            if (in.getVersion().before(Version.V_8_0_0) && id >= PREPARE_INDEX.id) {
-                id++;
-            }
+        public static Stage fromId(byte id) {
             if (id < 0 || id >= STAGES.length) {
                 throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }
             return STAGES[id];
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            byte id = this.id;
-            if (out.getVersion().before(Version.V_8_0_0) && id >= PREPARE_INDEX.id) {
-                id--;
-            }
-            out.writeByte(id);
-        }
     }
 
     private Stage stage;
+
     private final Index index;
     private final Translog translog;
     private final VerifyIndex verifyIndex;
@@ -151,7 +135,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
 
     public RecoveryState(StreamInput in) throws IOException {
         timer = new Timer(in);
-        stage = Stage.fromId(in);
+        stage = Stage.fromId(in.readByte());
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
@@ -165,7 +149,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         timer.writeTo(out);
-        stage.writeTo(out);
+        out.writeByte(stage.id());
         shardId.writeTo(out);
         recoverySource.writeTo(out);
         targetNode.writeTo(out);
@@ -203,11 +187,8 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
                 getVerifyIndex().reset();
                 getTranslog().reset();
                 break;
-            case PREPARE_INDEX:
-                validateAndSetStage(Stage.INIT, stage);
-                break;
             case INDEX:
-                validateAndSetStage(Stage.PREPARE_INDEX, stage);
+                validateAndSetStage(Stage.INIT, stage);
                 getIndex().start();
                 break;
             case VERIFY_INDEX:
@@ -480,21 +461,13 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
     }
 
-    public static class PrepareIndex extends Translog {
-        PrepareIndex() {
-        }
-
-        PrepareIndex(StreamInput in) throws IOException {
-            super(in);
-        }
-    }
-
     public static class Translog extends Timer implements ToXContentFragment, Writeable {
         public static final int UNKNOWN = -1;
 
         private int recovered;
         private int total = UNKNOWN;
         private int totalOnStart = UNKNOWN;
+        private int totalLocal = UNKNOWN;
 
         public Translog() {
         }
@@ -504,6 +477,9 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             recovered = in.readVInt();
             total = in.readVInt();
             totalOnStart = in.readVInt();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                totalLocal = in.readVInt();
+            }
         }
 
         @Override
@@ -512,6 +488,9 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             out.writeVInt(recovered);
             out.writeVInt(total);
             out.writeVInt(totalOnStart);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeVInt(totalLocal);
+            }
         }
 
         public synchronized void reset() {
@@ -519,6 +498,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             recovered = 0;
             total = UNKNOWN;
             totalOnStart = UNKNOWN;
+            totalLocal = UNKNOWN;
         }
 
         public synchronized void incrementRecoveredOperations() {
@@ -560,8 +540,8 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         public synchronized void totalOperations(int total) {
-            this.total = total;
-            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total +
+            this.total = totalLocal == UNKNOWN ? total : totalLocal + total;
+            assert total == UNKNOWN || this.total >= recovered : "total, if known, should be > recovered. total [" + total +
                 "], recovered [" + recovered + "]";
         }
 
@@ -576,7 +556,16 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         public synchronized void totalOperationsOnStart(int total) {
-            this.totalOnStart = total;
+            this.totalOnStart = totalLocal == UNKNOWN ? total : totalLocal + total;
+        }
+
+        /**
+         * Sets the total number of translog operations to be recovered locally before performing peer recovery
+         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint()
+         */
+        public synchronized void totalLocal(int totalLocal) {
+            assert this.totalLocal == UNKNOWN : "total local is set already [" + this.totalLocal + "]";
+            this.totalLocal = totalLocal;
         }
 
         public synchronized float recoveredPercent() {

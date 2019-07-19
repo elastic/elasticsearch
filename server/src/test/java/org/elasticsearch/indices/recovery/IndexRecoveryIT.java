@@ -53,6 +53,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -1039,6 +1040,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         IndexShard shard = internalCluster().getInstance(IndicesService.class, failingNode)
             .getShardOrNull(new ShardId(resolveIndex(indexName), 0));
         final long lastSyncedGlobalCheckpoint = shard.getLastSyncedGlobalCheckpoint();
+        final long localCheckpointOfSafeCommit;
+        try(Engine.IndexCommitRef safeCommitRef = shard.acquireSafeIndexCommit()){
+            localCheckpointOfSafeCommit =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommitRef.getIndexCommit().getUserData().entrySet()).localCheckpoint;
+        }
+        final long maxSeqNo = shard.seqNoStats().getMaxSeqNo();
         shard.failShard("test", new IOException("simulated"));
         StartRecoveryRequest startRecoveryRequest = startRecoveryRequestFuture.actionGet();
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
@@ -1047,6 +1054,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
         assertThat(startRecoveryRequest.startingSeqNo(), equalTo(lastSyncedGlobalCheckpoint + 1));
         ensureGreen(indexName);
+        for (RecoveryState recoveryState : client().admin().indices().prepareRecoveries().get().shardRecoveryStates().get(indexName)) {
+            if (startRecoveryRequest.targetNode().equals(recoveryState.getTargetNode())) {
+                assertThat("total recovered translog operations must include both local and remote recovery",
+                    recoveryState.getTranslog().recoveredOperations(), equalTo(Math.toIntExact(maxSeqNo - localCheckpointOfSafeCommit)));
+            }
+        }
         for (String node : nodes) {
             MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
             transportService.clearAllRules();

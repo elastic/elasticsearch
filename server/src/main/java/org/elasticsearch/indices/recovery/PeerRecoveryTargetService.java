@@ -44,7 +44,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -67,6 +66,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
@@ -173,7 +173,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                 recoveryTarget.indexShard().prepareForIndexRecovery();
-                request = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget);
+                final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+                assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG :
+                    "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
+                request = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
             } catch (final Exception e) {
                 // this will be logged as warning later on...
                 logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
@@ -331,18 +334,16 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      * @param logger         the logger
      * @param localNode      the local node of the recovery target
      * @param recoveryTarget the target of the recovery
+     * @param startingSeqNo  a sequence number that a operation-based can start with
      * @return a start recovery request
      */
-    public static StartRecoveryRequest getStartRecoveryRequest(Logger logger, DiscoveryNode localNode, RecoveryTarget recoveryTarget) {
+    public static StartRecoveryRequest getStartRecoveryRequest(Logger logger, DiscoveryNode localNode,
+                                                               RecoveryTarget recoveryTarget, long startingSeqNo) {
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
         final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(logger, recoveryTarget);
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
-        // recover will start at the first operation after the local checkpoint of the safe commit.
-        final long startingSeqNo = recoveryTarget.store().findSafeIndexCommit(recoveryTarget.translogLocation())
-            .map(commitInfo -> commitInfo.localCheckpoint + 1)
-            .orElse(SequenceNumbers.UNASSIGNED_SEQ_NO);
         request = new StartRecoveryRequest(
             recoveryTarget.shardId(),
             recoveryTarget.indexShard().routingEntry().allocationId().getId(),

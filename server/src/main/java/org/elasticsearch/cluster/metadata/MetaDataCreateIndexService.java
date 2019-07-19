@@ -594,6 +594,10 @@ public class MetaDataCreateIndexService {
             }
         }
 
+        protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+            MetaDataCreateIndexService.checkShardLimit(settings, clusterState);
+        }
+
         @Override
         public void onFailure(String source, Exception e) {
             if (e instanceof ResourceAlreadyExistsException) {

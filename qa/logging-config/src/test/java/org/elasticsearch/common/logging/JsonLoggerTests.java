@@ -269,7 +269,7 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
 
-    public void testDuplicates() throws IOException, UserException {
+    public void testDuplicateLogMessages() throws IOException {
         final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("test"));
 
 

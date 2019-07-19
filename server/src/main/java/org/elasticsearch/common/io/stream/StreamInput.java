@@ -977,8 +977,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)} or
-     * {@link StreamOutput#writeStreamableList(List)}.
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
      *
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list

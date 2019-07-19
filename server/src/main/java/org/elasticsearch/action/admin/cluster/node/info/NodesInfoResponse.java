@@ -52,7 +52,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override

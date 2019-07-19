@@ -58,11 +58,6 @@ public class ReplicationResponse extends ActionResponse {
     }
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Streamable no longer used");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardInfo.writeTo(out);
     }

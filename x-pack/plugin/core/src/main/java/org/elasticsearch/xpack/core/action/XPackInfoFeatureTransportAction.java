@@ -22,7 +22,7 @@ import org.elasticsearch.transport.TransportService;
 public abstract class XPackInfoFeatureTransportAction extends HandledTransportAction<XPackInfoRequest, XPackInfoFeatureResponse> {
 
     public XPackInfoFeatureTransportAction(String name, TransportService transportService, ActionFilters actionFilters) {
-        super(name, transportService, XPackInfoRequest::new, actionFilters);
+        super(name, transportService, actionFilters, XPackInfoRequest::new);
     }
 
     protected abstract String name();

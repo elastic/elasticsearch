@@ -1,5 +1,5 @@
 [[cat-nodeattrs]]
-== cat nodeattrs
+=== cat nodeattrs
 
 The `nodeattrs` command shows custom node attributes.
 For example:
@@ -32,7 +32,7 @@ and the `attr` and `value` columns give you the custom node attributes,
 one per line.
 
 [float]
-=== Columns
+==== Columns
 
 Below is an exhaustive list of the existing headers that can be
 passed to `nodeattrs?h=` to retrieve the relevant details in ordered

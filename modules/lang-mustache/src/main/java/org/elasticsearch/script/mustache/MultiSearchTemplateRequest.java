@@ -124,15 +124,10 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
-        out.writeStreamableList(requests);
+        out.writeList(requests);
     }
 
     @Override

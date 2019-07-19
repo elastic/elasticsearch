@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -43,13 +42,13 @@ public class TransportInfo implements Writeable, ToXContentFragment {
     }
 
     public TransportInfo(StreamInput in) throws IOException {
-        address = BoundTransportAddress.readBoundTransportAddress(in);
+        address = new BoundTransportAddress(in);
         int size = in.readVInt();
         if (size > 0) {
             profileAddresses = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                BoundTransportAddress value = BoundTransportAddress.readBoundTransportAddress(in);
+                BoundTransportAddress value = new BoundTransportAddress(in);
                 profileAddresses.put(key, value);
             }
         }

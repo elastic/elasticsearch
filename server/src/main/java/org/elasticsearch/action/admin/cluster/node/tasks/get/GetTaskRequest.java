@@ -38,6 +38,9 @@ public class GetTaskRequest extends ActionRequest {
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;
 
+    /**
+     * Get the TaskId to look up.
+     */
     public GetTaskRequest() {}
 
     public GetTaskRequest(StreamInput in) throws IOException {
@@ -47,9 +50,6 @@ public class GetTaskRequest extends ActionRequest {
         waitForCompletion = in.readBoolean();
     }
 
-    /**
-     * Get the TaskId to look up.
-     */
     public TaskId getTaskId() {
         return taskId;
     }
@@ -108,11 +108,6 @@ public class GetTaskRequest extends ActionRequest {
             validationException = addValidationError("task id is required", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

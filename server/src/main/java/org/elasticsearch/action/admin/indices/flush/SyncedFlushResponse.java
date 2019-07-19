@@ -199,11 +199,6 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardCounts.writeTo(out);
         out.writeInt(shardsResultPerIndex.size());

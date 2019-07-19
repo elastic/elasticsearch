@@ -22,7 +22,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A field highlighted with its highlighted fragments.
  */
-public class HighlightField implements ToXContentFragment, Streamable {
+public class HighlightField implements ToXContentFragment, Writeable {
 
     private String name;
 

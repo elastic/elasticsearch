@@ -21,7 +21,7 @@ package org.elasticsearch.common.document;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,7 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  * @see SearchHit
  * @see GetResult
  */
-public class DocumentField implements Streamable, ToXContentFragment, Iterable<Object> {
+public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 
     private String name;
     private List<Object> values;

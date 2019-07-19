@@ -28,11 +28,11 @@ import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public class AggregatedDfs implements Streamable {
+public class AggregatedDfs implements Writeable {
 
     private ObjectObjectHashMap<Term, TermStatistics> termStatistics;
     private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics;

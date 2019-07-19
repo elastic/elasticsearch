@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -175,6 +176,27 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.getValueFor("search_type"), Matchers.nullValue());
         assertThat(p.getValueFor("total_shards"), equalTo("1"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
+    }
+
+    public void testSlowLogWithTypes() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        searchContext.getQueryShardContext().setTypes("type1", "type2");
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+
+        assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\", \\\"type2\\\"]"));
+
+        searchContext.getQueryShardContext().setTypes("type1");
+         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\"]"));
+
+        searchContext.getQueryShardContext().setTypes();
+        p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getValueFor("types"), equalTo("[]"));
     }
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {

@@ -1,5 +1,5 @@
 [[optimistic-concurrency-control]]
-== Optimistic concurrency control
+=== Optimistic concurrency control
 
 Elasticsearch is distributed. When documents are created, updated, or deleted,
 the new version of the document has to be replicated to other nodes in the cluster. 

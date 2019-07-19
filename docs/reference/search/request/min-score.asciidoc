@@ -1,5 +1,5 @@
 [[request-body-search-min-score]]
-=== min_score
+==== min_score
 
 Exclude documents which have a `_score` less than the minimum specified
 in `min_score`:

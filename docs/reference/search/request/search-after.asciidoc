@@ -1,5 +1,5 @@
 [[request-body-search-search-after]]
-=== Search After
+==== Search After
 
 Pagination of results can be done by using the `from` and `size` but the cost becomes prohibitive when the deep pagination is reached.
 The `index.max_result_window` which defaults to 10,000 is a safeguard, search requests take heap memory and time proportional to `from + size`.

@@ -1,5 +1,5 @@
 [[indices-get-mapping]]
-== Get Mapping
+=== Get Mapping
 
 The get mapping API allows to retrieve mapping definitions for an index or
 index/type.
@@ -16,7 +16,7 @@ in responses no longer contain a type name by default, you can still request the
 through the parameter include_type_name. For more details, please see <<removal-of-types>>.
 
 [float]
-=== Multiple Indices
+==== Multiple Indices
 
 The get mapping API can be used to get more than one index with a
 single call. General usage of the API follows the following syntax:

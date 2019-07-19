@@ -53,10 +53,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this.scope = scope;
         this.analyzer = analyzer;
         this.positionIncrementGap = positionIncrementGap;
-        if (analyzer instanceof org.elasticsearch.index.analysis.CustomAnalyzer) {
-            this.analysisMode = ((org.elasticsearch.index.analysis.CustomAnalyzer) analyzer).getAnalysisMode();
-        } else if (analyzer instanceof org.elasticsearch.index.analysis.ReloadableCustomAnalyzer) {
-            this.analysisMode = ((org.elasticsearch.index.analysis.ReloadableCustomAnalyzer) analyzer).getAnalysisMode();
+        if (analyzer instanceof org.elasticsearch.index.analysis.AnalyzerComponentsProvider) {
+            this.analysisMode = ((org.elasticsearch.index.analysis.AnalyzerComponentsProvider) analyzer).getComponents().analysisMode();
         } else {
             this.analysisMode = AnalysisMode.ALL;
         }

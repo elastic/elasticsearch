@@ -1,5 +1,5 @@
 [[cat-thread-pool]]
-== cat thread pool
+=== cat thread pool
 
 The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
 statistics are returned for all thread pools.
@@ -113,7 +113,7 @@ Here the host columns and the active, rejected and completed suggest thread pool
 
 All <<modules-threadpool,built-in thread pools>> and custom thread pools are available.
 [float]
-==== Thread Pool Fields
+===== Thread Pool Fields
 
 For each thread pool, you can load details about it by using the field names
 in the table below.
@@ -136,7 +136,7 @@ in the table below.
 |=======================================================================
 
 [float]
-=== Other Fields
+==== Other Fields
 
 In addition to details about each thread pool, it is also convenient to get an
 understanding of where those thread pools reside. As such, you can request

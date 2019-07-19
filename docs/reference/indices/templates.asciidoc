@@ -1,5 +1,5 @@
 [[indices-templates]]
-== Index Templates
+=== Index Templates
 
 Index templates allow you to define templates that will automatically be
 applied when new indices are created. The templates include both 
@@ -78,7 +78,7 @@ actual index name that the template gets applied to, during index creation.
 
 [float]
 [[delete]]
-=== Deleting a Template
+==== Deleting a Template
 
 Index templates are identified by a name (in the above case
 `template_1`) and can be deleted as well:
@@ -91,7 +91,7 @@ DELETE /_template/template_1
 
 [float]
 [[getting]]
-=== Getting templates
+==== Getting templates
 
 Index templates are identified by a name (in the above case
 `template_1`) and can be retrieved using the following:
@@ -121,7 +121,7 @@ GET /_template
 
 [float]
 [[indices-templates-exists]]
-=== Template exists
+==== Template exists
 
 Used to check if the template exists or not. For example:
 
@@ -141,7 +141,7 @@ the parameter include_type_name. For more details, please see <<removal-of-types
 
 [float]
 [[multiple-templates]]
-=== Multiple Templates Matching
+==== Multiple Templates Matching
 
 Multiple index templates can potentially match an index, in this case,
 both the settings and mappings are merged into the final configuration
@@ -189,7 +189,7 @@ result in a non-deterministic merging order.
 
 [float]
 [[versioning-templates]]
-=== Template Versioning
+==== Template Versioning
 
 Templates can optionally add a `version` number, which can be any integer value,
 in order to simplify template management by external systems. The `version`

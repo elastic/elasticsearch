@@ -1,5 +1,5 @@
 [[request-body-search-rescore]]
-=== Rescoring
+==== Rescoring
 
 Rescoring can help to improve precision by reordering just the top (eg
 100 - 500) documents returned by the
@@ -23,7 +23,7 @@ NOTE: when exposing pagination to your users, you should not change
 `from` values) since that can alter the top hits causing results to
 confusingly shift as the user steps through pages.
 
-==== Query rescorer
+===== Query rescorer
 
 The query rescorer executes a second query only on the Top-K results
 returned by the <<request-body-search-query,`query`>> and
@@ -83,7 +83,7 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 |`min`      |Take the min of the original score and the rescore query score.
 |=======================================================================
 
-==== Multiple Rescores
+===== Multiple Rescores
 
 It is also possible to execute multiple rescores in sequence:
 

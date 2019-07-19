@@ -29,21 +29,21 @@ Query clauses behave differently depending on whether they are used in
 
 include::query-dsl/query_filter_context.asciidoc[]
 
-include::query-dsl/match-all-query.asciidoc[]
+include::query-dsl/compound-queries.asciidoc[]
 
 include::query-dsl/full-text-queries.asciidoc[]
 
-include::query-dsl/term-level-queries.asciidoc[]
-
-include::query-dsl/compound-queries.asciidoc[]
+include::query-dsl/geo-queries.asciidoc[]
 
 include::query-dsl/joining-queries.asciidoc[]
 
-include::query-dsl/geo-queries.asciidoc[]
+include::query-dsl/match-all-query.asciidoc[]
+
+include::query-dsl/span-queries.asciidoc[]
 
 include::query-dsl/special-queries.asciidoc[]
 
-include::query-dsl/span-queries.asciidoc[]
+include::query-dsl/term-level-queries.asciidoc[]
 
 include::query-dsl/minimum-should-match.asciidoc[]
 

@@ -34,8 +34,6 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.search.dfs.AggregatedDfs.readAggregatedDfs;
-
 public class QuerySearchRequest extends TransportRequest implements IndicesRequest {
 
     private long id;
@@ -56,7 +54,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
     public QuerySearchRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readLong();
-        dfs = readAggregatedDfs(in);
+        dfs = new AggregatedDfs(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 

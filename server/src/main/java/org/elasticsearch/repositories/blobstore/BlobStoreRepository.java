@@ -133,7 +133,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final String SNAPSHOT_CODEC = "snapshot";
 
-    private static final String INDEX_FILE_PREFIX = "index-";
+    public static final String INDEX_FILE_PREFIX = "index-";
 
     public static final String INDEX_LATEST_BLOB = "index.latest";
 

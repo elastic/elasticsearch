@@ -20,11 +20,11 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -43,18 +43,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdatePersistentTaskStatusAction extends StreamableResponseActionType<PersistentTaskResponse> {
+public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskResponse> {
 
     public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();
     public static final String NAME = "cluster:admin/persistent/update_status";
 
     private UpdatePersistentTaskStatusAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PersistentTaskResponse newResponse() {
-        return new PersistentTaskResponse();
+        super(NAME, PersistentTaskResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -144,7 +139,7 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
         }
     }
 
-    public static class TransportAction extends StreamableTransportMasterNodeAction<Request, PersistentTaskResponse> {
+    public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
@@ -164,8 +159,8 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
         }
 
         @Override
-        protected PersistentTaskResponse newResponse() {
-            return new PersistentTaskResponse();
+        protected PersistentTaskResponse read(StreamInput in) throws IOException {
+            return new PersistentTaskResponse(in);
         }
 
         @Override

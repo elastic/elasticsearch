@@ -60,9 +60,7 @@ public class TransportReloadAnalyzersAction
 
     @Override
     protected ReloadResult readShardResult(StreamInput in) throws IOException {
-        ReloadResult reloadResult = new ReloadResult();
-        reloadResult.readFrom(in);
-        return reloadResult;
+        return new ReloadResult(in);
     }
 
     @Override
@@ -106,11 +104,7 @@ public class TransportReloadAnalyzersAction
             this.reloadedSearchAnalyzers = reloadedSearchAnalyzers;
         }
 
-        private ReloadResult() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        private ReloadResult(StreamInput in) throws IOException {
             this.index = in.readString();
             this.nodeId = in.readString();
             this.reloadedSearchAnalyzers = in.readStringList();

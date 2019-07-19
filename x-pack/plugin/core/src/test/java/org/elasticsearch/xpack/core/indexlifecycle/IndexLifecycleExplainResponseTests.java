@@ -94,6 +94,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
     }
 
     @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
+    @Override
     protected IndexLifecycleExplainResponse mutateInstance(IndexLifecycleExplainResponse instance) throws IOException {
         String index = instance.getIndex();
         String policy = instance.getPolicyName();

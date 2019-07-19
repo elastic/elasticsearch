@@ -176,7 +176,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             HANDSHAKE_ACTION_NAME,
             ThreadPool.Names.SAME,
             false, false,
-            in -> HandshakeRequest.INSTANCE,
+            HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
                 new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
     }
@@ -474,6 +474,10 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     static class HandshakeRequest extends TransportRequest {
 
         public static final HandshakeRequest INSTANCE = new HandshakeRequest();
+
+        HandshakeRequest(StreamInput in) throws IOException {
+            super(in);
+        }
 
         private HandshakeRequest() {
         }

@@ -52,6 +52,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -793,6 +794,8 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
+    @TestIssueLogging(value = "org.elasticsearch.search.query.SearchQueryIT:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/43144")
     public void testQuotedQueryStringWithBoost() throws InterruptedException {
         float boost = 10.0f;
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));

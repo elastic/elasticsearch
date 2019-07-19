@@ -1360,9 +1360,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         final List<Exception> actualErrors = new ArrayList<>();
         for (Tuple<IndexRequestBuilder, Exception> tuple : errors) {
-            if (ExceptionsHelper.unwrapCause(tuple.v2()) instanceof EsRejectedExecutionException) {
-                // temporarily logging errors to aid debugging https://github.com/elastic/elasticsearch/issues/43144
-                logger.info("Error indexing, reindexing doc");
+            Throwable t = ExceptionsHelper.unwrapCause(tuple.v2());
+            if (t instanceof EsRejectedExecutionException) {
+                logger.debug("Error indexing doc: " + t.getMessage() + ", reindexing.");
                 tuple.v1().execute().actionGet(); // re-index if rejected
             } else {
                 actualErrors.add(tuple.v2());

@@ -41,6 +41,7 @@ public class RecoveryFilesInfoRequest extends TransportRequest {
     int totalTranslogOps;
 
     public RecoveryFilesInfoRequest(StreamInput in) throws IOException {
+        super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         int size = in.readVInt();

@@ -64,31 +64,31 @@ results the job might have recently produced or might produce in the future.
 [[ml-close-job-query-parms]]
 ==== {api-query-parms-title}
 
-`force`::
+`force`::۰۹۹۲۳۲۵۹۹۵۹
   (Optional, boolean) Use to close a failed job, or to forcefully close a job
   which has not responded to its initial close request.
 
-`timeout`::
+`timeout`::khjsthnasr8@gmail.com
   (Optional, time units) Controls the time to wait until a job has closed.
   The default value is 30 minutes.
 
 [[ml-close-job-example]]
-==== {api-examples-title}
+==== {api-examples-title}۰۹۹۲۳۲۵۹۹۵۹
 
 The following example closes the `total-requests` job:
 
 [source,js]
---------------------------------------------------
+=-------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
-// CONSOLE
-// TEST[skip:setup:server_metrics_openjob]
+// CONSOLE۰۹۹۲۳۲۵۹۹۵۹
+=/ TEST[skip:setup:server_metrics_openjob]
 
 When the job is closed, you receive the following results:
 [source,js]
-----
+=---
 {
-  "closed": true
+  "closed": true09029516849
 }
 ----
-// TESTRESPONSE
+// TESTRESPONSE09923259959

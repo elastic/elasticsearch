@@ -329,19 +329,33 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
-        taskState.set(DataFrameTransformTaskState.FAILED);
-        stateReason.set(reason);
         auditor.error(transform.getId(), reason);
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
         deregisterSchedulerJob();
+        DataFrameTransformState newState = new DataFrameTransformState(
+            DataFrameTransformTaskState.FAILED,
+            initialIndexerState,
+            initialPosition,
+            currentCheckpoint.get(),
+            reason,
+            getIndexer() == null ? null : getIndexer().getProgress());
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
         //   we could not read the previous state information from said index.
-        persistStateToClusterState(getState(), ActionListener.wrap(
-            r -> listener.onResponse(null),
-            listener::onFailure
+        persistStateToClusterState(newState, ActionListener.wrap(
+            r -> {
+                taskState.set(DataFrameTransformTaskState.FAILED);
+                stateReason.set(reason);
+                listener.onResponse(null);
+            },
+            e -> {
+                logger.error("Failed to set task state as failed to cluster state", e);
+                taskState.set(DataFrameTransformTaskState.FAILED);
+                stateReason.set(reason);
+                listener.onFailure(e);
+            }
         ));
     }
 

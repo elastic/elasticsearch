@@ -208,7 +208,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         assert dataFrameTransformsCheckpointService.get() != null;
 
         return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
-                dataFrameTransformsCheckpointService.get(), schedulerEngine.get(), dataFrameAuditor.get(), threadPool));
+                dataFrameTransformsCheckpointService.get(), schedulerEngine.get(), dataFrameAuditor.get(), threadPool, clusterService));
     }
 
     public List<Setting<?>> getSettings() {

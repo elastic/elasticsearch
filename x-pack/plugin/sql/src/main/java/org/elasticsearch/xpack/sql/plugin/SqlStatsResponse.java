@@ -58,7 +58,7 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
         public NodeStatsResponse(StreamInput in) throws IOException {
             super(in);
             if (in.readBoolean()) {
-                stats = Counters.read(in);
+                stats = new Counters(in);
             }
         }
 

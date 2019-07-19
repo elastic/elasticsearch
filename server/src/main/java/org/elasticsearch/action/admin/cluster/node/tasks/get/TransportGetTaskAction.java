@@ -75,7 +75,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     @Inject
     public TransportGetTaskAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetTaskAction.NAME, transportService, GetTaskRequest::new, actionFilters);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -121,9 +121,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 new TransportResponseHandler<GetTaskResponse>() {
                     @Override
                     public GetTaskResponse read(StreamInput in) throws IOException {
-                        GetTaskResponse response = new GetTaskResponse();
-                        response.readFrom(in);
-                        return response;
+                        return new GetTaskResponse(in);
                     }
 
                     @Override

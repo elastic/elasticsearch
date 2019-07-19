@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -307,7 +306,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public void testConflictingPatterns() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44610", Constants.WINDOWS);
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)

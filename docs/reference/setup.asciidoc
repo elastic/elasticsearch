@@ -51,13 +51,13 @@ include::settings/audit-settings.asciidoc[]
 
 include::settings/ccr-settings.asciidoc[]
 
+include::settings/data-frames-settings.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
 
 include::settings/license-settings.asciidoc[]
 
 include::settings/ml-settings.asciidoc[]
-
-include::settings/data-frames-settings.asciidoc[]
 
 include::settings/monitoring-settings.asciidoc[]
 

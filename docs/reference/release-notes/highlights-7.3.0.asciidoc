@@ -139,4 +139,6 @@ existing index to a secondary, summarized index. 7.3 now introduces Data frame
 pivot transforms in order to create entity-centric indexes that can summarize
 the behavior of an entity. 
 
+NOTE: Data frames are only available with the default distribution of {es}.
+
 // end::notable-highlights[]

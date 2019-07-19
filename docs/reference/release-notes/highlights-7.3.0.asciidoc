@@ -129,3 +129,14 @@ sparse fields. Memory pressure of global ordinals now goes back to a more
 similar level as what you could have on pre-6.0 releases.
 
 // end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Data frame pivot transforms to create entity-centric indexes
+
+<<put-dfanalytics,Data frames>>, released in 7.2, allow to transform an
+existing index to a secondary, summarized index. 7.3 now introduces Data frame
+pivot transforms in order to create entity-centric indexes that can summarize
+the behavior of an entity. 
+
+// end::notable-highlights[]

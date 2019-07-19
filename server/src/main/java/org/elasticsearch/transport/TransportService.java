@@ -925,7 +925,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         try {
             blockIncomingRequestsLatch.await();
         } catch (InterruptedException e) {
-            logger.trace("interrupted while waiting for incoming requests block to be removed");
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while waiting for incoming requests block to be removed");
         }
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);

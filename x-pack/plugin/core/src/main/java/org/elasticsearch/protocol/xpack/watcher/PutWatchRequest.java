@@ -42,7 +42,14 @@ public final class PutWatchRequest extends ActionRequest {
     public PutWatchRequest() {}
 
     public PutWatchRequest(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        id = in.readString();
+        source = in.readBytesReference();
+        active = in.readBoolean();
+        xContentType = in.readEnum(XContentType.class);
+        version = in.readZLong();
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
     }
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
@@ -53,14 +60,7 @@ public final class PutWatchRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        source = in.readBytesReference();
-        active = in.readBoolean();
-        xContentType = in.readEnum(XContentType.class);
-        version = in.readZLong();
-        ifSeqNo = in.readZLong();
-        ifPrimaryTerm = in.readVLong();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

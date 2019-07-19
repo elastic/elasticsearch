@@ -330,7 +330,7 @@ Control when the changes made by this request are visible to search. See
 
 Allows to control if and how the updated source should be returned in the response.
 By default the updated source is not returned.
-See <<search-request-source-filtering, Source filtering>> for details.
+See <<request-body-search-source-filtering, Source filtering>> for details.
 
 `if_seq_no` and `if_primary_term`::
 

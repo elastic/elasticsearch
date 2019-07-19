@@ -20,6 +20,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAc
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistentTasksExecutor;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -219,6 +221,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
                 dataFrameTransformsCheckpointService.get(), schedulerEngine.get(), dataFrameAuditor.get(), threadPool));
+    }
+
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING);
     }
 
     @Override

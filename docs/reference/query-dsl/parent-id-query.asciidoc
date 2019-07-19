@@ -43,7 +43,7 @@ PUT /my-index
 --
 [source,js]
 ----
-PUT my-index/_doc/1?refresh
+PUT /my-index/_doc/1?refresh
 {
   "text": "This is a parent document.",
   "my-join-field": "my-parent"
@@ -57,7 +57,7 @@ PUT my-index/_doc/1?refresh
 --
 [source,js]
 ----
-PUT my-index/_doc/2?routing=1&refresh
+PUT /my-index/_doc/2?routing=1&refresh
 {
   "text": "This is a child document.",
   "my_join_field": {

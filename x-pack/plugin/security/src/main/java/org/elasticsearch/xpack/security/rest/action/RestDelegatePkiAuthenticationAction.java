@@ -43,7 +43,7 @@ public final class RestDelegatePkiAuthenticationAction extends TokenBaseRestHand
 
     private static final ParseField X509_CERT_CHAIN_FIELD = new ParseField("x509_cert_chain");
 
-    static final ConstructingObjectParser<DelegatePkiAuthenticationRequest, Void> PARSER = new ConstructingObjectParser<>("delegate_pki",
+    static final ConstructingObjectParser<DelegatePkiAuthenticationRequest, Void> PARSER = new ConstructingObjectParser<>("delegate_pki_request",
             true, a -> {
                 @SuppressWarnings("unchecked")
                 final List<String> encodedCertificatesList = (List<String>) a[0];

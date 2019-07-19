@@ -413,9 +413,7 @@ final class TransportClientNodesService implements Closeable {
                         new FutureTransportResponseHandler<LivenessResponse>() {
                             @Override
                             public LivenessResponse read(StreamInput in) throws IOException {
-                                LivenessResponse response = new LivenessResponse();
-                                response.readFrom(in);
-                                return response;
+                                return new LivenessResponse(in);
                             }
                         });
                     transportService.sendRequest(connection, TransportLivenessAction.NAME, new LivenessRequest(),

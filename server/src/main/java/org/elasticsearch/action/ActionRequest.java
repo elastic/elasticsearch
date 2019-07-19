@@ -49,7 +49,7 @@ public abstract class ActionRequest extends TransportRequest {
 
     @Override
     public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable " + getClass().getName());
     }
 
     @Override

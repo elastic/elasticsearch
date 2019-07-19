@@ -1,5 +1,5 @@
 [[docs-update]]
-== Update API
+=== Update API
 
 The update API allows to update a document based on a script provided.
 The operation gets the document (collocated with the shard) from the
@@ -26,7 +26,7 @@ PUT test/_doc/1
 // CONSOLE
 
 [float]
-=== Scripted updates
+==== Scripted updates
 
 Now, we can execute a script that would increment the counter:
 
@@ -136,7 +136,7 @@ POST test/_update/1
 // TEST[continued]
 
 [float]
-=== Updates with a partial document
+==== Updates with a partial document
 
 The update API also supports passing a partial document,
 which will be merged into the existing document (simple recursive merge,
@@ -162,7 +162,7 @@ If both `doc` and `script` are specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
 [float]
-=== Detecting noop updates
+==== Detecting noop updates
 
 If `doc` is specified its value is merged with the existing `_source`.
 By default updates that don't change anything detect that they don't change anything and return `"result": "noop"` like this:
@@ -217,7 +217,7 @@ POST test/_update/1
 
 [[upserts]]
 [float]
-=== Upserts
+==== Upserts
 
 If the document does not already exist, the contents of the `upsert` element
 will be inserted as a new document.  If the document does exist, then the
@@ -244,7 +244,7 @@ POST test/_update/1
 
 [float]
 [[scripted_upsert]]
-==== `scripted_upsert`
+===== `scripted_upsert`
 
 If you would like your script to run regardless of whether the document exists
 or not -- i.e. the script handles initializing the document instead of the
@@ -274,7 +274,7 @@ POST sessions/_update/dh3sgudg8gsrgl
 
 [float]
 [[doc_as_upsert]]
-==== `doc_as_upsert`
+===== `doc_as_upsert`
 
 Instead of sending a partial `doc` plus an `upsert` doc, setting
 `doc_as_upsert` to `true` will use the contents of `doc` as the `upsert`
@@ -294,7 +294,7 @@ POST test/_update/1
 // TEST[continued]
 
 [float]
-=== Parameters
+==== Parameters
 
 The update operation supports the following query-string parameters:
 

@@ -1,5 +1,5 @@
 [[search-uri-request]]
-== URI Search
+=== URI Search
 
 A search request can be executed purely using a URI by providing request
 parameters. Not all search options are exposed when executing a search
@@ -52,7 +52,7 @@ And here is a sample response:
 // TESTRESPONSE[s/"took": 62/"took": "$body.took"/]
 
 [float]
-=== Parameters
+==== Parameters
 
 The parameters allowed in the URI are:
 

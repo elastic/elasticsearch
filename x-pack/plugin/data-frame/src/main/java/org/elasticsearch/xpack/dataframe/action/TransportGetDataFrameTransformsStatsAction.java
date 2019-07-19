@@ -233,6 +233,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         if (statsForTransformsWithoutTasks.isEmpty()) {
             // No work to do, but we must respond to the listener
             listener.onResponse(null);
+            return;
         }
 
         AtomicInteger numberRemaining = new AtomicInteger(statsForTransformsWithoutTasks.size());

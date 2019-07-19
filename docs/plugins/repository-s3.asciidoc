@@ -63,7 +63,7 @@ For more information about creating and updating the {es} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
 For example, if you want to use specific credentials to access S3 then run the
-following commands to add these credentials to the keystore.
+following commands to add these credentials to the keystore:
 
 [source,sh]
 ----

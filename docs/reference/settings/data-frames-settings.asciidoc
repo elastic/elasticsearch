@@ -1,7 +1,7 @@
 
 [role="xpack"]
 [[data-frames-settings]]
-=== Data frames settings in Elasticsearch
+=== {dataframe-transforms-cap}  settings in Elasticsearch
 ++++
 <titleabbrev>{dataframe-transforms} settings</titleabbrev>
 ++++

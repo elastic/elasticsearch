@@ -153,7 +153,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
 
         public int getFailureCount() {

@@ -280,7 +280,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeStoreFilesMetaData> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
     }
 

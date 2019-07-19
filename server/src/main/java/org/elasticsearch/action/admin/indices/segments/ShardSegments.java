@@ -36,8 +36,13 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
     private ShardRouting shardRouting;
 
     private List<Segment> segments;
+    
+    ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
+        this.shardRouting = shardRouting;
+        this.segments = segments;
+    }
 
-    public ShardSegments(StreamInput in) throws IOException {
+    ShardSegments(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
         int size = in.readVInt();
         if (size == 0) {
@@ -48,11 +53,6 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
                 segments.add(Segment.readSegment(in));
             }
         }
-    }
-
-    ShardSegments(ShardRouting shardRouting, List<Segment> segments) {
-        this.shardRouting = shardRouting;
-        this.segments = segments;
     }
 
     @Override

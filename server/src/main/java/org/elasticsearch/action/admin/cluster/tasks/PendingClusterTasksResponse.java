@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
-import com.sun.tools.javac.util.Convert;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.io.stream.StreamInput;

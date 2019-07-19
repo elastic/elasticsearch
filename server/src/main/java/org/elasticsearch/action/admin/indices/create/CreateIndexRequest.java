@@ -113,7 +113,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
+            aliases.add(new Alias(in));
         }
         if (in.getVersion().before(Version.V_7_0_0)) {
             in.readBoolean(); // updateAllTypes

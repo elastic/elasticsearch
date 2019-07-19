@@ -306,7 +306,8 @@ public class SearchTransportService {
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
-        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ThreadPool.Names.SAME, in -> TransportRequest.Empty.INSTANCE,
+        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ThreadPool.Names.SAME,
+            in -> TransportRequest.Empty.INSTANCE,
             (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);

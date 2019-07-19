@@ -31,7 +31,7 @@ IMPORTANT: If you want to use {dataframe-transform} features in your cluster, yo
 `xpack.data_frame.enabled` set to `true` on all master-eligible nodes. This is the
 default behavior.
 
-`xpack.data_frame.num_transform_failure_retries`::
+`xpack.data_frame.num_transform_failure_retries` (<<cluster-update-settings,Dynamic>>)::
 The number of times that a {dataframe-transform} retries when it experiences a
 non-fatal error. Once the number of retries is exhausted, the {dataframe-transform}
 task will be marked as `failed`. The default value is `10` with a valid minimum of `0`

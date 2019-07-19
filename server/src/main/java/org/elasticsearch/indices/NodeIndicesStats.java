@@ -175,7 +175,7 @@ public class NodeIndicesStats implements Streamable, ToXContentFragment {
                 int indexShardListSize = in.readVInt();
                 List<IndexShardStats> indexShardStats = new ArrayList<>(indexShardListSize);
                 for (int j = 0; j < indexShardListSize; j++) {
-                    indexShardStats.add(IndexShardStats.readIndexShardStats(in));
+                    indexShardStats.add(new IndexShardStats(in));
                 }
                 statsByShard.put(index, indexShardStats);
             }

@@ -147,7 +147,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         stage = SnapshotIndexShardStage.fromValue(in.readByte());
-        stats = SnapshotStats.readSnapshotStats(in);
+        stats = new SnapshotStats(in);
         nodeId = in.readOptionalString();
         failure = in.readOptionalString();
     }

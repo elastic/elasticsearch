@@ -241,7 +241,7 @@ public class MetaDataCreateIndexService {
     }
 
     interface IndexValidator {
-        void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state);
+        void validate(String index, Settings settings, ClusterState state);
     }
 
     static class IndexCreationTask extends AckedClusterStateUpdateTask<ClusterStateUpdateResponse> {
@@ -283,8 +283,6 @@ public class MetaDataCreateIndexService {
             String removalExtraInfo = null;
             IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;
             try {
-                validator.validate(request, currentState);
-
                 for (Alias alias : request.aliases()) {
                     aliasValidator.validateAlias(alias, request.index(), currentState.metaData());
                 }
@@ -379,11 +377,6 @@ public class MetaDataCreateIndexService {
                 }
                 // now, put the request settings, so they override templates
                 indexSettingsBuilder.put(request.settings());
-                if (indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey()) == null) {
-                    final DiscoveryNodes nodes = currentState.nodes();
-                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
-                    indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
-                }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
                 }
@@ -393,13 +386,36 @@ public class MetaDataCreateIndexService {
                 if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
                     indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
                 }
+                final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
 
+                if (recoverFromIndex != null) {
+                    assert request.resizeType() != null;
+                    prepareResizeIndexSettings(
+                            currentState,
+                            mappings.keySet(),
+                            indexSettingsBuilder,
+                            recoverFromIndex,
+                            request.index(),
+                            request.resizeType(),
+                            request.copySettings(),
+                            indexScopedSettings);
+                }
+
+                // validate settings after applying settings from templates but before adding private settings
+                validator.validate(request.index(), indexSettingsBuilder.build(), currentState);
+
+                // now add private settings
+                if (indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey()) == null) {
+                    final DiscoveryNodes nodes = currentState.nodes();
+                    final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
+                    indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
+                }
                 if (indexSettingsBuilder.get(SETTING_CREATION_DATE) == null) {
                     indexSettingsBuilder.put(SETTING_CREATION_DATE, Instant.now().toEpochMilli());
                 }
                 indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                 indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
-                final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
+
                 final Settings idxSettings = indexSettingsBuilder.build();
                 int numTargetShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(idxSettings);
                 final int routingNumShards;
@@ -424,19 +440,8 @@ public class MetaDataCreateIndexService {
                 indexSettingsBuilder.remove(IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
                 tmpImdBuilder.setRoutingNumShards(routingNumShards);
 
-                if (recoverFromIndex != null) {
-                    assert request.resizeType() != null;
-                    prepareResizeIndexSettings(
-                            currentState,
-                            mappings.keySet(),
-                            indexSettingsBuilder,
-                            recoverFromIndex,
-                            request.index(),
-                            request.resizeType(),
-                            request.copySettings(),
-                            indexScopedSettings);
-                }
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
+
                 tmpImdBuilder.settings(actualIndexSettings);
 
                 if (recoverFromIndex != null) {
@@ -598,9 +603,9 @@ public class MetaDataCreateIndexService {
         }
     }
 
-    private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
-        validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings(), state, forbidPrivateIndexSettings);
+    private void validate(final String index, final Settings settings, ClusterState state) {
+        validateIndexName(index, state);
+        validateIndexSettings(index, settings, state, forbidPrivateIndexSettings);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final ClusterState clusterState,

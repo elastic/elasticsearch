@@ -69,7 +69,7 @@ following commands to add these credentials to the keystore:
 ----
 bin/elasticsearch-keystore add s3.client.default.access_key
 bin/elasticsearch-keystore add s3.client.default.secret_key
-# a session token is optional so the following command may not be necessary
+# a session token is optional so the following command may not be needed
 bin/elasticsearch-keystore add s3.client.default.session_token
 ----
 
@@ -82,7 +82,7 @@ removing these settings from the keystore as follows:
 ----
 bin/elasticsearch-keystore remove s3.client.default.access_key
 bin/elasticsearch-keystore remove s3.client.default.secret_key
-# a session token is optional so the following command may not be necessary
+# a session token is optional so the following command may not be needed
 bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 

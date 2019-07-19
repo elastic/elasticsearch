@@ -208,9 +208,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
                     @Override
                     public ClusterStateResponse read(StreamInput in) throws IOException {
-                        ClusterStateResponse response = new ClusterStateResponse();
-                        response.readFrom(in);
-                        return response;
+                        return new ClusterStateResponse(in);
                     }
 
                     @Override
@@ -567,9 +565,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
             @Override
             public ClusterStateResponse read(StreamInput in) throws IOException {
-                ClusterStateResponse response = new ClusterStateResponse();
-                response.readFrom(in);
-                return response;
+                return new ClusterStateResponse(in);
             }
 
             @Override

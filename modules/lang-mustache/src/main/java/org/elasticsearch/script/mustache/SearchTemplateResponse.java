@@ -85,11 +85,6 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
         out.writeOptionalStreamable(response);
     }
 
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {
         SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
         Map<String, Object> contentAsMap = parser.map();

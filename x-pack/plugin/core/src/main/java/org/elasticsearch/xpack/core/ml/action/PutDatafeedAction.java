@@ -117,11 +117,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().before(Version.V_6_3_0)) {
                 //the acknowledged flag is no longer supported

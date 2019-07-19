@@ -21,21 +21,24 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 /**
  * Transport action for restore snapshot operation
  */
-public class TransportRestoreSnapshotAction extends StreamableTransportMasterNodeAction<RestoreSnapshotRequest, RestoreSnapshotResponse> {
+public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<RestoreSnapshotRequest, RestoreSnapshotResponse> {
     private final RestoreService restoreService;
 
     @Inject
@@ -55,8 +58,8 @@ public class TransportRestoreSnapshotAction extends StreamableTransportMasterNod
     }
 
     @Override
-    protected RestoreSnapshotResponse newResponse() {
-        return new RestoreSnapshotResponse();
+    protected RestoreSnapshotResponse read(StreamInput in) throws IOException {
+        return new RestoreSnapshotResponse(in);
     }
 
     @Override

@@ -126,9 +126,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Nullable
     private IndexRequest doc;
 
-    public UpdateRequest() {
-
-    }
+    public UpdateRequest() {}
 
     public UpdateRequest(StreamInput in) throws IOException {
         super(in);
@@ -869,11 +867,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest scriptedUpsert(boolean scriptedUpsert) {
         this.scriptedUpsert = scriptedUpsert;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

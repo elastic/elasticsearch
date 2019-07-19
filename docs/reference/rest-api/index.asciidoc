@@ -12,8 +12,8 @@ not be included yet.
 
 * <<api-conventions, API conventions>>
 * <<cat, cat APIs>>
-* <<ccr-apis,{ccr-cap} APIs>>
 * <<cluster, Cluster APIs>>
+* <<ccr-apis,{ccr-cap} APIs>>
 * <<data-frame-apis,{dataframe-cap} APIs>>
 * <<docs, Document APIs>>
 * <<graph-explore-api,Graph Explore API>>
@@ -34,8 +34,8 @@ not be included yet.
 
 include::{es-repo-dir}/api-conventions.asciidoc[]
 include::{es-repo-dir}/cat.asciidoc[]
-include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/cluster.asciidoc[]
+include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/index.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]

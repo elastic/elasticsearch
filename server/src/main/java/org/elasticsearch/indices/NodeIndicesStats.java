@@ -171,7 +171,7 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     public RecoveryStats getRecoveryStats() {
         return stats.getRecoveryStats();
     }
-
+    
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);

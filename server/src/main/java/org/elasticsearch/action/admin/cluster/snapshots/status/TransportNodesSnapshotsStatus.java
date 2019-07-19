@@ -159,7 +159,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeSnapshotStatus> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
     }
 

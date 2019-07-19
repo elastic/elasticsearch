@@ -41,7 +41,7 @@ public class UpdateResponse extends DocWriteResponse {
     public UpdateResponse(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
-            getResult = GetResult.readGetResult(in);
+            getResult = new GetResult(in);
         }
     }
 

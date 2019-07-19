@@ -29,6 +29,12 @@ import java.io.IOException;
 public abstract class TransportRequest extends TransportMessage implements TaskAwareRequest {
     public static class Empty extends TransportRequest {
         public static final Empty INSTANCE = new Empty();
+
+        public Empty() {}
+
+        public Empty(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     /**
@@ -60,9 +66,8 @@ public abstract class TransportRequest extends TransportMessage implements TaskA
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        parentTaskId = TaskId.readFromStream(in);
+    public final void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -171,7 +171,7 @@ final class TransportHandshaker {
         }
 
         HandshakeRequest(StreamInput streamInput) throws IOException {
-            super.readFrom(streamInput);
+            super(streamInput);
             BytesReference remainingMessage;
             try {
                 remainingMessage = streamInput.readBytesReference();
@@ -185,11 +185,6 @@ final class TransportHandshaker {
                     this.version = Version.readVersion(messageStreamInput);
                 }
             }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

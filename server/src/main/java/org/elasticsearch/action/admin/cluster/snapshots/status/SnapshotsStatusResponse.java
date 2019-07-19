@@ -47,7 +47,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
         int size = in.readVInt();
         List<SnapshotStatus> builder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            builder.add(SnapshotStatus.readSnapshotStatus(in));
+            builder.add(new SnapshotStatus(in));
         }
         snapshots = Collections.unmodifiableList(builder);
     }

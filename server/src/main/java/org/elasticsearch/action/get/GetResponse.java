@@ -50,7 +50,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     GetResponse(StreamInput in) throws IOException {
         super(in);
-        getResult = GetResult.readGetResult(in);
+        getResult = new GetResult(in);
     }
 
     public GetResponse(GetResult getResult) {

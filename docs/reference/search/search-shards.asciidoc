@@ -159,7 +159,7 @@ routing values have been specified.
 `preference`::
     Controls a `preference` of which shard replicas to execute the search
     request on. By default, the operation is randomized between the shard
-    replicas. See the link:search-request-preference.html[preference]
+    replicas. See the link:search-request-body.html#request-body-search-preference[preference]
     documentation for a list of all acceptable values.
 
 `local`::

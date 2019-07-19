@@ -82,7 +82,7 @@ And here is a sample response:
     The type of the search operation to perform. Can be
     `dfs_query_then_fetch` or `query_then_fetch`.
     Defaults to `query_then_fetch`.
-    See <<search-request-search-type,_Search Type_>> for more.
+    See <<request-body-search-search-type,_Search Type_>> for more.
 
 `request_cache`::
 

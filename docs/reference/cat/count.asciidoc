@@ -1,5 +1,5 @@
 [[cat-count]]
-== cat count
+=== cat count
 
 `count` provides quick access to the document count of the entire
 cluster, or individual indices.

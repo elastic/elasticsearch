@@ -20,7 +20,6 @@
 package org.elasticsearch.action.termvectors;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;

@@ -106,7 +106,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
                 queuedWatches = in.readList(QueuedWatch::new);
             }
             if (in.readBoolean()) {
-                stats = Counters.read(in);
+                stats = new Counters(in);
             }
         }
 

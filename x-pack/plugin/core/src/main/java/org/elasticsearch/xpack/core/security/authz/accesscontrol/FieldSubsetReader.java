@@ -413,12 +413,6 @@ public final class FieldSubsetReader extends FilterLeafReader {
         public long getSumTotalTermFreq() throws IOException {
             return sumTotalFreq;
         }
-
-        @Override
-        public int getDocCount() throws IOException {
-            // it is costly to recompute this value so we assume that docCount == maxDoc.
-            return maxDoc();
-        }
     }
 
     /**

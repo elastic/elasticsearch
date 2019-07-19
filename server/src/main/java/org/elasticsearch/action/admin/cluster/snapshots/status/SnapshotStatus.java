@@ -27,7 +27,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -55,7 +55,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Status of a snapshot
  */
-public class SnapshotStatus implements ToXContentObject, Streamable {
+public class SnapshotStatus implements ToXContentObject, Writeable {
 
     private Snapshot snapshot;
 
@@ -71,8 +71,6 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
 
     @Nullable
     private Boolean includeGlobalState;
-
-    SnapshotStatus() {}
 
     SnapshotStatus(StreamInput in) throws IOException {
         snapshot = new Snapshot(in);

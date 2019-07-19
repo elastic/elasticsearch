@@ -30,7 +30,7 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -50,7 +50,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     /**
      * Shard store information from a node
      */
-    public static class StoreStatus implements Streamable, ToXContentFragment, Comparable<StoreStatus> {
+    public static class StoreStatus implements Writeable, ToXContentFragment, Comparable<StoreStatus> {
         private DiscoveryNode node;
         private String allocationId;
         private Exception storeException;

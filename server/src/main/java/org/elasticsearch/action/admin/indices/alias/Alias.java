@@ -26,7 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,7 +42,7 @@ import java.util.Map;
 /**
  * Represents an alias, to be associated with an index
  */
-public class Alias implements Streamable, ToXContentFragment {
+public class Alias implements Writeable, ToXContentFragment {
 
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField ROUTING = new ParseField("routing");
@@ -63,8 +63,6 @@ public class Alias implements Streamable, ToXContentFragment {
 
     @Nullable
     private Boolean writeIndex;
-
-    private Alias() {}
 
     public Alias(StreamInput in) throws IOException {
         name = in.readString();

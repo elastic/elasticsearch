@@ -129,6 +129,31 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     }
 
+    public UpdateRequest(StreamInput in) throws IOException {
+        super(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        type = in.readString();
+        id = in.readString();
+        routing = in.readOptionalString();
+        if (in.readBoolean()) {
+            script = new Script(in);
+        }
+        retryOnConflict = in.readVInt();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        if (in.readBoolean()) {
+            doc = new IndexRequest(in);
+        }
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        if (in.readBoolean()) {
+            upsertRequest = new IndexRequest(in);
+        }
+        docAsUpsert = in.readBoolean();
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
+        detectNoop = in.readBoolean();
+        scriptedUpsert = in.readBoolean();
+    }
+
     public UpdateRequest(String index, String id) {
         super(index);
         this.id = id;
@@ -830,28 +855,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        if (in.readBoolean()) {
-            script = new Script(in);
-        }
-        retryOnConflict = in.readVInt();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        if (in.readBoolean()) {
-            doc = new IndexRequest(in);
-        }
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(in);
-        }
-        docAsUpsert = in.readBoolean();
-        ifSeqNo = in.readZLong();
-        ifPrimaryTerm = in.readVLong();
-        detectNoop = in.readBoolean();
-        scriptedUpsert = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -38,6 +38,15 @@ public class GetTaskRequest extends ActionRequest {
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;
 
+    public GetTaskRequest() {}
+
+    public GetTaskRequest(StreamInput in) throws IOException {
+        super(in);
+        taskId = TaskId.readFromStream(in);
+        timeout = in.readOptionalTimeValue();
+        waitForCompletion = in.readBoolean();
+    }
+
     /**
      * Get the TaskId to look up.
      */
@@ -103,10 +112,7 @@ public class GetTaskRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        taskId = TaskId.readFromStream(in);
-        timeout = in.readOptionalTimeValue();
-        waitForCompletion = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

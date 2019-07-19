@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.upgrade.post;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.text.ParseException;
 
-class ShardUpgradeResult implements Streamable {
+class ShardUpgradeResult implements Writeable {
 
     private ShardId shardId;
 

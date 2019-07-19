@@ -35,10 +35,11 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
      */
     private Script script;
 
-    /**
-     * Constructor for deserialization.
-     */
-    public AbstractBulkIndexByScrollRequest() {
+    public AbstractBulkIndexByScrollRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            script = new Script(in);
+        }
     }
 
     /**
@@ -74,10 +75,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            script = new Script(in);
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

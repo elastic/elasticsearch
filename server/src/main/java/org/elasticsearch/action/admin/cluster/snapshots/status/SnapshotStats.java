@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
-public class SnapshotStats implements Streamable, ToXContentObject {
+public class SnapshotStats implements Writeable, ToXContentObject {
 
     private long startTime;
     private long time;
@@ -126,13 +126,6 @@ public class SnapshotStats implements Streamable, ToXContentObject {
      */
     public long getProcessedSize() {
         return processedSize;
-    }
-
-
-    public static SnapshotStats readSnapshotStats(StreamInput in) throws IOException {
-        SnapshotStats stats = new SnapshotStats();
-        stats.readFrom(in);
-        return stats;
     }
 
     @Override

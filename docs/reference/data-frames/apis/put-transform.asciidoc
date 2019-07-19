@@ -48,7 +48,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 [[put-data-frame-transform-query-parms]]
 ==== {api-query-parms-title}
 
-`defer_validations`::
+`defer_validation`::
  (Optional, boolean) When `true`, this will cause deferrable validations to not run.
  Deferred validations are always run when the {dataframe-transform} is started, 
  with the exception of privilege checks. If the user who created the transform does 

@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class NioHttpRequest implements HttpRequest {
@@ -48,8 +49,13 @@ public class NioHttpRequest implements HttpRequest {
     private final BytesReference content;
     private final HttpHeadersMap headers;
     private final int sequence;
+    private final AtomicBoolean released;
 
     NioHttpRequest(FullHttpRequest request, int sequence) {
+        this(request, sequence, new AtomicBoolean(false));
+    }
+
+    private NioHttpRequest(FullHttpRequest request, int sequence, AtomicBoolean released) {
         this.request = request;
         headers = new HttpHeadersMap(request.headers());
         this.sequence = sequence;
@@ -58,6 +64,7 @@ public class NioHttpRequest implements HttpRequest {
         } else {
             this.content = BytesArray.EMPTY;
         }
+        this.released = released;
     }
 
     @Override
@@ -105,9 +112,16 @@ public class NioHttpRequest implements HttpRequest {
 
     @Override
     public BytesReference content() {
+        assert released.get() == false;
         return content;
     }
 
+    @Override
+    public void release() {
+        if (released.compareAndSet(false, true)) {
+            request.release();
+        }
+    }
 
     @Override
     public final Map<String, List<String>> getHeaders() {

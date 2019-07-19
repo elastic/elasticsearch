@@ -6,18 +6,28 @@
 
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
-import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -25,6 +35,7 @@ import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -35,11 +46,24 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+                // pki1 does not allow delegation
                 .put("xpack.security.authc.realms.pki.pki1.order", "1")
                 .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",
-                    getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
+                    getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
                 .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
-                .put("xpack.security.authc.realms.pki.pki1.delegation.enabled", true)
+                // pki2 allows delegation but has a non-matching username pattern 
+                .put("xpack.security.authc.realms.pki.pki2.order", "2")
+                .putList("xpack.security.authc.realms.pki.pki2.certificate_authorities",
+                    getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
+                .put("xpack.security.authc.realms.pki.pki2.username_pattern", "CN=MISMATCH(.*?)(?:,|$)")
+                .put("xpack.security.authc.realms.pki.pki2.delegation.enabled", true)
+                .put("xpack.security.authc.realms.pki.pki2.files.role_mapping", getDataPath("role_mapping.yml"))
+                // pki3 allows delegation and the username pattern matches
+                .put("xpack.security.authc.realms.pki.pki3.order", "3")
+                .putList("xpack.security.authc.realms.pki.pki3.certificate_authorities",
+                    getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
+                .put("xpack.security.authc.realms.pki.pki3.delegation.enabled", true)
+                .put("xpack.security.authc.realms.pki.pki3.files.role_mapping", getDataPath("role_mapping.yml"))
                 .build();
     }
 
@@ -54,23 +78,34 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
     }
 
     public void testDelegatePki() throws Exception {
-        X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"));
-        DelegatePkiAuthenticationRequest delegatePkiRequest = new DelegatePkiAuthenticationRequest(new X509Certificate[] { certificate });
-        PlainActionFuture<DelegatePkiAuthenticationResponse> future = new PlainActionFuture<>();
-        client().execute(TransportDelegatePkiAuthenticationAction.TYPE, delegatePkiRequest, future);
-        String token = future.get().getTokenString();
-        assertThat(token, is(notNullValue()));
-        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-        optionsBuilder.addHeader("Authorization", "Bearer " + token);
-        RequestOptions options = optionsBuilder.build();
-        try(RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            AuthenticateResponse resp = restClient.security().authenticate(options);
+        X509Certificate clientCertificate = readCert(getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt"));
+        X509Certificate intermediateCA = readCert(
+                getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testIntermediateCA.crt"));
+        DelegatePkiAuthenticationRequest delegatePkiRequest = new DelegatePkiAuthenticationRequest(
+                new X509Certificate[] { clientCertificate, intermediateCA });
+
+        Request request = new Request("POST", "/_security/delegate_pki");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        request.setOptions(options);
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        delegatePkiRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        request.setJsonEntity(Strings.toString(builder));
+        Response rawResponse = getRestClient().performRequest(request);
+        XContentParser responseContent = createParser(JsonXContent.jsonXContent, EntityUtils.toString(rawResponse.getEntity()));
+        DelegatePkiAuthenticationResponse response = DelegatePkiAuthenticationResponse.PARSER.apply(responseContent, null);
+
+        options = RequestOptions.DEFAULT.toBuilder();
+        options.addHeader("Authorization", "Bearer " + response.getTokenString());
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            AuthenticateResponse resp = restClient.security().authenticate(options.build());
             User user = resp.getUser();
             assertThat(user, is(notNullValue()));
             assertThat(user.getUsername(), is("Elasticsearch Test Client"));
             RealmInfo authnRealm = resp.getAuthenticationRealm();
             assertThat(authnRealm, is(notNullValue()));
-            assertThat(authnRealm.getName(), is("pki1"));
+            assertThat(authnRealm.getName(), is("pki3"));
             assertThat(authnRealm.getType(), is("pki"));
         }
     }
@@ -81,4 +116,5 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             return (X509Certificate) factory.generateCertificate(in);
         }
     }
+
 }

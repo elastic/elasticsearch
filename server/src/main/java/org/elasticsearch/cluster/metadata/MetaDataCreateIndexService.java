@@ -437,6 +437,13 @@ public class MetaDataCreateIndexService {
                             indexScopedSettings);
                 }
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
+
+                /*
+                 * We can not check the shard limit until we have applied templates, otherwise we do not know the actual
+                 * number of shards that will be used to create this index.
+                 */
+                checkShardLimit(actualIndexSettings, currentState);
+
                 tmpImdBuilder.settings(actualIndexSettings);
 
                 if (recoverFromIndex != null) {
@@ -607,9 +614,6 @@ public class MetaDataCreateIndexService {
                                       final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
-        Optional<String> shardAllocation = checkShardLimit(settings, clusterState);
-        shardAllocation.ifPresent(validationErrors::add);
-
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
@@ -620,15 +624,21 @@ public class MetaDataCreateIndexService {
     /**
      * Checks whether an index can be created without going over the cluster shard limit.
      *
-     * @param settings The settings of the index to be created.
-     * @param clusterState The current cluster state.
-     * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
+     * @param settings     the settings of the index to be created
+     * @param clusterState the current cluster state
+     * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
      */
-    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState) {
-        int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
-            * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+    public static void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+        final int numberOfShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+        final int numberOfReplicas = IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
+        final int shardsToCreate = numberOfShards * (1 + numberOfReplicas);
 
-        return IndicesService.checkShardLimit(shardsToCreate, clusterState);
+        final Optional<String> shardLimit = IndicesService.checkShardLimit(shardsToCreate, clusterState);
+        if (shardLimit.isPresent()) {
+            final ValidationException e = new ValidationException();
+            e.addValidationError(shardLimit.get());
+            throw e;
+        }
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {

@@ -101,6 +101,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             }
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
+
             // TODO: Ideally we should move the setting of Cors headers into :server
             // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 

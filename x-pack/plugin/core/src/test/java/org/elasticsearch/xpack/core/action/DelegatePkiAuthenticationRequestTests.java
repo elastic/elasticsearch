@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,7 +27,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DelegatePkiAuthenticationRequestTests extends ESTestCase {
+public class DelegatePkiAuthenticationRequestTests extends AbstractXContentTestCase<DelegatePkiAuthenticationRequest> {
 
     public void testRequestValidation() {
         DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest(((X509Certificate[]) null));
@@ -62,16 +64,8 @@ public class DelegatePkiAuthenticationRequestTests extends ESTestCase {
     }
 
     public void testSerialization() throws Exception {
-        X509Certificate[] certificates = randomArray(1, 3, X509Certificate[]::new, () -> {
-            try {
-                return readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/"
-                        + randomFrom("testclient.crt", "testnode.crt", "testnode-ip-only.crt", "openldap.crt", "samba4.crt")));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        X509Certificate[] certificates = randomCertificateArray();
         DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest(certificates);
-
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
@@ -83,10 +77,38 @@ public class DelegatePkiAuthenticationRequestTests extends ESTestCase {
         }
     }
 
+    private X509Certificate[] randomCertificateArray() {
+        X509Certificate[] certificates = randomArray(1, 3, X509Certificate[]::new, () -> {
+            try {
+                return readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/"
+                        + randomFrom("testclient.crt", "testnode.crt", "testnode-ip-only.crt", "openldap.crt", "samba4.crt")));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        return certificates;
+    }
+
     static X509Certificate readCert(Path path) throws Exception {
         try (InputStream in = Files.newInputStream(path)) {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             return (X509Certificate) factory.generateCertificate(in);
         }
+    }
+
+    @Override
+    protected DelegatePkiAuthenticationRequest createTestInstance() {
+        X509Certificate[] certificates = randomCertificateArray();
+        return new DelegatePkiAuthenticationRequest(certificates);
+    }
+
+    @Override
+    protected DelegatePkiAuthenticationRequest doParseInstance(XContentParser parser) throws IOException {
+        return DelegatePkiAuthenticationRequest.PARSER.apply(parser, null);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

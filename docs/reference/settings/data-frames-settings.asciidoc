@@ -24,7 +24,7 @@ Set to `true` (default) to enable {dataframe-transforms} on the node. +
 +
 If set to `false` in `elasticsearch.yml`, the {dataframe-transform} APIs are disabled on the node.
 Therefore the node cannot start or administrate transforms or receive transport (internal)
-communication requests related to {data-frametransform} APIs.
+communication requests related to {dataframe-transform} APIs.
 +
 IMPORTANT: If you want to use {dataframe-transform} features in your cluster, you must have
 `xpack.data_frame.enabled` set to `true` on all master-eligible nodes. This is the

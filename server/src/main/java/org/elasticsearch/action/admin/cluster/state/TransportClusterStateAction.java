@@ -24,7 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -45,7 +46,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class TransportClusterStateAction extends StreamableTransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
+public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -64,17 +65,17 @@ public class TransportClusterStateAction extends StreamableTransportMasterNodeRe
     }
 
     @Override
+    protected ClusterStateResponse read(StreamInput in) throws IOException {
+        return new ClusterStateResponse(in);
+    }
+
+    @Override
     protected ClusterBlockException checkBlock(ClusterStateRequest request, ClusterState state) {
         // cluster state calls are done also on a fully blocked cluster to figure out what is going
         // on in the cluster. For example, which nodes have joined yet the recovery has not yet kicked
         // in, we need to make sure we allow those calls
         // return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
         return null;
-    }
-
-    @Override
-    protected ClusterStateResponse newResponse() {
-        return new ClusterStateResponse();
     }
 
     @Override

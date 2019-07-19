@@ -90,11 +90,6 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             calendar.writeTo(out);
@@ -142,12 +137,6 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
 
         public Response(Calendar calendar) {
             this.calendar = calendar;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-
         }
 
         @Override

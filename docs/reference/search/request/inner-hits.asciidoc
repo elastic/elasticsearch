@@ -70,13 +70,13 @@ Inner hits support the following options:
 
 Inner hits also supports the following per document features:
 
-* <<search-request-highlighting,Highlighting>>
-* <<search-request-explain,Explain>>
-* <<search-request-source-filtering,Source filtering>>
-* <<search-request-script-fields,Script fields>>
-* <<search-request-docvalue-fields,Doc value fields>>
-* <<search-request-version,Include versions>>
-* <<search-request-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
+* <<request-body-search-highlighting,Highlighting>>
+* <<request-body-search-explain,Explain>>
+* <<request-body-search-source-filtering,Source filtering>>
+* <<request-body-search-script-fields,Script fields>>
+* <<request-body-search-docvalue-fields,Doc value fields>>
+* <<request-body-search-version,Include versions>>
+* <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
 [[nested-inner-hits]]
 ==== Nested inner hits

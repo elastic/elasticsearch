@@ -40,7 +40,7 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 `force`::
 (Optional, boolean) When `true`, the {dataframe-transform} is deleted regardless of its
 current state. The default value is `false`, meaning that the {dataframe-transform} must be
-`stopped`.
+`stopped` before it can be deleted.
 
 [[delete-data-frame-transform-examples]]
 ==== {api-examples-title}

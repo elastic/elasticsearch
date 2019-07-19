@@ -135,7 +135,7 @@ public class DeprecationLogger {
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
         String xOpaqueId = getXOpaqueId(THREAD_CONTEXT);
-        boolean log = keys.add(xOpaqueId + key);//todo that will create a lot of string in a pool. should we do this with weakhashmap?
+        boolean log = keys.add(xOpaqueId + key);
         deprecated(THREAD_CONTEXT, msg, log, params);
     }
 
@@ -260,11 +260,11 @@ public class DeprecationLogger {
 
     public String getXOpaqueId(Set<ThreadContext> threadContexts) {
         return threadContexts.stream()
-                                                         .filter(t -> t.isClosed() == false)
-                                                         .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
-                                                         .findFirst()
-                                                         .map(t -> t.getHeader(Task.X_OPAQUE_ID))
-                                                         .orElse("");
+                             .filter(t -> t.isClosed() == false)
+                             .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
+                             .findFirst()
+                             .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+                             .orElse("");
     }
 
     /**

@@ -349,8 +349,6 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-
-
     private List<JsonLogLine> collectLines(Stream<JsonLogLine> stream) {
         return stream
             .skip(1)//skip the first line from super class

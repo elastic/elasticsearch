@@ -41,6 +41,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -85,7 +86,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
             transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
-                task.getState().getIndexerState(), task.getState().getPosition(),
+                task.getState().getIndexerState(), task.getState().getPosition(), task.getProgress(),
                 ActionListener.wrap(checkpointStats -> listener.onResponse(new Response(
                         Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
                             task.getState().getTaskState(),
@@ -215,7 +216,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
         transformsCheckpointService.getCheckpointStats(transform.getId(), transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getCheckpoint() + 1, transform.getTransformState().getIndexerState(),
-            transform.getTransformState().getPosition(),
+            transform.getTransformState().getPosition(), transform.getTransformState().getProgress(),
             ActionListener.wrap(
                 listener::onResponse,
                 e -> {
@@ -235,6 +236,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         }
 
         AtomicInteger numberRemaining = new AtomicInteger(statsForTransformsWithoutTasks.size());
+        AtomicBoolean isExceptionReported = new AtomicBoolean(false);
 
         statsForTransformsWithoutTasks.forEach(stat -> populateSingleStoppedTransformStat(stat,
             ActionListener.wrap(
@@ -252,7 +254,11 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         listener.onResponse(null);
                     }
                 },
-                listener::onFailure
+                e -> {
+                    if (isExceptionReported.compareAndSet(false, true)) {
+                        listener.onFailure(e);
+                    }
+                }
             )));
     }
 }

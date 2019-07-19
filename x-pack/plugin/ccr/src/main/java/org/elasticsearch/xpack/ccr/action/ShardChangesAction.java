@@ -281,11 +281,6 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         }
 
         @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);

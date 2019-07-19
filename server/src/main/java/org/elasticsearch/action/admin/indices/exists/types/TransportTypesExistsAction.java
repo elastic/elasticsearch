@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -28,13 +28,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Types exists transport action.
  */
-public class TransportTypesExistsAction extends StreamableTransportMasterNodeReadAction<TypesExistsRequest, TypesExistsResponse> {
+public class TransportTypesExistsAction extends TransportMasterNodeReadAction<TypesExistsRequest, TypesExistsResponse> {
 
     @Inject
     public TransportTypesExistsAction(TransportService transportService, ClusterService clusterService,
@@ -51,8 +54,8 @@ public class TransportTypesExistsAction extends StreamableTransportMasterNodeRea
     }
 
     @Override
-    protected TypesExistsResponse newResponse() {
-        return new TypesExistsResponse();
+    protected TypesExistsResponse read(StreamInput in) throws IOException {
+        return new TypesExistsResponse(in);
     }
 
     @Override

@@ -109,7 +109,8 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
         CheckpointException e = expectThrows(CheckpointException.class,
                 () -> DataFrameTransformsCheckpointService.extractIndexCheckPoints(shardStatsArray, indices));
 
-        assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));    }
+        assertThat(e.getMessage(), containsString("Global checkpoints mismatch"));
+    }
 
     /**
      * Create a random set of 3 index names

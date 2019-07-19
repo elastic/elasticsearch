@@ -291,28 +291,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     }
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
-        readFrom(in);
-    }
-
-    /**
-     * Returns {@link StoreStatus}s
-     * grouped by their index names and shard ids.
-     */
-    public ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> getStoreStatuses() {
-        return storeStatuses;
-    }
-
-    /**
-     * Returns node {@link Failure}s encountered
-     * while executing the request
-     */
-    public List<Failure> getFailures() {
-        return failures;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         int numResponse = in.readVInt();
         ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatusesBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < numResponse; i++) {
@@ -337,6 +316,22 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
         storeStatuses = storeStatusesBuilder.build();
         failures = Collections.unmodifiableList(failureBuilder);
+    }
+
+    /**
+     * Returns {@link StoreStatus}s
+     * grouped by their index names and shard ids.
+     */
+    public ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> getStoreStatuses() {
+        return storeStatuses;
+    }
+
+    /**
+     * Returns node {@link Failure}s encountered
+     * while executing the request
+     */
+    public List<Failure> getFailures() {
+        return failures;
     }
 
     @Override

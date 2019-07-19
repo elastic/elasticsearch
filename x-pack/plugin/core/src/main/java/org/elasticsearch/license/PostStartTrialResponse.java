@@ -93,11 +93,6 @@ class PostStartTrialResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         Version version = Version.V_6_3_0;
         if (out.getVersion().onOrAfter(version)) {

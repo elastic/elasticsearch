@@ -40,9 +40,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         int size = in.readVInt();
         pendingTasks = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            PendingClusterTask task = new PendingClusterTask();
-            task.readFrom(in);
-            pendingTasks.add(task);
+            pendingTasks.add(new PendingClusterTask(in));
         }
     }
 

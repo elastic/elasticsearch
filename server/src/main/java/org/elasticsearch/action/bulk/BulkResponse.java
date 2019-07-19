@@ -62,7 +62,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         super(in);
         responses = new BulkItemResponse[in.readVInt()];
         for (int i = 0; i < responses.length; i++) {
-            responses[i] = BulkItemResponse.readBulkItem(in);
+            responses[i] = new BulkItemResponse(in);
         }
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();

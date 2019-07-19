@@ -55,6 +55,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this.positionIncrementGap = positionIncrementGap;
         if (analyzer instanceof org.elasticsearch.index.analysis.CustomAnalyzer) {
             this.analysisMode = ((org.elasticsearch.index.analysis.CustomAnalyzer) analyzer).getAnalysisMode();
+        } else if (analyzer instanceof org.elasticsearch.index.analysis.ReloadableCustomAnalyzer) {
+            this.analysisMode = ((org.elasticsearch.index.analysis.ReloadableCustomAnalyzer) analyzer).getAnalysisMode();
         } else {
             this.analysisMode = AnalysisMode.ALL;
         }

@@ -37,7 +37,7 @@ class ShardUpgradeResult implements Writeable {
     private Version upgradeVersion;
 
     private boolean primary;
-    
+
     ShardUpgradeResult(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
         this.shardId = shardId;
         this.primary = primary;

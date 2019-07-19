@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -325,7 +326,7 @@ public class UpdateHelper {
         }
 
         @SuppressWarnings("unchecked")
-        public <T extends Streamable> T action() {
+        public <T extends Writeable> T action() {
             return (T) action;
         }
 

@@ -130,6 +130,10 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @TaskAction
     public void doCheck() throws IOException {
+        if (getProject().getTasks().withType(Test.class).stream().filter(Task::getEnabled).findAny().isEmpty()) {
+            throw new IllegalArgumentException("There are no enabled test tasks. Did you forget testingConventions.enabled = false?");
+        }
+
         final String problems;
 
         try (URLClassLoader isolatedClassLoader = new URLClassLoader(

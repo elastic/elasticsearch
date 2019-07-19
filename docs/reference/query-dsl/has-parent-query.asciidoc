@@ -85,7 +85,9 @@ its child documents.
 score>> of a matching parent document is aggregated into its child documents.
 Defaults to `false`.
 
-If `false`, {es} ignores the relevance score of the parent document.
+If `false`, {es} ignores the relevance score of the parent document. {es} also
+assigns each child document a relevance score equal to the `query`'s `boost`,
+which defaults to `1`.
 
 If `true`, the relevance score of the matching parent document is aggregated
 into its child documents' relevance scores.

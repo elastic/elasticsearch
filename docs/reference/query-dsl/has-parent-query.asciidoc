@@ -22,7 +22,7 @@ field mapping. For example:
 
 [source,js]
 ----
-PUT /my_index
+PUT /my-index
 {
     "mappings": {
         "properties" : {
@@ -31,6 +31,9 @@ PUT /my_index
                 "relations": {
                     "parent": "child"
                 }
+            },
+            "tag" : {
+                "type" : "keyword"
             }
         }
     }
@@ -45,13 +48,17 @@ PUT /my_index
 
 [source,js]
 ----
-GET /_search
+GET /my-index/_search
 {
     "query": {
         "has_parent" : {
             "parent_type" : "parent",
             "query" : {
-                "match_all" : {}
+                "term" : {
+                    "tag" : {
+                        "value" : "Elasticsearch"
+                    }
+                }
             }
         }
     }

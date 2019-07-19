@@ -336,8 +336,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
         @Override
         public int size() {
-            // this information is not cheap, return -1 like MultiFields does:
-            return -1;
+            return fieldInfos.size();
         }
 
         @Override

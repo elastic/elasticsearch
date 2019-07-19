@@ -38,6 +38,13 @@ class ShardUpgradeResult implements Writeable {
 
     private boolean primary;
 
+    ShardUpgradeResult(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
+        this.shardId = shardId;
+        this.primary = primary;
+        this.upgradeVersion = upgradeVersion;
+        this.oldestLuceneSegment = oldestLuceneSegment;
+    }
+
     ShardUpgradeResult(StreamInput in) throws IOException {
         shardId = new ShardId(in);
         primary = in.readBoolean();
@@ -47,14 +54,6 @@ class ShardUpgradeResult implements Writeable {
         } catch (ParseException ex) {
             throw new IOException("failed to parse lucene version [" + oldestLuceneSegment + "]", ex);
         }
-
-    }
-
-    ShardUpgradeResult(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
-        this.shardId = shardId;
-        this.primary = primary;
-        this.upgradeVersion = upgradeVersion;
-        this.oldestLuceneSegment = oldestLuceneSegment;
     }
 
     public ShardId getShardId() {

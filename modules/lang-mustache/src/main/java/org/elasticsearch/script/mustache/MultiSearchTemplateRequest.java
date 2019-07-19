@@ -127,7 +127,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
-        out.writeStreamableList(requests);
+        out.writeList(requests);
     }
 
     @Override

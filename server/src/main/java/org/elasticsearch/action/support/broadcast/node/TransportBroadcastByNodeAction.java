@@ -564,9 +564,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private EmptyResult() {}
 
+        private EmptyResult(StreamInput in) {}
+
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
+        public void writeTo(StreamOutput out) { }
 
         public static EmptyResult readEmptyResultFrom(StreamInput in) {
             return INSTANCE;

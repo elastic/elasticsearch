@@ -57,7 +57,7 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     }
 
     public UpdateByQueryRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         pipeline = in.readOptionalString();
     }
 

@@ -21,22 +21,25 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 /**
  * Transport action for create snapshot operation
  */
-public class TransportCreateSnapshotAction extends StreamableTransportMasterNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
+public class TransportCreateSnapshotAction extends TransportMasterNodeAction<CreateSnapshotRequest, CreateSnapshotResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -56,8 +59,8 @@ public class TransportCreateSnapshotAction extends StreamableTransportMasterNode
     }
 
     @Override
-    protected CreateSnapshotResponse newResponse() {
-        return new CreateSnapshotResponse();
+    protected CreateSnapshotResponse read(StreamInput in) throws IOException {
+        return new CreateSnapshotResponse(in);
     }
 
     @Override

@@ -128,8 +128,4 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         }
     }
     
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-}

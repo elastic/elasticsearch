@@ -626,7 +626,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 // https://github.com/hashicorp/vagrant/blob/9c299a2a357fcf87f356bb9d56e18a037a53d138/plugins/communicators/winrm/communicator.rb#L195-L225
                 // https://devops-collective-inc.gitbooks.io/secrets-of-powershell-remoting/content/manuscript/accessing-remote-computers.html
                 javaPackagingTest.command = 'winrm'
-                javaPackagingTest.args = ['--elevated', '--command', 'powershell -File "$Env:PACKAGING_TESTS/run-tests.ps1"']
+                javaPackagingTest.args = ['--elevated', '--command', '& "$Env:PACKAGING_TESTS/run-tests.ps1"; exit $LASTEXITCODE']
             }
 
             TaskExecutionAdapter javaPackagingReproListener = createReproListener(project, javaPackagingTest.path)

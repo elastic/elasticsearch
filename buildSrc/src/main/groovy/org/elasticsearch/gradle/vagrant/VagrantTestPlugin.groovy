@@ -669,6 +669,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         return "/elasticsearch/" + project.rootDir.toPath().relativize(Paths.get(path));
     }
     private String convertWindowsPath(Project project, String path) {
-        return "C:/elasticsearch/" + project.rootDir.toPath().relativize(Paths.get(path));
+        return "C:\\elasticsearch\\" + project.rootDir.toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
     }
 }

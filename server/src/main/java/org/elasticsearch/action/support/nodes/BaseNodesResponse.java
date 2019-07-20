@@ -105,11 +105,6 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     }
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         clusterName.writeTo(out);
         writeNodesTo(out, nodes);

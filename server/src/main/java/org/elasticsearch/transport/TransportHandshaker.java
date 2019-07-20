@@ -171,7 +171,7 @@ final class TransportHandshaker {
         }
 
         HandshakeRequest(StreamInput streamInput) throws IOException {
-            super(streamInput);
+            super.readFrom(streamInput);
             BytesReference remainingMessage;
             try {
                 remainingMessage = streamInput.readBytesReference();
@@ -213,7 +213,7 @@ final class TransportHandshaker {
         }
 
         private HandshakeResponse(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             responseVersion = Version.readVersion(in);
         }
 

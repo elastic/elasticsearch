@@ -36,19 +36,17 @@ public final class LivenessResponse extends ActionResponse {
     private DiscoveryNode node;
     private ClusterName clusterName;
 
-    public LivenessResponse() {
+    public LivenessResponse() {}
+
+    public LivenessResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterName = new ClusterName(in);
+        node = in.readOptionalWriteable(DiscoveryNode::new);
     }
 
     public LivenessResponse(ClusterName clusterName, DiscoveryNode node) {
         this.node = node;
         this.clusterName = clusterName;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterName = new ClusterName(in);
-        node = in.readOptionalWriteable(DiscoveryNode::new);
     }
 
     @Override

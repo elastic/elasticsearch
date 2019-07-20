@@ -84,22 +84,18 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         return result;
     }
 
-    private String dumpLogs() {
-        Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
-            "Write-Output $files; " +
-            "foreach ($file in $files) {" +
-            "Write-Output \"$file\"; " +
-            "Get-Content \"$file\" " +
-            "}");
-        return logs.stdout;
-    }
-
     private void assertExit(Result result, String script, int exitCode) {
         if (result.exitCode != exitCode) {
             logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
-            logger.error(dumpLogs());
+            Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
+                "Write-Output $files; " +
+                "foreach ($file in $files) {" +
+                    "Write-Output \"$file\"; " +
+                    "Get-Content \"$file\" " +
+                "}");
+            logger.error(logs.stdout);
             fail();
         } else {
             logger.info("\nscript: " + script + "\nstdout: " + result.stdout + "\nstderr: " + result.stderr);

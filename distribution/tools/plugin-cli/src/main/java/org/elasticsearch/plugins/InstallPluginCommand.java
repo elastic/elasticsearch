@@ -506,7 +506,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final MessageDigest digest = MessageDigest.getInstance(digestAlgo);
                 final byte[] bytes = new byte[8192];
                 int read;
-                while ((read = zis.read(bytes)) >= 0) {
+                while ((read = zis.read(bytes)) != -1) {
                     assert read > 0 : read;
                     digest.update(bytes, 0, read);
                 }

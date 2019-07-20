@@ -584,7 +584,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
             if (LINUX_BOXES.contains(box)) {
                 Task batsPackagingTest = project.tasks.create("vagrant${boxTask}#batsPackagingTest", BatsOverVagrantTask) {
-                    remoteCommand "export SYSTEM_JAVA_HOME=\"${-> convertPath(project, linuxSystemJdk.toString())}\"; " + BATS_TEST_COMMAND
+                    remoteCommand "export SYSTEM_JAVA_HOME=\"${-> convertLinuxPath(project, linuxSystemJdk.toString())}\"; " + BATS_TEST_COMMAND
                     boxName box
                     environmentVars vagrantEnvVars
                     dependsOn up, setupPackagingTest, linuxSystemJdk

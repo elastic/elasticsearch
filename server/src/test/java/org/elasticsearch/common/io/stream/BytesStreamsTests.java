@@ -430,7 +430,7 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    public void testWriteStreamableList() throws IOException {
+    public void testWriteWriteableList() throws IOException {
         final int size = randomIntBetween(0, 5);
         final List<TestWriteable> expected = new ArrayList<>(size);
 

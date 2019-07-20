@@ -534,11 +534,6 @@ public class UnicastZenPing implements ZenPing {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeInt(id);
@@ -569,11 +564,6 @@ public class UnicastZenPing implements ZenPing {
             for (int i = 0; i < pingResponses.length; i++) {
                 pingResponses[i] = new PingResponse(in);
             }
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -1149,11 +1149,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(message);
@@ -1173,8 +1168,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             this.message = in.readString();
         }
 
-
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(message);
@@ -1191,11 +1184,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version0Request(StreamInput in) throws IOException {
             super(in);
             value1 = in.readInt();
-        }
-
-        @Override
-        public final void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -1658,11 +1646,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(info);
@@ -1682,16 +1665,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final String info;
 
         TestResponse(StreamInput in) throws IOException {
+            super(in);
             this.info = in.readOptionalString();
         }
 
         TestResponse(String info) {
             this.info = info;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

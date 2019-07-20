@@ -106,17 +106,6 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         }
     }
 
-    private void assertNoErrorInLogs() {
-        String logs = dumpLogs();
-        if (logs.contains("[ERROR]")) {
-            logger.error("Log file contained ERROR:\n");
-            logger.error(logs);
-            fail();
-        }
-        logger.error(dumpLogs());
-        fail();
-    }
-
     public void test10InstallArchive() throws Exception {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
@@ -178,7 +167,6 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     public void assertStartedAndStop() throws IOException {
         ServerUtils.waitForElasticsearch();
         ServerUtils.runElasticsearchTests();
-        assertNoErrorInLogs();
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);

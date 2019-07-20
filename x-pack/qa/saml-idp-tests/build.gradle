@@ -42,7 +42,7 @@ task setupPorts {
 integTest.runner.dependsOn setupPorts
 
 testClusters.integTest {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.http.ssl.enabled', 'false'

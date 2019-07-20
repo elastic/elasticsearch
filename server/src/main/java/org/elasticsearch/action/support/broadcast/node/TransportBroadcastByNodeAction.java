@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Supplier;
 
 /**
  * Abstraction for transporting aggregated shard-level operations in a single request (NodeRequest) per-node
@@ -76,7 +75,7 @@ import java.util.function.Supplier;
  */
 public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRequest<Request>,
         Response extends BroadcastResponse,
-        ShardOperationResult extends Streamable> extends HandledTransportAction<Request, Response> {
+        ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -90,7 +89,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<Request> request,
+        Writeable.Reader<Request> request,
         String executor) {
         this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
     }
@@ -101,10 +100,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             TransportService transportService,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<Request> request,
+            Writeable.Reader<Request> request,
             String executor,
             boolean canTripCircuitBreaker) {
-        super(actionName, canTripCircuitBreaker, transportService, request, actionFilters);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -314,9 +313,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
                     @Override
                     public NodeResponse read(StreamInput in) throws IOException {
-                        NodeResponse nodeResponse = new NodeResponse();
-                        nodeResponse.readFrom(in);
-                        return nodeResponse;
+                        return new NodeResponse(in);
                     }
 
                     @Override
@@ -505,7 +502,16 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         protected List<BroadcastShardOperationFailedException> exceptions;
         protected List<ShardOperationResult> results;
 
-        NodeResponse() {
+        NodeResponse(StreamInput in) throws IOException {
+            super(in);
+            nodeId = in.readString();
+            totalShards = in.readVInt();
+            results = in.readList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
+            if (in.readBoolean()) {
+                exceptions = in.readList(BroadcastShardOperationFailedException::new);
+            } else {
+                exceptions = null;
+            }
         }
 
         NodeResponse(String nodeId,
@@ -535,25 +541,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodeId = in.readString();
-            totalShards = in.readVInt();
-            results = in.readList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
-            if (in.readBoolean()) {
-                exceptions = in.readList(BroadcastShardOperationFailedException::new);
-            } else {
-                exceptions = null;
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
             out.writeVInt(totalShards);
             out.writeVInt(results.size());
             for (ShardOperationResult result : results) {
-                out.writeOptionalStreamable(result);
+                out.writeOptionalWriteable(result);
             }
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
@@ -566,19 +559,15 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
      * which there is no shard-level return value.
      */
-    public static final class EmptyResult implements Streamable {
+    public static final class EmptyResult implements Writeable {
         public static EmptyResult INSTANCE = new EmptyResult();
 
-        private EmptyResult() {
-        }
+        private EmptyResult() {}
+
+        private EmptyResult(StreamInput in) {}
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
+        public void writeTo(StreamOutput out) { }
 
         public static EmptyResult readEmptyResultFrom(StreamInput in) {
             return INSTANCE;

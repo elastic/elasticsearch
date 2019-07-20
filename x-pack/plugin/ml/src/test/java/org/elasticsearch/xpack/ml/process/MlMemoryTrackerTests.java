@@ -113,7 +113,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             Consumer<Long> listener = (Consumer<Long>) invocation.getArguments()[3];
             listener.accept(randomLongBetween(1000, 1000000));
             return null;
-        }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(Consumer.class), any());
+        }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
 
         memoryTracker.refresh(persistentTasks, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
 
@@ -122,7 +122,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 String jobId = "job" + i;
                 verify(jobResultsProvider, times(1)).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(), any());
             }
-            verify(configProvider, times(1)).getMultiple(eq(String.join(",", allIds)), eq(false), any(ActionListener.class));
+            verify(configProvider, times(1)).getMultiple(eq(String.join(",", allIds)), eq(false), any());
         } else {
             verify(jobResultsProvider, never()).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
         }
@@ -154,7 +154,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             Consumer<Long> listener = (Consumer<Long>) invocation.getArguments()[3];
             listener.accept(randomLongBetween(1000, 1000000));
             return null;
-        }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(Consumer.class), any());
+        }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
 
         // First run a refresh using a component that calls the onFailure method of the listener
 
@@ -164,7 +164,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 (ActionListener<List<DataFrameAnalyticsConfig>>) invocation.getArguments()[2];
             listener.onFailure(new IllegalArgumentException("computer says no"));
             return null;
-        }).when(configProvider).getMultiple(anyString(), anyBoolean(), any(ActionListener.class));
+        }).when(configProvider).getMultiple(anyString(), anyBoolean(), any());
 
         AtomicBoolean gotErrorResponse = new AtomicBoolean(false);
         memoryTracker.refresh(persistentTasks,
@@ -180,7 +180,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 (ActionListener<List<DataFrameAnalyticsConfig>>) invocation.getArguments()[2];
             listener.onResponse(Collections.emptyList());
             return null;
-        }).when(configProvider).getMultiple(anyString(), anyBoolean(), any(ActionListener.class));
+        }).when(configProvider).getMultiple(anyString(), anyBoolean(), any());
 
         AtomicBoolean gotSuccessResponse = new AtomicBoolean(false);
         memoryTracker.refresh(persistentTasks,
@@ -206,7 +206,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             Consumer<Long> listener = (Consumer<Long>) invocation.getArguments()[3];
             listener.accept(haveEstablishedModelMemory ? modelBytes : 0L);
             return null;
-        }).when(jobResultsProvider).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(Consumer.class), any());
+        }).when(jobResultsProvider).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(), any());
 
         boolean simulateVeryOldJob = randomBoolean();
         long recentJobModelMemoryLimitMb = 2;
@@ -217,7 +217,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             ActionListener<Job> listener = (ActionListener<Job>) invocation.getArguments()[1];
             listener.onResponse(job);
             return null;
-        }).when(jobManager).getJob(eq(jobId), any(ActionListener.class));
+        }).when(jobManager).getJob(eq(jobId), any());
 
         AtomicReference<Long> refreshedMemoryRequirement = new AtomicReference<>();
         memoryTracker.refreshAnomalyDetectorJobMemory(jobId, ActionListener.wrap(refreshedMemoryRequirement::set, ESTestCase::assertNull));

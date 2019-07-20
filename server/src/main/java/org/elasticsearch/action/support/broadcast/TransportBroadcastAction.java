@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -48,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Supplier;
 
 public abstract class TransportBroadcastAction<
             Request extends BroadcastRequest<Request>,
@@ -66,16 +66,16 @@ public abstract class TransportBroadcastAction<
 
     protected TransportBroadcastAction(String actionName, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                       Supplier<ShardRequest> shardRequest, String shardExecutor) {
-        super(actionName, transportService, request, actionFilters);
+                                       IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
+                                       Writeable.Reader<ShardRequest> shardRequest, String shardExecutor) {
+        super(actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transportShardAction = actionName + "[s]";
         this.shardExecutor = shardExecutor;
 
-        transportService.registerRequestHandler(transportShardAction, shardRequest, ThreadPool.Names.SAME, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, shardRequest, new ShardTransportHandler());
     }
 
     @Override

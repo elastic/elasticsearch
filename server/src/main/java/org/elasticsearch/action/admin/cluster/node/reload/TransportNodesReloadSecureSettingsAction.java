@@ -74,8 +74,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     }
 
     @Override
-    protected NodesReloadSecureSettingsResponse.NodeResponse newNodeResponse() {
-        return new NodesReloadSecureSettingsResponse.NodeResponse();
+    protected NodesReloadSecureSettingsResponse.NodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodesReloadSecureSettingsResponse.NodeResponse(in);
     }
 
     @Override
@@ -114,18 +114,13 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
 
         NodesReloadSecureSettingsRequest request;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesReloadSecureSettingsRequest(in);
         }
 
         NodeRequest(NodesReloadSecureSettingsRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesReloadSecureSettingsRequest();
-            request.readFrom(in);
         }
 
         @Override

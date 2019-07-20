@@ -81,11 +81,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     }
 
     @Override
-    protected GetSnapshotsResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected GetSnapshotsResponse read(StreamInput in) throws IOException {
         return new GetSnapshotsResponse(in);
     }

@@ -22,6 +22,11 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
 
     private String[] usernames;
 
+    public GetUsersRequest(StreamInput in) throws IOException {
+        super(in);
+        usernames = in.readStringArray();
+    }
+
     public GetUsersRequest() {
         usernames = Strings.EMPTY_ARRAY;
     }
@@ -42,12 +47,6 @@ public class GetUsersRequest extends ActionRequest implements UserRequest {
     @Override
     public String[] usernames() {
         return usernames;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        usernames = in.readStringArray();
     }
 
     @Override

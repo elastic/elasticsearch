@@ -31,6 +31,7 @@ import org.locationtech.spatial4j.shape.ShapeCollection;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -41,14 +42,14 @@ import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT
 abstract class BaseGeoParsingTestCase extends ESTestCase {
     protected static final GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
-    public abstract void testParsePoint() throws IOException;
-    public abstract void testParseMultiPoint() throws IOException;
-    public abstract void testParseLineString() throws IOException;
-    public abstract void testParseMultiLineString() throws IOException;
-    public abstract void testParsePolygon() throws IOException;
-    public abstract void testParseMultiPolygon() throws IOException;
-    public abstract void testParseEnvelope() throws IOException;
-    public abstract void testParseGeometryCollection() throws IOException;
+    public abstract void testParsePoint() throws IOException, ParseException;
+    public abstract void testParseMultiPoint() throws IOException, ParseException;
+    public abstract void testParseLineString() throws IOException, ParseException;
+    public abstract void testParseMultiLineString() throws IOException, ParseException;
+    public abstract void testParsePolygon() throws IOException, ParseException;
+    public abstract void testParseMultiPolygon() throws IOException, ParseException;
+    public abstract void testParseEnvelope() throws IOException, ParseException;
+    public abstract void testParseGeometryCollection() throws IOException, ParseException;
 
     protected void assertValidException(XContentBuilder builder, Class<?> expectedException) throws IOException {
         try (XContentParser parser = createParser(builder)) {
@@ -57,13 +58,16 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
         }
     }
 
-    protected void assertGeometryEquals(Object expected, XContentBuilder geoJson, boolean useJTS) throws IOException {
+    protected void assertGeometryEquals(Object expected, XContentBuilder geoJson, boolean useJTS) throws IOException, ParseException {
         try (XContentParser parser = createParser(geoJson)) {
             parser.nextToken();
             if (useJTS) {
                 ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildS4J());
             } else {
-                ElasticsearchGeoAssertions.assertEquals(expected, ShapeParser.parse(parser).buildGeometry());
+                GeometryParser geometryParser = new GeometryParser(true, true, true);
+                org.elasticsearch.geo.geometry.Geometry shape = geometryParser.parse(parser);
+                shape = new GeometryIndexer(true).prepareForIndexing(shape);
+                ElasticsearchGeoAssertions.assertEquals(expected, shape);
             }
         }
     }

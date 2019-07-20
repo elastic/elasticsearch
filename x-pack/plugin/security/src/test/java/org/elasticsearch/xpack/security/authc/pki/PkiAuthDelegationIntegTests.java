@@ -58,7 +58,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.pki.pki2.username_pattern", "CN=MISMATCH(.*?)(?:,|$)")
                 .put("xpack.security.authc.realms.pki.pki2.delegation.enabled", true)
                 .put("xpack.security.authc.realms.pki.pki2.files.role_mapping", getDataPath("role_mapping.yml"))
-                // pki3 allows delegation and the username pattern matches
+                // pki3 allows delegation and the username pattern (default) matches
                 .put("xpack.security.authc.realms.pki.pki3.order", "3")
                 .putList("xpack.security.authc.realms.pki.pki3.certificate_authorities",
                     getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testRootCA.crt").toString())
@@ -78,28 +78,17 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
     }
 
     public void testDelegatePki() throws Exception {
-        X509Certificate clientCertificate = readCert(getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt"));
-        X509Certificate intermediateCA = readCert(
-                getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/testIntermediateCA.crt"));
+        X509Certificate clientCertificate = readCert("testClient.crt");
+        X509Certificate intermediateCA = readCert("testIntermediateCA.crt");
         DelegatePkiAuthenticationRequest delegatePkiRequest = new DelegatePkiAuthenticationRequest(
                 new X509Certificate[] { clientCertificate, intermediateCA });
 
-        Request request = new Request("POST", "/_security/delegate_pki");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
-        request.setOptions(options);
-        final XContentBuilder builder = XContentFactory.jsonBuilder();
-        delegatePkiRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        request.setJsonEntity(Strings.toString(builder));
-        Response rawResponse = getRestClient().performRequest(request);
-        XContentParser responseContent = createParser(JsonXContent.jsonXContent, EntityUtils.toString(rawResponse.getEntity()));
-        DelegatePkiAuthenticationResponse response = DelegatePkiAuthenticationResponse.PARSER.apply(responseContent, null);
+        DelegatePkiAuthenticationResponse response = callDelegatePkiAuthentication(delegatePkiRequest);
 
-        options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader("Authorization", "Bearer " + response.getTokenString());
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader("Authorization", "Bearer " + response.getTokenString());
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            AuthenticateResponse resp = restClient.security().authenticate(options.build());
+            AuthenticateResponse resp = restClient.security().authenticate(optionsBuilder.build());
             User user = resp.getUser();
             assertThat(user, is(notNullValue()));
             assertThat(user.getUsername(), is("Elasticsearch Test Client"));
@@ -110,11 +99,26 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    static X509Certificate readCert(Path path) throws Exception {
+    private X509Certificate readCert(String certName) throws Exception {
+        Path path = getDataPath("/org/elasticsearch/xpack/security/action/pki_delegation/" + certName);
         try (InputStream in = Files.newInputStream(path)) {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             return (X509Certificate) factory.generateCertificate(in);
         }
+    }
+
+    private DelegatePkiAuthenticationResponse callDelegatePkiAuthentication(DelegatePkiAuthenticationRequest delegatePkiRequest) throws Exception {
+        Request httpRequest = new Request("POST", "/_security/delegate_pki");
+        RequestOptions.Builder options = httpRequest.getOptions().toBuilder();
+        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        httpRequest.setOptions(options);
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        delegatePkiRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        httpRequest.setJsonEntity(Strings.toString(builder));
+        Response rawHttpResponse = getRestClient().performRequest(httpRequest);
+        XContentParser responseContent = createParser(JsonXContent.jsonXContent, EntityUtils.toString(rawHttpResponse.getEntity()));
+        return DelegatePkiAuthenticationResponse.PARSER.apply(responseContent, null);
     }
 
 }

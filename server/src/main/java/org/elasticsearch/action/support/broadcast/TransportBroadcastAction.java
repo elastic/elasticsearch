@@ -87,7 +87,7 @@ public abstract class TransportBroadcastAction<
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
-    protected abstract ShardResponse newShardResponse();
+    protected abstract ShardResponse readShardResponse(StreamInput in) throws IOException;
 
     protected abstract ShardResponse shardOperation(ShardRequest request, Task task) throws IOException;
 
@@ -180,9 +180,7 @@ public abstract class TransportBroadcastAction<
                             new TransportResponseHandler<ShardResponse>() {
                                 @Override
                                 public ShardResponse read(StreamInput in) throws IOException {
-                                    ShardResponse response = newShardResponse();
-                                    response.readFrom(in);
-                                    return response;
+                                    return readShardResponse(in);
                                 }
 
                                 @Override

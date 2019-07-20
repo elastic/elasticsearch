@@ -78,7 +78,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         int size = in.readVInt();
         List<SnapshotIndexShardStatus> builder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            builder.add(SnapshotIndexShardStatus.readShardSnapshotStatus(in));
+            builder.add(new SnapshotIndexShardStatus(in));
         }
         shards = Collections.unmodifiableList(builder);
         includeGlobalState = in.readOptionalBoolean();

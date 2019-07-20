@@ -301,7 +301,6 @@ public class OutboundHandlerTests extends ESTestCase {
         public String value;
 
         private Request(StreamInput in) throws IOException {
-            super(in);
             value = in.readString();
         }
 

@@ -190,8 +190,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             case 'windows-all':
                 return WINDOWS_BOXES
             case 'all':
-                // nocommit: just making windows faster for CI
-                return WINDOWS_BOXES
+                return ALL_BOXES
             case '':
                 return []
             default:

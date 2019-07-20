@@ -266,9 +266,6 @@ public class SearchTransportService {
 
         private boolean freed;
 
-        SearchFreeContextResponse() {
-        }
-
         SearchFreeContextResponse(StreamInput in) throws IOException {
             freed = in.readBoolean();
         }
@@ -279,12 +276,6 @@ public class SearchTransportService {
 
         public boolean isFreed() {
             return freed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            freed = in.readBoolean();
         }
 
         @Override

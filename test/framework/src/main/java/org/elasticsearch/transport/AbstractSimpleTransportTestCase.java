@@ -1665,16 +1665,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final String info;
 
         TestResponse(StreamInput in) throws IOException {
+            super(in);
             this.info = in.readOptionalString();
         }
 
         TestResponse(String info) {
             this.info = info;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -225,8 +225,7 @@ public class OutboundHandlerTests extends ESTestCase {
             InboundMessage.Response inboundResponse = (InboundMessage.Response) inboundMessage;
             assertFalse(inboundResponse.isError());
 
-            Response readMessage = new Response();
-            readMessage.readFrom(inboundMessage.getStreamInput());
+            Response readMessage = new Response(inboundMessage.getStreamInput());
             assertEquals(value, readMessage.value);
 
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
@@ -320,16 +319,13 @@ public class OutboundHandlerTests extends ESTestCase {
 
         public String value;
 
-        private Response() {
+        private Response(StreamInput in) throws IOException {
+            super(in);
+            value = in.readString();
         }
 
         private Response(String value) {
             this.value = value;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            value = in.readString();
         }
 
         @Override

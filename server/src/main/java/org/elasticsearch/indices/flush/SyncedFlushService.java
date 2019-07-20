@@ -282,7 +282,7 @@ public class SyncedFlushService implements IndexEventListener {
         final Map<ShardRouting, ShardSyncedFlushResponse> results = new HashMap<>();
         for (final ShardRouting shard : shards) {
             if (preSyncResponses.containsKey(shard.currentNodeId())) {
-                results.put(shard, new ShardSyncedFlushResponse());
+                results.put(shard, new ShardSyncedFlushResponse((String) null));
             }
         }
         listener.onResponse(new ShardsSyncedFlushResult(shardId, existingSyncId, totalShards, results));
@@ -322,9 +322,7 @@ public class SyncedFlushService implements IndexEventListener {
                     new TransportResponseHandler<InFlightOpsResponse>() {
                         @Override
                         public InFlightOpsResponse read(StreamInput in) throws IOException {
-                            InFlightOpsResponse response = new InFlightOpsResponse();
-                            response.readFrom(in);
-                            return response;
+                            return new InFlightOpsResponse(in);
                         }
 
                         @Override
@@ -402,9 +400,7 @@ public class SyncedFlushService implements IndexEventListener {
                     new TransportResponseHandler<ShardSyncedFlushResponse>() {
                         @Override
                         public ShardSyncedFlushResponse read(StreamInput in) throws IOException {
-                            ShardSyncedFlushResponse response = new ShardSyncedFlushResponse();
-                            response.readFrom(in);
-                            return response;
+                            return new ShardSyncedFlushResponse(in);
                         }
 
                         @Override
@@ -468,9 +464,7 @@ public class SyncedFlushService implements IndexEventListener {
                 new TransportResponseHandler<PreSyncedFlushResponse>() {
                 @Override
                 public PreSyncedFlushResponse read(StreamInput in) throws IOException {
-                    PreSyncedFlushResponse response = new PreSyncedFlushResponse();
-                    response.readFrom(in);
-                    return response;
+                    return new PreSyncedFlushResponse(in);
                 }
 
                 @Override
@@ -520,7 +514,7 @@ public class SyncedFlushService implements IndexEventListener {
         logger.trace("{} sync flush done. sync id [{}], result [{}]", request.shardId(), request.syncId(), result);
         switch (result) {
             case SUCCESS:
-                return new ShardSyncedFlushResponse();
+                return new ShardSyncedFlushResponse((String) null);
             case COMMIT_MISMATCH:
                 return new ShardSyncedFlushResponse("commit has changed");
             case PENDING_OPERATIONS:
@@ -580,21 +574,17 @@ public class SyncedFlushService implements IndexEventListener {
         int numDocs;
         @Nullable String existingSyncId = null;
 
-        PreSyncedFlushResponse() {
+        PreSyncedFlushResponse(StreamInput in) throws IOException {
+            super(in);
+            commitId = new Engine.CommitId(in);
+            numDocs = in.readInt();
+            existingSyncId = in.readOptionalString();
         }
 
         PreSyncedFlushResponse(Engine.CommitId commitId, int numDocs, String existingSyncId) {
             this.commitId = commitId;
             this.numDocs = numDocs;
             this.existingSyncId = existingSyncId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            commitId = new Engine.CommitId(in);
-            numDocs = in.readInt();
-            existingSyncId = in.readOptionalString();
         }
 
         @Override
@@ -663,18 +653,13 @@ public class SyncedFlushService implements IndexEventListener {
          */
         String failureReason;
 
-        public ShardSyncedFlushResponse() {
-            failureReason = null;
+        public ShardSyncedFlushResponse(StreamInput in) throws IOException {
+            super(in);
+            failureReason = in.readOptionalString();
         }
 
         public ShardSyncedFlushResponse(String failureReason) {
             this.failureReason = failureReason;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            failureReason = in.readOptionalString();
         }
 
         @Override
@@ -699,9 +684,7 @@ public class SyncedFlushService implements IndexEventListener {
         }
 
         public static ShardSyncedFlushResponse readSyncedFlushResponse(StreamInput in) throws IOException {
-            ShardSyncedFlushResponse shardSyncedFlushResponse = new ShardSyncedFlushResponse();
-            shardSyncedFlushResponse.readFrom(in);
-            return shardSyncedFlushResponse;
+            return new ShardSyncedFlushResponse(in);
         }
     }
 
@@ -744,18 +727,14 @@ public class SyncedFlushService implements IndexEventListener {
 
         int opCount;
 
-        InFlightOpsResponse() {
+        InFlightOpsResponse(StreamInput in) throws IOException {
+            super(in);
+            opCount = in.readVInt();
         }
 
         InFlightOpsResponse(int opCount) {
             assert opCount >= 0 : opCount;
             this.opCount = opCount;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            opCount = in.readVInt();
         }
 
         @Override

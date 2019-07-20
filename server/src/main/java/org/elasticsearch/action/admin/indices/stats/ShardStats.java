@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +34,7 @@ import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
-public class ShardStats implements Streamable, Writeable, ToXContentFragment {
+public class ShardStats implements Writeable, ToXContentFragment {
 
     private ShardRouting shardRouting;
     private CommonStats commonStats;
@@ -60,7 +59,19 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
     private String statePath;
     private boolean isCustomDataPath;
 
-    ShardStats() {
+    public ShardStats(StreamInput in) throws IOException {
+        shardRouting = new ShardRouting(in);
+        commonStats = new CommonStats(in);
+        commitStats = CommitStats.readOptionalCommitStatsFrom(in);
+        statePath = in.readString();
+        dataPath = in.readString();
+        isCustomDataPath = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
+        }
     }
 
     public ShardStats(
@@ -111,28 +122,6 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
 
     public boolean isCustomDataPath() {
         return isCustomDataPath;
-    }
-
-    public static ShardStats readShardStats(StreamInput in) throws IOException {
-        ShardStats stats = new ShardStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardRouting = new ShardRouting(in);
-        commonStats = new CommonStats(in);
-        commitStats = CommitStats.readOptionalCommitStatsFrom(in);
-        statePath = in.readString();
-        dataPath = in.readString();
-        isCustomDataPath = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        }
     }
 
     @Override

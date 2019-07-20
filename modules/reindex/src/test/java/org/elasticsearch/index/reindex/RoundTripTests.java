@@ -41,7 +41,7 @@ import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
- * Round trip tests for all Streamable things declared in this plugin.
+ * Round trip tests for all {@link Writeable} things declared in this plugin.
  */
 public class RoundTripTests extends ESTestCase {
     public void testReindexRequest() throws IOException {

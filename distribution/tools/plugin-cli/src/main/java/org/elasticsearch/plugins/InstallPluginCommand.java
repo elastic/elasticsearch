@@ -500,17 +500,26 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
 
-        try {
-            final byte[] zipBytes = Files.readAllBytes(zip);
-            final String actualChecksum = MessageDigests.toHexString(MessageDigest.getInstance(digestAlgo).digest(zipBytes));
-            if (expectedChecksum.equals(actualChecksum) == false) {
-                throw new UserException(
+        // read the bytes of the plugin zip in chunks to avoid out of memory errors
+        try (InputStream zis = Files.newInputStream(zip)) {
+            try {
+                final MessageDigest digest = MessageDigest.getInstance(digestAlgo);
+                final byte[] bytes = new byte[8192];
+                int read;
+                while ((read = zis.read(bytes)) >= 0) {
+                    assert read > 0 : read;
+                    digest.update(bytes, 0, read);
+                }
+                final String actualChecksum = MessageDigests.toHexString(digest.digest());
+                if (expectedChecksum.equals(actualChecksum) == false) {
+                    throw new UserException(
                         ExitCodes.IO_ERROR,
                         digestAlgo + " mismatch, expected " + expectedChecksum + " but got " + actualChecksum);
+                }
+            } catch (final NoSuchAlgorithmException e) {
+                // this should never happen as we are using SHA-1 and SHA-512 here
+                throw new AssertionError(e);
             }
-        } catch (final NoSuchAlgorithmException e) {
-            // this should never happen as we are using SHA-1 and SHA-512 here
-            throw new AssertionError(e);
         }
 
         if (officialPlugin) {

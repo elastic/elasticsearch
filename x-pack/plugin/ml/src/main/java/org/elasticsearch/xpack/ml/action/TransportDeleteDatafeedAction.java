@@ -54,7 +54,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                                          Client client, PersistentTasksService persistentTasksService,
                                          NamedXContentRegistry xContentRegistry) {
         super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteDatafeedAction.Request::new);
+                DeleteDatafeedAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.persistentTasksService = persistentTasksService;
@@ -70,11 +70,6 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

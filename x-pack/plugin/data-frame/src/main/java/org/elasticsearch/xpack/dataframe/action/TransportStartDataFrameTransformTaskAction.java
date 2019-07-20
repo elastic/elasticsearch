@@ -32,6 +32,7 @@ public class TransportStartDataFrameTransformTaskAction extends
     TransportTasksAction<DataFrameTransformTask, StartDataFrameTransformTaskAction.Request,
         StartDataFrameTransformTaskAction.Response, StartDataFrameTransformTaskAction.Response> {
 
+    private volatile int numFailureRetries;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -41,6 +42,8 @@ public class TransportStartDataFrameTransformTaskAction extends
             StartDataFrameTransformTaskAction.Request::new, StartDataFrameTransformTaskAction.Response::new,
             StartDataFrameTransformTaskAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
 
     @Override
@@ -59,7 +62,7 @@ public class TransportStartDataFrameTransformTaskAction extends
     protected void taskOperation(StartDataFrameTransformTaskAction.Request request, DataFrameTransformTask transformTask,
                                  ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
-            transformTask.start(null, listener);
+            transformTask.setNumFailureRetries(numFailureRetries).start(null, listener);
         } else {
             listener.onFailure(new RuntimeException("ID of data frame transform task [" + transformTask.getTransformId()
                 + "] does not match request's ID [" + request.getId() + "]"));
@@ -89,5 +92,9 @@ public class TransportStartDataFrameTransformTaskAction extends
 
         boolean allStarted = tasks.stream().allMatch(StartDataFrameTransformTaskAction.Response::isStarted);
         return new StartDataFrameTransformTaskAction.Response(allStarted);
+    }
+
+    void setNumFailureRetries(int numFailureRetries) {
+        this.numFailureRetries = numFailureRetries;
     }
 }

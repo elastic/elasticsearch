@@ -32,8 +32,8 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
     @Inject
     public TransportStopILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                StopILMRequest::new);
+        super(StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StopILMRequest::new,
+            indexNameExpressionResolver);
     }
 
     @Override
@@ -44,11 +44,6 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

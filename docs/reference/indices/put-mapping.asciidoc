@@ -1,5 +1,5 @@
 [[indices-put-mapping]]
-== Put Mapping
+=== Put Mapping
 
 The PUT mapping API allows you to add fields to an existing index or to change search only settings of existing fields.
 
@@ -28,7 +28,7 @@ types in requests is now deprecated, a type can still be provided if the request
 include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [float]
-=== Multi-index
+==== Multi-index
 
 The PUT mapping API can be applied to multiple indices with a single request.
 For example, we can update the `twitter-1` and `twitter-2` mappings at the same time:
@@ -55,7 +55,7 @@ PUT /twitter-1,twitter-2/_mapping <1>
 
 [[updating-field-mappings]]
 [float]
-=== Updating field mappings
+==== Updating field mappings
 
 In general, the mapping for existing fields cannot be updated.  There are some
 exceptions to this rule. For instance:

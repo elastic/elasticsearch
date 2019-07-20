@@ -429,7 +429,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         final Transport.Connection connection,
         final long handshakeTimeout,
         final ActionListener<DiscoveryNode> listener) {
-        handshake(connection, handshakeTimeout, clusterName::equals, ActionListener.map(listener, HandshakeResponse::getDiscoveryNode));
+        handshake(connection, handshakeTimeout, clusterName.getEqualityPredicate(),
+            ActionListener.map(listener, HandshakeResponse::getDiscoveryNode));
     }
 
     /**
@@ -456,12 +457,12 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 new ActionListener<HandshakeResponse>() {
                     @Override
                     public void onResponse(HandshakeResponse response) {
-                        if (!clusterNamePredicate.test(response.clusterName)) {
-                            listener.onFailure(new IllegalStateException("handshake failed, mismatched cluster name [" +
-                                response.clusterName + "] - " + node.toString()));
+                        if (clusterNamePredicate.test(response.clusterName) == false) {
+                            listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote cluster name ["
+                                + response.clusterName.value() + "] does not match " + clusterNamePredicate));
                         } else if (response.version.isCompatible(localNode.getVersion()) == false) {
-                            listener.onFailure(new IllegalStateException("handshake failed, incompatible version [" +
-                                response.version + "] - " + node));
+                            listener.onFailure(new IllegalStateException("handshake with [" + node + "] failed: remote node version ["
+                                + response.version + "] is incompatible with local node version [" + localNode.getVersion() + "]"));
                         } else {
                             listener.onResponse(response);
                         }
@@ -924,7 +925,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         try {
             blockIncomingRequestsLatch.await();
         } catch (InterruptedException e) {
-            logger.trace("interrupted while waiting for incoming requests block to be removed");
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while waiting for incoming requests block to be removed");
         }
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);

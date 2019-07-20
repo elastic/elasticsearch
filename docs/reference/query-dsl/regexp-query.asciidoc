@@ -1,5 +1,8 @@
 [[query-dsl-regexp-query]]
-=== Regexp Query
+=== Regexp query
+++++
+<titleabbrev>Regexp</titleabbrev>
+++++
 
 The `regexp` query allows you to use regular expression term queries.
 See <<regexp-syntax>> for details of the supported regular expression language.

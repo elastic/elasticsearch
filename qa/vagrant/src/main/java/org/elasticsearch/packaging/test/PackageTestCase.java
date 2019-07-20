@@ -124,8 +124,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
             Files.write(installation.envFile, originalEnvFile);
         }
 
-        Path log = installation.logs.resolve("elasticsearch.log");
-        assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+            containsString(systemJavaHome));
     }
 
     public void test32JavaHomeOverride() throws Exception {

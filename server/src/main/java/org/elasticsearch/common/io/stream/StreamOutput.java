@@ -874,18 +874,6 @@ public abstract class StreamOutput extends OutputStream {
         writeOptionalArray((out, value) -> value.writeTo(out), array);
     }
 
-    /**
-     * Serializes a potential null value.
-     */
-    public void writeOptionalStreamable(@Nullable Streamable streamable) throws IOException {
-        if (streamable != null) {
-            writeBoolean(true);
-            streamable.writeTo(this);
-        } else {
-            writeBoolean(false);
-        }
-    }
-
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
@@ -1075,16 +1063,6 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeZoneId(timeZone);
-        }
-    }
-
-    /**
-     * Writes a list of {@link Streamable} objects
-     */
-    public void writeStreamableList(List<? extends Streamable> list) throws IOException {
-        writeVInt(list.size());
-        for (Streamable obj: list) {
-            obj.writeTo(this);
         }
     }
 

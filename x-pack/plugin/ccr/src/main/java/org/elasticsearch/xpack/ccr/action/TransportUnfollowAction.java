@@ -80,11 +80,6 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected void masterOperation(
             final UnfollowAction.Request request,
             final ClusterState state,

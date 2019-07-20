@@ -156,9 +156,8 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     @Override
-    protected void register() throws IOException {
-        super.register();
-        readWriteHandler.channelRegistered();
+    protected void channelActive() throws IOException {
+        readWriteHandler.channelActive();
     }
 
     @Override

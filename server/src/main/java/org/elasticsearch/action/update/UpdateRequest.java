@@ -126,8 +126,48 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Nullable
     private IndexRequest doc;
 
-    public UpdateRequest() {
+    public UpdateRequest() {}
 
+    public UpdateRequest(StreamInput in) throws IOException {
+        super(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        type = in.readString();
+        id = in.readString();
+        routing = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readOptionalString(); // _parent
+        }
+        if (in.readBoolean()) {
+            script = new Script(in);
+        }
+        retryOnConflict = in.readVInt();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        if (in.readBoolean()) {
+            doc = new IndexRequest(in);
+        }
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            String[] fields = in.readOptionalStringArray();
+            if (fields != null) {
+                throw new IllegalArgumentException("[fields] is no longer supported");
+            }
+        }
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        if (in.readBoolean()) {
+            upsertRequest = new IndexRequest(in);
+        }
+        docAsUpsert = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            long version = in.readLong();
+            VersionType versionType = VersionType.readFromStream(in);
+            if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
+                throw new UnsupportedOperationException(
+                    "versioned update requests have been removed in 7.0. Use if_seq_no and if_primary_term");
+            }
+        }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
+        detectNoop = in.readBoolean();
+        scriptedUpsert = in.readBoolean();
     }
 
     public UpdateRequest(String index, String id) {
@@ -827,49 +867,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest scriptedUpsert(boolean scriptedUpsert) {
         this.scriptedUpsert = scriptedUpsert;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
-        if (in.readBoolean()) {
-            script = new Script(in);
-        }
-        retryOnConflict = in.readVInt();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        if (in.readBoolean()) {
-            doc = new IndexRequest(in);
-        }
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            String[] fields = in.readOptionalStringArray();
-            if (fields != null) {
-                throw new IllegalArgumentException("[fields] is no longer supported");
-            }
-        }
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(in);
-        }
-        docAsUpsert = in.readBoolean();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            long version = in.readLong();
-            VersionType versionType = VersionType.readFromStream(in);
-            if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
-                throw new UnsupportedOperationException(
-                    "versioned update requests have been removed in 7.0. Use if_seq_no and if_primary_term");
-            }
-        }
-        ifSeqNo = in.readZLong();
-        ifPrimaryTerm = in.readVLong();
-        detectNoop = in.readBoolean();
-        scriptedUpsert = in.readBoolean();
     }
 
     @Override

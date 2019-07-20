@@ -212,6 +212,7 @@ public class NioSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(eventHandler).handleRegistration(serverChannelContext);
+        verify(eventHandler).handleActive(serverChannelContext);
     }
 
     public void testClosedServerChannelWillNotBeRegistered() {
@@ -230,7 +231,20 @@ public class NioSelectorTests extends ESTestCase {
 
         selector.preSelect();
 
+        verify(eventHandler, times(0)).handleActive(serverChannelContext);
         verify(eventHandler).registrationException(serverChannelContext, closedChannelException);
+        verify(eventHandler).handleClose(serverChannelContext);
+    }
+
+    public void testChannelActiveException() throws Exception {
+        executeOnNewThread(() -> selector.scheduleForRegistration(serverChannel));
+        IOException ioException = new IOException();
+        doThrow(ioException).when(eventHandler).handleActive(serverChannelContext);
+
+        selector.preSelect();
+
+        verify(eventHandler).handleActive(serverChannelContext);
+        verify(eventHandler).activeException(serverChannelContext, ioException);
     }
 
     public void testClosedSocketChannelWillNotBeRegistered() throws Exception {
@@ -241,6 +255,7 @@ public class NioSelectorTests extends ESTestCase {
 
         verify(eventHandler).registrationException(same(channelContext), any(ClosedChannelException.class));
         verify(eventHandler, times(0)).handleConnect(channelContext);
+        verify(eventHandler).handleClose(channelContext);
     }
 
     public void testRegisterSocketChannelFailsDueToException() throws InterruptedException {
@@ -253,7 +268,9 @@ public class NioSelectorTests extends ESTestCase {
             selector.preSelect();
 
             verify(eventHandler).registrationException(channelContext, closedChannelException);
+            verify(eventHandler, times(0)).handleActive(serverChannelContext);
             verify(eventHandler, times(0)).handleConnect(channelContext);
+            verify(eventHandler).handleClose(channelContext);
         });
     }
 
@@ -311,6 +328,17 @@ public class NioSelectorTests extends ESTestCase {
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
         verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
+    }
+
+    public void testQueueWriteChannelIsUnregistered() throws Exception {
+        WriteOperation writeOperation = new FlushReadyWrite(channelContext, buffers, listener);
+
+        executeOnNewThread(() -> selector.queueWrite(writeOperation));
+        when(channelContext.getSelectionKey()).thenReturn(null);
+        selector.preSelect();
+
+        verify(channelContext, times(0)).queueWriteOperation(writeOperation);
+        verify(listener).accept(isNull(Void.class), any(IllegalStateException.class));
     }
 
     public void testQueueWriteSuccessful() throws Exception {

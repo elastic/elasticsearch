@@ -491,8 +491,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 : new AllocateEmptyPrimaryAllocationCommand(index, id, nodeId, false));
 
         terminal.println("");
-        terminal.println("POST /_cluster/reroute'\n"
-            + Strings.toString(commands, true, true) + "'");
+        terminal.println("POST /_cluster/reroute\n" + Strings.toString(commands, true, true));
         terminal.println("");
         terminal.println("You must accept the possibility of data loss by changing parameter `accept_data_loss` to `true`.");
         terminal.println("");

@@ -227,7 +227,7 @@ class NioHttpClient implements Closeable {
         }
 
         @Override
-        public void channelRegistered() {}
+        public void channelActive() {}
 
         @Override
         public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {

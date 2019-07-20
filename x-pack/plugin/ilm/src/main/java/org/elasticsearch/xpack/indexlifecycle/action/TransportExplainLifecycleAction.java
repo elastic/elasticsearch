@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,14 +54,14 @@ public class TransportExplainLifecycleAction
     }
 
     @Override
-    protected ExplainLifecycleResponse newResponse() {
-        return new ExplainLifecycleResponse();
-    }
-
-    @Override
     protected String executor() {
         // very lightweight operation, no need to fork
         return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected ExplainLifecycleResponse read(StreamInput in) throws IOException {
+        return new ExplainLifecycleResponse(in);
     }
 
     @Override

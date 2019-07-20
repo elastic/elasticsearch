@@ -175,6 +175,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                        + "\"timing_stats\":{"
                         + "\"job_id\":\"_job_id\","
                         + "\"bucket_count\":100,"
+                        + "\"total_bucket_processing_time_ms\":2000.0,"
                         + "\"minimum_bucket_processing_time_ms\":10.0,"
                         + "\"maximum_bucket_processing_time_ms\":30.0,"
                         + "\"average_bucket_processing_time_ms\":20.0,"

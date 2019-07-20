@@ -15,6 +15,7 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
+    public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -22,4 +23,7 @@ public class LifecycleSettings {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Boolean> LIFECYCLE_INDEXING_COMPLETE_SETTING = Setting.boolSetting(LIFECYCLE_INDEXING_COMPLETE, false,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
+
+    public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(SLM_HISTORY_INDEX_ENABLED, true,
+        Setting.Property.NodeScope);
 }

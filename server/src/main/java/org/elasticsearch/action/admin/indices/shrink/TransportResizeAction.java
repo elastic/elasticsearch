@@ -69,8 +69,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     protected TransportResizeAction(String actionName, TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            ResizeRequest::new);
+        super(actionName, transportService, clusterService, threadPool, actionFilters, ResizeRequest::new, indexNameExpressionResolver);
         this.createIndexService = createIndexService;
         this.client = client;
     }
@@ -80,11 +79,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ResizeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -139,7 +139,7 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
         commonStats.writeTo(out);
-        out.writeOptionalStreamable(commitStats);
+        out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);

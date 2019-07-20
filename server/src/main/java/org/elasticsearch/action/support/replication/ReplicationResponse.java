@@ -58,11 +58,6 @@ public class ReplicationResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("Streamable no longer used");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardInfo.writeTo(out);
     }
@@ -143,9 +138,7 @@ public class ReplicationResponse extends ActionResponse {
             int size = in.readVInt();
             failures = new Failure[size];
             for (int i = 0; i < size; i++) {
-                Failure failure = new Failure();
-                failure.readFrom(in);
-                failures[i] = failure;
+                failures[i] = new Failure(in);
             }
         }
 
@@ -242,6 +235,16 @@ public class ReplicationResponse extends ActionResponse {
             private String nodeId;
             private boolean primary;
 
+            public Failure(StreamInput in) throws IOException {
+                shardId = new ShardId(in);
+                super.shardId = shardId.getId();
+                index = shardId.getIndexName();
+                nodeId = in.readOptionalString();
+                cause = in.readException();
+                status = RestStatus.readFrom(in);
+                primary = in.readBoolean();
+            }
+
             public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
                 super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.detailedMessage(cause), status, cause);
                 this.shardId = shardId;
@@ -270,17 +273,6 @@ public class ReplicationResponse extends ActionResponse {
              */
             public boolean primary() {
                 return primary;
-            }
-
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-                shardId = new ShardId(in);
-                super.shardId = shardId.getId();
-                index = shardId.getIndexName();
-                nodeId = in.readOptionalString();
-                cause = in.readException();
-                status = RestStatus.readFrom(in);
-                primary = in.readBoolean();
             }
 
             @Override

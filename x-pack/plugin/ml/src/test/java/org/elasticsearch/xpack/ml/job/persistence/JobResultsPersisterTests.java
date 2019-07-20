@@ -231,6 +231,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPersistDatafeedTimingStats() {
         Client client = mockClient(ArgumentCaptor.forClass(BulkRequest.class));
         doAnswer(
@@ -244,7 +245,7 @@ public class JobResultsPersisterTests extends ESTestCase {
             .when(client).index(any(), any(ActionListener.class));
 
         JobResultsPersister persister = new JobResultsPersister(client);
-        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 6, 666.0);
+        DatafeedTimingStats timingStats = new DatafeedTimingStats("foo", 6, 66, 666.0);
         persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
 
         ArgumentCaptor<IndexRequest> indexRequestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
@@ -256,6 +257,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         Map<String, Object> expectedSourceAsMap = new HashMap<>();
         expectedSourceAsMap.put("job_id", "foo");
         expectedSourceAsMap.put("search_count", 6);
+        expectedSourceAsMap.put("bucket_count", 66);
         expectedSourceAsMap.put("total_search_time_ms", 666.0);
         assertThat(indexRequest.sourceAsMap(), equalTo(expectedSourceAsMap));
 

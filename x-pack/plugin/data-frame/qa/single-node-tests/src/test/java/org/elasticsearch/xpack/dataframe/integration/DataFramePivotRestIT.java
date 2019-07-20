@@ -6,7 +6,12 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
@@ -17,7 +22,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -721,6 +728,45 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(4.47169811, actual.doubleValue(), 0.000001);
+    }
+
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/44583")
+    public void testBulkIndexFailuresCauseTaskToFail() throws Exception {
+        String transformId = "bulk-failure-pivot";
+        String dataFrameIndex = "pivot-failure-index";
+        createPivotReviewsTransform(transformId, dataFrameIndex, null, null, null);
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings")
+                    .startObject("properties")
+                    .startObject("reviewer")
+                    // This type should cause mapping coercion type conflict on bulk index
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", dataFrameIndex);
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
+        startDataframeTransform(transformId, false, null);
+
+        assertBusy(() -> assertEquals(DataFrameTransformTaskState.FAILED.value(), getDataFrameTaskState(transformId)),
+            120,
+            TimeUnit.SECONDS);
+
+        Map<?, ?> state = getDataFrameState(transformId);
+        assertThat((String) XContentMapValues.extractValue("state.reason", state),
+            containsString("task encountered more than 10 failures; latest failure: Bulk index experienced failures."));
+
+        // Force stop the transform as bulk indexing caused it to go into a failed state
+        stopDataFrameTransform(transformId, true);
+        deleteIndex(dataFrameIndex);
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

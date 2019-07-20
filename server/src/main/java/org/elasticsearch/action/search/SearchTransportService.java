@@ -220,11 +220,7 @@ public class SearchTransportService {
             return this.id;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
-    }
 
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
@@ -264,11 +260,7 @@ public class SearchTransportService {
             return originalIndices.indicesOptions();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
-    }
 
     public static class SearchFreeContextResponse extends TransportResponse {
 

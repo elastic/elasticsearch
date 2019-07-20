@@ -37,19 +37,13 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
     public TransportRetryAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                 IndexLifecycleService indexLifecycleService) {
-        super(RetryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                Request::new);
+        super(RetryAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
         this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

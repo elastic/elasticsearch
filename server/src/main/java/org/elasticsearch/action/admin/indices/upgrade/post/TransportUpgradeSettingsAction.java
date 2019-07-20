@@ -47,7 +47,7 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
                                           ThreadPool threadPool, MetaDataUpdateSettingsService updateSettingsService,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ActionFilters actionFilters) {
         super(UpgradeSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, UpgradeSettingsRequest::new);
+            UpgradeSettingsRequest::new, indexNameExpressionResolver);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -65,11 +65,6 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

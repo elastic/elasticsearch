@@ -170,6 +170,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.getValueFor("took"), equalTo("10nanos"));
         assertThat(p.getValueFor("took_millis"), equalTo("0"));
         assertThat(p.getValueFor("total_hits"), equalTo("-1"));
+        assertThat(p.getValueFor("types"), equalTo("[]"));
         assertThat(p.getValueFor("stats"), equalTo("[]"));
         assertThat(p.getValueFor("search_type"), Matchers.nullValue());
         assertThat(p.getValueFor("total_shards"), equalTo("1"));

@@ -335,14 +335,19 @@ class VagrantTestPlugin implements Plugin<Project> {
             // the use of $args rather than param() here is deliberate because the syntax for array (multivalued) parameters is likely
             // a little trappy for those unfamiliar with powershell
             contents """\
-                     if (\$args.Count -eq 0) {
-                       \$testArgs = @("${-> project.extensions.esvagrant.testClass}")
-                     } else {
-                       \$testArgs = \$args
+                     try {
+                         if (\$args.Count -eq 0) {
+                           \$testArgs = @("${-> project.extensions.esvagrant.testClass}")
+                         } else {
+                           \$testArgs = \$args
+                         }
+                         \$Env:SYSTEM_JAVA_HOME = "${-> convertPath(project, windowsSystemJdk.toString()) }"
+                         & "${-> convertPath(project, windowsGradleJdk.toString()) }"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
+                         exit \$LASTEXITCODE
+                     } catch {
+                         # catch if we have a failure to even run the script at all above, equivalent to set -e, sort of
+                         exit 1
                      }
-                     \$Env:SYSTEM_JAVA_HOME = "${-> convertPath(project, windowsSystemJdk.toString()) }"
-                     & "${-> convertPath(project, windowsGradleJdk.toString()) }"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
-                     exit \$LASTEXITCODE
                      """
         }
 

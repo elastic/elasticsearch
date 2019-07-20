@@ -345,6 +345,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                          & "${-> convertPath(project, windowsGradleJdk.toString()) }"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                          exit \$LASTEXITCODE
                      } catch {
+                         echo "\$_.Exception.Message"
                          # catch if we have a failure to even run the script at all above, equivalent to set -e, sort of
                          exit 1
                      }

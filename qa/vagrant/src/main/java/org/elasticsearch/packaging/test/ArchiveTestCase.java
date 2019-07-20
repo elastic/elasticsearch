@@ -160,7 +160,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
         Platforms.onWindows(() -> {
             final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            sh.getEnv().put("JAVA_HOME", systemJavaHome.replaceAll("/", "\\"));
         });
 
         Archives.runElasticsearch(installation, sh);

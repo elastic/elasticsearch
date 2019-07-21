@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.graphql.rest;
 
+import graphql.GraphQLContext;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.graphql.gql.GqlServer;
@@ -37,17 +38,20 @@ public class GraphqlRestHandler implements RestHandler {
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         Map<String, Object> body = request.contentParser().map();
 
-        if (!(body.get("query") instanceof String)) throw new Exception("GraphQL request must have a query.");
+        if (!(body.get("query") instanceof String) || ((String) body.get("query")).length() < 3) {
+            throw new Exception("GraphQL request must have a query.");
+        }
+
         String query = (String) body.get("query");
+        String operationName = body.get("operationName") instanceof String
+            ? (String) body.get("operationName") : "";
+        Map<String, Object> variables = body.get("variables") instanceof Map
+            ? (Map<String, Object>) body.get("variables") : new HashMap();
+        GraphQLContext ctx = new GraphQLContext.Builder()
+                .of("request", request, "channel", channel, "client", client)
+                .build();
 
-//        String operationName = payload.get("operationName") instanceof String
-//            ? (String) payload.get("operationName") : "";
-//        LinkedTreeMap variables = payload.get("variables") instanceof LinkedTreeMap
-//            ? (LinkedTreeMap) payload.get("variables") : null;
-
-//        Map<String, Object> spec = graphqlServer.executeToSpecification(query, operationName, variables, ctx);
-
-        Map<String, Object> res = gqlServer.executeToSpecification(query, "", new HashMap<>(), client);
+        Map<String, Object> res = gqlServer.executeToSpecification(query, operationName, variables, ctx);
         System.out.println("GraphQL result:");
         System.out.println(res);
 

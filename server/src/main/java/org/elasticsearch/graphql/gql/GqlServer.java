@@ -22,6 +22,7 @@ public class GqlServer {
         builder = new GqlBuilder();
 
         addPingResolve(builder);
+        addFooResolve(builder);
 
         schema = builder.build();
         graphql = GraphQL.newGraphQL(schema).build();
@@ -34,6 +35,15 @@ public class GqlServer {
                 .name("ping")
                 .type(nonNull(GraphQLString)))
             .fetcher("Query", "ping", new StaticDataFetcher("pong"));
+    }
+
+    private void addFooResolve(GqlBuilder builder) {
+        builder
+            .queryField(newFieldDefinition()
+                .description("Sample resolver.")
+                .name("foo")
+                .type(nonNull(GraphQLString)))
+            .fetcher("Query", "foo", new StaticDataFetcher("bar"));
     }
 
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {

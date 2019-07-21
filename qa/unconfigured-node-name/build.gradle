@@ -30,9 +30,13 @@ integTestCluster {
   autoSetHostsProvider = false
 }
 
+// https://github.com/elastic/elasticsearch/issues/44656
+if ( OS.WINDOWS.equals(OS.current()) == false ) {
+    integTestRunner.enabled = false
+    integTest.enabled = false
+}
+
 integTestRunner {
   nonInputProperties.systemProperty 'tests.logfile',
     "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_server.json"
-  // https://github.com/elastic/elasticsearch/issues/44656
-  onlyIf { OS.WINDOWS.equals(OS.current()) == false }
 }

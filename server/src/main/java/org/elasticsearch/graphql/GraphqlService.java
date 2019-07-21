@@ -19,14 +19,16 @@
 package org.elasticsearch.graphql;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.graphql.gql.GqlServer;
 import org.elasticsearch.rest.RestRequest;
 
 final public class GraphqlService {
     ActionModule actionModule;
+    GqlServer gqlServer;
     GraphqlRestHandler restHandler;
-//    GraphqlServer server;
 
     public GraphqlService(ActionModule actionModule) {
+        gqlServer = new GqlServer();
         this.actionModule = actionModule;
         restHandler = new GraphqlRestHandler();
 //        server = new GraphqlServer();

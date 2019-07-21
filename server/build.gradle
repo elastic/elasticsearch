@@ -78,6 +78,7 @@ if (!isEclipse && !isIdea) {
 
 
 dependencies {
+  compile files('libs/slf4j-api-1.7.25.jar')
   compile group: 'com.graphql-java', name: 'graphql-java', version: '13.0'
 
   compile project(':libs:elasticsearch-core')

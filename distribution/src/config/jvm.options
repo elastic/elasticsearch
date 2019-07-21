@@ -38,10 +38,10 @@
 -XX:+UseCMSInitiatingOccupancyOnly
 
 ## G1GC Configuration; to use G1GC uncomment the lines below
-# -XX:-UseConcMarkSweepGC
-# -XX:-UseCMSInitiatingOccupancyOnly
-# -XX:+UseG1GC
-# -XX:InitiatingHeapOccupancyPercent=75
+-XX:-UseConcMarkSweepGC
+-XX:-UseCMSInitiatingOccupancyOnly
+-XX:+UseG1GC
+-XX:InitiatingHeapOccupancyPercent=75
 
 ## DNS cache policy
 # cache ttl in seconds for positive DNS lookups noting that this overrides the

@@ -1,24 +1,9 @@
 package org.elasticsearch.graphql.api;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.MainRequest;
-import org.elasticsearch.action.main.MainResponse;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class GqlElasticsearchApi implements GqlApi {
-    NodeClient client;
-
-    public GqlElasticsearchApi (NodeClient client) {
-        this.client = client;
-    }
-
+public class GqlMockApi implements GqlApi {
     @Override
     public Map<String, Object> getHello() {
         LinkedHashMap<String, Object> result = new LinkedHashMap();

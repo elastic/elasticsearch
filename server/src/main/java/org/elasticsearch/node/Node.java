@@ -498,7 +498,7 @@ public class Node implements Closeable {
                 metaDataCreateIndexService, metaDataIndexUpgradeService, clusterService.getClusterSettings());
 
 
-            final GraphqlService graphqlService = new GraphqlService(actionModule);
+            final GraphqlService graphqlService = new GraphqlService(client, actionModule);
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);

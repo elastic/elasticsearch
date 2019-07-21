@@ -19,6 +19,7 @@
 package org.elasticsearch.graphql;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.api.GqlElasticsearchApi;
 import org.elasticsearch.graphql.gql.GqlServer;
@@ -26,13 +27,15 @@ import org.elasticsearch.graphql.rest.GraphqlRestHandler;
 import org.elasticsearch.rest.RestRequest;
 
 final public class GraphqlService {
+    NodeClient client;
     GqlApi api;
     ActionModule actionModule;
     GqlServer gqlServer;
     GraphqlRestHandler graphqlRestHandler;
 
-    public GraphqlService(ActionModule actionModule) {
-        api = new GqlElasticsearchApi();
+    public GraphqlService(NodeClient client, ActionModule actionModule) {
+        this.client = client;
+        api = new GqlElasticsearchApi(client);
         gqlServer = new GqlServer(api);
         this.actionModule = actionModule;
         graphqlRestHandler = new GraphqlRestHandler(gqlServer);

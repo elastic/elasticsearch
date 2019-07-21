@@ -22,6 +22,10 @@ apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
+repositories {
+  mavenCentral()
+}
+
 publishing {
   publications {
     nebula {
@@ -71,6 +75,9 @@ if (!isEclipse && !isIdea) {
     manifest.attributes('Multi-Release': 'true')
   }
 }
+
+//def reactiveStreamsVersion = '1.0.2'
+//def slf4jVersion = '1.7.25'
 
 dependencies {
   compile group: 'com.graphql-java', name: 'graphql-java', version: '13.0'

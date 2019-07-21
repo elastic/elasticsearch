@@ -23,16 +23,32 @@ import graphql.schema.GraphQLSchema;
 import graphql.schema.StaticDataFetcher;
 import graphql.schema.idl.RuntimeWiring;
 import graphql.schema.idl.SchemaGenerator;
-import graphql.schema.idl.SchemaParser;
 import graphql.schema.idl.TypeDefinitionRegistry;
+import static graphql.Scalars.*;
 import static graphql.schema.idl.RuntimeWiring.newRuntimeWiring;
+import static graphql.schema.GraphQLObjectType.newObject;
+import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
 
 public class GraphqlServer {
-//    TypeDefinitionRegistry types;
+    TypeDefinitionRegistry types;
     RuntimeWiring wiring;
     GraphQL graphql;
 
     public GraphqlServer() {
+        types = new TypeDefinitionRegistry();
+
+        types.add(
+            newObject()
+                .name("Query")
+                .description("Main resolver for reading data.")
+                .field(
+                    newFieldDefinition()
+                        .name("hello")
+                        .type(GraphQLString)
+                )
+                .build()
+                .getDefinition()
+        );
 
         wiring = newRuntimeWiring()
             .type("Query",
@@ -41,9 +57,9 @@ public class GraphqlServer {
             )
             .build();
 
-//        SchemaGenerator schemaGenerator = new SchemaGenerator();
-//        GraphQLSchema graphQLSchema = schemaGenerator.makeExecutableSchema(types, wiring);
+        SchemaGenerator schemaGenerator = new SchemaGenerator();
+        GraphQLSchema graphQLSchema = schemaGenerator.makeExecutableSchema(types, wiring);
 
-//        graphql = GraphQL.newGraphQL(graphQLSchema).build();
+        graphql = GraphQL.newGraphQL(graphQLSchema).build();
     }
 }

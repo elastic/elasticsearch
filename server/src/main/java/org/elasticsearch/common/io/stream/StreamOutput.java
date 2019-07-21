@@ -232,19 +232,25 @@ public abstract class StreamOutput extends OutputStream {
         write(bytes.bytes, bytes.offset, bytes.length);
     }
 
+    private static final ThreadLocal<byte[]> scratch = ThreadLocal.withInitial(() -> new byte[ArrayUtil.oversize(1024, Byte.BYTES)]);
+
     public final void writeShort(short v) throws IOException {
-        writeByte((byte) (v >> 8));
-        writeByte((byte) v);
+        final byte[] buffer = scratch.get();
+        buffer[0] = (byte) (v >> 8);
+        buffer[1] = (byte) v;
+        writeBytes(buffer, 0, 2);
     }
 
     /**
      * Writes an int as four bytes.
      */
     public void writeInt(int i) throws IOException {
-        writeByte((byte) (i >> 24));
-        writeByte((byte) (i >> 16));
-        writeByte((byte) (i >> 8));
-        writeByte((byte) i);
+        final byte[] buffer = scratch.get();
+        buffer[0] = (byte) (i >> 24);
+        buffer[1] = (byte) (i >> 16);
+        buffer[2] = (byte) (i >> 8);
+        buffer[3] = (byte) i;
+        writeBytes(buffer, 0, 4);
     }
 
     /**
@@ -254,19 +260,30 @@ public abstract class StreamOutput extends OutputStream {
      * using {@link #writeInt}
      */
     public void writeVInt(int i) throws IOException {
+        final byte[] buffer = scratch.get();
+        int index = 0;
         while ((i & ~0x7F) != 0) {
-            writeByte((byte) ((i & 0x7f) | 0x80));
+            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         }
-        writeByte((byte) i);
+        buffer[index++] = ((byte) i);
+        writeBytes(buffer, 0, index);
     }
 
     /**
      * Writes a long as eight bytes.
      */
     public void writeLong(long i) throws IOException {
-        writeInt((int) (i >> 32));
-        writeInt((int) i);
+        final byte[] buffer = scratch.get();
+        buffer[0] = (byte) (i >> 56);
+        buffer[1] = (byte) (i >> 48);
+        buffer[2] = (byte) (i >> 40);
+        buffer[3] = (byte) (i >> 32);
+        buffer[4] = (byte) (i >> 24);
+        buffer[5] = (byte) (i >> 16);
+        buffer[6] = (byte) (i >> 8);
+        buffer[7] = (byte) i;
+        writeBytes(buffer, 0, 8);
     }
 
     /**
@@ -286,11 +303,14 @@ public abstract class StreamOutput extends OutputStream {
      * {@link #writeVLong(long)} instead.
      */
     void writeVLongNoCheck(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        int index = 0;
         while ((i & ~0x7F) != 0) {
-            writeByte((byte) ((i & 0x7f) | 0x80));
+            buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         }
-        writeByte((byte) i);
+        buffer[index++] = ((byte) i);
+        writeBytes(buffer, 0, index);
     }
 
     /**
@@ -301,13 +321,16 @@ public abstract class StreamOutput extends OutputStream {
      * If the numbers are known to be non-negative, use {@link #writeVLong(long)}
      */
     public void writeZLong(long i) throws IOException {
+        final byte[] buffer = scratch.get();
+        int index = 0;
         // zig-zag encoding cf. https://developers.google.com/protocol-buffers/docs/encoding?hl=en
         long value = BitUtil.zigZagEncode(i);
         while ((value & 0xFFFFFFFFFFFFFF80L) != 0L) {
-            writeByte((byte)((value & 0x7F) | 0x80));
+            buffer[index++] = (byte) ((value & 0x7F) | 0x80);
             value >>>= 7;
         }
-        writeByte((byte) (value & 0x7F));
+        buffer[index++] = (byte) (value & 0x7F);
+        writeBytes(buffer, 0, index);
     }
 
     public void writeOptionalLong(@Nullable Long l) throws IOException {
@@ -394,18 +417,9 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    // we use a small buffer to convert strings to bytes since we want to prevent calling writeByte
-    // for every byte in the string (see #21660 for details).
-    // This buffer will never be the oversized limit of 1024 bytes and will not be shared across streams
-    private byte[] convertStringBuffer = BytesRef.EMPTY_BYTES; // TODO should we reduce it to 0 bytes once the stream is closed?
-
     public void writeString(String str) throws IOException {
         final int charCount = str.length();
-        final int bufferSize = Math.min(3 * charCount, 1024); // at most 3 bytes per character is needed here
-        if (convertStringBuffer.length < bufferSize) { // we don't use ArrayUtils.grow since copying the bytes is unnecessary
-            convertStringBuffer = new byte[ArrayUtil.oversize(bufferSize, Byte.BYTES)];
-        }
-        byte[] buffer = convertStringBuffer;
+        byte[] buffer = scratch.get();
         int offset = 0;
         writeVInt(charCount);
         for (int i = 0; i < charCount; i++) {

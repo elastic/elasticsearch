@@ -3,6 +3,7 @@ package org.elasticsearch.graphql.api;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+    /*
 public class GqlMockApi implements GqlApi {
     @Override
     public Map<String, Object> getHello() {
@@ -27,4 +28,6 @@ public class GqlMockApi implements GqlApi {
 
         return result;
     }
+
 }
+     */

@@ -19,6 +19,8 @@
 package org.elasticsearch.graphql.rest;
 
 import graphql.GraphQLContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.graphql.gql.GqlServer;
@@ -28,6 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class GraphqlRestHandler implements RestHandler {
+    private static final Logger logger = LogManager.getLogger(GraphqlRestHandler.class);
     GqlServer gqlServer;
 
     public GraphqlRestHandler(GqlServer gqlServer) {
@@ -52,8 +55,7 @@ public class GraphqlRestHandler implements RestHandler {
                 .build();
 
         Map<String, Object> res = gqlServer.executeToSpecification(query, operationName, variables, ctx);
-        System.out.println("GraphQL result:");
-        System.out.println(res);
+        logger.info("GraphQL result {}", res);
         sendSuccess(channel, res);
     }
 

@@ -5,10 +5,8 @@ import graphql.schema.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.graphql.api.GqlApi;
-import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
@@ -19,7 +17,7 @@ import static graphql.schema.GraphQLArgument.newArgument;
 import static graphql.Scalars.*;
 
 public class GqlServer {
-    private static final Logger logger = LogManager.getLogger(TaskManager.class);
+    private static final Logger logger = LogManager.getLogger(GqlServer.class);
     GqlApi api;
     GqlBuilder builder;
     GraphQLSchema schema;

@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * ActionType for adding a role to the security index
  */
-public class PutRoleMappingAction extends StreamableResponseActionType<PutRoleMappingResponse> {
+public class PutRoleMappingAction extends ActionType<PutRoleMappingResponse> {
 
     public static final PutRoleMappingAction INSTANCE = new PutRoleMappingAction();
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/put";
 
     private PutRoleMappingAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutRoleMappingResponse newResponse() {
-        return new PutRoleMappingResponse();
+        super(NAME, PutRoleMappingResponse::new);
     }
 }

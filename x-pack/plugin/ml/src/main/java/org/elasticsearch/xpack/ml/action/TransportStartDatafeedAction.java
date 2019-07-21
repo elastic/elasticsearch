@@ -95,8 +95,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
                                         JobResultsPersister jobResultsPersister, Auditor auditor, NamedXContentRegistry xContentRegistry) {
-        super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                StartDatafeedAction.Request::new);
+        super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, StartDatafeedAction.Request::new,
+            indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
@@ -144,11 +144,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -256,7 +251,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed,
             job,
             xContentRegistry,
-            // Creating fake {@link TimingStatsReporter} so that search API call is not needed.
+            // Creating fake DatafeedTimingStatsReporter so that search API call is not needed.
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), jobResultsPersister),
             ActionListener.wrap(
                 unused ->

@@ -26,7 +26,7 @@ import java.io.IOException;
 
 public class ConfusionMatrixMetricConfusionMatrixTests extends AbstractXContentTestCase<ConfusionMatrixMetric.ConfusionMatrix> {
 
-    static ConfusionMatrixMetric.ConfusionMatrix randomConfusionMatrix() {
+    public static ConfusionMatrixMetric.ConfusionMatrix randomConfusionMatrix() {
         return new ConfusionMatrixMetric.ConfusionMatrix(randomInt(), randomInt(), randomInt(), randomInt());
     }
 

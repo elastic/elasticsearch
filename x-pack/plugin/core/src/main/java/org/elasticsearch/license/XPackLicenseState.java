@@ -728,6 +728,22 @@ public class XPackLicenseState {
         return licensed && localStatus.active;
     }
 
+    /**
+     * Determine if Spatial features should be enabled.
+     * <p>
+     * Spatial features are available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isSpatialAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
     public synchronized boolean isTrialLicense() {
         return status.mode == OperationMode.TRIAL;
     }

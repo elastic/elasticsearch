@@ -1,5 +1,5 @@
 [[search-template]]
-== Search Template
+=== Search Template
 
 The `/_search/template` endpoint allows to use the mustache language to pre render search requests,
 before they are executed and fill existing templates with template parameters.
@@ -596,7 +596,7 @@ GET _search/template
 // TEST[catch:missing]
 
 [[multi-search-template]]
-== Multi Search Template
+=== Multi Search Template
 
 The multi search template API allows to execute several search template
 requests within the same API using the `_msearch/template` endpoint.

@@ -21,7 +21,9 @@ public class DeleteUserResponse extends ActionResponse implements ToXContentObje
 
     private boolean found;
 
-    public DeleteUserResponse() {
+    public DeleteUserResponse(StreamInput in) throws IOException {
+        super(in);
+        found = in.readBoolean();
     }
 
     public DeleteUserResponse(boolean found) {
@@ -36,12 +38,6 @@ public class DeleteUserResponse extends ActionResponse implements ToXContentObje
 
     public boolean found() {
         return this.found;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        found = in.readBoolean();
     }
 
     @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse> {
 
@@ -28,11 +27,7 @@ public class GetFieldMappingsAction extends ActionType<GetFieldMappingsResponse>
     public static final String NAME = "indices:admin/mappings/fields/get";
 
     private GetFieldMappingsAction() {
-        super(NAME);
+        super(NAME, GetFieldMappingsResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<GetFieldMappingsResponse> getResponseReader() {
-        return GetFieldMappingsResponse::new;
-    }
 }

@@ -6,14 +6,13 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
@@ -24,12 +23,7 @@ public class DeleteLifecycleAction extends ActionType<DeleteLifecycleAction.Resp
     public static final String NAME = "cluster:admin/ilm/delete";
 
     protected DeleteLifecycleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, DeleteLifecycleAction.Response::new);
     }
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
@@ -53,6 +47,11 @@ public class DeleteLifecycleAction extends ActionType<DeleteLifecycleAction.Resp
             this.policyName = policyName;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policyName = in.readString();
+        }
+
         public Request() {
         }
 
@@ -63,12 +62,6 @@ public class DeleteLifecycleAction extends ActionType<DeleteLifecycleAction.Resp
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            policyName = in.readString();
         }
 
         @Override

@@ -1,5 +1,5 @@
-[[search-request-source-filtering]]
-=== Source filtering
+[[request-body-search-source-filtering]]
+==== Source filtering
 
 
 Allows to control how the `_source` field is returned with every hit.

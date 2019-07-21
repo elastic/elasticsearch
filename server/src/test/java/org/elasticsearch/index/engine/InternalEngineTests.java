@@ -2862,19 +2862,15 @@ public class InternalEngineTests extends EngineTestCase {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
-        final long primaryTerm = randomNonNegativeLong();
-        Translog translog = createTranslog(() -> primaryTerm);
+        final long newPrimaryTerm = randomLongBetween(0L, primaryTerm.get());
+        final Translog translog = createTranslog(() -> newPrimaryTerm);
         long id = translog.currentFileGeneration();
         translog.close();
         IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
-        try {
-            engine = createEngine(store, primaryTranslogDir);
-            fail("engine shouldn't start without a valid translog id");
-        } catch (EngineCreationFailureException ex) {
-            // expected
-        }
+        expectThrows(EngineCreationFailureException.class, "engine shouldn't start without a valid translog id",
+            () -> createEngine(store, primaryTranslogDir));
         // when a new translog is created it should be ok
-        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, primaryTerm);
+        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, newPrimaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
         engine = new InternalEngine(config);
@@ -5712,7 +5708,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertMaxSeqNoInCommitUserData(engine);
     }
 
-    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8809")
     public void testRefreshAndFailEngineConcurrently() throws Exception {
         AtomicBoolean stopped = new AtomicBoolean();
         Semaphore indexedDocs = new Semaphore(0);
@@ -5901,5 +5896,29 @@ public class InternalEngineTests extends EngineTestCase {
         return engine.getVersionMap().entrySet().stream()
             .filter(e -> e.getValue() instanceof DeleteVersionValue)
             .collect(Collectors.toMap(e -> e.getKey(), e -> (DeleteVersionValue) e.getValue()));
+    }
+
+    public void testHandleDocumentFailureOnReplica() throws Exception {
+        AtomicReference<IOException> addDocException = new AtomicReference<>();
+        IndexWriterFactory indexWriterFactory = (dir, iwc) -> new IndexWriter(dir, iwc) {
+            @Override
+            public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                final IOException ex = addDocException.getAndSet(null);
+                if (ex != null) {
+                    throw ex;
+                }
+                return super.addDocument(doc);
+            }
+        };
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
+            final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+            Engine.Index index = new Engine.Index(newUid(doc), doc, randomNonNegativeLong(), primaryTerm.get(),
+                randomNonNegativeLong(), null, REPLICA, System.nanoTime(), -1, false, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM);
+            addDocException.set(new IOException("simulated"));
+            expectThrows(IOException.class, () -> engine.index(index));
+            assertTrue(engine.isClosed.get());
+            assertNotNull(engine.failedEngine.get());
+        }
     }
 }

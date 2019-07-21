@@ -35,28 +35,19 @@ public class GraphqlRestHandler implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        /*
-        Gson gson = new Gson();
-        HashMap<String, Object> payload;
-        try {
-            payload = gson.fromJson(req.content().toString(CharsetUtil.UTF_8), HashMap.class);
-        } catch (Exception error) {
-            writeText(ctx, "Could not parse JSON.\n");
-            return;
-        }
+        Map<String, Object> body = request.contentParser().map();
 
-        String query = payload.get("query") instanceof String
-            ? (String) payload.get("query") : "";
-        String operationName = payload.get("operationName") instanceof String
-            ? (String) payload.get("operationName") : "";
-        LinkedTreeMap variables = payload.get("variables") instanceof LinkedTreeMap
-            ? (LinkedTreeMap) payload.get("variables") : null;
+        if (!(body.get("query") instanceof String)) throw new Exception("GraphQL request must have a query.");
+        String query = (String) body.get("query");
 
-        Map<String, Object> spec = graphqlServer.executeToSpecification(query, operationName, variables, ctx);
-        writeJson(ctx, spec);
+//        String operationName = payload.get("operationName") instanceof String
+//            ? (String) payload.get("operationName") : "";
+//        LinkedTreeMap variables = payload.get("variables") instanceof LinkedTreeMap
+//            ? (LinkedTreeMap) payload.get("variables") : null;
 
-         */
-        Map<String, Object> res = gqlServer.executeToSpecification("{ping}", "", new HashMap<>(), client);
+//        Map<String, Object> spec = graphqlServer.executeToSpecification(query, operationName, variables, ctx);
+
+        Map<String, Object> res = gqlServer.executeToSpecification(query, "", new HashMap<>(), client);
         System.out.println("GraphQL result:");
         System.out.println(res);
 

@@ -37,6 +37,6 @@ final public class GraphqlService {
     }
 
     void init () {
-        actionModule.getRestController().registerHandler(RestRequest.Method.GET, "/graphql", graphqlRestHandler);
+        actionModule.getRestController().registerHandler(RestRequest.Method.POST, "/graphql", graphqlRestHandler);
     }
 }

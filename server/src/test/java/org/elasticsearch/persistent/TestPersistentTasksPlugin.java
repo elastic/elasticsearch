@@ -338,7 +338,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                     assertTrue(awaitBusy(() -> testTask.isCancelled() ||
                                     testTask.getOperation() != null ||
                                     clusterService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
-                            30, TimeUnit.SECONDS)); // This can take a while during large cluster restart
+                            45, TimeUnit.SECONDS)); // This can take a while during large cluster restart
                     if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }

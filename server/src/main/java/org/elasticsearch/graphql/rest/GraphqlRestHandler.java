@@ -38,7 +38,7 @@ public class GraphqlRestHandler implements RestHandler {
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         Map<String, Object> body = request.contentParser().map();
 
-        if (!(body.get("query") instanceof String) || ((String) body.get("query")).length() < 3) {
+        if (!(body.get("query") instanceof String) || (((String) body.get("query")).length() < 3)) {
             throw new Exception("GraphQL request must have a query.");
         }
 
@@ -54,8 +54,19 @@ public class GraphqlRestHandler implements RestHandler {
         Map<String, Object> res = gqlServer.executeToSpecification(query, operationName, variables, ctx);
         System.out.println("GraphQL result:");
         System.out.println(res);
+        sendSuccess(channel, res);
+    }
 
-        RestResponse response = new RestResponse() {
+    void sendSuccess(RestChannel channel, Map<String, Object> body) {
+        sendJson(channel, body, RestStatus.OK);
+    }
+
+    void sendError(RestChannel channel, Map<String, Object> body) {
+        sendJson(channel, body, RestStatus.BAD_REQUEST);
+    }
+
+    void sendJson(RestChannel channel, Map<String, Object> body, RestStatus status) {
+        channel.sendResponse(new RestResponse() {
             @Override
             public String contentType() {
                 return "application/json";
@@ -64,7 +75,7 @@ public class GraphqlRestHandler implements RestHandler {
             @Override
             public BytesReference content() {
                 try {
-                    return BytesReference.bytes(channel.newBuilder().map(res, false));
+                    return BytesReference.bytes(channel.newBuilder().map(body, false));
                 } catch (Exception error) {
                     return null;
                 }
@@ -72,10 +83,8 @@ public class GraphqlRestHandler implements RestHandler {
 
             @Override
             public RestStatus status() {
-                return RestStatus.OK;
+                return status;
             }
-        };
-        response.addHeader("X-GraphQL", "yup!");
-        channel.sendResponse(response);
+        });
     }
 }

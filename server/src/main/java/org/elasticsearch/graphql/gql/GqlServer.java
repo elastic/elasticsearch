@@ -26,6 +26,8 @@ public class GqlServer {
     GraphQL graphql;
 
     public GqlServer(GqlApi api) {
+        logger.info("Creating GraphQL server.");
+
         this.api = api;
         builder = new GqlBuilder();
 

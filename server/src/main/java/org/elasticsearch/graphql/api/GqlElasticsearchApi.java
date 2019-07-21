@@ -15,7 +15,7 @@ import java.util.Map;
 public class GqlElasticsearchApi implements GqlApi {
     NodeClient client;
 
-    public GqlElasticsearchApi (NodeClient client) {
+    public GqlElasticsearchApi(NodeClient client) {
         this.client = client;
     }
 

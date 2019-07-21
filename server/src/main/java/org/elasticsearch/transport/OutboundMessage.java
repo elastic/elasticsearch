@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.io.IOException;
-import java.util.Set;
 
 abstract class OutboundMessage extends NetworkMessage implements Writeable {
 
@@ -117,17 +116,12 @@ abstract class OutboundMessage extends NetworkMessage implements Writeable {
 
     static class Response extends OutboundMessage {
 
-        private final Set<String> features;
-
-        Response(ThreadContext threadContext, Set<String> features, Writeable message, Version version, long requestId,
-                 boolean isHandshake, boolean compress) {
+        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake, boolean compress) {
             super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
-            this.features = features;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.setFeatures(features);
         }
 
         private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {

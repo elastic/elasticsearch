@@ -57,7 +57,7 @@ public class GraphqlRestHandler implements RestHandler {
 
          */
         Map<String, Object> res = gqlServer.executeToSpecification("{ping}", "", new HashMap<>(), client);
-        System.out.println("ALALALALA:");
+        System.out.println("GraphQL result:");
         System.out.println(res);
 
         RestResponse response = new RestResponse() {
@@ -69,10 +69,7 @@ public class GraphqlRestHandler implements RestHandler {
             @Override
             public BytesReference content() {
                 try {
-                    return BytesReference.bytes(channel.newBuilder()
-                        .startObject()
-                        .field("foo", "bar")
-                        .endObject());
+                    return BytesReference.bytes(channel.newBuilder().map(res, false));
                 } catch (Exception error) {
                     return null;
                 }

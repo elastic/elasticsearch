@@ -870,7 +870,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         return map(values, true);
     }
 
-    private XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
+    public XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
         if (values == null) {
             return nullValue();
         }

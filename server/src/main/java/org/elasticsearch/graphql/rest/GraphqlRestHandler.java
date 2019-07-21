@@ -20,12 +20,46 @@ package org.elasticsearch.graphql.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.graphql.gql.GqlServer;
 import org.elasticsearch.rest.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class GraphqlRestHandler implements RestHandler {
+    GqlServer gqlServer;
+
+    public GraphqlRestHandler(GqlServer gqlServer) {
+        this.gqlServer = gqlServer;
+    }
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        /*
+        Gson gson = new Gson();
+        HashMap<String, Object> payload;
+        try {
+            payload = gson.fromJson(req.content().toString(CharsetUtil.UTF_8), HashMap.class);
+        } catch (Exception error) {
+            writeText(ctx, "Could not parse JSON.\n");
+            return;
+        }
+
+        String query = payload.get("query") instanceof String
+            ? (String) payload.get("query") : "";
+        String operationName = payload.get("operationName") instanceof String
+            ? (String) payload.get("operationName") : "";
+        LinkedTreeMap variables = payload.get("variables") instanceof LinkedTreeMap
+            ? (LinkedTreeMap) payload.get("variables") : null;
+
+        Map<String, Object> spec = graphqlServer.executeToSpecification(query, operationName, variables, ctx);
+        writeJson(ctx, spec);
+
+         */
+        Map<String, Object> res = gqlServer.executeToSpecification("{ping}", "", new HashMap<>(), client);
+        System.out.println("ALALALALA:");
+        System.out.println(res);
+
         RestResponse response = new RestResponse() {
             @Override
             public String contentType() {

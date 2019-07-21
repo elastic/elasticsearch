@@ -27,7 +27,7 @@ public class GqlServer {
         graphql = GraphQL.newGraphQL(schema).build();
     }
 
-    void addPingResolve(GqlBuilder builder) {
+    private void addPingResolve(GqlBuilder builder) {
         builder
             .queryField(newFieldDefinition()
                 .description("Ping server if it is available.")
@@ -36,7 +36,7 @@ public class GqlServer {
             .fetcher("Query", "ping", new StaticDataFetcher("pong"));
     }
 
-    Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {
+    public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {
         ExecutionResult result = graphql.execute(
             ExecutionInput.newExecutionInput(query)
                 .operationName(operationName)

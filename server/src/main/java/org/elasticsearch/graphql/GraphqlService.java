@@ -31,7 +31,7 @@ final public class GraphqlService {
     public GraphqlService(ActionModule actionModule) {
         gqlServer = new GqlServer();
         this.actionModule = actionModule;
-        graphqlRestHandler = new GraphqlRestHandler();
+        graphqlRestHandler = new GraphqlRestHandler(gqlServer);
 
         init();
     }

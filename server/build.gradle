@@ -76,9 +76,13 @@ if (!isEclipse && !isIdea) {
   }
 }
 
+def reactiveStreamsVersion = '1.0.2'
 
 dependencies {
   compile files('libs/slf4j-api-1.7.25.jar')
+  compile files('libs/antlr4-runtime-4.7.2.jar')
+  compile 'com.graphql-java:java-dataloader:2.1.1'
+  compile 'org.reactivestreams:reactive-streams:' + reactiveStreamsVersion
   compile group: 'com.graphql-java', name: 'graphql-java', version: '13.0'
 
   compile project(':libs:elasticsearch-core')

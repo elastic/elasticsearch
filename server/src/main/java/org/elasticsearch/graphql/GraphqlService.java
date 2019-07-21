@@ -20,23 +20,23 @@ package org.elasticsearch.graphql;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.graphql.gql.GqlServer;
+import org.elasticsearch.graphql.rest.GraphqlRestHandler;
 import org.elasticsearch.rest.RestRequest;
 
 final public class GraphqlService {
     ActionModule actionModule;
     GqlServer gqlServer;
-    GraphqlRestHandler restHandler;
+    GraphqlRestHandler graphqlRestHandler;
 
     public GraphqlService(ActionModule actionModule) {
         gqlServer = new GqlServer();
         this.actionModule = actionModule;
-        restHandler = new GraphqlRestHandler();
-//        server = new GraphqlServer();
+        graphqlRestHandler = new GraphqlRestHandler();
 
         init();
     }
 
     void init () {
-        actionModule.getRestController().registerHandler(RestRequest.Method.GET, "/graphql", restHandler);
+        actionModule.getRestController().registerHandler(RestRequest.Method.GET, "/graphql", graphqlRestHandler);
     }
 }

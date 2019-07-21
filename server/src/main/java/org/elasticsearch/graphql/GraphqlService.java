@@ -24,12 +24,12 @@ import org.elasticsearch.rest.RestRequest;
 final public class GraphqlService {
     ActionModule actionModule;
     GraphqlRestHandler restHandler;
-    GraphqlServer server;
+//    GraphqlServer server;
 
     public GraphqlService(ActionModule actionModule) {
         this.actionModule = actionModule;
         restHandler = new GraphqlRestHandler();
-        server = new GraphqlServer();
+//        server = new GraphqlServer();
 
         init();
     }

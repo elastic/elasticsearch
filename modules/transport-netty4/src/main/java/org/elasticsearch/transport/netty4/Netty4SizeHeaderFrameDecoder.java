@@ -35,7 +35,7 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         try {
-            boolean continueDecode = true;
+            boolean continueDecode = in.readableBytes() >= HEADER_SIZE;
             while (continueDecode) {
                 int messageLength = TcpTransport.readMessageLength(Netty4Utils.toBytesReference(in));
                 if (messageLength == -1) {
@@ -46,9 +46,11 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
                     if (messageLengthWithHeader > in.readableBytes()) {
                         continueDecode = false;
                     } else {
-                        final ByteBuf message = in.retainedSlice(in.readerIndex() + HEADER_SIZE, messageLength);
+                        final int readerIndex = in.readerIndex();
+                        final ByteBuf message = in.retainedSlice(readerIndex + HEADER_SIZE, messageLength);
                         out.add(message);
-                        in.readerIndex(in.readerIndex() + messageLengthWithHeader);
+                        in.readerIndex(readerIndex + messageLengthWithHeader);
+                        continueDecode = in.readableBytes() >= HEADER_SIZE;
                     }
                 }
             }

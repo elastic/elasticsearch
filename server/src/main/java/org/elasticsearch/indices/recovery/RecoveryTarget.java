@@ -288,6 +288,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener.completeWith(listener, () -> {
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
+            indexShard.trimOperationOfPreviousPrimaryTerms(indexShard.getLastSyncedGlobalCheckpoint());
             return null;
         });
     }

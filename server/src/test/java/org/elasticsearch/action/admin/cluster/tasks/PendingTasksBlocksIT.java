@@ -91,7 +91,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().getPendingTasks());
 
         // starting one more node allows the cluster to recover
-        internalCluster().startNode();
+        internalCluster().startDataOnlyNode(); // cannot update minimum_master_nodes before the cluster has formed
         ensureGreen();
     }
 

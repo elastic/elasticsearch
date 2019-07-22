@@ -47,8 +47,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.apache.lucene.geo.GeoUtils.orient;
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
-import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains

@@ -55,7 +55,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
         Objects.requireNonNull(value);
         String prePart = null;
         if (!isValid(value)) {
-            throw new IllegalArgumentException("value");
+            throw new IllegalArgumentException("Java version string [" + value + "] could not be parsed.");
         }
         List<Integer> version = new ArrayList<>();
         String[] parts = value.split("-");
@@ -66,7 +66,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
             numericComponents = parts[0].split("\\.");
             prePart = parts[1];
         } else {
-            throw new IllegalArgumentException("value");
+            throw new IllegalArgumentException("Java version string [" + value + "] could not be parsed.");
         }
 
         for (String component : numericComponents) {

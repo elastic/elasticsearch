@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 public class JavaVersionTests extends ESTestCase {
@@ -54,6 +55,15 @@ public class JavaVersionTests extends ESTestCase {
         assertThat(version11.get(0), is(13));
         assertThat(version11.get(1), is(2));
         assertThat(version11.get(2), is(4));
+    }
+
+    public void testParseInvalidVersions() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> JavaVersion.parse("11.2-something-else"));
+        assertThat(e.getMessage(), equalTo("Java version string [11.2-something-else] could not be parsed."));
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> JavaVersion.parse("11.0."));
+        assertThat(e1.getMessage(), equalTo("Java version string [11.0.] could not be parsed."));
+        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> JavaVersion.parse("11.a.3"));
+        assertThat(e2.getMessage(), equalTo("Java version string [11.a.3] could not be parsed."));
     }
 
     public void testToString() {
@@ -93,6 +103,8 @@ public class JavaVersionTests extends ESTestCase {
         assertTrue(onePointSeven.compareTo(onePointSevenPointZero) == 0);
         assertTrue(onePointSevenPointOnePointOne.compareTo(onePointSevenPointOne) > 0);
         assertTrue(onePointSevenPointTwo.compareTo(onePointSevenPointTwoPointOne) < 0);
+        assertTrue(thirteen.compareTo(thirteenPointTwoPointOne) < 0);
+        assertTrue(thirteen.compareTo(fourteen) < 0);
         assertTrue(thirteenPointTwoPointOneThreeThousand.compareTo(thirteenPointTwoPointOneTwoThousand) > 0);
         assertTrue(thirteenPointTwoPointOneThreeThousand.compareTo(thirteenPointTwoPointOneThreeThousand) == 0);
         assertTrue(thirteenPointTwoPointOneA.compareTo(thirteenPointTwoPointOneA) == 0);

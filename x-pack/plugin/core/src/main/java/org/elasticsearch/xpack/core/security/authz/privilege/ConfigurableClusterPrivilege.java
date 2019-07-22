@@ -17,11 +17,11 @@ import java.util.Collection;
 import java.util.function.Predicate;
 
 /**
- * A ConditionalClusterPrivilege is a composition of a {@link ClusterPrivilege} (that determines which actions may be executed)
+ * A ConfigurableClusterPrivilege is a composition of a {@link ClusterPrivilege} (that determines which actions may be executed)
  * with a {@link Predicate} for a {@link TransportRequest} (that determines which requests may be executed).
  * The a given execution of an action is considered to be permitted if both the action and the request are permitted.
  */
-public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentFragment {
+public interface ConfigurableClusterPrivilege extends NamedWriteable, ToXContentFragment {
 
     /**
      * The category under which this privilege should be rendered when output as XContent.
@@ -39,7 +39,7 @@ public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentF
     Predicate<TransportRequest> getRequestPredicate();
 
     /**
-     * A {@link ConditionalClusterPrivilege} should generate a fragment of {@code XContent}, which consists of
+     * A {@link ConfigurableClusterPrivilege} should generate a fragment of {@code XContent}, which consists of
      * a single field name, followed by its value (which may be an object, an array, or a simple value).
      */
     @Override
@@ -47,8 +47,8 @@ public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentF
 
     /**
      * Categories exist for to segment privileges for the purposes of rendering to XContent.
-     * {@link ConditionalClusterPrivileges#toXContent(XContentBuilder, Params, Collection)} builds one XContent
-     * object for a collection of {@link ConditionalClusterPrivilege} instances, with the top level fields built
+     * {@link ConfigurableClusterPrivileges#toXContent(XContentBuilder, Params, Collection)} builds one XContent
+     * object for a collection of {@link ConfigurableClusterPrivilege} instances, with the top level fields built
      * from the categories.
      */
     enum Category {

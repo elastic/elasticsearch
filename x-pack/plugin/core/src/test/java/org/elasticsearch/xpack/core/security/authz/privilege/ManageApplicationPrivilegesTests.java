@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;

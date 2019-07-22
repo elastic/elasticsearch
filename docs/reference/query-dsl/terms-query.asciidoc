@@ -34,7 +34,7 @@ GET /_search
 `<field>`::
 +
 --
-Field you wish to search.
+(Optional, object) Field you wish to search.
 
 The value of this parameter is an array of terms you wish to find in the
 provided field. To return a document, one or more terms must exactly match a
@@ -52,9 +52,8 @@ To use the field values of an existing document as search terms, use the
 `boost`::
 +
 --
-Floating point number used to decrease or increase the
-<<query-filter-context, relevance scores>> of a query. Default is `1.0`.
-Optional.
+(Optional, float) Floating point number used to decrease or increase the
+<<query-filter-context, relevance scores>> of a query. Defaults to `1.0`.
 
 You can use the `boost` parameter to adjust relevance scores for searches
 containing two or more queries.
@@ -95,15 +94,16 @@ To perform a terms lookup, use the following parameters.
 [[query-dsl-terms-lookup-params]]
 ====== Terms lookup parameters
 `index`::
-Name of the index from which to fetch field values.
+(Optional, string) Name of the index from which to fetch field values.
 
 `id`::
-<<mapping-id-field,ID>> of the document from which to fetch field values.
+(Optional, string) <<mapping-id-field,ID>> of the document from which to fetch
+field values.
 
 `path`::
 +
 --
-Name of the field from which to fetch field values. {es} uses
+(Optional, string) Name of the field from which to fetch field values. {es} uses
 these values as search terms for the query.
 
 If the field values include an array of nested inner objects, you can access
@@ -111,9 +111,9 @@ those objects using dot notation syntax.
 --
 
 `routing`::
-Custom <<mapping-routing-field, routing value>> of the document from which to
-fetch term values. If a custom routing value was provided when the document was
-indexed, this parameter is required.
+(Optional, string) Custom <<mapping-routing-field, routing value>> of the
+document from which to fetch term values. If a custom routing value was provided
+when the document was indexed, this parameter is required.
 
 [[query-dsl-terms-lookup-example]]
 ====== Terms lookup example

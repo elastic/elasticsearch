@@ -37,17 +37,18 @@ GET /_search
 [[query-dsl-dis-max-query-top-level-params]]
 ==== Top-level parameters for `dis_max`
 
-`queries` (Required)::
-(array of query objects) Contains one or more query clauses. Returned documents
-**must match one or more** of these queries. If a document matches multiple
-queries, {es} uses the highest <<query-filter-context, relevance score>>.
+`queries`::
+(Required, array of query objects) Contains one or more query clauses. Returned
+documents **must match one or more** of these queries. If a document matches
+multiple queries, {es} uses the highest <<query-filter-context, relevance
+score>>.
 
-`tie_breaker` (Optional)::
+`tie_breaker`::
 +
 --
-(float) Floating point number between `0` and `1.0` used to increase the
-<<query-filter-context, relevance scores>> of documents matching multiple query
-clauses. Defaults to `0.0`.
+(Optional, float) Floating point number between `0` and `1.0` used to increase
+the <<query-filter-context, relevance scores>> of documents matching multiple
+query clauses. Defaults to `0.0`.
 
 You can use the `tie_breaker` value to assign higher relevance scores to
 documents that contain the same term in multiple fields than documents that

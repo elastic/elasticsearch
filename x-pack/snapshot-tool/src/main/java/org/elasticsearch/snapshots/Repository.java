@@ -6,11 +6,9 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collection;
 import java.util.Date;
 import java.util.Set;
 

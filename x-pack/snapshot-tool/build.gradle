@@ -189,3 +189,15 @@ thirdPartyAudit.ignoreMissingClasses (
   'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
   'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
+
+String gcsCredentialsFile = System.getenv("google_storage_credentials_file")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = "integration_test"
+
+task thirdPartyTestGCS(type: Test) {
+    include '**/GCSCleanupTests.class'
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'test.google.credentials_file', gcsCredentialsFile
+    systemProperty 'test.google.bucket', gcsBucket
+    systemProperty 'test.google.base', gcsBasePath
+}

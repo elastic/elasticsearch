@@ -170,10 +170,10 @@ public class GCSRepository extends AbstractRepository {
         AtomicInteger removedFilesCount = new AtomicInteger();
         AtomicLong filesSize = new AtomicLong();
 
-        Page<Blob> page = storage.get(bucket).list(Storage.BlobListOption.prefix(indexDirectoryName));
+        final String prefix = fullPath("indices/" + indexDirectoryName);
+        Page<Blob> page = storage.get(bucket).list(Storage.BlobListOption.prefix(prefix));
         do {
             final List<String> blobsToDelete = new ArrayList<>();
-            deleteFiles(blobsToDelete);
 
             page.getValues().forEach(b -> {
                 blobsToDelete.add(b.getName());
@@ -181,6 +181,7 @@ public class GCSRepository extends AbstractRepository {
                 filesSize.getAndAdd(b.getSize());
             });
 
+            deleteFiles(blobsToDelete);
             page = page.getNextPage();
         } while (page != null);
 

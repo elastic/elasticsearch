@@ -6,6 +6,7 @@
 package org.elasticsearch.snapshots;
 
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.google.cloud.storage.StorageException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRunnable;
@@ -27,7 +28,6 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +42,8 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
 public abstract class AbstractRepository implements Repository {
     private static final long DEFAULT_SAFETY_GAP_MILLIS = 3600 * 1000;
@@ -96,11 +98,16 @@ public abstract class AbstractRepository implements Repository {
                     LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
                 return incompatibleSnapshotsFromXContent(parser);
             }
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() != RestStatus.NOT_FOUND.getStatus()) {
-                throw e;
+        } catch (StorageException e) {
+            if (e.getCode() == HTTP_NOT_FOUND) {
+                return Collections.emptyList();
             }
-            return Collections.emptyList();
+            throw e;
+        } catch (AmazonS3Exception e) {
+            if (e.getStatusCode() == HTTP_NOT_FOUND) {
+                return Collections.emptyList();
+            }
+            throw e;
         } catch (IOException e) {
             terminal.println("Failed to read [incompatible-snapshots] blob");
             throw e;

@@ -28,7 +28,6 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.io.IOException;
 
-@SuppressWarnings("unused")
 public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     private static final Logger logger = LogManager.getLogger(SystemdPlugin.class);

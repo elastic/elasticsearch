@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -112,8 +113,8 @@ public class Pivot {
         sourceBuilder.size(0);
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
+        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         return searchRequest;
-
     }
 
     public AggregationBuilder buildAggregation(Map<String, Object> position, int pageSize) {

@@ -1375,7 +1375,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
         try {
             safeCommit = store.findSafeIndexCommit(translogConfig.getTranslogPath());
-        } catch (IndexNotFoundException e) {
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
             logger.trace("skip local recovery as no index commit found");
             return UNASSIGNED_SEQ_NO;
         } catch (Exception e) {
@@ -1394,7 +1394,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             if (safeCommit.get().localCheckpoint == globalCheckpoint) {
                 logger.trace("skip local recovery as the safe commit is up to date");
-                return safeCommit.get().localCheckpoint + 1;
+                return globalCheckpoint + 1;
             }
             try {
                 final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
@@ -1422,9 +1422,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return newSafeCommit.get().localCheckpoint + 1;
         } catch (Exception e) {
             if (Assertions.ENABLED) {
-                throw new AssertionError("failed to find the safe commit after local recovery", e);
+                throw new AssertionError(
+                    "failed to find the safe commit after recovering shard locally up to global checkpoint " + globalCheckpoint, e);
             }
-            logger.debug("failed to find the safe commit after local recovery", e);
+            logger.debug(new ParameterizedMessage(
+                "failed to find the safe commit after recovering shard locally up to global checkpoint {}", globalCheckpoint), e);
             return UNASSIGNED_SEQ_NO;
         }
     }
@@ -1591,6 +1593,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
         assert assertSequenceNumbersInCommit();
+        assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
     private boolean assertSequenceNumbersInCommit() throws IOException {

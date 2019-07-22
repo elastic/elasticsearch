@@ -334,7 +334,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
      * @param logger         the logger
      * @param localNode      the local node of the recovery target
      * @param recoveryTarget the target of the recovery
-     * @param startingSeqNo  a sequence number that a operation-based can start with
+     * @param startingSeqNo  a sequence number that an operation-based peer recovery can start with.
+     *                       This is the first operation after the local checkpoint of the safe commit if exists.
      * @return a start recovery request
      */
     public static StartRecoveryRequest getStartRecoveryRequest(Logger logger, DiscoveryNode localNode,

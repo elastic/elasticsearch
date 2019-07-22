@@ -1568,6 +1568,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final String translogUUID = readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
         final List<IndexCommit> commits = DirectoryReader.listCommits(directory);
+        assert commits.isEmpty() == false : "no commit found";
         final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
         // all operations of the safe commit must be at most the global checkpoint.

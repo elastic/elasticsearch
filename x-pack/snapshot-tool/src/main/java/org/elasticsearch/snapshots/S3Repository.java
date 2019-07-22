@@ -44,14 +44,12 @@ import java.util.stream.Collectors;
 public class S3Repository extends AbstractRepository {
     private final AmazonS3 client;
     private final String bucket;
-    private final String basePath;
 
     S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String endpoint, String region, String accessKey,
                  String secretKey, String bucket,
                  String basePath) {
-        super(terminal, safetyGapMillis, parallelism);
+        super(terminal, safetyGapMillis, parallelism, basePath);
         this.client = buildS3Client(endpoint, region, accessKey, secretKey);
-        this.basePath = basePath;
         this.bucket = bucket;
     }
 
@@ -66,10 +64,6 @@ public class S3Repository extends AbstractRepository {
         builder.setClientConfiguration(new ClientConfiguration().withUserAgentPrefix("s3_cleanup_tool"));
 
         return builder.build();
-    }
-
-    private String fullPath(String path) {
-        return basePath + "/" + path;
     }
 
     @Override
@@ -102,41 +96,8 @@ public class S3Repository extends AbstractRepository {
     }
 
     @Override
-    public RepositoryData getRepositoryData(long indexFileGeneration) throws IOException {
-        final String snapshotsIndexBlobName = BlobStoreRepository.INDEX_FILE_PREFIX + indexFileGeneration;
-        try (InputStream blob = client.getObject(bucket, fullPath(snapshotsIndexBlobName)).getObjectContent()) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            Streams.copy(blob, out);
-            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
-                return RepositoryData.snapshotsFromXContent(parser, indexFileGeneration);
-            }
-        } catch (IOException e) {
-            terminal.println("Failed to read " + snapshotsIndexBlobName + " file");
-            throw e;
-        }
-    }
-
-    @Override
-    public Collection<SnapshotId> getIncompatibleSnapshots() throws IOException {
-        try (InputStream blob = client.getObject(bucket, fullPath("incompatible-snapshots")).getObjectContent()) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            Streams.copy(blob, out);
-            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
-                return incompatibleSnapshotsFromXContent(parser);
-            }
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() != RestStatus.NOT_FOUND.getStatus()) {
-                throw e;
-            }
-            return Collections.emptyList();
-        } catch (IOException e) {
-            terminal.println("Failed to read [incompatible-snapshots] blob");
-            throw e;
-        }
+    public InputStream getBlobInputStream(String blobName) {
+        return client.getObject(bucket, fullPath(blobName)).getObjectContent();
     }
 
     @Override
@@ -182,8 +143,6 @@ public class S3Repository extends AbstractRepository {
         ObjectListing listing = client.listObjects(listRequest);
         List<S3ObjectSummary> summaries = listing.getObjectSummaries();
         if (summaries.isEmpty()) {
-            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index "
-                    + indexDirectoryName + " directory. " + "Skipping");
             return null;
         } else {
             S3ObjectSummary any = summaries.get(0);

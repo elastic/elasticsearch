@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRunnable;
@@ -12,15 +13,24 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,16 +54,57 @@ public abstract class AbstractRepository implements Repository {
     protected final Terminal terminal;
     private final long safetyGapMillis;
     private final int parallelism;
+    protected final String basePath;
 
-    protected AbstractRepository(Terminal terminal, Long safetyGapMillis, Integer parallelism) {
+    protected AbstractRepository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String basePath) {
         this.terminal = terminal;
         this.safetyGapMillis = safetyGapMillis == null ? DEFAULT_SAFETY_GAP_MILLIS : safetyGapMillis;
         this.parallelism = parallelism == null ? DEFAULT_PARALLELISM : parallelism;
+        this.basePath = basePath;
     }
 
     private void describeCollection(String start, Collection<?> elements) {
         terminal.println(Terminal.Verbosity.VERBOSE,
                 start + " has " + elements.size() + " elements: " + elements);
+    }
+
+    private RepositoryData getRepositoryData(long indexFileGeneration) throws IOException {
+        final String snapshotsIndexBlobName = fullPath(BlobStoreRepository.INDEX_FILE_PREFIX + indexFileGeneration);
+
+        try (InputStream blob = getBlobInputStream(snapshotsIndexBlobName)) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            Streams.copy(blob, out);
+            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
+                return RepositoryData.snapshotsFromXContent(parser, indexFileGeneration);
+            }
+        } catch (IOException e) {
+            terminal.println("Failed to read " + snapshotsIndexBlobName + " file");
+            throw e;
+        }
+    }
+
+    private Collection<SnapshotId> getIncompatibleSnapshots() throws IOException {
+        final String incompatibleSnapshotsBlobName = fullPath("incompatible-snapshots");
+
+        try (InputStream blob = getBlobInputStream(incompatibleSnapshotsBlobName)) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            Streams.copy(blob, out);
+            // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
+                return incompatibleSnapshotsFromXContent(parser);
+            }
+        } catch (AmazonS3Exception e) {
+            if (e.getStatusCode() != RestStatus.NOT_FOUND.getStatus()) {
+                throw e;
+            }
+            return Collections.emptyList();
+        } catch (IOException e) {
+            terminal.println("Failed to read [incompatible-snapshots] blob");
+            throw e;
+        }
     }
 
     /**
@@ -223,6 +274,7 @@ public abstract class AbstractRepository implements Repository {
     private boolean isOrphaned(String candidate, Date shiftedIndexNTimestamp) {
         terminal.println(Terminal.Verbosity.VERBOSE, "Reading index " + candidate + " last modification timestamp");
         Date indexTimestamp = getIndexTimestamp(candidate);
+
         if (indexTimestamp != null) {
             if (indexTimestamp.before(shiftedIndexNTimestamp)) {
                 terminal.println(Terminal.Verbosity.VERBOSE,
@@ -235,6 +287,9 @@ public abstract class AbstractRepository implements Repository {
                                 + indexTimestamp +
                                 " is gte than index-N shifted timestamp " + shiftedIndexNTimestamp);
             }
+        } else {
+            terminal.println(Terminal.Verbosity.VERBOSE, "Failed to find single file in index " + candidate + " directory. " +
+                    "Skipping");
         }
         return false;
     }
@@ -245,5 +300,9 @@ public abstract class AbstractRepository implements Repository {
         if (text.equalsIgnoreCase("y") == false) {
             throw new ElasticsearchException("Aborted by user");
         }
+    }
+
+    protected String fullPath(String path) {
+        return basePath + "/" + path;
     }
 }

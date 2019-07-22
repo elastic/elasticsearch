@@ -9,6 +9,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Set;
@@ -16,9 +17,7 @@ import java.util.Set;
 public interface Repository {
     Tuple<Long, Date> getLatestIndexIdAndTimestamp() throws IOException;
 
-    RepositoryData getRepositoryData(long indexFileGeneration) throws IOException;
-
-    Collection<SnapshotId> getIncompatibleSnapshots() throws IOException;
+    InputStream getBlobInputStream(String blobName);
 
     Set<String> getAllIndexDirectoryNames();
 

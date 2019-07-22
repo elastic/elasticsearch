@@ -15,6 +15,7 @@ public class SnapshotToolCli extends LoggingAwareMultiCommand {
         super("Tool to work with repositories and snapshots");
         CommandLoggingConfigurator.configureLoggingWithoutConfig();
         subcommands.put("cleanup_s3", new CleanupS3RepositoryCommand());
+        subcommands.put("cleanup_gcs", new CleanupGCSRepositoryCommand());
     }
 
     public static void main(String[] args) throws Exception {

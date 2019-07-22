@@ -139,16 +139,4 @@ public class GqlServer {
         );
         return result.toSpecification();
     }
-
-//    public CompletableFuture<Map<String, Object>> executeToSpecificationAsync(String query, String operationName, Map<String, Object> variables, Object ctx) {
-//        logger.trace("GraphQL executeToSpecification {}", query);
-//        CompletableFuture<ExecutionResult> promise = graphql.executeAsync(
-//            ExecutionInput.newExecutionInput(query)
-//                .operationName(operationName)
-//                .variables(variables)
-//                .context(ctx)
-//                .build()
-//        );
-//        return promise.thenApplyAsync(result -> result.toSpecification());
-//    }
 }

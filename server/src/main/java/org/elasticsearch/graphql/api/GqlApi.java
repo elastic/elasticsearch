@@ -7,5 +7,5 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public interface GqlApi {
-    public CompletableFuture<Map<String, Object>> getHello();
+    public CompletableFuture<Map<String, Object>> getHello() throws Exception;
 }

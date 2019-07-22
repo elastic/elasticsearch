@@ -64,7 +64,7 @@ public class TransportPendingClusterTasksAction
 
     @Override
     protected ClusterBlockException checkBlock(PendingClusterTasksRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return null;
     }
 
     @Override

@@ -21,3 +21,5 @@ esplugin {
     description 'Integrates Elasticsearch with systemd'
     classname 'org.elasticsearch.systemd.SystemdPlugin'
 }
+
+integTest.enabled = false

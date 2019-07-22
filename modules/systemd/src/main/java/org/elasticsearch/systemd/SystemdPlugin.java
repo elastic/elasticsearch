@@ -35,14 +35,16 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     private final boolean enabled;
 
+    final boolean isEnabled() {
+        return enabled;
+    }
+
     public SystemdPlugin() {
-        // our build is configured to only include this module in the package distributions
-        assert Build.CURRENT.type() == Build.Type.DEB || Build.CURRENT.type() == Build.Type.RPM : Build.CURRENT.type();
-        if (Constants.LINUX == false) {
+        if (isLinux() == false) {
             enabled = false;
             return;
         }
-        final String esSDNotify = System.getenv("ES_SD_NOTIFY");
+        final String esSDNotify = getEsSDNotify();
         if (esSDNotify == null) {
             enabled = false;
             return;
@@ -53,13 +55,30 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         enabled = "true".equals(esSDNotify);
     }
 
+    void assertIsPackage() {
+        // our build is configured to only include this module in the package distributions
+        assert Build.CURRENT.type() == Build.Type.DEB || Build.CURRENT.type() == Build.Type.RPM : Build.CURRENT.type();
+    }
+
+    boolean isLinux() {
+        return Constants.LINUX;
+    }
+
+    String getEsSDNotify() {
+        return System.getenv("ES_SD_NOTIFY");
+    }
+
+    int sd_notify(@SuppressWarnings("SameParameterValue") final int unset_environment, final String state) {
+        return Libsystemd.sd_notify(0, "READY=1");
+    }
+
     @Override
     public void onNodeStarted() {
         if (enabled) {
-            // treat failure to notify systemd of readiness as a startup failure
-            final int rc = Libsystemd.sd_notify(0, "READY=1");
+            final int rc = sd_notify(0, "READY=1");
             logger.trace("sd_notify returned [{}]", rc);
             if (rc < 0) {
+                // treat failure to notify systemd of readiness as a startup failure
                 throw new RuntimeException("sd_notify returned error [" + rc + "]");
             }
         }
@@ -68,10 +87,10 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     @Override
     public void close() throws IOException {
         if (enabled) {
-            // do not treat failure to notify systemd of stopping as a failure
-            final int rc = Libsystemd.sd_notify(0, "STOPPING=1");
+            final int rc = sd_notify(0, "STOPPING=1");
             logger.trace("sd_notify returned [{}]", rc);
             if (rc < 0) {
+                // do not treat failure to notify systemd of stopping as a failure
                 logger.warn("sd_notify returned error [{}]", rc);
             }
         }

@@ -1,5 +1,5 @@
 [[indices-exists]]
-== Indices Exists
+=== Indices Exists
 
 Used to check if the index (indices) exists or not. For example:
 

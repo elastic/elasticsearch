@@ -49,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Supplier;
 
 public abstract class TransportBroadcastAction<
             Request extends BroadcastRequest<Request>,
@@ -68,7 +67,7 @@ public abstract class TransportBroadcastAction<
     protected TransportBroadcastAction(String actionName, ClusterService clusterService,
                                        TransportService transportService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
-                                       Supplier<ShardRequest> shardRequest, String shardExecutor) {
+                                       Writeable.Reader<ShardRequest> shardRequest, String shardExecutor) {
         super(actionName, transportService, actionFilters, request);
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -76,7 +75,7 @@ public abstract class TransportBroadcastAction<
         this.transportShardAction = actionName + "[s]";
         this.shardExecutor = shardExecutor;
 
-        transportService.registerRequestHandler(transportShardAction, shardRequest, ThreadPool.Names.SAME, new ShardTransportHandler());
+        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, shardRequest, new ShardTransportHandler());
     }
 
     @Override
@@ -88,7 +87,7 @@ public abstract class TransportBroadcastAction<
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
-    protected abstract ShardResponse newShardResponse();
+    protected abstract ShardResponse readShardResponse(StreamInput in) throws IOException;
 
     protected abstract ShardResponse shardOperation(ShardRequest request, Task task) throws IOException;
 
@@ -181,9 +180,7 @@ public abstract class TransportBroadcastAction<
                             new TransportResponseHandler<ShardResponse>() {
                                 @Override
                                 public ShardResponse read(StreamInput in) throws IOException {
-                                    ShardResponse response = newShardResponse();
-                                    response.readFrom(in);
-                                    return response;
+                                    return readShardResponse(in);
                                 }
 
                                 @Override

@@ -730,7 +730,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertEquals(4.47169811, actual.doubleValue(), 0.000001);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/44583")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/44583")
     public void testBulkIndexFailuresCauseTaskToFail() throws Exception {
         String transformId = "bulk-failure-pivot";
         String dataFrameIndex = "pivot-failure-index";

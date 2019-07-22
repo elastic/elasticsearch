@@ -66,7 +66,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     public DeleteByQueryRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
     }
 
     private DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {

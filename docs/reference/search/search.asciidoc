@@ -1,5 +1,5 @@
 [[search-search]]
-== Search
+=== Search
 
 The search API allows you to execute a search query and get back search hits
 that match the query. The query can either be provided using a simple
@@ -7,7 +7,7 @@ that match the query. The query can either be provided using a simple
 <<search-request-body,request body>>.
 
 ["float",id="search-multi-index"]
-=== Multi-Index
+==== Multi-Index
 
 All search APIs can be applied across multiple indices with support for
 the <<multi-index,multi index syntax>>. For
@@ -41,5 +41,5 @@ GET /_all/_search?q=tag:wow
 
 [float]
 [[search-partial-responses]]
-=== Partial responses
+==== Partial responses
 To ensure fast responses, the search API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.

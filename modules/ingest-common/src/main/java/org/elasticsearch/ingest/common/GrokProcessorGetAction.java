@@ -94,11 +94,6 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(grokPatterns, StreamOutput::writeString, StreamOutput::writeString);
         }

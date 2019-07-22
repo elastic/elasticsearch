@@ -48,7 +48,7 @@ public class HttpInfo implements Writeable, ToXContentFragment {
     private final boolean cnameInPublishHost;
 
     public HttpInfo(StreamInput in) throws IOException {
-        this(BoundTransportAddress.readBoundTransportAddress(in), in.readLong(), CNAME_IN_PUBLISH_HOST);
+        this(new BoundTransportAddress(in), in.readLong(), CNAME_IN_PUBLISH_HOST);
     }
 
     public HttpInfo(BoundTransportAddress address, long maxContentLength) {

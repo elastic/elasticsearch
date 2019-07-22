@@ -118,7 +118,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
+            aliases.add(new Alias(in));
         }
         version = in.readOptionalVInt();
     }

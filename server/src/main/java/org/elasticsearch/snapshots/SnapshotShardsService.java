@@ -30,7 +30,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -506,9 +506,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
                     @Override
                     public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
-                        final UpdateIndexShardSnapshotStatusResponse response = new UpdateIndexShardSnapshotStatusResponse();
-                        response.readFrom(in);
-                        return response;
+                        return new UpdateIndexShardSnapshotStatusResponse(in);
                     }
 
                     @Override
@@ -606,12 +604,19 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     static class UpdateIndexShardSnapshotStatusResponse extends ActionResponse {
+
+        UpdateIndexShardSnapshotStatusResponse() {}
+
+        UpdateIndexShardSnapshotStatusResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
     }
 
     private class UpdateSnapshotStatusAction
-        extends StreamableTransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
+        extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
             UpdateSnapshotStatusAction(TransportService transportService, ClusterService clusterService,
                 ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
                     super(
@@ -626,8 +631,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
 
         @Override
-        protected UpdateIndexShardSnapshotStatusResponse newResponse() {
-            return new UpdateIndexShardSnapshotStatusResponse();
+        protected UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
+            return new UpdateIndexShardSnapshotStatusResponse(in);
         }
 
         @Override

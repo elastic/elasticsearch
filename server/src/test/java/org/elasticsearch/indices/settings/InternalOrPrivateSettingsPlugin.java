@@ -23,10 +23,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -62,13 +62,13 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
     }
 
-    public static class UpdateInternalOrPrivateAction extends StreamableResponseActionType<UpdateInternalOrPrivateAction.Response> {
+    public static class UpdateInternalOrPrivateAction extends ActionType<UpdateInternalOrPrivateAction.Response> {
 
         public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
         private static final String NAME = "indices:admin/settings/update-internal-or-private-index";
 
         public UpdateInternalOrPrivateAction() {
-            super(NAME);
+            super(NAME, UpdateInternalOrPrivateAction.Response::new);
         }
 
         public static class Request extends MasterNodeRequest<Request> {
@@ -108,19 +108,20 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         static class Response extends ActionResponse {
+            Response() {}
+
+            Response(StreamInput in) throws IOException {
+                super(in);
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {}
-        }
-
-        @Override
-        public UpdateInternalOrPrivateAction.Response newResponse() {
-            return new UpdateInternalOrPrivateAction.Response();
         }
 
     }
 
     public static class TransportUpdateInternalOrPrivateAction
-            extends StreamableTransportMasterNodeAction<UpdateInternalOrPrivateAction.Request, UpdateInternalOrPrivateAction.Response> {
+            extends TransportMasterNodeAction<UpdateInternalOrPrivateAction.Request, UpdateInternalOrPrivateAction.Response> {
 
         @Inject
         public TransportUpdateInternalOrPrivateAction(
@@ -145,8 +146,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         @Override
-        protected UpdateInternalOrPrivateAction.Response newResponse() {
-            return new UpdateInternalOrPrivateAction.Response();
+        protected UpdateInternalOrPrivateAction.Response read(StreamInput in) throws IOException {
+            return new UpdateInternalOrPrivateAction.Response(in);
         }
 
         @Override

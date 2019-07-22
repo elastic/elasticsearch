@@ -106,8 +106,8 @@ public class LeaderChecker {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
-        transportService.registerRequestHandler(MasterFaultDetection.MASTER_PING_ACTION_NAME, MasterFaultDetection.MasterPingRequest::new,
-            Names.SAME, false, false, (request, channel, task) -> {
+        transportService.registerRequestHandler(MasterFaultDetection.MASTER_PING_ACTION_NAME,
+            Names.SAME, false, false, MasterFaultDetection.MasterPingRequest::new, (request, channel, task) -> {
                 try {
                     handleLeaderCheck(new LeaderCheckRequest(request.sourceNode));
                 } catch (CoordinationStateRejectedException e) {

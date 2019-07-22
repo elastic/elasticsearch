@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.snapshotlifecycle;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -43,8 +43,6 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
     private static final ParseField SCHEDULE = new ParseField("schedule");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER =
@@ -61,11 +59,11 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), CONFIG);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
     }
 
     public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, Map<String, Object> configuration) {
+                                   final String repository, @Nullable Map<String, Object> configuration) {
         this.id = Objects.requireNonNull(id);
         this.name = name;
         this.schedule = schedule;
@@ -89,6 +87,7 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         return this.repository;
     }
 
+    @Nullable
     public Map<String, Object> getConfig() {
         return this.configuration;
     }
@@ -103,7 +102,9 @@ public class SnapshotLifecyclePolicy implements ToXContentObject {
         builder.field(NAME.getPreferredName(), this.name);
         builder.field(SCHEDULE.getPreferredName(), this.schedule);
         builder.field(REPOSITORY.getPreferredName(), this.repository);
-        builder.field(CONFIG.getPreferredName(), this.configuration);
+        if (this.configuration != null) {
+            builder.field(CONFIG.getPreferredName(), this.configuration);
+        }
         builder.endObject();
         return builder;
     }

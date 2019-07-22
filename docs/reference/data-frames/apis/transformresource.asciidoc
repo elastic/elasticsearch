@@ -21,8 +21,10 @@ For more information, see
   
 `frequency`::
   (time units) The interval between checks for changes in the source indices
-  when the {dataframe-transform} is running continuously. The minimum value is
-  `1s` and the maximum is `1h`. The default value is `1m`.
+  when the {dataframe-transform} is running continuously. Also determines the
+  retry interval in the event of transient failures while the {dataframe-transform} is
+  searching or indexing. The minimum value is `1s` and the maximum is `1h`. The
+  default value is `1m`.
 
 `id`::
   (string) A unique identifier for the {dataframe-transform}.
@@ -61,8 +63,10 @@ you create a {dataframe-transform}, you must define its source.
 [[data-frame-transform-source-properties]]
 ===== {api-definitions-title}
 
-`index`:: 
-  (array) The _source index_ for the {dataframe-transform}.
+`index`::
+  (string or array) The _source indices_ for the {dataframe-transform}. It can
+  be a single index, an index pattern (for example, `"myindex*"`), or an array
+  of indices (for example, `["index1", "index2"]`).
 
 `query`::
   (object) A query clause that retrieves a subset of data from the source index.

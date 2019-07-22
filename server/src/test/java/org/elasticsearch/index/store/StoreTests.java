@@ -869,7 +869,7 @@ public class StoreTests extends ESTestCase {
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
         TransportNodesListShardStoreMetaData.StoreFilesMetaData inStoreFileMetaData =
-            TransportNodesListShardStoreMetaData.StoreFilesMetaData.readStoreFilesMetaData(in);
+            new TransportNodesListShardStoreMetaData.StoreFilesMetaData(in);
         Iterator<StoreFileMetaData> outFiles = outStoreFileMetaData.iterator();
         for (StoreFileMetaData inFile : inStoreFileMetaData) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));

@@ -37,7 +37,7 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClearRealmCacheResponse.Node> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override

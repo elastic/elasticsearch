@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -63,8 +64,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     // Default interval the scheduler sends an event if the config does not specify a frequency
     private static final long SCHEDULER_NEXT_MILLISECONDS = 60000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
-    // TODO consider moving to dynamic cluster setting
-    private static final int MAX_CONTINUOUS_FAILURES = 10;
+    private static final int DEFAULT_FAILURE_RETRIES = 10;
+    private volatile int numFailureRetries = DEFAULT_FAILURE_RETRIES;
+    // How many times the transform task can retry on an non-critical failure
+    public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
+        "xpack.data_frame.num_transform_failure_retries",
+        DEFAULT_FAILURE_RETRIES,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic);
     private static final IndexerState[] RUNNING_STATES = new IndexerState[]{IndexerState.STARTED, IndexerState.INDEXING};
     public static final String SCHEDULE_NAME = DataFrameField.TASK_NAME + "/schedule";
 
@@ -253,6 +262,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         IndexerState state = getIndexer().stop();
+        stateReason.set(null);
         if (state == IndexerState.STOPPED) {
             getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -319,16 +329,33 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
-        taskState.set(DataFrameTransformTaskState.FAILED);
-        stateReason.set(reason);
         auditor.error(transform.getId(), reason);
+        // We should not keep retrying. Either the task will be stopped, or started
+        // If it is started again, it is registered again.
+        deregisterSchedulerJob();
+        DataFrameTransformState newState = new DataFrameTransformState(
+            DataFrameTransformTaskState.FAILED,
+            initialIndexerState,
+            initialPosition,
+            currentCheckpoint.get(),
+            reason,
+            getIndexer() == null ? null : getIndexer().getProgress());
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
         //   we could not read the previous state information from said index.
-        persistStateToClusterState(getState(), ActionListener.wrap(
-            r -> listener.onResponse(null),
-            listener::onFailure
+        persistStateToClusterState(newState, ActionListener.wrap(
+            r -> {
+                taskState.set(DataFrameTransformTaskState.FAILED);
+                stateReason.set(reason);
+                listener.onResponse(null);
+            },
+            e -> {
+                logger.error("Failed to set task state as failed to cluster state", e);
+                taskState.set(DataFrameTransformTaskState.FAILED);
+                stateReason.set(reason);
+                listener.onFailure(e);
+            }
         ));
     }
 
@@ -345,6 +372,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // there is no background transform running, we can shutdown safely
             shutdown();
         }
+    }
+
+    public DataFrameTransformTask setNumFailureRetries(int numFailureRetries) {
+        this.numFailureRetries = numFailureRetries;
+        return this;
+    }
+
+    public int getNumFailureRetries() {
+        return numFailureRetries;
     }
 
     private void registerWithSchedulerJob() {
@@ -828,10 +864,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
-            if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > MAX_CONTINUOUS_FAILURES) {
+            if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > transformTask.getNumFailureRetries()) {
                 String failureMessage = isIrrecoverableFailure(e) ?
                     "task encountered irrecoverable failure: " + e.getMessage() :
-                    "task encountered more than " + MAX_CONTINUOUS_FAILURES + " failures; latest failure: " + e.getMessage();
+                    "task encountered more than " + transformTask.getNumFailureRetries() + " failures; latest failure: " + e.getMessage();
                 failIndexer(failureMessage);
             }
         }

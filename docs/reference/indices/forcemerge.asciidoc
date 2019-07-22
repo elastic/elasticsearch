@@ -1,5 +1,5 @@
 [[indices-forcemerge]]
-== Force Merge
+=== Force Merge
 
 The force merge API allows to force merging of one or more indices through an
 API. The merge relates to the number of segments a Lucene index holds within
@@ -24,7 +24,7 @@ POST /twitter/_forcemerge
 
 [float]
 [[forcemerge-parameters]]
-=== Request Parameters
+==== Request Parameters
 
 The force merge API accepts the following request parameters:
 
@@ -52,7 +52,7 @@ POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=t
 
 [float]
 [[forcemerge-multi-index]]
-=== Multi Index
+==== Multi Index
 
 The force merge API can be applied to more than one index with a single call, or
 even on `_all` the indices. Multi index operations are executed one shard at a

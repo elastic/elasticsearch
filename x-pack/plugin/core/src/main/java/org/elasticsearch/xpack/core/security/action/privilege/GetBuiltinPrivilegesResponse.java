@@ -37,6 +37,12 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
         this(Collections.emptySet(), Collections.emptySet());
     }
 
+    public GetBuiltinPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.clusterPrivileges = in.readStringArray();
+        this.indexPrivileges = in.readStringArray();
+    }
+
     public String[] getClusterPrivileges() {
         return clusterPrivileges;
     }
@@ -46,15 +52,7 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.clusterPrivileges = in.readStringArray();
-        this.indexPrivileges = in.readStringArray();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeStringArray(clusterPrivileges);
         out.writeStringArray(indexPrivileges);
     }

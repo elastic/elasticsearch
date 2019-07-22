@@ -22,7 +22,7 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -123,13 +123,13 @@ public class RetentionLeaseActions {
 
     }
 
-    public static class Add extends StreamableResponseActionType<Response> {
+    public static class Add extends ActionType<Response> {
 
         public static final Add INSTANCE = new Add();
         public static final String ACTION_NAME = "indices:admin/seq_no/add_retention_lease";
 
         private Add() {
-            super(ACTION_NAME);
+            super(ACTION_NAME, Response::new);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<AddRequest> {
@@ -168,21 +168,15 @@ public class RetentionLeaseActions {
             }
 
         }
-
-        @Override
-        public Response newResponse() {
-            return new Response();
-        }
-
     }
 
-    public static class Renew extends StreamableResponseActionType<Response> {
+    public static class Renew extends ActionType<Response> {
 
         public static final Renew INSTANCE = new Renew();
         public static final String ACTION_NAME = "indices:admin/seq_no/renew_retention_lease";
 
         private Renew() {
-            super(ACTION_NAME);
+            super(ACTION_NAME, Response::new);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RenewRequest> {
@@ -214,21 +208,15 @@ public class RetentionLeaseActions {
             }
 
         }
-
-        @Override
-        public Response newResponse() {
-            return new Response();
-        }
-
     }
 
-    public static class Remove extends StreamableResponseActionType<Response> {
+    public static class Remove extends ActionType<Response> {
 
         public static final Remove INSTANCE = new Remove();
         public static final String ACTION_NAME = "indices:admin/seq_no/remove_retention_lease";
 
         private Remove() {
-            super(ACTION_NAME);
+            super(ACTION_NAME, Response::new);
         }
 
         public static class TransportAction extends TransportRetentionLeaseAction<RemoveRequest> {
@@ -261,12 +249,6 @@ public class RetentionLeaseActions {
             }
 
         }
-
-        @Override
-        public Response newResponse() {
-            return new Response();
-        }
-
     }
 
     private abstract static class Request<T extends SingleShardRequest<T>> extends SingleShardRequest<T> {
@@ -385,13 +367,14 @@ public class RetentionLeaseActions {
 
     public static class Response extends ActionResponse {
 
-        public Response() {
-        }
+        public Response() {}
 
         Response(final StreamInput in) throws IOException {
             super(in);
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
 }

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
@@ -105,7 +106,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         return timedClusterApplierService;
     }
 
-    @TestLogging("org.elasticsearch.cluster.service:TRACE") // To ensure that we log cluster state events on TRACE level
+    @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -176,7 +177,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.cluster.service:WARN") // To ensure that we log cluster state events on WARN level
+    @TestLogging(value = "org.elasticsearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
         MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -507,4 +508,5 @@ public class ClusterApplierServiceTests extends ESTestCase {
             return super.currentTimeInMillis();
         }
     }
+
 }

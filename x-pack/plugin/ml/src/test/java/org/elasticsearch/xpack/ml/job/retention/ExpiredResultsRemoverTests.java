@@ -46,6 +46,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     private ActionListener<Boolean> listener;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         capturedDeleteByQueryRequests = new ArrayList<>();
         client = mock(Client.class);
@@ -132,6 +133,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         givenClientRequests(false);
     }
 
+    @SuppressWarnings("unchecked")
     private void givenClientRequests(boolean shouldSucceed) {
         doAnswer(new Answer<Void>() {
             @Override
@@ -151,6 +153,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
     }
 
+    @SuppressWarnings("unchecked")
     private void givenJobs(List<Job> jobs) throws IOException {
         SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
 

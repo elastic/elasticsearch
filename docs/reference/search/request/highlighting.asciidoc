@@ -1,5 +1,5 @@
-[[search-request-highlighting]]
-=== Highlighting
+[[request-body-search-highlighting]]
+==== Highlighting
 
 Highlighters enable you to get highlighted snippets from one or more fields
 in your search results so you can show users where the query matches are.
@@ -42,7 +42,7 @@ highlighter). You can specify the highlighter `type` you want to use
 for each field.
 
 [[unified-highlighter]]
-==== Unified highlighter
+===== Unified highlighter
 The `unified` highlighter uses the Lucene Unified Highlighter. This
 highlighter breaks the text into sentences and uses the BM25 algorithm to score
 individual sentences as if they were documents in the corpus. It also supports
@@ -50,7 +50,7 @@ accurate phrase and multi-term (fuzzy, prefix, regex) highlighting. This is the
 default highlighter.
 
 [[plain-highlighter]]
-==== Plain highlighter
+===== Plain highlighter
 The `plain` highlighter uses the standard Lucene highlighter. It attempts to
 reflect the query matching logic in terms of understanding word importance and
 any word positioning criteria in phrase queries.
@@ -65,7 +65,7 @@ If you want to highlight a lot of fields in a lot of documents with complex
 queries, we recommend using the `unified` highlighter on `postings` or `term_vector` fields.
 
 [[fast-vector-highlighter]]
-==== Fast vector highlighter
+===== Fast vector highlighter
 The `fvh` highlighter uses the Lucene Fast Vector highlighter.
 This highlighter can be used on fields with `term_vector` set to
 `with_positions_offsets` in the mapping. The fast vector highlighter:
@@ -84,7 +84,7 @@ The `fvh` highlighter does not support span queries. If you need support for
 span queries, try an alternative highlighter, such as the `unified` highlighter.
 
 [[offsets-strategy]]
-==== Offsets Strategy
+===== Offsets Strategy
 To create meaningful search snippets from the terms being queried,
 the highlighter needs to know the start and end character offsets of each word
 in the original text. These offsets can be obtained from:
@@ -117,7 +117,7 @@ limited to 1000000. This default limit can be changed
 for a particular index with the index setting `index.highlight.max_analyzed_offset`.
 
 [[highlighting-settings]]
-==== Highlighting Settings
+===== Highlighting Settings
 
 Highlighting settings can be set on a global level and overridden at
 the field level.
@@ -255,7 +255,7 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 `unified`.
 
 [[highlighting-examples]]
-==== Highlighting Examples
+===== Highlighting Examples
 
 * <<override-global-settings, Override global settings>>
 * <<specify-highlight-query, Specify a highlight query>>
@@ -271,7 +271,7 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 
 [[override-global-settings]]
 [float]
-=== Override global settings
+==== Override global settings
 
 You can specify highlighter settings globally and selectively override them for
 individual fields.
@@ -300,7 +300,7 @@ GET /_search
 
 [float]
 [[specify-highlight-query]]
-=== Specify a highlight query
+==== Specify a highlight query
 
 You can specify a `highlight_query` to take additional information into account
 when highlighting. For example, the following query includes both the search
@@ -370,7 +370,7 @@ GET /_search
 
 [float]
 [[set-highlighter-type]]
-=== Set highlighter type
+==== Set highlighter type
 
 The `type` field allows to force a specific highlighter type.
 The allowed values are: `unified`, `plain` and `fvh`.
@@ -395,7 +395,7 @@ GET /_search
 
 [[configure-tags]]
 [float]
-=== Configure highlighting tags
+==== Configure highlighting tags
 
 By default, the highlighting will wrap highlighted text in `<em>` and
 `</em>`. This can be controlled by setting `pre_tags` and `post_tags`,
@@ -464,7 +464,7 @@ GET /_search
 
 [float]
 [[highlight-source]]
-=== Highlight on source
+==== Highlight on source
 
 Forces the highlighting to highlight fields based on the source even if fields
 are stored separately. Defaults to `false`.
@@ -489,7 +489,7 @@ GET /_search
 
 [[highlight-all]]
 [float]
-=== Highlight in all fields
+==== Highlight in all fields
 
 By default, only fields that contains a query match are highlighted. Set
 `require_field_match` to `false` to highlight all fields.
@@ -514,7 +514,7 @@ GET /_search
 
 [[matched-fields]]
 [float]
-=== Combine matches on multiple fields
+==== Combine matches on multiple fields
 
 WARNING: This is only supported by the `fvh` highlighter
 
@@ -651,7 +651,7 @@ to
 
 [[explicit-field-order]]
 [float]
-=== Explicitly order highlighted fields
+==== Explicitly order highlighted fields
 Elasticsearch highlights the fields in the order that they are sent, but per the
 JSON spec, objects are unordered.  If you need to be explicit about the order
 in which fields are highlighted specify the `fields` as an array:
@@ -679,7 +679,7 @@ fields are highlighted but a plugin might.
 
 [float]
 [[control-highlighted-frags]]
-=== Control highlighted fragments
+==== Control highlighted fragments
 
 Each field highlighted can control the size of the highlighted fragment
 in characters (defaults to `100`), and the maximum number of fragments
@@ -780,7 +780,7 @@ GET /_search
 
 [float]
 [[highlight-postings-list]]
-=== Highlight using the postings list
+==== Highlight using the postings list
 
 Here is an example of setting the `comment` field in the index mapping to
 allow for highlighting using the postings:
@@ -822,7 +822,7 @@ PUT /example
 
 [float]
 [[specify-fragmenter]]
-=== Specify a fragmenter for the plain highlighter
+==== Specify a fragmenter for the plain highlighter
 
 When using the `plain` highlighter, you can choose between the `simple` and
 `span` fragmenters:

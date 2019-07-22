@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskS
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
+import org.elasticsearch.xpack.dataframe.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -84,11 +85,6 @@ public class TransportStartDataFrameTransformAction extends
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected StartDataFrameTransformAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -185,8 +181,10 @@ public class TransportStartDataFrameTransformAction extends
                     ));
                     return;
                 }
+                // Validate source and destination indices
+                SourceDestValidator.validate(config, clusterService.state(), indexNameExpressionResolver, false);
 
-                transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion()));
+                transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion(), config.getFrequency()));
                 final String destinationIndex = config.getDestination().getIndex();
                 String[] dest = indexNameExpressionResolver.concreteIndexNames(state,
                     IndicesOptions.lenientExpandOpen(),
@@ -255,8 +253,8 @@ public class TransportStartDataFrameTransformAction extends
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static DataFrameTransform createDataFrameTransform(String transformId, Version transformVersion) {
-        return new DataFrameTransform(transformId, transformVersion);
+    private static DataFrameTransform createDataFrameTransform(String transformId, Version transformVersion, TimeValue frequency) {
+        return new DataFrameTransform(transformId, transformVersion, frequency);
     }
 
     @SuppressWarnings("unchecked")

@@ -265,9 +265,7 @@ public abstract class TransportTasksAction<
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {
-                                        NodeTasksResponse response = new NodeTasksResponse();
-                                        response.readFrom(in);
-                                        return response;
+                                        return new NodeTasksResponse(in);
                                     }
 
                                     @Override
@@ -368,7 +366,24 @@ public abstract class TransportTasksAction<
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
 
-        NodeTasksResponse() {
+        NodeTasksResponse(StreamInput in) throws IOException {
+            super(in);
+            nodeId = in.readString();
+            int resultsSize = in.readVInt();
+            results = new ArrayList<>(resultsSize);
+            for (; resultsSize > 0; resultsSize--) {
+                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
+                results.add(result);
+            }
+            if (in.readBoolean()) {
+                int taskFailures = in.readVInt();
+                exceptions = new ArrayList<>(taskFailures);
+                for (int i = 0; i < taskFailures; i++) {
+                    exceptions.add(new TaskOperationFailure(in));
+                }
+            } else {
+                exceptions = null;
+            }
         }
 
         NodeTasksResponse(String nodeId,
@@ -388,29 +403,7 @@ public abstract class TransportTasksAction<
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodeId = in.readString();
-            int resultsSize = in.readVInt();
-            results = new ArrayList<>(resultsSize);
-            for (; resultsSize > 0; resultsSize--) {
-                final TaskResponse result = in.readBoolean() ? responseReader.read(in) : null;
-                results.add(result);
-            }
-            if (in.readBoolean()) {
-                int taskFailures = in.readVInt();
-                exceptions = new ArrayList<>(taskFailures);
-                for (int i = 0; i < taskFailures; i++) {
-                    exceptions.add(new TaskOperationFailure(in));
-                }
-            } else {
-                exceptions = null;
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeString(nodeId);
             out.writeVInt(results.size());
             for (TaskResponse result : results) {

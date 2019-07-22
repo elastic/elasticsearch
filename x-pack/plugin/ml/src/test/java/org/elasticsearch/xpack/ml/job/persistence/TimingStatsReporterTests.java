@@ -55,7 +55,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         inOrder.verifyNoMoreInteractions();
     }
 
-    public void testFlush() {
+    public void testFinishReporting() {
         TimingStatsReporter reporter = new TimingStatsReporter(new TimingStats(JOB_ID), bulkResultsPersister);
         assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID)));
 
@@ -68,7 +68,7 @@ public class TimingStatsReporterTests extends ESTestCase {
         reporter.reportBucketProcessingTime(10);
         assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0)));
 
-        reporter.flush();
+        reporter.finishReporting();
         assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0)));
 
         InOrder inOrder = inOrder(bulkResultsPersister);

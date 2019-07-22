@@ -1,5 +1,8 @@
 [[date_nanos]]
-=== date_nanos datatype
+=== Date nanoseconds datatype
+++++
+<titleabbrev>Date nanoseconds</titleabbrev>
+++++
 
 This datatype is an addition to the `date` datatype. However there is an
 important distinction between the two. The existing `date` datatype stores

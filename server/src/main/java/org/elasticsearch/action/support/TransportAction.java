@@ -61,7 +61,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          * this method.
          */
         Task task = taskManager.register("transport", actionName, request);
-        execute(task, request, new ActionListener<>() {
+        execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
                 taskManager.unregister(task);

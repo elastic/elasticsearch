@@ -42,16 +42,17 @@ GET /_search
 
 [[fuzzy-query-top-level-params]]
 ==== Top-level parameters for `fuzzy`
-`<field>` (Required)::
-Field you wish to search.
+`<field>`::
+(Required, string) Field you wish to search.
 
 [[fuzzy-query-field-params]]
 ==== Parameters for `<field>`
-`value` (Required)::
-(string) Term you wish to find in the provided `<field>`.
+`value`::
+(Required, string) Term you wish to find in the provided `<field>`.
 
-`fuzziness` (Optional)::
-(string) Maximum edit distance used to create expansions. Valid values are:
+`fuzziness`::
+(Optional, string) Maximum edit distance used to create expansions. Valid values
+are:
 +
 --
 `AUTO` (Default)::
@@ -74,10 +75,10 @@ distance.
 `2`:: Terms must match within two edits.
 --
 
-`max_expansions` (Optional)::
+`max_expansions`::
 +
 --
-(integer) Maximum number of variations created. Defaults to `50`.
+(Optional, integer) Maximum number of variations created. Defaults to `50`.
 +
 WARNING: Avoid using a high value in the `max_expansions` parameter, especially
 if the `transpositions` parameter value is `0`. High values in the
@@ -85,14 +86,14 @@ if the `transpositions` parameter value is `0`. High values in the
 variations examined.
 --
 
-`prefix_length` (Optional)::
-(integer) Number of beginning characters left unchanged when creating
+`prefix_length`::
+(Optional, integer) Number of beginning characters left unchanged when creating
 expansions. Defaults to `0`.
 
-`transpositions` (Optional)::
-(boolean) Indicates whether edits include transpositions of two adjacent
-characters (ab → ba). Defaults to `true`.
+`transpositions`::
+(Optional, boolean) Indicates whether edits include transpositions of two
+adjacent characters (ab → ba). Defaults to `true`.
 
-`rewrite` (Optional)::
-(string) Method used to rewrite the query. For valid values and more
+`rewrite`::
+(Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.

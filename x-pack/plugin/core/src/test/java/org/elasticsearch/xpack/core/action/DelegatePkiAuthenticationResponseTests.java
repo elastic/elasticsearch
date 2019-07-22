@@ -25,7 +25,7 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
                 DelegatePkiAuthenticationResponse serialized = new DelegatePkiAuthenticationResponse(input);
-                assertThat(response.getTokenString(), is(serialized.getTokenString()));
+                assertThat(response.getAccessToken(), is(serialized.getAccessToken()));
                 assertThat(response.getExpiresIn(), is(serialized.getExpiresIn()));
                 assertThat(response, is(serialized));
             }

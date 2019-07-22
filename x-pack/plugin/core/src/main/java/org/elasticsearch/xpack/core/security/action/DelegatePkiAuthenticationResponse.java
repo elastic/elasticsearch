@@ -44,13 +44,13 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPIRES_IN_FIELD);
     }
 
-    private String tokenString;
+    private String accessToken;
     private TimeValue expiresIn;
 
     DelegatePkiAuthenticationResponse() { }
 
-    public DelegatePkiAuthenticationResponse(String tokenString, TimeValue expiresIn) {
-        this.tokenString = Objects.requireNonNull(tokenString);
+    public DelegatePkiAuthenticationResponse(String accessToken, TimeValue expiresIn) {
+        this.accessToken = Objects.requireNonNull(accessToken);
         // always store expiration in seconds because this is how we "serialize" to JSON and we need to parse back
         this.expiresIn = TimeValue.timeValueSeconds(Objects.requireNonNull(expiresIn).getSeconds());
     }
@@ -59,8 +59,8 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         this.readFrom(input);
     }
 
-    public String getTokenString() {
-        return tokenString;
+    public String getAccessToken() {
+        return accessToken;
     }
 
     public TimeValue getExpiresIn() {
@@ -69,14 +69,14 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(tokenString);
+        out.writeString(accessToken);
         out.writeTimeValue(expiresIn);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        tokenString = in.readString();
+        accessToken = in.readString();
         expiresIn = in.readTimeValue();
     }
 
@@ -85,19 +85,19 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
-        return Objects.equals(tokenString, that.tokenString) &&
+        return Objects.equals(accessToken, that.accessToken) &&
             Objects.equals(expiresIn, that.expiresIn);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tokenString, expiresIn);
+        return Objects.hash(accessToken, expiresIn);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field(ACCESS_TOKEN_FIELD.getPreferredName(), tokenString)
+            .field(ACCESS_TOKEN_FIELD.getPreferredName(), accessToken)
             .field(TYPE_FIELD.getPreferredName(), "Bearer")
             .field(EXPIRES_IN_FIELD.getPreferredName(), expiresIn.getSeconds());
         return builder.endObject();

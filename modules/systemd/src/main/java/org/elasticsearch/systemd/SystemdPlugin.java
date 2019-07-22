@@ -22,6 +22,7 @@ package org.elasticsearch.systemd;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -38,38 +39,28 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         return enabled;
     }
 
+    @SuppressWarnings("unused")
     public SystemdPlugin() {
-        assertIsPackage();
-        if (isLinux() == false) {
+        this(true, Constants.LINUX, System.getenv("ES_SD_NOTIFY"));
+    }
+
+    SystemdPlugin(final boolean assertIsPackageDistribution, final boolean isLinux, final String esSDNotify) {
+        if (Assertions.ENABLED && assertIsPackageDistribution) {
+            // our build is configured to only include this module in the package distributions
+            assert Build.CURRENT.type() == Build.Type.DEB || Build.CURRENT.type() == Build.Type.RPM : Build.CURRENT.type();
+        }
+        if (isLinux == false || esSDNotify == null) {
             enabled = false;
             return;
         }
-        final String esSDNotify = getEsSDNotify();
-        if (esSDNotify == null) {
-            enabled = false;
-            return;
-        }
-        if ("true".equals(esSDNotify) == false && "false".equals(esSDNotify) == false) {
+        if (Boolean.TRUE.toString().equals(esSDNotify) == false && Boolean.FALSE.toString().equals(esSDNotify) == false) {
             throw new RuntimeException("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]");
         }
         enabled = "true".equals(esSDNotify);
     }
 
-    void assertIsPackage() {
-        // our build is configured to only include this module in the package distributions
-        assert Build.CURRENT.type() == Build.Type.DEB || Build.CURRENT.type() == Build.Type.RPM : Build.CURRENT.type();
-    }
-
-    boolean isLinux() {
-        return Constants.LINUX;
-    }
-
-    String getEsSDNotify() {
-        return System.getenv("ES_SD_NOTIFY");
-    }
-
     int sd_notify(@SuppressWarnings("SameParameterValue") final int unset_environment, final String state) {
-        return Libsystemd.sd_notify(0, "READY=1");
+        return Libsystemd.sd_notify(0, state);
     }
 
     @Override

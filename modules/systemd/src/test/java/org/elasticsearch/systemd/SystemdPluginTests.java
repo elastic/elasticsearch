@@ -38,90 +38,22 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SystemdPluginTests extends ESTestCase {
 
     public void testIsEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin() {
-
-            @Override
-            void assertIsPackage() {
-
-            }
-
-            @Override
-            boolean isLinux() {
-                return true;
-            }
-
-            @Override
-            String getEsSDNotify() {
-                return Boolean.TRUE.toString();
-            }
-
-        };
+        final SystemdPlugin plugin = new SystemdPlugin(false, true, Boolean.TRUE.toString());
         assertTrue(plugin.isEnabled());
     }
 
     public void testIsNotLinux() {
-        final SystemdPlugin plugin = new SystemdPlugin() {
-
-            @Override
-            void assertIsPackage() {
-
-            }
-
-            @Override
-            boolean isLinux() {
-                return false;
-            }
-
-            @Override
-            String getEsSDNotify() {
-                return Boolean.TRUE.toString();
-            }
-
-        };
+        final SystemdPlugin plugin = new SystemdPlugin(false, false, Boolean.TRUE.toString());
         assertFalse(plugin.isEnabled());
     }
 
     public void testIsImplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin() {
-
-            @Override
-            void assertIsPackage() {
-
-            }
-
-            @Override
-            boolean isLinux() {
-                return true;
-            }
-
-            @Override
-            String getEsSDNotify() {
-                return null;
-            }
-
-        };
+        final SystemdPlugin plugin = new SystemdPlugin(false, true, null);
         assertFalse(plugin.isEnabled());
     }
 
     public void testIsExplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin() {
-
-            @Override
-            void assertIsPackage() {
-
-            }
-
-            @Override
-            boolean isLinux() {
-                return true;
-            }
-
-            @Override
-            String getEsSDNotify() {
-                return Boolean.FALSE.toString();
-            }
-
-        };
+        final SystemdPlugin plugin = new SystemdPlugin(false, true, Boolean.FALSE.toString());
         assertFalse(plugin.isEnabled());
     }
 
@@ -130,24 +62,7 @@ public class SystemdPluginTests extends ESTestCase {
             s -> Boolean.TRUE.toString().equals(s) || Boolean.FALSE.toString().equals(s),
             () -> randomAlphaOfLength(4));
         final RuntimeException e = expectThrows(RuntimeException.class,
-            () -> new SystemdPlugin() {
-
-                @Override
-                void assertIsPackage() {
-
-                }
-
-                @Override
-                boolean isLinux() {
-                    return true;
-                }
-
-                @Override
-                String getEsSDNotify() {
-                    return esSDNotify;
-                }
-
-            });
+            () -> new SystemdPlugin(false, true, esSDNotify));
         assertThat(e, hasToString(containsString("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]")));
     }
 
@@ -231,22 +146,7 @@ public class SystemdPluginTests extends ESTestCase {
         final AtomicBoolean invoked = new AtomicBoolean();
         final AtomicInteger invokedUnsetEnvironment = new AtomicInteger();
         final AtomicReference<String> invokedState = new AtomicReference<>();
-        final SystemdPlugin plugin = new SystemdPlugin() {
-
-            @Override
-            void assertIsPackage() {
-
-            }
-
-            @Override
-            boolean isLinux() {
-                return isLinux;
-            }
-
-            @Override
-            String getEsSDNotify() {
-                return esSDNotify;
-            }
+        final SystemdPlugin plugin = new SystemdPlugin(false, isLinux, esSDNotify) {
 
             @Override
             int sd_notify(final int unset_environment, final String state) {

@@ -21,7 +21,9 @@ public class PutRoleResponse extends ActionResponse implements ToXContentObject 
 
     private boolean created;
 
-    public PutRoleResponse() {
+    public PutRoleResponse(StreamInput in) throws IOException {
+        super(in);
+        this.created = in.readBoolean();
     }
     
     public PutRoleResponse(boolean created) {
@@ -43,9 +45,4 @@ public class PutRoleResponse extends ActionResponse implements ToXContentObject 
         out.writeBoolean(created);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.created = in.readBoolean();
     }
-}

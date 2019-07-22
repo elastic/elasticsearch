@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,24 +20,21 @@ import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetStatusAction extends StreamableResponseActionType<GetStatusAction.Response> {
+public class GetStatusAction extends ActionType<GetStatusAction.Response> {
     public static final GetStatusAction INSTANCE = new GetStatusAction();
     public static final String NAME = "cluster:admin/ilm/operation_mode/get";
 
     protected GetStatusAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, GetStatusAction.Response::new);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private OperationMode mode;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            mode = in.readEnum(OperationMode.class);
         }
 
         public Response(OperationMode mode) {
@@ -54,11 +51,6 @@ public class GetStatusAction extends StreamableResponseActionType<GetStatusActio
             builder.field("operation_mode", mode);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            mode = in.readEnum(OperationMode.class);
         }
 
         @Override
@@ -92,17 +84,16 @@ public class GetStatusAction extends StreamableResponseActionType<GetStatusActio
 
     public static class Request extends AcknowledgedRequest<Request> {
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         public Request() {
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
         }
 
         @Override

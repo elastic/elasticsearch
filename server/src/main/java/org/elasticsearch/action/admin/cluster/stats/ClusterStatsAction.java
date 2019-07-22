@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class ClusterStatsAction extends StreamableResponseActionType<ClusterStatsResponse> {
+public class ClusterStatsAction extends ActionType<ClusterStatsResponse> {
 
     public static final ClusterStatsAction INSTANCE = new ClusterStatsAction();
     public static final String NAME = "cluster:monitor/stats";
 
     private ClusterStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ClusterStatsResponse newResponse() {
-        return new ClusterStatsResponse();
+        super(NAME, ClusterStatsResponse::new);
     }
 }

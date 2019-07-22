@@ -23,7 +23,7 @@ task restTest(type: RestIntegTestTask) {
 }
 
 testClusters.restTest {
-    distribution = 'DEFAULT'
+    testDistribution = 'DEFAULT'
     setting 'xpack.ilm.enabled', 'true'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'

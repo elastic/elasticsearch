@@ -1,15 +1,12 @@
 [[search]]
-= Search APIs
-
-[partintro]
---
+== Search APIs
 
 Most search APIs are <<search-multi-index,multi-index>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]
 [[search-routing]]
-== Routing
+=== Routing
 
 When executing a search, Elasticsearch will pick the "best" copy of the data
 based on the <<search-adaptive-replica,adaptive replica selection>> formula.
@@ -59,7 +56,7 @@ the routing values match to.
 
 [float]
 [[search-adaptive-replica]]
-== Adaptive Replica Selection
+=== Adaptive Replica Selection
 
 By default, Elasticsearch will use what is called adaptive replica selection.
 This allows the coordinating node to send the request to the copy deemed "best"
@@ -90,7 +87,7 @@ index/indices shards in a round robin fashion between all copies of the data
 
 [float]
 [[stats-groups]]
-== Stats Groups
+=== Stats Groups
 
 A search can be associated with stats groups, which maintains a
 statistics aggregation per group. It can later be retrieved using the
@@ -113,7 +110,7 @@ POST /_search
 
 [float]
 [[global-search-timeout]]
-== Global Search Timeout
+=== Global Search Timeout
 
 Individual searches can have a timeout as part of the
 <<search-request-body>>. Since search requests can originate from many
@@ -130,7 +127,7 @@ Setting this value to `-1` resets the global search timeout to no timeout.
 
 [float]
 [[global-search-cancellation]]
-== Search Cancellation
+=== Search Cancellation
 
 Searches can be cancelled using standard <<task-cancellation,task cancellation>>
 mechanism. By default, a running search only checks if it is cancelled or
@@ -143,7 +140,7 @@ setting only affects the searches that start after the change is made.
 
 [float]
 [[search-concurrency-and-parallelism]]
-== Search concurrency and parallelism
+=== Search concurrency and parallelism
 
 By default Elasticsearch doesn't reject any search requests based on the number
 of shards the request hits. While Elasticsearch will optimize the search
@@ -159,8 +156,6 @@ for the request. This parameter should be used to protect a single request from
 overloading a cluster (e.g., a default request will hit all indices in a cluster
 which could cause shard request rejections if the number of shards per node is
 high). This default value is `5`.
-
---
 
 include::search/search.asciidoc[]
 

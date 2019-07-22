@@ -1,5 +1,8 @@
 [[query-dsl-match-bool-prefix-query]]
-=== Match Bool Prefix Query
+=== Match boolean prefix query
+++++
+<titleabbrev>Match boolean prefix</titleabbrev>
+++++
 
 A `match_bool_prefix` query analyzes its input and constructs a
 <<query-dsl-bool-query,`bool` query>> from the terms. Each term except the last

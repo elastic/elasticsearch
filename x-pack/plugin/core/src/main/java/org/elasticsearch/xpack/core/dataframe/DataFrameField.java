@@ -33,6 +33,7 @@ public final class DataFrameField {
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME_BASED_SYNC = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
     /**

@@ -279,11 +279,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return null;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     public enum Level {
         CLUSTER, INDICES, SHARDS
     }

@@ -1,5 +1,5 @@
-[[suggester-context]]
-=== Context Suggester
+[[context-suggester]]
+==== Context Suggester
 
 The completion suggester considers all documents in the index, but it is often
 desirable to serve suggestions filtered and/or boosted by some criteria.
@@ -87,7 +87,7 @@ is entirely heap resident, you can monitor the completion field index size using
 
 [[suggester-context-category]]
 [float]
-==== Category Context
+===== Category Context
 
 The `category` context allows you to associate one or more categories with suggestions at index
 time. At query time, suggestions can be filtered and boosted by their associated categories.
@@ -131,7 +131,7 @@ of categories.
 
 
 [float]
-===== Category Query
+====== Category Query
 
 Suggestions can be filtered by one or more categories. The following
 filters suggestions by multiple categories:
@@ -220,7 +220,7 @@ maximum score produced by any matching contexts.
 
 [[suggester-context-geo]]
 [float]
-==== Geo location Context
+===== Geo location Context
 
 A `geo` context allows you to associate one or more geo points or geohashes with suggestions
 at index time. At query time, suggestions can be filtered and boosted if they are within
@@ -229,7 +229,7 @@ a certain distance of a specified geo location.
 Internally, geo points are encoded as geohashes with the specified precision.
 
 [float]
-===== Geo Mapping
+====== Geo Mapping
 
 In addition to the `path` setting, `geo` context mapping accepts the following settings:
 
@@ -243,7 +243,7 @@ NOTE: The index time `precision` setting sets the maximum geohash precision that
 can be used at query time.
 
 [float]
-===== Indexing geo contexts
+====== Indexing geo contexts
 
 `geo` contexts can be explicitly set with suggestions or be indexed from a geo point field in the
 document via the `path` parameter, similar to `category` contexts. Associating multiple geo location context
@@ -274,7 +274,7 @@ PUT place/_doc/1
 // CONSOLE
 
 [float]
-===== Geo location Query
+====== Geo location Query
 
 Suggestions can be filtered and boosted with respect to how close they are to one or
 more geo points. The following filters suggestions that fall within the area represented by

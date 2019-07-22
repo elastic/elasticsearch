@@ -32,6 +32,7 @@ import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -718,7 +719,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId()).setIndices("foo").build();
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
-        {
+        try {
             AggregatorFactories.Builder aggs = AggregatorFactories.builder();
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
             // tag::update-datafeed-config
@@ -749,6 +750,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DatafeedConfig updatedDatafeed = response.getResponse(); // <1>
             // end::update-datafeed-response
             assertThat(updatedDatafeed.getId(), equalTo(datafeedId));
+        } catch (WarningFailureException e) {
+            assertThat(
+                e.getResponse().getWarnings(),
+                equalTo(Collections.singletonList("The ability to update datafeed's job_id is deprecated.")));
         }
         {
             DatafeedUpdate datafeedUpdate = new DatafeedUpdate.Builder(datafeedId).setIndices("index_1", "index_2").build();

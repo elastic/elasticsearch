@@ -203,6 +203,9 @@ setup:
 
 ---
 "Test update datafeed to point to different job":
+  - skip:
+      features: "warnings"
+
   - do:
       ml.put_datafeed:
         datafeed_id: test-datafeed-1
@@ -214,6 +217,8 @@ setup:
           }
 
   - do:
+      warnings:
+        - The ability to update datafeed's job_id is deprecated.
       ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >

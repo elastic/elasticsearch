@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -43,6 +45,9 @@ import java.util.stream.Collectors;
  * fields are nullable.
  */
 public class DatafeedUpdate implements Writeable, ToXContentObject {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DatafeedUpdate.class));
+    private static final String DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE = "The ability to update datafeed's job_id is deprecated.";
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
 
@@ -105,6 +110,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
+        if (jobId != null) {
+            deprecationLogger.deprecated(DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
+        }
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {

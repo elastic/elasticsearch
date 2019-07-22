@@ -1373,8 +1373,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getStage() == RecoveryState.Stage.INDEX : "unexpected recovery stage [" + recoveryState.getStage() + "]";
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
         final Optional<SequenceNumbers.CommitInfo> safeCommit;
+        final long globalCheckpoint;
         try {
-            safeCommit = store.findSafeIndexCommit(translogConfig.getTranslogPath());
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            safeCommit = store.findSafeIndexCommit(globalCheckpoint);
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
             logger.trace("skip local recovery as no index commit found");
             return UNASSIGNED_SEQ_NO;
@@ -1386,14 +1389,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("skip local recovery as no safe commit found");
             return UNASSIGNED_SEQ_NO;
         }
+        assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
         try {
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-            assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
             maybeCheckIndex(); // check index here and won't do it again if ops-based recovery occurs
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             if (safeCommit.get().localCheckpoint == globalCheckpoint) {
-                logger.trace("skip local recovery as the safe commit is up to date");
+                logger.trace("skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
+                    safeCommit.get(), globalCheckpoint);
                 return globalCheckpoint + 1;
             }
             try {
@@ -1412,12 +1414,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         } catch (Exception e) {
-            logger.debug("failed to recover shard locally up to the global checkpoint", e);
+            logger.debug(new ParameterizedMessage("failed to recover shard locally up to global checkpoint {}", globalCheckpoint), e);
             return UNASSIGNED_SEQ_NO;
         }
         try {
             // we need to find the safe commit again as we should have created a new one during the local recovery
-            final Optional<SequenceNumbers.CommitInfo> newSafeCommit = store.findSafeIndexCommit(translogConfig.getTranslogPath());
+            final Optional<SequenceNumbers.CommitInfo> newSafeCommit = store.findSafeIndexCommit(globalCheckpoint);
             assert newSafeCommit.isPresent() : "no safe commit found after local recovery";
             return newSafeCommit.get().localCheckpoint + 1;
         } catch (Exception e) {

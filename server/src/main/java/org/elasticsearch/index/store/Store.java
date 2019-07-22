@@ -1564,9 +1564,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a {@link org.elasticsearch.index.seqno.SequenceNumbers.CommitInfo} of the safe commit if exists.
      */
-    public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(Path translogPath) throws IOException {
-        final String translogUUID = readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
+    public Optional<SequenceNumbers.CommitInfo> findSafeIndexCommit(long globalCheckpoint) throws IOException {
         final List<IndexCommit> commits = DirectoryReader.listCommits(directory);
         assert commits.isEmpty() == false : "no commit found";
         final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);

@@ -1361,18 +1361,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * If a file-based recovery occurs, a recovery target calls this method to reset the recovery stage.
-     */
-    public void resetRecoveryStage() {
-        if (state != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, state);
-        }
-        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        assert currentEngineReference.get() == null;
-        recoveryState.setStage(RecoveryState.Stage.INIT);
-    }
-
-    /**
      * A best effort to bring up this shard to the global checkpoint using the local translog before performing a peer recovery.
      *
      * @return a sequence number that an operation-based peer recovery can start with.
@@ -1627,14 +1615,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void performRecoveryRestart() throws IOException {
         synchronized (mutex) {
-            if (state != IndexShardState.RECOVERING) {
-                throw new IndexShardNotRecoveringException(shardId, state);
-            }
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            final Engine engine = this.currentEngineReference.getAndSet(null);
-            IOUtils.close(engine);
-            recoveryState().setStage(RecoveryState.Stage.INIT);
+            IOUtils.close(currentEngineReference.getAndSet(null));
+            resetRecoveryStage();
         }
+    }
+
+    /**
+     * If a file-based recovery occurs, a recovery target calls this method to reset the recovery stage.
+     */
+    public void resetRecoveryStage() {
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+        assert currentEngineReference.get() == null;
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState().setStage(RecoveryState.Stage.INIT);
     }
 
     /**

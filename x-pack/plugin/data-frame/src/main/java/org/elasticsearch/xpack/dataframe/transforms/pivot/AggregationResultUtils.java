@@ -75,13 +75,15 @@ public final class AggregationResultUtils {
             aggNames.addAll(pipelineAggs.stream().map(PipelineAggregationBuilder::getName).collect(Collectors.toList()));
 
             for (String aggName: aggNames) {
-                final String fieldType = fieldTypeMap.get(aggName);
-
-                // TODO: support other aggregation types
                 Aggregation aggResult = bucket.getAggregations().get(aggName);
-
-                AggValueExtractor extractor = getExtractor(aggResult);
-                updateDocument(document, aggName, extractor.value(aggResult, fieldType));
+                // This indicates not that the value contained in the `aggResult` is null, but that the `aggResult` is not
+                // present at all in the `bucket.getAggregations`. This could occur in the case of a `bucket_selector` agg, which
+                // does not calculate a value, but instead manipulates other results.
+                if (aggResult != null) {
+                    final String fieldType = fieldTypeMap.get(aggName);
+                    AggValueExtractor extractor = getExtractor(aggResult);
+                    updateDocument(document, aggName, extractor.value(aggResult, fieldType));
+                }
             }
 
             document.put(DataFrameField.DOCUMENT_ID_FIELD, idGen.getID());

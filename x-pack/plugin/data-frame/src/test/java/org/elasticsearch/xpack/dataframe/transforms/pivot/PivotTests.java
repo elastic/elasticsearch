@@ -217,6 +217,12 @@ public class PivotTests extends ESTestCase {
                 "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
                 "\"script\":\"return params.param_1\"}}}");
         }
+        if (agg.equals(AggregationType.BUCKET_SELECTOR.getName())) {
+            return parseAggregations("{\"pivot_bucket_selector\":{" +
+                "\"bucket_selector\":{" +
+                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
+                "\"script\":\"params.param_1 > 42.0\"}}}");
+        }
         if (agg.equals(AggregationType.WEIGHTED_AVG.getName())) {
             return parseAggregations("{\n" +
                 "\"pivot_weighted_avg\": {\n" +

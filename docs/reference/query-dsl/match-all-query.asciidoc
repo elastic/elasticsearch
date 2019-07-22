@@ -1,5 +1,8 @@
 [[query-dsl-match-all-query]]
 == Match all query
+++++
+<titleabbrev>Match all</titleabbrev>
+++++
 
 Returns all documents in an index.
 

@@ -26,7 +26,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -45,7 +44,7 @@ import java.util.Map;
 /**
  * Keeps track of state related to shard recovery.
  */
-public class RecoveryState implements ToXContentFragment, Streamable, Writeable {
+public class RecoveryState implements ToXContentFragment, Writeable {
 
     public enum Stage {
         INIT((byte) 0),
@@ -251,11 +250,6 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
 
     public static RecoveryState readRecoveryState(StreamInput in) throws IOException {
         return new RecoveryState(in);
-    }
-
-    @Override
-    public synchronized void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -954,7 +948,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             }
         }
 
-        public File getFileDetails(String dest) {
+        public synchronized File getFileDetails(String dest) {
             return fileDetails.get(dest);
         }
     }

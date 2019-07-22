@@ -8,17 +8,15 @@
 <titleabbrev>Start {dataframe-transforms}</titleabbrev>
 ++++
 
-beta[]
-
 Starts one or more {dataframe-transforms}.
 
-[discrete]
+beta[]
+
 [[start-data-frame-transform-request]]
 ==== {api-request-title}
 
 `POST _data_frame/transforms/<data_frame_transform_id>/_start`
 
-[discrete]
 [[start-data-frame-transform-prereqs]]
 ==== {api-prereq-title}
 
@@ -29,16 +27,14 @@ have `view_index_metadata` privileges on the source index for the
 {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[discrete]
 [[start-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>` (Required)::
-  (string) Identifier for the {dataframe-transform}. This identifier can contain
-  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+`<data_frame_transform_id>`::
+  (Required, string) Identifier for the {dataframe-transform}. This identifier
+  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
 
-[discrete]
 [[start-data-frame-transform-example]]
 ==== {api-examples-title}
 

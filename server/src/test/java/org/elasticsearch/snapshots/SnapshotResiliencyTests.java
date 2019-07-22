@@ -108,6 +108,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -152,6 +153,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -203,9 +205,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private Path tempDir;
 
+    /**
+     * Context shared by all the node's {@link Repository} instances if the eventually consistent blobstore is to be used.
+     * {@code null} if not using the eventually consistent blobstore.
+     */
+    @Nullable private MockEventuallyConsistentRepository.Context blobStoreContext;
+
     @Before
     public void createServices() {
         tempDir = createTempDir();
+        if (randomBoolean()) {
+            blobStoreContext = new MockEventuallyConsistentRepository.Context();
+        }
         deterministicTaskQueue =
             new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "shared").build(), random());
     }
@@ -213,6 +224,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
     @After
     public void verifyReposThenStopServices() {
         try {
+            if (blobStoreContext != null) {
+                blobStoreContext.forceConsistent();
+            }
             BlobStoreTestUtil.assertConsistency(
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
                 Runnable::run);
@@ -654,7 +668,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private static ClusterState stateForNode(ClusterState state, DiscoveryNode node) {
-        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
+        // Remove and add back local node to update ephemeral id on restarts
+        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(
+            state.nodes()).remove(node.getId()).add(node).localNodeId(node.getId())).build();
     }
 
     private final class TestClusterNodes {
@@ -753,7 +769,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             disconnectedNodes.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
-                    testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
+                    testClusterNodes.nodes.values().forEach(n -> n.transportService.openConnection(node, null));
                 }
             });
         }
@@ -898,19 +914,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
             repositoriesService = new RepositoriesService(
                 settings, clusterService, transportService,
-                Collections.singletonMap(FsRepository.TYPE, metaData -> {
-                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
-                            @Override
-                            protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        };
-                        repository.start();
-                        return repository;
-                    }
-                ),
-                emptyMap(),
-                threadPool
+                Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool
             );
             snapshotsService =
                 new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);
@@ -953,6 +957,16 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 new BatchedRerouteService(clusterService, allocationService::reroute),
                 threadPool
             );
+            Map<ActionType, TransportAction> actions = new HashMap<>();
+            actions.put(GlobalCheckpointSyncAction.TYPE,
+                new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
+                    threadPool, shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseBackgroundSyncAction.TYPE,
+                new RetentionLeaseBackgroundSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
+            actions.put(RetentionLeaseSyncAction.TYPE,
+                new RetentionLeaseSyncAction(settings, transportService, clusterService, indicesService, threadPool,
+                    shardStateAction, actionFilters, indexNameExpressionResolver));
             final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
             indicesClusterStateService = new IndicesClusterStateService(
                 settings,
@@ -978,34 +992,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         shardStateAction,
                         actionFilters,
                         indexNameExpressionResolver)),
-                new GlobalCheckpointSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                new RetentionLeaseSyncAction(
-                    settings,
-                    transportService,
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    shardStateAction,
-                    actionFilters,
-                    indexNameExpressionResolver),
-                    new RetentionLeaseBackgroundSyncAction(
-                            settings,
-                            transportService,
-                            clusterService,
-                            indicesService,
-                            threadPool,
-                            shardStateAction,
-                            actionFilters,
-                            indexNameExpressionResolver));
-            Map<ActionType, TransportAction> actions = new HashMap<>();
+                client);
             final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
                 indicesService,
                 allocationService, new AliasValidator(), environment, indexScopedSettings,
@@ -1081,9 +1068,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             actions.put(IndicesShardStoresAction.INSTANCE,
                 new TransportIndicesShardStoresAction(
                     transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                    new TransportNodesListGatewayStartedShards(settings,
-                        threadPool, clusterService, transportService, actionFilters, nodeEnv, indicesService, namedXContentRegistry))
-            );
+                    client));
+            actions.put(TransportNodesListGatewayStartedShards.TYPE, new TransportNodesListGatewayStartedShards(settings,
+                threadPool, clusterService, transportService, actionFilters, nodeEnv, indicesService, namedXContentRegistry));
             actions.put(DeleteSnapshotAction.INSTANCE,
                 new TransportDeleteSnapshotAction(
                     transportService, clusterService, threadPool,
@@ -1092,6 +1079,28 @@ public class SnapshotResiliencyTests extends ESTestCase {
             client.initialize(actions, () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
         }
 
+        private Repository.Factory getRepoFactory(Environment environment) {
+            // Run half the tests with the eventually consistent repository
+            if (blobStoreContext == null) {
+                return metaData -> {
+                    final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
+                        @Override
+                        protected void assertSnapshotOrGenericThread() {
+                            // eliminate thread name check as we create repo in the test thread
+                        }
+                    };
+                    repository.start();
+                    return repository;
+                };
+            } else {
+                return metaData -> {
+                    final Repository repository = new MockEventuallyConsistentRepository(
+                        metaData, environment, xContentRegistry(), deterministicTaskQueue.getThreadPool(), blobStoreContext);
+                    repository.start();
+                    return repository;
+                };
+            }
+        }
         public void restart() {
             testClusterNodes.disconnectNode(this);
             final ClusterState oldState = this.clusterService.state();

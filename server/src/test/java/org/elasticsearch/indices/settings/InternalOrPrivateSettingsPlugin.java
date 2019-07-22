@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -63,13 +63,13 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
     }
 
-    public static class UpdateInternalOrPrivateAction extends StreamableResponseActionType<UpdateInternalOrPrivateAction.Response> {
+    public static class UpdateInternalOrPrivateAction extends ActionType<UpdateInternalOrPrivateAction.Response> {
 
         public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
         private static final String NAME = "indices:admin/settings/update-internal-or-private-index";
 
         public UpdateInternalOrPrivateAction() {
-            super(NAME);
+            super(NAME, UpdateInternalOrPrivateAction.Response::new);
         }
 
         public static class Request extends MasterNodeRequest<Request> {
@@ -78,8 +78,13 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             private String key;
             private String value;
 
-            Request() {
+            Request() {}
 
+            Request(StreamInput in) throws IOException {
+                super(in);
+                index = in.readString();
+                key = in.readString();
+                value = in.readString();
             }
 
             public Request(final String index, final String key, final String value) {
@@ -94,14 +99,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             }
 
             @Override
-            public void readFrom(final StreamInput in) throws IOException {
-                super.readFrom(in);
-                index = in.readString();
-                key = in.readString();
-                value = in.readString();
-            }
-
-            @Override
             public void writeTo(final StreamOutput out) throws IOException {
                 super.writeTo(out);
                 out.writeString(index);
@@ -112,12 +109,14 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         static class Response extends ActionResponse {
+            Response() {}
 
-        }
+            Response(StreamInput in) throws IOException {
+                super(in);
+            }
 
-        @Override
-        public UpdateInternalOrPrivateAction.Response newResponse() {
-            return new UpdateInternalOrPrivateAction.Response();
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {}
         }
 
     }
@@ -138,8 +137,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                     clusterService,
                     threadPool,
                     actionFilters,
-                    indexNameExpressionResolver,
-                    UpdateInternalOrPrivateAction.Request::new);
+                    UpdateInternalOrPrivateAction.Request::new,
+                    indexNameExpressionResolver);
         }
 
         @Override
@@ -148,8 +147,8 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         }
 
         @Override
-        protected UpdateInternalOrPrivateAction.Response newResponse() {
-            return new UpdateInternalOrPrivateAction.Response();
+        protected UpdateInternalOrPrivateAction.Response read(StreamInput in) throws IOException {
+            return new UpdateInternalOrPrivateAction.Response(in);
         }
 
         @Override

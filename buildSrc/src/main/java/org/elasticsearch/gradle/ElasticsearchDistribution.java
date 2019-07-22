@@ -20,7 +20,9 @@
 package org.elasticsearch.gradle;
 
 import org.gradle.api.Buildable;
+import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
@@ -28,6 +30,7 @@ import org.gradle.api.tasks.TaskDependency;
 import java.io.File;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.concurrent.Callable;
 
 public class ElasticsearchDistribution implements Buildable {
 
@@ -65,7 +68,7 @@ public class ElasticsearchDistribution implements Buildable {
     }
 
     // package private to tests can use
-    static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
+    public static final Platform CURRENT_PLATFORM = OS.<Platform>conditional()
         .onLinux(() -> Platform.LINUX)
         .onWindows(() -> Platform.WINDOWS)
         .onMac(() -> Platform.DARWIN)
@@ -88,6 +91,10 @@ public class ElasticsearchDistribution implements Buildable {
         @Override
         public TaskDependency getBuildDependencies() {
             return configuration.getBuildDependencies();
+        }
+
+        public FileTree getFileTree(Project project) {
+            return project.fileTree((Callable<File>) configuration::getSingleFile);
         }
 
         @Override

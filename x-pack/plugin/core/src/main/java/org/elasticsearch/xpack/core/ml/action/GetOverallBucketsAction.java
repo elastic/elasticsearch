@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -47,18 +46,13 @@ import java.util.function.LongSupplier;
  * the interval.
  * </p>
  */
-public class GetOverallBucketsAction extends StreamableResponseActionType<GetOverallBucketsAction.Response> {
+public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.Response> {
 
     public static final GetOverallBucketsAction INSTANCE = new GetOverallBucketsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/overall_buckets/get";
 
     private GetOverallBucketsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -115,6 +109,18 @@ public class GetOverallBucketsAction extends StreamableResponseActionType<GetOve
         private boolean allowNoJobs = true;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            topN = in.readVInt();
+            bucketSpan = in.readOptionalTimeValue();
+            overallScore = in.readDouble();
+            excludeInterim = in.readBoolean();
+            start = in.readOptionalLong();
+            end = in.readOptionalLong();
+            allowNoJobs = in.readBoolean();
         }
 
         public Request(String jobId) {
@@ -202,19 +208,6 @@ public class GetOverallBucketsAction extends StreamableResponseActionType<GetOve
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            topN = in.readVInt();
-            bucketSpan = in.readOptionalTimeValue();
-            overallScore = in.readDouble();
-            excludeInterim = in.readBoolean();
-            start = in.readOptionalLong();
-            end = in.readOptionalLong();
-            allowNoJobs = in.readBoolean();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
@@ -282,8 +275,8 @@ public class GetOverallBucketsAction extends StreamableResponseActionType<GetOve
 
     public static class Response extends AbstractGetResourcesResponse<OverallBucket> implements ToXContentObject {
 
-        public Response() {
-            super(new QueryPage<>(Collections.emptyList(), 0, OverallBucket.RESULTS_FIELD));
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(QueryPage<OverallBucket> overallBuckets) {

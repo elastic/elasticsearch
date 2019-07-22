@@ -19,8 +19,10 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -30,7 +32,7 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     @Override
     protected Rectangle createTestInstance(boolean hasAlt) {
         assumeFalse("3rd dimension is not supported yet", hasAlt);
-        return randomRectangle();
+        return GeometryTestUtils.randomRectangle();
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
@@ -59,5 +61,11 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
         ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new Rectangle(1, 2, 2, 3, 5, Double.NaN)));
         assertEquals("only one altitude value is specified", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new Rectangle(30, 40, 50, 10, 20, 60)));
+        assertEquals("found Z value [20.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new Rectangle(30, 40, 50, 10, 20, 60));
     }
 }

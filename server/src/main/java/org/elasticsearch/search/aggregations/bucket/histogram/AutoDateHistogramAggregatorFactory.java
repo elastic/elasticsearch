@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 public final class AutoDateHistogramAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AutoDateHistogramAggregatorFactory> {
+        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final int numBuckets;
     private RoundingInfo[] roundingInfos;
@@ -45,7 +45,7 @@ public final class AutoDateHistogramAggregatorFactory
                                               int numBuckets,
                                               RoundingInfo[] roundingInfos,
                                               SearchContext context,
-                                              AggregatorFactory<?> parent,
+                                              AggregatorFactory parent,
                                               AggregatorFactories.Builder subFactoriesBuilder,
                                               Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);

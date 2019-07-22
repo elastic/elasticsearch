@@ -19,8 +19,10 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -29,7 +31,7 @@ import java.text.ParseException;
 public class PointTests extends BaseGeometryTestCase<Point> {
     @Override
     protected Point createTestInstance(boolean hasAlt) {
-        return randomPoint(hasAlt);
+        return GeometryTestUtils.randomPoint(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
@@ -51,6 +53,11 @@ public class PointTests extends BaseGeometryTestCase<Point> {
 
         ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Point(10, 500)));
         assertEquals("invalid longitude 500.0; must be between -180.0 and 180.0", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(new Point(1, 2, 3)));
+        assertEquals("found Z value [3.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new Point(1, 2, 3));
     }
 
     public void testWKTValidation() {

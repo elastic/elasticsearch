@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps.RollupFieldCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.time.ZoneId;
@@ -45,12 +46,19 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
     private final DatafeedConfig datafeedConfig;
     private final Job job;
     private final NamedXContentRegistry xContentRegistry;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
 
-    private RollupDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, NamedXContentRegistry xContentRegistry) {
+    private RollupDataExtractorFactory(
+            Client client,
+            DatafeedConfig datafeedConfig,
+            Job job,
+            NamedXContentRegistry xContentRegistry,
+            DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
         this.xContentRegistry = xContentRegistry;
+        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
     }
 
     @Override
@@ -67,7 +75,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             Intervals.alignToFloor(end, histogramInterval),
             job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
             datafeedConfig.getHeaders());
-        return new RollupDataExtractor(client, dataExtractorContext);
+        return new RollupDataExtractor(client, dataExtractorContext, timingStatsReporter);
     }
 
     public static void create(Client client,
@@ -75,6 +83,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                               Job job,
                               Map<String, RollableIndexCaps> rollupJobsWithCaps,
                               NamedXContentRegistry xContentRegistry,
+                              DatafeedTimingStatsReporter timingStatsReporter,
                               ActionListener<DataExtractorFactory> listener) {
 
         final AggregationBuilder datafeedHistogramAggregation = getHistogramAggregation(
@@ -108,7 +117,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             );
             return;
         }
-        final List<ValuesSourceAggregationBuilder> flattenedAggs = new ArrayList<>();
+        final List<ValuesSourceAggregationBuilder<?, ?>> flattenedAggs = new ArrayList<>();
         flattenAggregations(datafeed.getParsedAggregations(xContentRegistry)
             .getAggregatorFactories(), datafeedHistogramAggregation, flattenedAggs);
 
@@ -119,7 +128,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             return;
         }
 
-        listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job, xContentRegistry));
+        listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter));
     }
 
     private static boolean validInterval(long datafeedInterval, ParsedRollupCaps rollupJobGroupConfig) {
@@ -139,7 +148,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
     private static void flattenAggregations(final Collection<AggregationBuilder> datafeedAggregations,
                                             final AggregationBuilder datafeedHistogramAggregation,
-                                            final List<ValuesSourceAggregationBuilder> flattenedAggregations) {
+                                            final List<ValuesSourceAggregationBuilder<?, ?>> flattenedAggregations) {
         for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
             if (aggregationBuilder.equals(datafeedHistogramAggregation) == false) {
                 flattenedAggregations.add((ValuesSourceAggregationBuilder)aggregationBuilder);
@@ -148,8 +157,8 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         }
     }
 
-    private static boolean hasAggregations(ParsedRollupCaps rollupCaps, List<ValuesSourceAggregationBuilder> datafeedAggregations) {
-        for (ValuesSourceAggregationBuilder aggregationBuilder : datafeedAggregations) {
+    private static boolean hasAggregations(ParsedRollupCaps rollupCaps, List<ValuesSourceAggregationBuilder<?,?>> datafeedAggregations) {
+        for (ValuesSourceAggregationBuilder<?,?> aggregationBuilder : datafeedAggregations) {
             String type = aggregationBuilder.getType();
             String field = aggregationBuilder.field();
             if (aggregationBuilder instanceof TermsAggregationBuilder) {

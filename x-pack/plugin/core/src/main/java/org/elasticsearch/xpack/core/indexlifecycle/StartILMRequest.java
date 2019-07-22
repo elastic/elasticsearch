@@ -8,8 +8,16 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public class StartILMRequest extends AcknowledgedRequest<StartILMRequest> {
+
+    public StartILMRequest(StreamInput in) throws IOException {
+        super(in);
+
+    }
 
     public StartILMRequest() {
     }

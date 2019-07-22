@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -183,7 +184,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
-        transportAction.execute(
+        ActionTestUtils.execute(transportAction, null,
                 new ShardChangesAction.Request(new ShardId(new Index("non-existent", "uuid"), 0), "uuid"),
                 new ActionListener<ShardChangesAction.Response>() {
                     @Override
@@ -208,7 +209,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
-        transportAction.execute(
+        ActionTestUtils.execute(transportAction, null,
                 new ShardChangesAction.Request(new ShardId(indexService.getMetaData().getIndex(), numberOfShards), "uuid"),
                 new ActionListener<ShardChangesAction.Response>() {
                     @Override

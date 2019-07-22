@@ -81,7 +81,50 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         }
     }
 
-    GetIndexResponse() {
+    GetIndexResponse(StreamInput in) throws IOException {
+        super(in);
+        this.indices = in.readStringArray();
+
+        int mappingsSize = in.readVInt();
+        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMapBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < mappingsSize; i++) {
+            String key = in.readString();
+            int valueSize = in.readVInt();
+            ImmutableOpenMap.Builder<String, MappingMetaData> mappingEntryBuilder = ImmutableOpenMap.builder();
+            for (int j = 0; j < valueSize; j++) {
+                mappingEntryBuilder.put(in.readString(), new MappingMetaData(in));
+            }
+            mappingsMapBuilder.put(key, mappingEntryBuilder.build());
+        }
+        mappings = mappingsMapBuilder.build();
+
+        int aliasesSize = in.readVInt();
+        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesMapBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < aliasesSize; i++) {
+            String key = in.readString();
+            int valueSize = in.readVInt();
+            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>(valueSize);
+            for (int j = 0; j < valueSize; j++) {
+                aliasEntryBuilder.add(new AliasMetaData(in));
+            }
+            aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
+        }
+        aliases = aliasesMapBuilder.build();
+
+        int settingsSize = in.readVInt();
+        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
+        for (int i = 0; i < settingsSize; i++) {
+            String key = in.readString();
+            settingsMapBuilder.put(key, Settings.readSettingsFromStream(in));
+        }
+        settings = settingsMapBuilder.build();
+
+        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
+        int defaultSettingsSize = in.readVInt();
+        for (int i = 0; i < defaultSettingsSize; i++) {
+            defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
+        }
+        defaultSettings = defaultSettingsMapBuilder.build();
     }
 
     public String[] indices() {
@@ -153,55 +196,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.indices = in.readStringArray();
-
-        int mappingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < mappingsSize; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappingEntryBuilder = ImmutableOpenMap.builder();
-            for (int j = 0; j < valueSize; j++) {
-                mappingEntryBuilder.put(in.readString(), new MappingMetaData(in));
-            }
-            mappingsMapBuilder.put(key, mappingEntryBuilder.build());
-        }
-        mappings = mappingsMapBuilder.build();
-
-        int aliasesSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < aliasesSize; i++) {
-            String key = in.readString();
-            int valueSize = in.readVInt();
-            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>(valueSize);
-            for (int j = 0; j < valueSize; j++) {
-                aliasEntryBuilder.add(new AliasMetaData(in));
-            }
-            aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
-        }
-        aliases = aliasesMapBuilder.build();
-
-        int settingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < settingsSize; i++) {
-            String key = in.readString();
-            settingsMapBuilder.put(key, Settings.readSettingsFromStream(in));
-        }
-        settings = settingsMapBuilder.build();
-
-        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
-        int defaultSettingsSize = in.readVInt();
-        for (int i = 0; i < defaultSettingsSize; i++) {
-            defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-        }
-        defaultSettings = defaultSettingsMapBuilder.build();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeStringArray(indices);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {

@@ -1,5 +1,8 @@
 [[nested]]
 === Nested datatype
+++++
+<titleabbrev>Nested</titleabbrev>
+++++
 
 The `nested` type is a specialised version of the <<object,`object`>> datatype
 that allows arrays of objects to be indexed in a way that they can be queried 
@@ -171,8 +174,8 @@ For instance, if a string field within a nested document has
 during the highlighting, these offsets will not be available during the main highlighting
 phase.  Instead, highlighting needs to be performed via
 <<nested-inner-hits,nested inner hits>>. The same consideration applies when loading
-fields during a search through <<search-request-docvalue-fields, `docvalue_fields`>>
-or <<search-request-stored-fields, `stored_fields`>>.
+fields during a search through <<request-body-search-docvalue-fields, `docvalue_fields`>>
+or <<request-body-search-stored-fields, `stored_fields`>>.
 
 =============================================
 

@@ -19,7 +19,10 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     private Boolean closed = false;
     private Object lastPopped = null;
 
-    public Object getResult() {
+    public Object getResult() throws Exception {
+        if (stack.size() > 0) {
+            throw new Exception("JavaUtilXContentGenerator has unfinished objects or arrays on stack.");
+        }
         return lastPopped;
     }
 

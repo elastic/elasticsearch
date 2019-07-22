@@ -22,14 +22,14 @@ public class GqlApiUtils {
         return builder;
     }
 
-    static Object getJavaUtilBuilderResult(XContentBuilder builder) {
+    static Object getJavaUtilBuilderResult(XContentBuilder builder) throws Exception {
         builder.close();
         JavaUtilXContentGenerator generator = (JavaUtilXContentGenerator) builder.generator();
         return generator.getResult();
     }
 
     @SuppressWarnings("unchecked")
-    static Map<String, Object> toMap(ToXContentObject response) throws IOException {
+    static Map<String, Object> toMap(ToXContentObject response) throws Exception {
         XContentBuilder builder = createJavaUtilBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return (Map) getJavaUtilBuilderResult(builder);

@@ -83,7 +83,7 @@ processTestResources {
   from({ zipTree(configurations.restSpec.singleFile) }) {
     include 'rest-api-spec/api/**'
   }
-  from(project(':client:rest-high-level')).file('src/test/resources')
+  from(project(':client:rest-high-level').file('src/test/resources'))
 }
 
 dependencyLicenses {

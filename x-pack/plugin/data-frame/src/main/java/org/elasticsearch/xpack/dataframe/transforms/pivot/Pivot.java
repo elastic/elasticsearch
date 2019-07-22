@@ -69,17 +69,28 @@ public class Pivot {
         this.supportsIncrementalBucketUpdate = supportsIncrementalBucketUpdate;
     }
 
-    public void validate(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
-        // step 1: check if used aggregations are supported
+    public void validateConfig() {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (Aggregations.isSupportedByDataframe(agg.getType()) == false) {
-                listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));
-                return;
+                throw new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]");
             }
         }
+    }
 
-        // step 2: run a query to validate that config is valid
-        runTestQuery(client, sourceConfig, listener);
+    public void validateQuery(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
+        SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
+
+        client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
+            if (response == null) {
+                listener.onFailure(new RuntimeException("Unexpected null response from test query"));
+                return;
+            }
+            if (response.status() != RestStatus.OK) {
+                listener.onFailure(new RuntimeException("Unexpected status from response of test query: "+ response.status()));
+                return;
+            }
+            listener.onResponse(true);
+        }, e -> listener.onFailure(new RuntimeException("Failed to test query", e))));
     }
 
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
@@ -164,24 +175,6 @@ public class Pivot {
             dataFrameIndexerTransformStats);
     }
 
-    private void runTestQuery(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
-        SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
-
-        client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
-            if (response == null) {
-                listener.onFailure(new RuntimeException("Unexpected null response from test query"));
-                return;
-            }
-            if (response.status() != RestStatus.OK) {
-                listener.onFailure(new RuntimeException("Unexpected status from response of test query: " + response.status()));
-                return;
-            }
-            listener.onResponse(true);
-        }, e->{
-            listener.onFailure(new RuntimeException("Failed to test query", e));
-        }));
-    }
-
     public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
 
         if (changedBuckets == null || changedBuckets.isEmpty()) {
@@ -247,4 +240,5 @@ public class Pivot {
         }
         return compositeAggregation;
     }
+
 }

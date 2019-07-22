@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
@@ -37,6 +38,7 @@ import java.util.StringJoiner;
  */
 public class FieldHitExtractor implements HitExtractor {
 
+    private static final Version SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION = Version.V_7_4_0;
     /**
      * Stands for {@code field}. We try to use short names for {@link HitExtractor}s
      * to save a few bytes when when we send them back to the user.
@@ -88,7 +90,11 @@ public class FieldHitExtractor implements HitExtractor {
 
     FieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
-        fullFieldName = in.readOptionalString();
+        if (in.getVersion().onOrAfter(SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION)) {
+            fullFieldName = in.readOptionalString();
+        } else {
+            fullFieldName = null;
+        }
         String esType = in.readOptionalString();
         dataType = esType != null ? DataType.fromTypeName(esType) : null;
         zoneId = ZoneId.of(in.readString());
@@ -106,7 +112,9 @@ public class FieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeOptionalString(fullFieldName);
+        if (out.getVersion().onOrAfter(SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION)) {
+            out.writeOptionalString(fullFieldName);
+        }
         out.writeOptionalString(dataType == null ? null : dataType.typeName);
         out.writeString(zoneId.getId());
         out.writeBoolean(useDocValue);

@@ -141,6 +141,12 @@ teardown:
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
             }
           }
 

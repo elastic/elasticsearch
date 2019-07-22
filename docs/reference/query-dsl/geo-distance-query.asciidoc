@@ -1,15 +1,25 @@
 [[query-dsl-geo-distance-query]]
-=== Geo-distance query
+=== Geo distance query
 ++++
-<titleabbrev>Geo-distance</titleabbrev>
+<titleabbrev>Geo distance</titleabbrev>
 ++++
 
-Filters documents that include only hits that exists within a specific
-distance from a geo point. Assuming the following mapping and indexed
-document:
+Returns documents containing a point location, or <<geo-point,geopoint>>,
+within a provided distance from another geopoint.
 
+[[geo-distance-query-ex-request]]
+==== Example request
+
+[[geo-distance-query-index-setup]]
+===== Index setup
+To see how you can set up an index for the `geo_distance` query, try the
+following example.
+
+. Create an index with a <<geo-point,geopoint>> field mapping.
++
+--
 [source,js]
---------------------------------------------------
+----
 PUT /my_locations
 {
     "mappings": {
@@ -24,7 +34,16 @@ PUT /my_locations
         }
     }
 }
+----
+// CONSOLE
+// TESTSETUP
+--
 
+. Index a document with a value in the geopoint field.
++
+--
+[source,js]
+----
 PUT /my_locations/_doc/1
 {
     "pin" : {
@@ -34,16 +53,18 @@ PUT /my_locations/_doc/1
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
-// TESTSETUP
+--
 
+[[geo-bbox-query-ex-query]]
+===== Example query
+The following search uses a `bool` query with a nested `geo_distance`
+<<query-dsl-bool-query,filter>> to find the indexed geopoint.
 
-Then the following simple query can be executed with a `geo_distance`
-filter:
 
 [source,js]
---------------------------------------------------
+----
 GET /my_locations/_search
 {
     "query": {
@@ -63,20 +84,140 @@ GET /my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-==== Accepted Formats
+[[geo-distance-top-level-params]]
+==== Top-level parameters for `geo_distance`
 
-In much the same way the `geo_point` type can accept different
-representations of the geo point, the filter can accept it as well:
+`<field>`::
++
+--
+(Required, <<geo-point, geopoint object>>)
+<<geo-point,Geopoint>> field you wish to search. If this is not a
+<<geo-point,geopoint>> field, {es} returns an error.
 
-[float]
-===== Lat Lon As Properties
+The value of this parameter is a <<geo-point,geopoint>> object. The query
+returns documents containing geopoints within a provided distance of this
+geopoint.
+
+See <<geo-distance-accepted-formats>> for a list of supported formats.
+--
+
+`distance`::
+(Required, <<distance-units, distance unit>>) Radius of the circle centered on
+the geopoint provided in the `<field>` parameter. The query returns documents
+containing geopoints within this circle.
+
+`distance_type`::
++
+--
+(Optional, string) Indicates how to compute the distance. Valid values are:
+
+* `ARC` (Default)
+* `PLANE`
+
+`PLANE` is faster but inaccurate on long distances and close to the poles.
+--
+
+`ignore_unmapped`::
++
+--
+(Optional, boolean) Indicates whether to ignore an unmapped `<field>` and not
+return any documents instead of an error. Defaults to `false`.
+
+If `false`, {es} returns an error if the `<field>` is unmapped.
+
+You can use this parameter to query multiple indices that may not contain the
+`<field>`.
+--
+
+`validation_method`::
++
+--
+(Optional, string) Indicates whether the query accepts an invalid geopoint in
+the `<field>` parameter.
+
+`STRICT` (Default):: Do not accept an invalid geopoint.
+
+`COERCE`:: Accepts an invalid geopoint. Attempt to infer the correct latitude
+and longitude of the geopoint.
+
+`IGNORE_MALFORMED`:: Accepts an invalid geopoint Do not attempt to infer the
+correct latitude and longitude of the geopoint.
+--
+
+
+[[geo-distance-query-notes]]
+==== Notes
+
+[[geo-distance-accepted-formats]]
+===== Accepted geopoint formats
+Like the <<geo-point,geopoint datatype>>, the `<field>` parameter accepts 
+the following geopoint formats:
+
+* <<geo-distance-format-array,Array>>
+* <<geo-distance-format-geohash,Geohash>>
+* <<geo-distance-format-property,Property>>
+* <<geo-distance-format-string,String>>
+
+[[geo-distance-format-array]]
+====== Array
+The following search uses the `[longitude, latitude]` array format. Note the
+longitude-latitude order conforms with http://geojson.org/[GeoJSON].
 
 [source,js]
---------------------------------------------------
+----
+GET /my_locations/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : [-70, 40]
+                }
+            }
+        }
+    }
+}
+----
+// CONSOLE
+
+[[geo-distance-format-geohash]]
+===== Geohash
+The following search uses the geohash format.
+
+[source,js]
+----
+GET /my_locations/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : "drm3btev3e86"
+                }
+            }
+        }
+    }
+}
+----
+// CONSOLE
+
+[[geo-distance-format-property]]
+====== Property
+The following search uses the property format.
+
+[source,js]
+----
 GET /my_locations/_search
 {
     "query": {
@@ -96,44 +237,15 @@ GET /my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-===== Lat Lon As Array
-
-Format in `[lon, lat]`, note, the order of lon/lat here in order to
-conform with http://geojson.org/[GeoJSON].
+[[geo-distance-format-string]]
+====== String
+The following search uses the `latitude, longitude` string format.
 
 [source,js]
---------------------------------------------------
-GET /my_locations/_search
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "12km",
-                    "pin.location" : [-70, 40]
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-
-[float]
-===== Lat Lon As String
-
-Format in `lat,lon`.
-
-[source,js]
---------------------------------------------------
+----
 GET /my_locations/_search
 {
     "query": {
@@ -150,78 +262,11 @@ GET /my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-===== Geohash
-
-[source,js]
---------------------------------------------------
-GET /my_locations/_search
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "12km",
-                    "pin.location" : "drm3btev3e86"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-==== Options
-
-The following are options allowed on the filter:
-
-[horizontal]
-
-`distance`::
-
-    The radius of the circle centred on the specified location. Points which
-    fall into this circle are considered to be matches. The `distance` can be
-    specified in various units. See <<distance-units>>.
-
-`distance_type`::
-
-    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
-
-`_name`::
-
-    Optional name field to identify the query
-
-`validation_method`::
-
-    Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or
-    longitude, set to `COERCE` to additionally try and infer correct
-    coordinates (default is `STRICT`).
-
-[float]
-==== geo_point Type
-
-The filter *requires* the `geo_point` type to be set on the relevant
-field.
-
-[float]
-==== Multi Location Per Document
-
-The `geo_distance` filter can work with multiple locations / points per
-document. Once a single location / point matches the filter, the
-document will be included in the filter.
-
-[float]
-==== Ignore Unmapped
-
-When set to `true` the `ignore_unmapped` option will ignore an unmapped field
-and will not match any documents for this query. This can be useful when
-querying multiple indexes which might have different mappings. When set to
-`false` (the default value) the query will throw an exception if the field
-is not mapped.
+[[geo-distance-multi-loc]]
+===== Multiple locations per document
+The `geo_distance` query can work with multiple locations / points per document.
+Once a single location / point matches the query, the document will be included
+in the query.

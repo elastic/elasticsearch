@@ -166,6 +166,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::put-data-frame-transform-request
             PutDataFrameTransformRequest request =
                     new PutDataFrameTransformRequest(transformConfig); // <1>
+            request.setDeferValidation(false); // <2>
             // end::put-data-frame-transform-request
 
             // tag::put-data-frame-transform-execute

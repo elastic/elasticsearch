@@ -91,6 +91,20 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "missing-source-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "missing-index" },
+            "dest": { "index": "missing-source-dest" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
 ---
 "Test basic transform crud":
   - do:
@@ -305,6 +319,22 @@ setup:
       catch: /Destination index \[airline-data-by-airline\] is included in source expression \[airline-data/
       data_frame.put_data_frame_transform:
         transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"]
+            },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        defer_validation: true
         body: >
           {
             "source": {

@@ -31,9 +31,10 @@ integTestCluster {
 }
 
 // https://github.com/elastic/elasticsearch/issues/44656
-if ( OS.WINDOWS.equals(OS.current()) == false ) {
+if ( OS.WINDOWS.equals(OS.current()) ) {
     integTestRunner.enabled = false
     integTest.enabled = false
+    testingConventions.enabled = false
 }
 
 integTestRunner {

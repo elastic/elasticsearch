@@ -33,7 +33,6 @@ import java.util.stream.Stream;
  */
 public abstract class ESLogMessage extends ParameterizedMessage {
     private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
-
     private final Map<String, Object> fields;
 
     /**

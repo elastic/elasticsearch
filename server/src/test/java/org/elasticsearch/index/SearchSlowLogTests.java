@@ -42,7 +42,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -55,6 +57,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
     @Override
     protected SearchContext createSearchContext(IndexService indexService) {
+       return createSearchContext(indexService, new String[]{});
+    }
+    protected SearchContext createSearchContext(IndexService indexService, String ... groupStats) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
         return new TestSearchContext(bigArrays, indexService) {
@@ -150,6 +155,12 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                     return null;
                 }
             };
+
+            @Override
+            public List<String> groupStats() {
+                return Arrays.asList(groupStats);
+            }
+
             @Override
             public ShardSearchRequest request() {
                 return request;
@@ -196,6 +207,26 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.getQueryShardContext().setTypes();
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[]"));
+    }
+
+    public void testSlowLogsWithStats() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index,"group1");
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getValueFor("stats"), equalTo("[\\\"group1\\\"]"));
+
+        searchContext = createSearchContext(index, "group1", "group2");
+        source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getValueFor("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
     }
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {

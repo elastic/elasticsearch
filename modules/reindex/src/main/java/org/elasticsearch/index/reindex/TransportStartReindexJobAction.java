@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -52,11 +53,13 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+
 public class TransportStartReindexJobAction
     extends TransportMasterNodeAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
 
     private final PersistentTasksService persistentTasksService;
-    private final Client client;
+    private final Client taskClient;
 
     @Inject
     public TransportStartReindexJobAction(TransportService transportService, ThreadPool threadPool,
@@ -65,7 +68,9 @@ public class TransportStartReindexJobAction
         super(StartReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, StartReindexJobAction.Request::new,
             indexNameExpressionResolver);
         this.persistentTasksService = persistentTasksService;
-        this.client = client;
+
+        // TODO: Need reindex origin probably.
+        this.taskClient = new OriginSettingClient(client, TASKS_ORIGIN);
     }
 
     @Override
@@ -173,7 +178,7 @@ public class TransportStartReindexJobAction
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchException("Couldn't serialize reindex request into XContent", e));
             }
-            client.index(indexRequest, new ActionListener<>() {
+            taskClient.index(indexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
                     listener.onResponse(null);
@@ -190,7 +195,7 @@ public class TransportStartReindexJobAction
             createIndexRequest.index(ReindexTask.REINDEX_INDEX);
             createIndexRequest.cause("auto(reindex api)");
 
-            client.admin().indices().create(createIndexRequest, new ActionListener<>() {
+            taskClient.admin().indices().create(createIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     createReindexTaskDoc(taskId, reindexRequest, true, listener);

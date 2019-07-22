@@ -27,6 +27,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,6 +51,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+
 public class ReindexTask extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(ReindexTask.class);
@@ -59,6 +62,7 @@ public class ReindexTask extends AllocatedPersistentTask {
     public static final String REINDEX_INDEX = ".reindex";
 
     private final NodeClient client;
+    private final Client taskClient;
     private final TaskId taskId;
     private final NamedXContentRegistry xContentRegistry;
     private volatile BulkByScrollTask childTask;
@@ -97,6 +101,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         super(id, type, action, "persistent reindex", parentTask, headers);
         this.xContentRegistry = xContentRegistry;
         this.client = (NodeClient) client;
+        this.taskClient = new OriginSettingClient(client, TASKS_ORIGIN);
         this.taskId = new TaskId(clusterService.localNode().getId(), id);
     }
 
@@ -133,7 +138,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         final Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
             GetRequest getRequest = new GetRequest(REINDEX_INDEX).id(getPersistentTaskId());
-            client.get(getRequest, new ActionListener<>() {
+            taskClient.get(getRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(GetResponse response) {
                     BytesReference source = response.getSourceAsBytesRef();

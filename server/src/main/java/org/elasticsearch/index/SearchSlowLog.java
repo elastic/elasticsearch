@@ -170,7 +170,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 messageFields.put("total_hits", "-1");
             }
             String[] types = context.getQueryShardContext().getTypes();
-            messageFields.put("types", asJsonArray(types != null ? Arrays.stream(types) : Stream.empty()));
+            messageFields.put("types", escapeJson(asJsonArray(types != null ? Arrays.stream(types) : Stream.empty())));
             messageFields.put("stats", escapeJson(asJsonArray(
                 context.groupStats() != null ? context.groupStats().stream() : Stream.empty())));
             messageFields.put("search_type", context.searchType());

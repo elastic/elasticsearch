@@ -52,17 +52,17 @@ public abstract class ESLogMessage extends ParameterizedMessage {
 
     public String getValueFor(String key) {
         Object value = fields.get(key);
-        return value!=null ? value.toString() : null;
+        return value != null ? value.toString() : null;
     }
 
     public static String inQuotes(String s) {
-        if(s == null)
+        if (s == null)
             return inQuotes("");
         return "\"" + s + "\"";
     }
 
     public static String inQuotes(Object s) {
-        if(s == null)
+        if (s == null)
             return inQuotes("");
         return inQuotes(s.toString());
     }

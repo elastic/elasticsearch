@@ -86,7 +86,7 @@ public final class DelegatePkiAuthenticationRequest implements Validatable, ToXC
     public Optional<ValidationException> validate() {
         ValidationException validationException = new ValidationException();
         if (false == isOrderedCertificateChain(x509CertificateChain)) {
-            validationException.addValidationError("certificates chain is not ordered");
+            validationException.addValidationError("certificates chain must be ordered");
         }
         return validationException.validationErrors().isEmpty() ? Optional.empty() : Optional.of(validationException);
     }

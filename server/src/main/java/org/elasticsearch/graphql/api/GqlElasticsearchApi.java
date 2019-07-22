@@ -5,16 +5,8 @@ import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
-import java.io.OutputStream;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 public class GqlElasticsearchApi implements GqlApi {
@@ -31,7 +23,13 @@ public class GqlElasticsearchApi implements GqlApi {
             @Override
             public void onResponse(MainResponse mainResponse) {
                 try {
-                    XContentBuilder builder = mainResponse.toXContent(new XContentBuilder(JsonXContent.jsonXContent, OutputStream.nullOutputStream()), ToXContent.EMPTY_PARAMS);
+//                    ByteArrayOutputStream os = new ByteArrayOutputStream();
+//                    XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, os);
+//                    mainResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+//                    builder.close();
+//                    String json = os.toString(StandardCharsets.UTF_8);
+//                    System.out.println("JSON: " + json);
+//                    Map<String, Object> map = new Gson().fromJson(json, HashMap.class);
                     future.complete(mainResponse.toMap());
                 } catch (Exception e) {
                     future.completeExceptionally(e);

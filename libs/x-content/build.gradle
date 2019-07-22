@@ -29,7 +29,6 @@ dependencies {
     compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
     compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
     compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"

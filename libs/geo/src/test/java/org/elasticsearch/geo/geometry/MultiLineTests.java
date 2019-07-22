@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
@@ -36,7 +37,7 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
         int size = randomIntBetween(1, 10);
         List<Line> arr = new ArrayList<Line>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomLine(hasAlt));
+            arr.add(GeometryTestUtils.randomLine(hasAlt));
         }
         return new MultiLine(arr);
     }

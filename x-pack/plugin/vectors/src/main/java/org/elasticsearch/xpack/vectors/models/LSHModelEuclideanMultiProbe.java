@@ -48,18 +48,18 @@ import java.util.Random;
  */
 
 public class LSHModelEuclideanMultiProbe {
-    private static final byte MAX_PERT_SET_LENGTH = 10; // max numb of neighboring hash cells in each hash table to consider as candidates
+    private static final byte MAX_PERT_SET_LENGTH = 20; // max numb of neighboring hash cells in each hash table to consider as candidates
     private static final byte INT_BYTES = 4;
 
     private final int D; // number of vector dimensions
     private final short L; // number of hash tables
     private final int K; // number of hash functions in each hash table
-    private final int W; // width of the projection // TODO: should this be float?
+    private final float W; // width of the projection
     private final float[][][] a; // parameters for LSH functions
     private final float[][] b; // parameters for LSH functions
     private int[][] pertSets; // perturbation sets
 
-    public LSHModelEuclideanMultiProbe(short lp, int kp, int wp, int dp) {
+    public LSHModelEuclideanMultiProbe(short lp, int kp, float wp, int dp) {
         this.L = lp;
         this.K = kp;
         this.W = wp;
@@ -131,7 +131,7 @@ public class LSHModelEuclideanMultiProbe {
         }
     }
 
-    public LSHModelEuclideanMultiProbe(short l, int k, int w, int d, float[][][] a, float[][] b, int[][] pertSets) {
+    public LSHModelEuclideanMultiProbe(short l, int k, float w, int d, float[][][] a, float[][] b, int[][] pertSets) {
         this.L = l;
         this.K = k;
         this.W = w;
@@ -267,7 +267,7 @@ public class LSHModelEuclideanMultiProbe {
     public int k() {
         return K;
     }
-    public int w() {
+    public float w() {
         return W;
     }
     public float[][][] a() {

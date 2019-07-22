@@ -62,7 +62,7 @@ public class DenseVectorLSHFieldMapper extends FieldMapper implements ArrayValue
         private int dims = 0;
         private short l = 0; // number of hash tables
         private int k = 0; // number of hash functions within each hash table
-        private int w = 0; // width of the projection //TODO: should this be float?
+        private float w = 0; // width of the projection
         private float[][][] a = null; // parameters for LSH model
         private float[][] b; // parameters for LSH model
         private int[][] pertSets; // parameters for LSH model
@@ -113,16 +113,16 @@ public class DenseVectorLSHFieldMapper extends FieldMapper implements ArrayValue
         public int k() {
             return k;
         }
-        public Builder w(int w) {
+        public Builder w(float w) {
             // TODO: lower/upper limit for w?
-            if (w < 1) {
+            if (w <= 0) {
                 throw new MapperParsingException(
                     "The  width of the projection [w] for the field [" + name() + "] should be greater than 0]");
             }
             this.w = w;
             return this;
         }
-        public int w() {
+        public float w() {
             return w;
         }
         public Builder a(float[][][] a) {
@@ -181,7 +181,7 @@ public class DenseVectorLSHFieldMapper extends FieldMapper implements ArrayValue
                     builder.k(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("w")) {
-                    builder.w(XContentMapValues.nodeIntegerValue(propNode));
+                    builder.w(XContentMapValues.nodeFloatValue(propNode));
                     iterator.remove();
                 // a, b and pertSets are not user-defined, they are read from the stored mapping
                 } else if (propName.equals("a")) {

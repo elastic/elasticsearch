@@ -153,7 +153,7 @@ public final class NodeMetaData {
 
         @Override
         public NodeMetaData fromXContent(XContentParser parser) throws IOException {
-            return this.objectParser.apply(parser, null).build();
+            return objectParser.apply(parser, null).build();
         }
     }
 

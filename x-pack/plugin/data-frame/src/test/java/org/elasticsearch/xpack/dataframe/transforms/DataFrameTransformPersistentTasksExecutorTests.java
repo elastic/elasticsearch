@@ -110,7 +110,8 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
             dataFrameTransformsCheckpointService, mock(SchedulerEngine.class),
             new DataFrameAuditor(client, ""),
             mock(ThreadPool.class),
-            clusterService);
+            clusterService,
+            Settings.EMPTY);
 
         assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks"));

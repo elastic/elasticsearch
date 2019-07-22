@@ -1,5 +1,7 @@
 package org.elasticsearch.graphql.api;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -11,7 +13,6 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContent;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.cat.RestIndicesAction;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class GqlApiUtils {
+    private static final Logger logger = LogManager.getLogger(GqlApiUtils.class);
 
     static public XContentBuilder createJavaUtilBuilder() throws IOException  {
         BytesStreamOutput bos = new BytesStreamOutput();
@@ -71,6 +73,7 @@ public class GqlApiUtils {
                                                                      BaseRestHandler handler,
                                                                      RestRequest.Method method,
                                                                      String uri) throws Exception {
+        logger.info("executeRestHandler {} {} {}", handler.getName(), method, uri);
         CompletableFuture<List<Object>> promise = new CompletableFuture<>();
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
 
@@ -120,7 +123,7 @@ public class GqlApiUtils {
             public void sendResponse(RestResponse response) {
                 try {
                     List<Object> result = (List) GqlApiUtils.getJavaUtilBuilderResult(builder);
-                    System.out.println(result);
+                    logger.info("executeRestHandler result: {} {} {} {}", handler.getName(), method, uri, result);
                     promise.complete(result);
                 } catch (Exception e) {
                     promise.completeExceptionally(e);

@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -127,7 +128,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // simulate a background global checkpoint sync at which point we expect the global checkpoint to advance on the replicas
             shards.syncGlobalCheckpoint();
             long globalCheckpointOnReplica = originalReplica.getLastSyncedGlobalCheckpoint();
-
+            Optional<SequenceNumbers.CommitInfo> safeCommitOnReplica =
+                originalReplica.store().findSafeIndexCommit(globalCheckpointOnReplica);
+            assertTrue(safeCommitOnReplica.isPresent());
             shards.removeReplica(originalReplica);
 
             final int missingOnReplica = shards.indexDocs(randomInt(5));
@@ -155,9 +158,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), not(empty()));
             } else {
                 assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
-                assertThat(
-                    recoveredReplica.recoveryState().getTranslog().recoveredOperations(),
-                    equalTo(Math.toIntExact(docs - (globalCheckpointOnReplica + 1))));
+                assertThat(recoveredReplica.recoveryState().getTranslog().recoveredOperations(),
+                    equalTo(Math.toIntExact(docs - 1 - safeCommitOnReplica.get().localCheckpoint)));
+                assertThat(recoveredReplica.recoveryState().getTranslog().totalLocal(),
+                    equalTo(Math.toIntExact(globalCheckpointOnReplica - safeCommitOnReplica.get().localCheckpoint)));
             }
 
             docs += shards.indexDocs(randomInt(5));
@@ -247,7 +251,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }
             }
             long globalCheckpointOnOldPrimary = oldPrimary.getLastSyncedGlobalCheckpoint();
-            assertThat(oldPrimary.getLastSyncedGlobalCheckpoint(), equalTo(globalCheckpointOnOldPrimary));
+            Optional<SequenceNumbers.CommitInfo> safeCommitOnOldPrimary =
+                oldPrimary.store().findSafeIndexCommit(globalCheckpointOnOldPrimary);
+            assertTrue(safeCommitOnOldPrimary.isPresent());
             shards.promoteReplicaToPrimary(newPrimary).get();
 
             // check that local checkpoint of new primary is properly tracked after primary promotion
@@ -303,8 +309,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             if (expectSeqNoRecovery) {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
+                assertThat(newReplica.recoveryState().getTranslog().totalLocal(),
+                    equalTo(Math.toIntExact(globalCheckpointOnOldPrimary - safeCommitOnOldPrimary.get().localCheckpoint)));
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(),
-                    equalTo(Math.toIntExact(totalDocs - globalCheckpointOnOldPrimary - 1)));
+                    equalTo(Math.toIntExact(totalDocs - 1 - safeCommitOnOldPrimary.get().localCheckpoint)));
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedOpsOnPrimary));

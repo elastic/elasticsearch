@@ -1396,17 +1396,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (safeCommit.get().localCheckpoint == globalCheckpoint) {
                 logger.trace("skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
                     safeCommit.get(), globalCheckpoint);
+                recoveryState.getTranslog().totalLocal(0);
                 return globalCheckpoint + 1;
             }
             try {
                 final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
-                    final RecoveryState.Translog translogStats = recoveryState.getTranslog();
-                    translogStats.totalLocal(snapshot.totalOperations());
-                    return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY, () -> {
-                        // adjust the total local to reflect the actual count
-                        translogStats.totalLocal(snapshot.totalOperations() - snapshot.skippedOperations());
-                        translogStats.incrementRecoveredOperations();
-                    });
+                    recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
+                    final int recoveredOps = runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                        recoveryState.getTranslog()::incrementRecoveredOperations);
+                    recoveryState.getTranslog().totalLocal(recoveredOps); // adjust the total local to reflect the actual count
+                    return recoveredOps;
                 };
                 innerOpenEngineAndTranslog();
                 getEngine().recoverFromTranslog(translogRecoveryRunner, globalCheckpoint);

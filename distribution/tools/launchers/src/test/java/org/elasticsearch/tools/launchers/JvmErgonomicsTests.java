@@ -43,13 +43,6 @@ import static org.junit.Assert.fail;
 
 public class JvmErgonomicsTests extends LaunchersTestCase {
 
-    @Before
-    public void setUp() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44669",
-            System.getProperty("os.name").contains("Win")
-        );
-    }
-
     public void testExtractValidHeapSizeUsingXmx() throws InterruptedException, IOException {
         assertThat(
                 JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-Xmx2g"))),
@@ -144,6 +137,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
         final Map<String, String> heapMaxDirectMemorySize = new HashMap<>();
         heapMaxDirectMemorySize.put("64M", Long.toString((64L << 20) / 2));
         heapMaxDirectMemorySize.put("512M", Long.toString((512L << 20) / 2));

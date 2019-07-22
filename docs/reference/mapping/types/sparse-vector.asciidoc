@@ -1,5 +1,8 @@
 [[sparse-vector]]
 === Sparse vector datatype
+++++
+<titleabbrev>Sparse vector</titleabbrev>
+++++
 
 experimental[]
 

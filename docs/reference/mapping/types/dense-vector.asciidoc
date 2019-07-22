@@ -1,5 +1,8 @@
 [[dense-vector]]
 === Dense vector datatype
+++++
+<titleabbrev>Dense vector</titleabbrev>
+++++
 
 experimental[]
 

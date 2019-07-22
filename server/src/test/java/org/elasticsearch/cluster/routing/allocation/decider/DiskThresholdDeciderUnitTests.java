@@ -381,7 +381,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .build();
         clusterState = allocationService.reroute(clusterState, "foo");
 
-        clusterState = allocationService.applyStartedShards(clusterState,
+        clusterState = startShardsAndReroute(allocationService, clusterState,
             clusterState.getRoutingTable().index("test").shardsWithState(ShardRoutingState.UNASSIGNED));
 
         RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, info, 0);

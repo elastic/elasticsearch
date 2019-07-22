@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -24,17 +24,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionType<RemoveIndexLifecyclePolicyAction.Response> {
+public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLifecyclePolicyAction.Response> {
     public static final RemoveIndexLifecyclePolicyAction INSTANCE = new RemoveIndexLifecyclePolicyAction();
     public static final String NAME = "indices:admin/ilm/remove_policy";
 
     protected RemoveIndexLifecyclePolicyAction() {
-        super(NAME);
-    }
-
-    @Override
-    public RemoveIndexLifecyclePolicyAction.Response newResponse() {
-        return new Response();
+        super(NAME, RemoveIndexLifecyclePolicyAction.Response::new);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -52,7 +47,9 @@ public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionTy
 
         private List<String> failedIndexes;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            failedIndexes = in.readStringList();
         }
 
         public Response(List<String> failedIndexes) {
@@ -77,12 +74,6 @@ public class RemoveIndexLifecyclePolicyAction extends StreamableResponseActionTy
             builder.field(FAILED_INDEXES_FIELD.getPreferredName(), failedIndexes);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            failedIndexes = in.readStringList();
         }
 
         @Override

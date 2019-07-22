@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -63,8 +64,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     // Default interval the scheduler sends an event if the config does not specify a frequency
     private static final long SCHEDULER_NEXT_MILLISECONDS = 60000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
-    // TODO consider moving to dynamic cluster setting
-    private static final int MAX_CONTINUOUS_FAILURES = 10;
+    private static final int DEFAULT_FAILURE_RETRIES = 10;
+    private volatile int numFailureRetries = DEFAULT_FAILURE_RETRIES;
+    // How many times the transform task can retry on an non-critical failure
+    public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
+        "xpack.data_frame.num_transform_failure_retries",
+        DEFAULT_FAILURE_RETRIES,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic);
     private static final IndexerState[] RUNNING_STATES = new IndexerState[]{IndexerState.STARTED, IndexerState.INDEXING};
     public static final String SCHEDULE_NAME = DataFrameField.TASK_NAME + "/schedule";
 
@@ -253,6 +262,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         IndexerState state = getIndexer().stop();
+        stateReason.set(null);
         if (state == IndexerState.STOPPED) {
             getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -322,6 +332,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
         auditor.error(transform.getId(), reason);
+        // We should not keep retrying. Either the task will be stopped, or started
+        // If it is started again, it is registered again.
+        deregisterSchedulerJob();
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that
@@ -345,6 +358,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // there is no background transform running, we can shutdown safely
             shutdown();
         }
+    }
+
+    public DataFrameTransformTask setNumFailureRetries(int numFailureRetries) {
+        this.numFailureRetries = numFailureRetries;
+        return this;
+    }
+
+    public int getNumFailureRetries() {
+        return numFailureRetries;
     }
 
     private void registerWithSchedulerJob() {
@@ -482,8 +504,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     static class ClientDataFrameIndexer extends DataFrameIndexer {
 
-        private static final int ON_FINISH_AUDIT_FREQUENCY = 1000;
-
+        private long logEvery = 1;
+        private long logCount = 0;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -711,7 +733,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 nextCheckpoint = null;
                 // Reset our failure count as we have finished and may start again with a new checkpoint
                 failureCount.set(0);
-                if (checkpoint % ON_FINISH_AUDIT_FREQUENCY == 0) {
+                if (shouldAuditOnFinish(checkpoint)) {
                     auditor.info(transformTask.getTransformId(),
                         "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 }
@@ -722,6 +744,26 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        /**
+         * Indicates if an audit message should be written when onFinish is called for the given checkpoint
+         * We audit the first checkpoint, and then every 10 checkpoints until completedCheckpoint == 99
+         * Then we audit every 100, until completedCheckpoint == 999
+         *
+         * Then we always audit every 1_000 checkpoints
+         *
+         * @param completedCheckpoint The checkpoint that was just completed
+         * @return {@code true} if an audit message should be written
+         */
+        protected boolean shouldAuditOnFinish(long completedCheckpoint) {
+            if (++logCount % logEvery != 0) {
+                return false;
+            }
+            int log10Checkpoint = (int) Math.floor(Math.log10(completedCheckpoint + 1));
+            logEvery = log10Checkpoint >= 3  ? 1_000 : (int)Math.pow(10.0, log10Checkpoint);
+            logCount = 0;
+            return true;
         }
 
         @Override
@@ -808,10 +850,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
-            if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > MAX_CONTINUOUS_FAILURES) {
+            if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > transformTask.getNumFailureRetries()) {
                 String failureMessage = isIrrecoverableFailure(e) ?
                     "task encountered irrecoverable failure: " + e.getMessage() :
-                    "task encountered more than " + MAX_CONTINUOUS_FAILURES + " failures; latest failure: " + e.getMessage();
+                    "task encountered more than " + transformTask.getNumFailureRetries() + " failures; latest failure: " + e.getMessage();
                 failIndexer(failureMessage);
             }
         }

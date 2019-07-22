@@ -177,6 +177,27 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
     }
 
+    public void testSlowLogWithTypes() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        searchContext.getQueryShardContext().setTypes("type1", "type2");
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+
+        assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\", \\\"type2\\\"]"));
+
+        searchContext.getQueryShardContext().setTypes("type1");
+         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\"]"));
+
+        searchContext.getQueryShardContext().setTypes();
+        p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        assertThat(p.getValueFor("types"), equalTo("[]"));
+    }
+
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = createSearchContext(index);

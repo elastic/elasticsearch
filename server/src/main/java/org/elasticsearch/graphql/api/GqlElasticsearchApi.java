@@ -3,6 +3,7 @@ package org.elasticsearch.graphql.api;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,8 +35,9 @@ public class GqlElasticsearchApi implements GqlApi {
     @SuppressWarnings("unchecked")
     public CompletableFuture<List<Object>> getIndices(RestRequest request) throws Exception {
         CompletableFuture<List<Object>> promise = new CompletableFuture<>();
+        GqlApiFakeHttpRequest internalRequest = new GqlApiFakeHttpRequest(RestRequest.Method.GET, "/_cat/indices?format=json", BytesArray.EMPTY, new HashMap<>());
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
-        RestRequest innerRequest = RestRequest.request(NamedXContentRegistry.EMPTY, request.getHttpRequest(), request.getHttpChannel());
+        RestRequest innerRequest = RestRequest.request(NamedXContentRegistry.EMPTY, internalRequest, request.getHttpChannel());
         BaseRestHandler.RestChannelConsumer channelConsumer = RestIndicesAction.INSTANCE.doCatRequest(innerRequest, client);
         channelConsumer.accept(new RestChannel() {
             BytesStreamOutput bytes1 = new BytesStreamOutput();

@@ -133,9 +133,10 @@ public class ReindexTask extends AllocatedPersistentTask {
                 @Override
                 public void onResponse(GetResponse response) {
                     BytesReference source = response.getSourceAsBytesRef();
-                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                        source, XContentType.JSON)) {
-                        ReindexRequest reindexRequest = ReindexRequest.fromXContentWithParams(parser);
+                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE, source, XContentType.JSON)) {
+                        ReindexTaskIndexState taskState = ReindexTaskIndexState.fromXContent(parser);
+                        ReindexRequest reindexRequest = taskState.getReindexRequest();
                         reindexRequest.setParentTask(taskId);
                         submitChildTask(reindexJob, reindexRequest, context);
                     } catch (IOException e) {

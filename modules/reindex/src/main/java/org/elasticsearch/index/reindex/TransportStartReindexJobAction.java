@@ -167,7 +167,8 @@ public class TransportStartReindexJobAction
         if (indexExists) {
             IndexRequest indexRequest = new IndexRequest(ReindexTask.REINDEX_INDEX).id(taskId);
             try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-                reindexRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest);
+                reindexState.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 indexRequest.source(builder);
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchException("Couldn't serialize reindex request into XContent", e));

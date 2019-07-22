@@ -161,19 +161,27 @@ public class GeometryTestUtils {
         int size = ESTestCase.randomIntBetween(1, 10);
         List<Geometry> shapes = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
-                GeometryTestUtils::randomCircle,
-                GeometryTestUtils::randomLine,
-                GeometryTestUtils::randomPoint,
-                GeometryTestUtils::randomPolygon,
-                GeometryTestUtils::randomMultiLine,
-                GeometryTestUtils::randomMultiPoint,
-                GeometryTestUtils::randomMultiPolygon,
-                hasAlt ? GeometryTestUtils::randomPoint : (b) -> randomRectangle(),
-                level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : GeometryTestUtils::randomPoint // don't build too deep
-            );
-            shapes.add(geometry.apply(hasAlt));
+            shapes.add(randomGeometry(level, hasAlt));
         }
         return new GeometryCollection<>(shapes);
+    }
+
+    public static Geometry randomGeometry(boolean hasAlt) {
+        return randomGeometry(0, hasAlt);
+    }
+
+    private static Geometry randomGeometry(int level, boolean hasAlt) {
+        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+            GeometryTestUtils::randomCircle,
+            GeometryTestUtils::randomLine,
+            GeometryTestUtils::randomPoint,
+            GeometryTestUtils::randomPolygon,
+            GeometryTestUtils::randomMultiLine,
+            GeometryTestUtils::randomMultiPoint,
+            GeometryTestUtils::randomMultiPolygon,
+            hasAlt ? GeometryTestUtils::randomPoint : (b) -> randomRectangle(),
+            level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : GeometryTestUtils::randomPoint // don't build too deep
+        );
+        return geometry.apply(hasAlt);
     }
 }

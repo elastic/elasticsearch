@@ -22,6 +22,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 public class EnrichPolicy implements Writeable, ToXContentFragment {
 
+    public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
+
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField VERSION_CREATED = new ParseField("version_created");
     private static final ParseField DEFINITION = new ParseField("definition");

@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DelegatePkiAuthenticationRequestTests extends
-        AbstractRequestTestCase<DelegatePkiAuthenticationRequest, org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest> {
+public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCase<DelegatePkiAuthenticationRequest,
+        org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest> {
 
     public void testEmptyOrNullCertificateChain() throws Exception {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
@@ -104,5 +104,4 @@ public class DelegatePkiAuthenticationRequestTests extends
             return (X509Certificate) factory.generateCertificate(in);
         }
     }
-
 }

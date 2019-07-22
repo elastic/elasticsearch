@@ -29,7 +29,8 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.is;
 
 public class DelegatePkiAuthenticationResponseTests extends
-        AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse, DelegatePkiAuthenticationResponse> {
+    AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse,
+        DelegatePkiAuthenticationResponse> {
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse createServerTestInstance() {
@@ -49,5 +50,4 @@ public class DelegatePkiAuthenticationResponseTests extends
         assertThat(serverTestInstance.getExpiresIn(), is(clientInstance.getExpiresIn()));
         assertThat(clientInstance.getType(), is("Bearer"));
     }
-
 }

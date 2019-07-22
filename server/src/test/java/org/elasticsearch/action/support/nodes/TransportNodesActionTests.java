@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -57,6 +58,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
 
@@ -245,8 +247,8 @@ public class TransportNodesActionTests extends ESTestCase {
         extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> {
 
         TestTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-                transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
-                                 Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
+                transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
+                                 Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
             super("indices:admin/test", threadPool, clusterService, transportService, actionFilters,
                 request, nodeRequest, nodeExecutor, TestNodeResponse.class);
         }
@@ -263,8 +265,8 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeResponse newNodeResponse() {
-            return new TestNodeResponse();
+        protected TestNodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new TestNodeResponse(in);
         }
 
         @Override
@@ -278,8 +280,8 @@ public class TransportNodesActionTests extends ESTestCase {
         extends TestTransportNodesAction {
 
         DataNodesOnlyTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-            transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
-                                          Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
+            transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
+                                          Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
             super(threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
 
@@ -290,6 +292,9 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     private static class TestNodesRequest extends BaseNodesRequest<TestNodesRequest> {
+        TestNodesRequest(StreamInput in) throws IOException {
+            super(in);
+        }
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }
@@ -307,19 +312,39 @@ public class TransportNodesActionTests extends ESTestCase {
 
         @Override
         protected List<TestNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readStreamableList(TestNodeResponse::new);
+            return in.readList(TestNodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<TestNodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
     }
 
-    private static class TestNodeRequest extends BaseNodeRequest { }
+    private static class TestNodeRequest extends BaseNodeRequest {
+        TestNodeRequest() {}
+        TestNodeRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 
-    private static class TestNodeResponse extends BaseNodeResponse { }
+    private static class TestNodeResponse extends BaseNodeResponse {
+        TestNodeResponse() {
+            super(mock(DiscoveryNode.class));
+        }
+        protected TestNodeResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 
-    private static class OtherNodeResponse extends BaseNodeResponse { }
+    private static class OtherNodeResponse extends BaseNodeResponse {
+        OtherNodeResponse() {
+            super(mock(DiscoveryNode.class));
+        }
+
+        protected OtherNodeResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 
 }

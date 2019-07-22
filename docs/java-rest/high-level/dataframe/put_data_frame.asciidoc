@@ -19,7 +19,11 @@ A +{request}+ requires the following argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The configuration of the {dataframe-job} to create
+<1> The configuration of the {dataframe-transform} to create
+<2> Whether or not to wait to run deferrable validations until `_start` is called.
+This option should be used with care as the created {dataframe-transform} will run
+with the privileges of the user creating it. Meaning, if they do not have privileges,
+such an error will not be visible until `_start` is called.
 
 [id="{upid}-{api}-config"]
 ==== Data Frame Transform Configuration
@@ -34,8 +38,9 @@ include-tagged::{doc-tests-file}[{api}-config]
 <1> The {dataframe-transform} ID
 <2> The source indices and query from which to gather data
 <3> The destination index and optional pipeline
-<4> The PivotConfig
-<5> Optional free text description of the transform
+<4> How often to check for updates to the source indices
+<5> The PivotConfig
+<6> Optional free text description of the transform
 
 [id="{upid}-{api}-query-config"]
 

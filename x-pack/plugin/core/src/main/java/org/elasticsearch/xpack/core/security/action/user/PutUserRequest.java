@@ -36,6 +36,18 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     private boolean enabled = true;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public PutUserRequest(StreamInput in) throws IOException {
+        super(in);
+        username = in.readString();
+        passwordHash = readCharArrayFromStream(in);
+        roles = in.readStringArray();
+        fullName = in.readOptionalString();
+        email = in.readOptionalString();
+        metadata = in.readBoolean() ? in.readMap() : null;
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        enabled = in.readBoolean();
+    }
+
     public PutUserRequest() {
     }
 
@@ -130,19 +142,6 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
     @Override
     public String[] usernames() {
         return new String[] { username };
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        username = in.readString();
-        passwordHash = readCharArrayFromStream(in);
-        roles = in.readStringArray();
-        fullName = in.readOptionalString();
-        email = in.readOptionalString();
-        metadata = in.readBoolean() ? in.readMap() : null;
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        enabled = in.readBoolean();
     }
 
     @Override

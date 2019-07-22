@@ -498,12 +498,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         //   (1) index-(N+1)
         //   (2) index-N (because we keep the previous version) and
         //   (3) index-latest
-        //   (4) incompatible-snapshots
-        assertFileCount(repo, 4);
+        assertFileCount(repo, 3);
         logger.info("--> done");
     }
 
     public void testRestoreIndexWithMissingShards() throws Exception {
+        disableRepoConsistencyCheck("This test leaves behind a purposely broken repository");
         logger.info("--> start 2 nodes");
         internalCluster().startNode();
         internalCluster().startNode();

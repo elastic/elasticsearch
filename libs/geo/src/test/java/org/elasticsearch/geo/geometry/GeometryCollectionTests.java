@@ -19,7 +19,9 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -30,7 +32,7 @@ import java.util.Collections;
 public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollection<Geometry>> {
     @Override
     protected GeometryCollection<Geometry> createTestInstance(boolean hasAlt) {
-        return randomGeometryCollection(hasAlt);
+        return GeometryTestUtils.randomGeometryCollection(hasAlt);
     }
 
 
@@ -58,5 +60,11 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         ex = expectThrows(IllegalArgumentException.class, () -> new GeometryCollection<>(
             Arrays.asList(new Point(10, 20), new Point(10, 20, 30))));
         assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(
+            new GeometryCollection<Geometry>(Collections.singletonList(new Point(10, 20, 30)))));
+        assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(10, 20, 30))));
     }
 }

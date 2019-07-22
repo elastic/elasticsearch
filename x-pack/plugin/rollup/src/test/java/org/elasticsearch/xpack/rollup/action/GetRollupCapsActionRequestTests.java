@@ -10,7 +10,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
@@ -27,7 +28,7 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<GetRollupCapsAction.Request> {
+public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTestCase<GetRollupCapsAction.Request> {
 
     @Override
     protected GetRollupCapsAction.Request createTestInstance() {
@@ -38,8 +39,8 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
     }
 
     @Override
-    protected GetRollupCapsAction.Request createBlankInstance() {
-        return new GetRollupCapsAction.Request();
+    protected Writeable.Reader<GetRollupCapsAction.Request> instanceReader() {
+        return GetRollupCapsAction.Request::new;
     }
 
     public void testNoIndexMetaData() {

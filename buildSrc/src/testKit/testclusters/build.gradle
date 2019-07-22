@@ -26,7 +26,7 @@ allprojects { all ->
 
         all.testClusters {
             myTestCluster {
-                distribution = 'DEFAULT'
+                testDistribution = 'DEFAULT'
                 version = System.getProperty("test.version_under_test")
                 javaHome = file(System.getProperty('java.home'))
                 plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${System.getProperty("test.version_under_test")}.zip")
@@ -54,23 +54,23 @@ allprojects { all ->
 testClusters {
     multiNode {
         version = System.getProperty("test.version_under_test")
-        distribution = 'DEFAULT'
+        testDistribution = 'DEFAULT'
         javaHome = file(System.getProperty('java.home'))
         numberOfNodes = 3
     }
     releasedVersionDefault {
         version = "7.0.0"
-        distribution = 'DEFAULT'
+        testDistribution = 'DEFAULT'
         javaHome = file(System.getProperty('java.home'))
     }
     releasedVersionOSS {
         version = "7.0.0"
-        distribution = 'OSS'
+        testDistribution = 'OSS'
         javaHome = file(System.getProperty('java.home'))
     }
     releasedVersionIntegTest {
         version = "7.0.0"
-        distribution = 'INTEG_TEST'
+        testDistribution = 'INTEG_TEST'
         javaHome = file(System.getProperty('java.home'))
     }
 }
@@ -105,10 +105,10 @@ task printLog {
 
 task upToDate1 {
     useCluster testClusters.myTestCluster
-}
-
-task upToDate2 {
-    useCluster testClusters.myTestCluster
+    outputs.upToDateWhen { true }
+    doLast {
+        println "Some task action"
+    }
 }
 
 task skipped1 {
@@ -137,6 +137,6 @@ task illegalConfigAlter {
     useCluster testClusters.myTestCluster
     doFirst {
         println "Going to alter configuration after use"
-        testClusters.myTestCluster.distribution = 'OSS'
+        testClusters.myTestCluster.testDistribution = 'OSS'
     }
 }

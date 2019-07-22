@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -1331,8 +1332,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete the last snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot).get();
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
-                    "plus two because one backup index-N file should remain and incompatible-snapshots");
-        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
+                    "plus one because one backup index-N file should remain");
+        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 1));
     }
 
     public void testGetSnapshotsNoRepos() {
@@ -3513,6 +3514,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotStatusOnFailedIndex() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44671", Constants.WINDOWS);
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();

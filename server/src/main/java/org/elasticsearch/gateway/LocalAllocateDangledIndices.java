@@ -73,7 +73,7 @@ public class LocalAllocateDangledIndices {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, AllocateDangledRequest::new,
             new AllocateDangledRequestHandler());
     }
 
@@ -210,22 +210,18 @@ public class LocalAllocateDangledIndices {
         DiscoveryNode fromNode;
         IndexMetaData[] indices;
 
-        public AllocateDangledRequest() {
-        }
-
-        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {
-            this.fromNode = fromNode;
-            this.indices = indices;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public AllocateDangledRequest(StreamInput in) throws IOException {
+            super(in);
             fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = IndexMetaData.readFrom(in);
             }
+        }
+
+        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {
+            this.fromNode = fromNode;
+            this.indices = indices;
         }
 
         @Override
@@ -252,7 +248,6 @@ public class LocalAllocateDangledIndices {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeBoolean(true);
             }

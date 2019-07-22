@@ -27,17 +27,11 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
-
 /**
  * A TransportAction that self registers a handler into the transport service
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    protected HandledTransportAction(String actionName, TransportService transportService,
-                                     ActionFilters actionFilters, Supplier<Request> request) {
-        this(actionName, true, transportService, actionFilters, request);
-    }
 
     protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
@@ -47,20 +41,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader, String executor) {
         this(actionName, true, transportService, actionFilters, requestReader, executor);
-    }
-
-    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
-                                     TransportService transportService, ActionFilters actionFilters, Supplier<Request> request) {
-        super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
-            new TransportHandler());
-    }
-
-    protected HandledTransportAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                                     Supplier<Request> request, String executor) {
-        super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, executor, false, true,
-            new TransportHandler());
     }
 
     protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,

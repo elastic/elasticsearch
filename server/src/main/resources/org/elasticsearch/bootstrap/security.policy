@@ -24,6 +24,10 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
+grant codeBase "${codebase.jna}" {
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
 grant codeBase "${codebase.elasticsearch-secure-sm}" {
   permission java.security.AllPermission;
 };
@@ -143,4 +147,5 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
 };

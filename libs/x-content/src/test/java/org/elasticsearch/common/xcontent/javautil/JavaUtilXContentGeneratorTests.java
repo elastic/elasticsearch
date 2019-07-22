@@ -3,6 +3,7 @@ package org.elasticsearch.common.xcontent.javautil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class JavaUtilXContentGeneratorTests extends ESTestCase {
@@ -63,5 +64,20 @@ public class JavaUtilXContentGeneratorTests extends ESTestCase {
         gen.writeStringField("foo", "bar");
 
         expectThrows(Exception.class, () -> gen.getResult());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCanInsertObjectIntoArray() throws Exception {
+        JavaUtilXContentGenerator gen = new JavaUtilXContentGenerator();
+
+        gen.writeStartArray();
+        gen.writeStartObject();
+        gen.writeStringField("foo", "bar");
+        gen.writeEndObject();
+        gen.writeEndArray();
+
+        List<Object> list = (List<Object>) gen.getResult();
+        Map<String, Object> map = (Map<String, Object>) list.get(0);
+        assertEquals(map.get("foo"), "bar");
     }
 }

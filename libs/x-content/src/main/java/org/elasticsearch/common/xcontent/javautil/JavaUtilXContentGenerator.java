@@ -51,9 +51,13 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
 
     public void writeStartObject() throws IOException  {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        if ((stack.size() > 0) && (target() instanceof String)) {
-            String name = (String) pop();
-            targetMap().put(name, map);
+        if (stack.size() > 0) {
+            if (target() instanceof String) {
+                String name = (String) pop();
+                targetMap().put(name, map);
+            } else if (target() instanceof List) {
+                targetList().add(map);
+            }
         }
         stack.push(map);
     }
@@ -117,7 +121,11 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
             return;
         }
 
-        targetList().add(value);
+        if (target() instanceof List) {
+            targetList().add(value);
+        }
+
+        throw new IOException("Cannot add value to stack top.");
     }
 
     public void writeFieldName(String name) throws IOException {

@@ -20,11 +20,11 @@ For more information, see
   <<data-frame-transform-dest>>.
   
 `frequency`::
-  (time units) Optional. The interval between checks for changes in the source
-  indices when the {dataframe-transform} is running continuously. If there is
-  a problem when the {dataframe-transform} searches the source indices, this
-  value also determines the retry interval. The minimum value is `1s` and the
-  maximum is `1h`. The default value is `1m`.
+  (time units) The interval between checks for changes in the source indices
+  when the {dataframe-transform} is running continuously. Also determines the
+  retry interval in the event of transient failures during {dataframe-transform}
+  search or indexing. The minimum value is `1s` and the maximum is `1h`. The
+  default value is `1m`.
 
 `id`::
   (string) A unique identifier for the {dataframe-transform}.

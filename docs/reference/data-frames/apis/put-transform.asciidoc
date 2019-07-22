@@ -62,11 +62,11 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
     (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
 
 `frequency`::
-  (Optional, time units) Optional. The interval between checks for changes in the
-  source indices when the {dataframe-transform} is running continuously. If there
-  is a problem when the {dataframe-transform} searches the source indices, this
-  value also determines the retry interval. The minimum value is `1s` and the
-  maximum is `1h`. The default value is `1m`.
+  (Optional, time units) The interval between checks for changes in the source
+  indices when the {dataframe-transform} is running continuously. Also determines
+  the retry interval in the event of transient failures during {dataframe-transform}
+  search or indexing. The minimum value is `1s` and the maximum is `1h`. The
+  default value is `1m`.
 
 `pivot`::
   (Required, object) Defines the pivot function `group by` fields and the aggregation to

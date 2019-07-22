@@ -1,5 +1,5 @@
 [[indices-analyze]]
-== Analyze
+=== Analyze
 
 Performs the analysis process on a text and return the tokens breakdown
 of the text.
@@ -139,7 +139,8 @@ GET _analyze
 --------------------------------------------------
 // CONSOLE
 
-=== Explain Analyze
+[[explain-analyze-api]]
+==== Explain Analyze
 
 If you want to get more advanced details, set `explain` to `true` (defaults to `false`). It will output all token attributes for each token.
 You can filter token attributes you want to output by setting `attributes` option.
@@ -210,7 +211,7 @@ The request returns the following result:
 
 [[tokens-limit-settings]]
 [float]
-== Settings to prevent tokens explosion
+=== Settings to prevent tokens explosion
 Generating excessive amount of tokens may cause a node to run out of memory.
 The following setting allows to limit the number of tokens that can be produced:
 

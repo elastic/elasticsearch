@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class OpenIdConnectPrepareAuthenticationAction extends ActionType<OpenIdConnectPrepareAuthenticationResponse> {
 
@@ -14,11 +13,7 @@ public class OpenIdConnectPrepareAuthenticationAction extends ActionType<OpenIdC
     public static final String NAME = "cluster:admin/xpack/security/oidc/prepare";
 
     private OpenIdConnectPrepareAuthenticationAction() {
-        super(NAME);
+        super(NAME, OpenIdConnectPrepareAuthenticationResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<OpenIdConnectPrepareAuthenticationResponse> getResponseReader() {
-        return OpenIdConnectPrepareAuthenticationResponse::new;
-    }
 }

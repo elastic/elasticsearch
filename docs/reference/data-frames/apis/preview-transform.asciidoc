@@ -40,10 +40,21 @@ on all the current data in the source index.
 ==== {api-request-body-title}
 
 `source`::
-  (object) Required. The source index or index pattern.
+  (Required, object) The source configuration, which has the following
+  properties:
+  
+  `index`:::
+    (Required, string or array) The _source indices_ for the
+    {dataframe-transform}. It can be a single index, an index pattern (for
+    example, `"myindex*"`), or an array of indices (for example,
+    `["index1", "index2"]`).
+
+  `query`:::
+    (Optional, object) A query clause that retrieves a subset of data from the
+    source index. See <<query-dsl>>.
 
 `pivot`::
-  (object) Required. Defines the pivot function `group by` fields and the
+  (Required, object) Defines the pivot function `group by` fields and the
   aggregation to reduce the data. See <<data-frame-transform-pivot>>.
   
 [[preview-data-frame-transform-response]]

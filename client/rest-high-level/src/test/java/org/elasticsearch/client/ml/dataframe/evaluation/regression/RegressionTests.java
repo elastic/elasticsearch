@@ -18,13 +18,15 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
+import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Predicate;
 
 public class RegressionTests extends AbstractXContentTestCase<Regression> {
@@ -36,9 +38,16 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
 
     @Override
     protected Regression createTestInstance() {
+        List<EvaluationMetric> metrics = new ArrayList<>();
+        if (randomBoolean()) {
+            metrics.add(new MeanSquaredErrorMetric());
+        }
+        if (randomBoolean()) {
+            metrics.add(new RSquaredMetric());
+        }
         return randomBoolean() ?
             new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), Collections.singletonList(new MeanSquaredErrorMetric()));
+            new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
     @Override
@@ -56,4 +65,5 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
         // allow unknown fields in the root of the object only
         return field -> !field.isEmpty();
     }
+
 }

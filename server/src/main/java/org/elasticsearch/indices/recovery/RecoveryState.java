@@ -564,8 +564,12 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
          * @see IndexShard#recoverLocallyUpToGlobalCheckpoint()
          */
         public synchronized void totalLocal(int totalLocal) {
-            assert this.totalLocal == UNKNOWN : "total local is set already [" + this.totalLocal + "]";
+            assert totalLocal >= recovered : totalLocal + " < " + recovered;
             this.totalLocal = totalLocal;
+        }
+
+        public synchronized int totalLocal() {
+            return totalLocal;
         }
 
         public synchronized float recoveredPercent() {

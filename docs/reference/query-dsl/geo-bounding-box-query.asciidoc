@@ -1,14 +1,26 @@
 [[query-dsl-geo-bounding-box-query]]
-=== Geo-bounding box query
+=== Geo bounding box query
 ++++
-<titleabbrev>Geo-bounding box</titleabbrev>
+<titleabbrev>Geo bounding box</titleabbrev>
 ++++
 
-A query allowing to filter hits based on a point location using a
-bounding box. Assuming the following indexed document:
+Returns documents based on point locations, or <<geo-point,geopoints>>, within a
+provided rectangle. This rectangle is called a bounding box.
 
+[[geo-bbox-query-ex-request]]
+==== Example request
+
+[[geo-bbox-query-index-setup]]
+===== Index setup
+
+To see how you can set up an index for the `geo_bounding_box` query, try the
+following example.
+
+. Create an index with a <<geo-point,geopoint>> field mapping.
++
+--
 [source,js]
---------------------------------------------------
+----
 PUT /my_locations
 {
     "mappings": {
@@ -23,7 +35,16 @@ PUT /my_locations
         }
     }
 }
+----
+// CONSOLE
+// TESTSETUP
+--
 
+. Index a document with a value in the geopoint field.
++
+--
+[source,js]
+----
 PUT /my_locations/_doc/1
 {
     "pin" : {
@@ -33,16 +54,19 @@ PUT /my_locations/_doc/1
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
-// TESTSETUP
+--
 
-Then the following simple query can be executed with a
-`geo_bounding_box` filter:
+[[geo-bbox-query-ex-query]]
+===== Example query
+
+The following search uses a `bool` query with a nested `geo_bounding_box`
+<<query-dsl-bool-query,filter>> to find the indexed geopoint.
 
 [source,js]
---------------------------------------------------
-GET my_locations/_search
+----
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -66,73 +90,90 @@ GET my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-==== Query Options
+[[geo-bbox-top-level-params]]
+==== Top-level parameters for `geo_bounding_box`
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Option |Description
-|`_name` |Optional name field to identify the filter
+`<field>`::
++
+--
+(Required, <<geo-bbox-accepted-formats,latitude-longitude object>>)
+<<geo-point,Geopoint>> field you wish to search.
 
-|`validation_method` |Set to `IGNORE_MALFORMED` to
-accept geo points with invalid latitude or longitude, set to
-`COERCE` to also try to infer correct latitude or longitude. (default is `STRICT`).
+The value of this parameter is a latitude-longitude object used to create a
+bounding box. The query returns documents containing geopoints in the provided
+field that are within this box.
 
-|`type` |Set to one of `indexed` or `memory` to defines whether this filter will
-be executed in memory or indexed. See <<geo-bbox-type,Type>> below for further details
-Default is `memory`.
-|=======================================================================
+See <<geo-bbox-accepted-formats>> for a
+list of supported formats.
+--
 
-[float]
-==== Accepted Formats
 
-In much the same way the geo_point type can accept different
-representations of the geo point, the filter can accept it as well:
+`ignore_unmapped`::
++
+--
+(Optional, boolean) Indicates whether to ignore an unmapped `<field>` and not
+return any documents instead of an error. Defaults to `false`.
 
-[float]
-===== Lat Lon As Properties
+If `false`, {es} returns an error if the `<field>` is unmapped.
+
+You can use this parameter to query multiple indices that may not contain the
+`<field>`.
+--
+
+
+
+`type`::
++
+--
+(Optional, string) Indicates whether the query runs in memory or indexed.
+
+* `MEMORY` (Default)
+* `INDEXED`
+
+See <<geo-bbox-type>>.
+-- 
+
+`validation_method`::
++
+--
+(Optional, string) Indicates whether the query accepts invalid
+latitude or longitude values in the `<field>` parameter. 
+
+`STRICT` (Default):: Do not accept invalid latitude or longitude values.
+
+`COERCE`:: Accept invalid latitude or longitude values. Attempt to infer the
+correct latitude or longitude.
+
+`IGNORE_MALFORMED`:: Accept invalid latitude or longitude values. Do not attempt
+to infer the correct latitude or longitude.
+--
+
+[[geo-bbox-query-notes]]
+==== Notes
+
+[[geo-bbox-accepted-formats]]
+===== Accepted latitude-longitude formats
+Like the <<geo-point,geopoint datatype>>, the `<field>` parameter accepts 
+the following latitude-longitude formats:
+
+* <<geo-bbox-format-array,Array>>
+* <<geo-bbox-format-geohash,Geohash>>
+* <<geo-bbox-format-property,Property>>
+* <<geo-bbox-format-string,String>>
+* <<geo-bbox-format-vertices,Vertices>>
+* <<geo-bbox-format-wkt,Well-known text (WKT)>>
+
+[[geo-bbox-format-array]]
+====== Array
+The following search uses the `[longitude, latitude]` array format. Note
+the longitude-latitude order conforms with http://geojson.org/[GeoJSON].
 
 [source,js]
---------------------------------------------------
-GET my_locations/_search
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.01,
-                            "lon" : -71.12
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-===== Lat Lon As Array
-
-Format in `[lon, lat]`, note, the order of lon/lat here in order to
-conform with http://geojson.org/[GeoJSON].
-
-[source,js]
---------------------------------------------------
-GET my_locations/_search
+----
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -150,68 +191,16 @@ GET my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-===== Lat Lon As String
-
-Format in `lat,lon`.
-
-[source,js]
---------------------------------------------------
-GET my_locations/_search
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : "40.73, -74.1",
-                        "bottom_right" : "40.01, -71.12"
-                    }
-                }
-            }
-    }
-}
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-===== Bounding Box as Well-Known Text (WKT)
+[[geo-bbox-format-geohash]]
+====== Geohash
+The following search uses the geohash format.
 
 [source,js]
---------------------------------------------------
-GET my_locations/_search
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-===== Geohash
-
-[source,js]
---------------------------------------------------
-GET my_locations/_search
+----
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -229,15 +218,13 @@ GET my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-
-When geohashes are used to specify the bounding the edges of the
-bounding box, the geohashes are treated as rectangles. The bounding
-box is defined in such a way that its top left corresponds to the top
-left corner of the geohash specified in the `top_left` parameter and
-its bottom right is defined as the bottom right of the geohash
+When used to specify the edges of a bounding box, geohashes are treated as
+rectangles. The bounding box is defined in such a way that its top left
+corresponds to the top left corner of the geohash specified in the `top_left`
+parameter and its bottom right is defined as the bottom right of the geohash
 specified in the `bottom_right` parameter.
 
 In order to specify a bounding box that would match entire area of a
@@ -245,8 +232,8 @@ geohash the geohash can be specified in both `top_left` and
 `bottom_right` parameters:
 
 [source,js]
---------------------------------------------------
-GET my_locations/_search
+----
+GET /my_locations/_search
 {
     "query": {
         "geo_bounding_box" : {
@@ -257,15 +244,76 @@ GET my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
 In this example, the geohash `dr` will produce the bounding box
 query with the top left corner at `45.0,-78.75` and the bottom right
 corner at `39.375,-67.5`.
 
-[float]
-==== Vertices
+[[geo-bbox-format-property]]
+====== Property
+The following search uses the property format.
+
+[source,js]
+----
+GET /my_locations/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : {
+                            "lat" : 40.73,
+                            "lon" : -74.1
+                        },
+                        "bottom_right" : {
+                            "lat" : 40.01,
+                            "lon" : -71.12
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// CONSOLE
+
+[[geo-bbox-format-string]]
+====== String
+The following search uses the `latitude, longitude` string format.
+
+[source,js]
+----
+GET /my_locations/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : "40.73, -74.1",
+                        "bottom_right" : "40.01, -71.12"
+                    }
+                }
+            }
+    }
+}
+}
+----
+// CONSOLE
+
+[[geo-bbox-format-vertices]]
+====== Vertices
+The following search uses the vertices format.
 
 The vertices of the bounding box can either be set by `top_left` and
 `bottom_right` or by `top_right` and `bottom_left` parameters. More
@@ -275,8 +323,8 @@ the simple names `top`, `left`, `bottom` and `right` to set the
 values separately.
 
 [source,js]
---------------------------------------------------
-GET my_locations/_search
+----
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -296,27 +344,43 @@ GET my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
+[[geo-bbox-format-wkt]]
+====== Well-known text (WKT)
+The following search uses the well-known text (WKT) format.
 
-[float]
-==== geo_point Type
+[source,js]
+----
+GET /my_locations/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// CONSOLE
 
-The filter *requires* the `geo_point` type to be set on the relevant
-field.
-
-[float]
-==== Multi Location Per Document
-
+[[geo-bbox-multi-loc]]
+===== Multiple locations per document
 The filter can work with multiple locations / points per document. Once
 a single location / point matches the filter, the document will be
 included in the filter
 
-[float]
 [[geo-bbox-type]]
-==== Type
-
+===== Use the `type` parameter to speed up performance
 The type of the bounding box execution by default is set to `memory`,
 which means in memory checks if the doc falls within the bounding box
 range. In some cases, an `indexed` option will perform faster (but note
@@ -325,8 +389,8 @@ Note, when using the indexed option, multi locations per document field
 are not supported. Here is an example:
 
 [source,js]
---------------------------------------------------
-GET my_locations/_search
+----
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -351,21 +415,11 @@ GET my_locations/_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-==== Ignore Unmapped
-
-When set to `true` the `ignore_unmapped` option will ignore an unmapped field
-and will not match any documents for this query. This can be useful when
-querying multiple indexes which might have different mappings. When set to
-`false` (the default value) the query will throw an exception if the field
-is not mapped.
-
-[float]
-==== Notes on Precision
-
+[[geopoint-precision]]
+===== Geopoint precision
 Geopoints have limited precision and are always rounded down during index time.
 During the query time, upper boundaries of the bounding boxes are rounded down,
 while lower boundaries are rounded up. As a result, the points along on the

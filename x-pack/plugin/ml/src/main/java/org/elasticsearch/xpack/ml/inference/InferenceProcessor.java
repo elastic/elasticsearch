@@ -35,10 +35,8 @@ public class InferenceProcessor extends AbstractProcessor {
     }
     @Override
     public IngestDocument execute(IngestDocument document) {
-//        document.setFieldValue(targetField, Boolean.TRUE);
 
-
-        return document;
+        return model.infer(document);
     }
 
     @Override
@@ -63,7 +61,8 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config)
+                throws Exception {
             String modelId = ConfigurationUtils.readStringProperty(TYPE, tag, config, MODEL_NAME);
             String modelType = ConfigurationUtils.readStringProperty(TYPE, tag, config, TARGET_FIELD);
 
@@ -75,7 +74,7 @@ public class InferenceProcessor extends AbstractProcessor {
                     throw new IllegalStateException("Cannot find loader for model type " + modelType);
                 }
 
-                Model model = loader.load();
+                Model model = loader.load(modelId, modelType);
                 loadedModels.put(modelId, model);
                 return new InferenceProcessor(tag, modelId, model);
             }

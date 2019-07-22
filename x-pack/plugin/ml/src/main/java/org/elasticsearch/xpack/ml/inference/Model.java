@@ -6,5 +6,9 @@
 
 package org.elasticsearch.xpack.ml.inference;
 
+import org.elasticsearch.ingest.IngestDocument;
+
 public interface Model {
+
+    IngestDocument infer(IngestDocument document);
 }

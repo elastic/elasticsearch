@@ -7,5 +7,5 @@
 package org.elasticsearch.xpack.ml.inference;
 
 public interface ModelLoader {
-    Model load();
+    Model load(String id, String index) throws Exception;
 }

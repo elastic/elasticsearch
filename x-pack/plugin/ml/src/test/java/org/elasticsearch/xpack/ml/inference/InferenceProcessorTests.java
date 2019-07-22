@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceProcessorTests extends ESTestCase {
 
-    public void testFactory() {
+    public void testFactory() throws Exception {
         InferenceProcessor.Factory factory = new InferenceProcessor.Factory(Collections.emptyMap());
 
         Map<String, Object> config = new HashMap<>();

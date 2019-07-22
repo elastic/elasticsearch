@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class MainResponse extends ActionResponse implements ToXContentObject {
@@ -111,6 +113,13 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("tagline", "You Know, for Search");
         builder.endObject();
         return builder;
+    }
+
+    public Map<String, Object> toMap() {
+        HashMap<String, Object> map = new HashMap();
+        map.put("name", nodeName);
+        map.put("cluster_name", clusterName.value());
+        return map;
     }
 
     private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,

@@ -64,8 +64,8 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 `frequency`::
   (Optional, time units) The interval between checks for changes in the source
   indices when the {dataframe-transform} is running continuously. Also determines
-  the retry interval in the event of transient failures during {dataframe-transform}
-  search or indexing. The minimum value is `1s` and the maximum is `1h`. The
+  the retry interval in the event of transient failures while the {dataframe-transform} is
+  searching or indexing. The minimum value is `1s` and the maximum is `1h`. The
   default value is `1m`.
 
 `pivot`::

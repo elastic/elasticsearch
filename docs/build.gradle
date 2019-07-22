@@ -23,18 +23,18 @@ apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'reference/ml/transforms.asciidoc',
-        'reference/ml/apis/delete-calendar-event.asciidoc',
-        'reference/ml/apis/get-bucket.asciidoc',
-        'reference/ml/apis/get-category.asciidoc',
-        'reference/ml/apis/get-influencer.asciidoc',
-        'reference/ml/apis/get-job-stats.asciidoc',
-        'reference/ml/apis/get-overall-buckets.asciidoc',
-        'reference/ml/apis/get-record.asciidoc',
-        'reference/ml/apis/get-snapshot.asciidoc',
-        'reference/ml/apis/post-data.asciidoc',
-        'reference/ml/apis/revert-snapshot.asciidoc',
-        'reference/ml/apis/update-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/transforms.asciidoc',
+        'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+        'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
 ]
 
 testClusters.integTest {

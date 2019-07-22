@@ -121,6 +121,31 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return this;
     }
 
+    public GraphExploreRequest(StreamInput in) throws IOException {
+        super(in);
+
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        types = in.readStringArray();
+        routing = in.readOptionalString();
+        timeout = in.readOptionalTimeValue();
+        sampleSize = in.readInt();
+        sampleDiversityField = in.readOptionalString();
+        maxDocsPerDiversityValue = in.readInt();
+
+        useSignificance = in.readBoolean();
+        returnDetailedInfo = in.readBoolean();
+
+        int numHops = in.readInt();
+        Hop parentHop = null;
+        for (int i = 0; i < numHops; i++) {
+            Hop hop = new Hop(parentHop);
+            hop.readFrom(in);
+            hops.add(hop);
+            parentHop = hop;
+        }
+    }
+
     public String routing() {
         return this.routing;
     }
@@ -160,33 +185,6 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
     public GraphExploreRequest timeout(String timeout) {
         timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        types = in.readStringArray();
-        routing = in.readOptionalString();
-        timeout = in.readOptionalTimeValue();
-        sampleSize = in.readInt();
-        sampleDiversityField = in.readOptionalString();
-        maxDocsPerDiversityValue = in.readInt();
-
-        useSignificance = in.readBoolean();
-        returnDetailedInfo = in.readBoolean();
-
-        int numHops = in.readInt();
-        Hop parentHop = null;
-        for (int i = 0; i < numHops; i++) {
-            Hop hop = new Hop(parentHop);
-            hop.readFrom(in);
-            hops.add(hop);
-            parentHop = hop;
-        }
-
     }
 
     @Override

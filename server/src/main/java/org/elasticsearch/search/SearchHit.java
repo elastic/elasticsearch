@@ -71,7 +71,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
-import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 
 /**
  * A single search hit.
@@ -160,12 +159,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (size == 0) {
             fields = emptyMap();
         } else if (size == 1) {
-            DocumentField hitField = DocumentField.readDocumentField(in);
+            DocumentField hitField = new DocumentField(in);
             fields = singletonMap(hitField.getName(), hitField);
         } else {
             Map<String, DocumentField> fields = new HashMap<>();
             for (int i = 0; i < size; i++) {
-                DocumentField hitField = DocumentField.readDocumentField(in);
+                DocumentField hitField = new DocumentField(in);
                 fields.put(hitField.getName(), hitField);
             }
             this.fields = unmodifiableMap(fields);
@@ -175,12 +174,12 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         if (size == 0) {
             highlightFields = emptyMap();
         } else if (size == 1) {
-            HighlightField field = readHighlightField(in);
+            HighlightField field = new HighlightField(in);
             highlightFields = singletonMap(field.name(), field);
         } else {
             Map<String, HighlightField> highlightFields = new HashMap<>();
             for (int i = 0; i < size; i++) {
-                HighlightField field = readHighlightField(in);
+                HighlightField field = new HighlightField(in);
                 highlightFields.put(field.name(), field);
             }
             this.highlightFields = unmodifiableMap(highlightFields);

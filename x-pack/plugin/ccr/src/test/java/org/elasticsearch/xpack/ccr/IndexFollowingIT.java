@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -99,6 +100,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1057,6 +1059,46 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
             assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
         });
+    }
+
+    public void testReplicatePrivateSettingsOnly() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(
+            getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")), XContentType.JSON));
+        ensureLeaderGreen("leader");
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        final ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
+        final SetOnce<Long> settingVersionOnLeader = new SetOnce<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final IndexMetaData indexMetaData = currentState.metaData().index("leader");
+                Settings.Builder settings = Settings.builder().put(indexMetaData.getSettings());
+                settings.put(PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey(), "internal-value");
+                settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "internal-value");
+                final MetaData.Builder metadata = MetaData.builder(currentState.metaData())
+                    .put(IndexMetaData.builder(indexMetaData)
+                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                        .settings(settings).build(), true);
+                return ClusterState.builder(currentState).metaData(metadata).build();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                settingVersionOnLeader.set(newState.metaData().index("leader").getSettingsVersion());
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        latch.await();
+        assertBusy(() -> assertThat(getFollowTaskSettingsVersion("follower"), equalTo(settingVersionOnLeader.get())));
+        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+        assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
+        assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
     }
 
     public void testMustCloseIndexAndPauseToRestartWithPutFollowing() throws Exception {

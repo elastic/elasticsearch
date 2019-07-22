@@ -49,8 +49,8 @@ import java.util.List;
 import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_MATCH;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DataFrameRequestConvertersTests extends ESTestCase {
@@ -86,6 +86,13 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo"));
+
+        assertThat(request.getParameters(), not(hasKey("force")));
+
+        deleteRequest.setForce(true);
+        request = DataFrameRequestConverters.deleteDataFrameTransform(deleteRequest);
+
+        assertThat(request.getParameters(), hasEntry("force", "true"));
     }
 
     public void testStartDataFrameTransform() {

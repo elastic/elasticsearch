@@ -34,7 +34,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 
 public class PendingTasksBlocksIT extends ESIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44695")
     public void testPendingTasksWithIndexBlocks() {
         createIndex("test");
         ensureGreen("test");
@@ -52,7 +51,6 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44695")
     public void testPendingTasksWithClusterReadOnlyBlock() {
         if (randomBoolean()) {
             createIndex("test");
@@ -68,7 +66,6 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44695")
     public void testPendingTasksWithClusterNotRecoveredBlock() throws Exception {
         if (randomBoolean()) {
             createIndex("test");

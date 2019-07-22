@@ -30,12 +30,23 @@ have `view_index_metadata` privileges on the source index for the
 [[start-data-frame-transform-desc]]
 ==== {api-description-title}
 
-When a {dataframe-transform} starts, a series of validations occur to ensure its
-success. If you deferred validation when you created the {dataframe-transform},
-they occur when you start the transform--with the exception of privilege checks.
-If the user who created the transform does not have the required privileges on
-the source and destination indices, the transform starts but then fails when
-it attempts the unauthorized operation.
+If the destination index does not exist when you start a {dataframe-transform},
+it's created for you. The field mappings are deduced based on the mappings in
+the source indices. If there are fields that use `scripted_metric` or
+`bucket_script` aggregations, they will have dynamic mappings. The
+`number_of_shards` is set to `1` and the `auto_expand_replicas` is set to `0-1`.
+
+Alternatively, you can create the destination index before you start the
+{dataframe-transform}. If a destination index or a relevant index template
+exists, fields that are created using `scripted_metric` or `bucket_script`
+aggregations can be overwritten. 
+
+When the {dataframe-transform} starts, a series of validations occur to ensure
+its success. If you deferred validation when you created the
+{dataframe-transform}, they occur when you start the transform--with the
+exception of privilege checks. If the user who created the transform does not
+have the required privileges on the source and destination indices, the
+transform starts but then fails when it attempts the unauthorized operation.
 
 [[start-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}

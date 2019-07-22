@@ -6,20 +6,30 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
@@ -125,6 +135,121 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_0");
         Integer actual = (Integer) ((List<?>) XContentMapValues.extractValue("hits.hits._source.pipeline_field", searchResult)).get(0);
         assertThat(actual, equalTo(pipelineValue));
+    }
+
+    public void testContinuousPivot() throws Exception {
+        String indexName = "continuous_reviews";
+        createReviewsIndex(indexName);
+        String transformId = "simple_continuous_pivot";
+        String dataFrameIndex = "pivot_reviews_continuous";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, dataFrameIndex);
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        String config = "{"
+            + " \"source\": {\"index\":\"" + indexName + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},"
+            + " \"frequency\": \"1s\","
+            + " \"sync\": {\"time\": {\"field\": \"timestamp\", \"delay\": \"1s\"}},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForContinuousTransform(transformId, dataFrameIndex, null);
+        assertTrue(indexExists(dataFrameIndex));
+        // get and check some users
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
+
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+        final StringBuilder bulk = new StringBuilder();
+        long user = 42;
+        long user26 = 26;
+
+        long dateStamp = Instant.now().toEpochMilli() - 1_000;
+        for (int i = 0; i < 25; i++) {
+            bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
+            int stars = (i * 32) % 5;
+            long business = (stars * user) % 13;
+            String location = (user + 10) + "," + (user + 15);
+
+            bulk.append("{\"user_id\":\"")
+                .append("user_")
+                .append(user)
+                .append("\",\"business_id\":\"")
+                .append("business_")
+                .append(business)
+                .append("\",\"stars\":")
+                .append(stars)
+                .append(",\"location\":\"")
+                .append(location)
+                .append("\",\"timestamp\":")
+                .append(dateStamp)
+                .append("}\n");
+
+            stars = 5;
+            business = 11;
+            bulk.append("{\"index\":{\"_index\":\"" + indexName + "\"}}\n");
+            bulk.append("{\"user_id\":\"")
+                .append("user_")
+                .append(user26)
+                .append("\",\"business_id\":\"")
+                .append("business_")
+                .append(business)
+                .append("\",\"stars\":")
+                .append(stars)
+                .append(",\"location\":\"")
+                .append(location)
+                .append("\",\"timestamp\":")
+                .append(dateStamp)
+                .append("}\n");
+        }
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        client().performRequest(bulkRequest);
+
+        waitForDataFrameCheckpoint(transformId, 2);
+
+        stopDataFrameTransform(transformId, false);
+        refreshIndex(dataFrameIndex);
+
+        // assert that other users are unchanged
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_5", 3.72);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_20", 3.769230769);
+
+
+        Map<String, Object> user26searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_26");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", user26searchResult));
+        double actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", user26searchResult))
+            .get(0);
+        assertThat(actual, greaterThan(3.92));
+
+        Map<String, Object> user42searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_42");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", user42searchResult));
+        actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", user42searchResult))
+            .get(0);
+        assertThat(actual, greaterThan(0.0));
+        assertThat(actual, lessThan(5.0));
     }
 
     public void testHistogramPivot() throws Exception {
@@ -256,7 +381,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "   \"group_by\": {"
             + "     \"by_hr\": {"
             + "       \"date_histogram\": {"
-            + "         \"fixed_interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd_HH\""
+            + "         \"fixed_interval\": \"1h\",\"field\":\"timestamp\""
             + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
@@ -290,7 +415,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config += " \"pivot\": {"
             + "   \"group_by\": {"
             + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
-            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\"}}},"
             + "   \"aggregations\": {"
             + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
@@ -340,7 +465,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " \"pivot\": {"
             + "   \"group_by\": {"
             + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
-            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\"}}},"
             + "   \"aggregations\": {"
             + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
@@ -380,7 +505,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config +="    \"pivot\": { \n" +
             "        \"group_by\": {\n" +
             "            \"by_day\": {\"date_histogram\": {\n" +
-            "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"\n" +
+            "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\"\n" +
             "            }}\n" +
             "        },\n" +
             "    \n" +
@@ -603,6 +728,45 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
         assertEquals(4.47169811, actual.doubleValue(), 0.000001);
+    }
+
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/44583")
+    public void testBulkIndexFailuresCauseTaskToFail() throws Exception {
+        String transformId = "bulk-failure-pivot";
+        String dataFrameIndex = "pivot-failure-index";
+        createPivotReviewsTransform(transformId, dataFrameIndex, null, null, null);
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings")
+                    .startObject("properties")
+                    .startObject("reviewer")
+                    // This type should cause mapping coercion type conflict on bulk index
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", dataFrameIndex);
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
+        startDataframeTransform(transformId, false, null);
+
+        assertBusy(() -> assertEquals(DataFrameTransformTaskState.FAILED.value(), getDataFrameTaskState(transformId)),
+            120,
+            TimeUnit.SECONDS);
+
+        Map<?, ?> state = getDataFrameState(transformId);
+        assertThat((String) XContentMapValues.extractValue("state.reason", state),
+            containsString("task encountered more than 10 failures; latest failure: Bulk index experienced failures."));
+
+        // Force stop the transform as bulk indexing caused it to go into a failed state
+        stopDataFrameTransform(transformId, true);
+        deleteIndex(dataFrameIndex);
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

@@ -57,7 +57,7 @@ public class XPackSettings {
     /** Setting for enabling or disabling graph. Defaults to true. */
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling machine learning. Defaults to false. */
+    /** Setting for enabling or disabling machine learning. Defaults to true. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
             Setting.Property.NodeScope);
 
@@ -113,6 +113,10 @@ public class XPackSettings {
 
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling flattened fields. Defaults to true. */
+    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting("xpack.flattened.enabled",
+        true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling vectors. Defaults to true. */
     public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
@@ -207,6 +211,7 @@ public class XPackSettings {
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(INDEX_LIFECYCLE_ENABLED);
         settings.add(DATA_FRAME_ENABLED);
+        settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
         return Collections.unmodifiableList(settings);
     }

@@ -419,7 +419,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39852")
     public void testSnapshotWithStuckNode() throws Exception {
         logger.info("--> start 2 nodes");
         ArrayList<String> nodes = new ArrayList<>();
@@ -483,18 +482,28 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         logger.info("--> making sure that snapshot no longer exists");
-        assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(),
-            SnapshotMissingException.class);
+        expectThrows(SnapshotMissingException.class,
+            () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
+                .execute().actionGet().getSnapshots("test-repo"));
+
+        // TODO: Replace this by repository cleanup endpoint call once that's available
+        logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-tmp")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx")
+            .get();
+        client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-tmp").get();
+
         // Subtract four files that will remain in the repository:
-        //   (1) index-1
-        //   (2) index-0 (because we keep the previous version) and
+        //   (1) index-(N+1)
+        //   (2) index-N (because we keep the previous version) and
         //   (3) index-latest
-        //   (4) incompatible-snapshots
-        assertFileCount(repo, 4);
+        assertFileCount(repo, 3);
         logger.info("--> done");
     }
 
     public void testRestoreIndexWithMissingShards() throws Exception {
+        disableRepoConsistencyCheck("This test leaves behind a purposely broken repository");
         logger.info("--> start 2 nodes");
         internalCluster().startNode();
         internalCluster().startNode();
@@ -722,6 +731,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testRegistrationFailure() {
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
         logger.info("--> start first node");
         internalCluster().startNode();
         logger.info("--> start second node");
@@ -741,6 +751,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
+        disableRepoConsistencyCheck("This test does not create any data in the repository");
         Settings nodeSettings = Settings.EMPTY;
         logger.info("--> start two nodes");
         internalCluster().startNodes(2, nodeSettings);

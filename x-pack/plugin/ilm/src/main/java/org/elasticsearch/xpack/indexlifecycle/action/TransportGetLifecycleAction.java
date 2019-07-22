@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Lif
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,8 +38,8 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
     @Inject
     public TransportGetLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                Request::new);
+        super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
+            indexNameExpressionResolver);
     }
 
     @Override
@@ -45,12 +48,12 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         IndexLifecycleMetadata metadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {

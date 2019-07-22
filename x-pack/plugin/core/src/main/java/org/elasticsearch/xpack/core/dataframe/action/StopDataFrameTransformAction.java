@@ -6,7 +6,8 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -31,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class StopDataFrameTransformAction extends Action<StopDataFrameTransformAction.Response> {
+public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransformAction.Response> {
 
     public static final StopDataFrameTransformAction INSTANCE = new StopDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/stop";
@@ -39,32 +40,24 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopDataFrameTransformAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StopDataFrameTransformAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
         private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
+        private final boolean allowNoMatch;
         private Set<String> expandedIds;
 
-        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout) {
+        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout, boolean allowNoMatch) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
 
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
+            this.allowNoMatch = allowNoMatch;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -74,6 +67,11 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             force = in.readBoolean();
             if (in.readBoolean()) {
                 expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
+            }
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                this.allowNoMatch = in.readBoolean();
+            } else {
+                this.allowNoMatch = true;
             }
         }
 
@@ -97,6 +95,10 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             this.expandedIds = expandedIds;
         }
 
+        public boolean isAllowNoMatch() {
+            return allowNoMatch;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -108,6 +110,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             if (hasExpandedIds) {
                 out.writeStringArray(expandedIds.toArray(new String[0]));
             }
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeBoolean(allowNoMatch);
+            }
         }
 
         @Override
@@ -118,7 +123,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout());
+            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout(), allowNoMatch);
         }
 
         @Override
@@ -140,7 +145,8 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             return Objects.equals(id, other.id) &&
                     Objects.equals(waitForCompletion, other.waitForCompletion) &&
                     Objects.equals(force, other.force) &&
-                    Objects.equals(expandedIds, other.expandedIds);
+                    Objects.equals(expandedIds, other.expandedIds) &&
+                    allowNoMatch == other.allowNoMatch;
         }
 
         @Override

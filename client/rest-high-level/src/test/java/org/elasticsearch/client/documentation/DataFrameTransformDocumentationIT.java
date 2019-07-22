@@ -45,6 +45,7 @@ import org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
+import org.elasticsearch.client.dataframe.transforms.NodeAttributes;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
@@ -155,8 +156,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setId("reviewer-avg-rating") // <1>
             .setSource(sourceConfig) // <2>
             .setDest(destConfig) // <3>
-            .setPivotConfig(pivotConfig) // <4>
-            .setDescription("This is my test transform") // <5>
+            .setFrequency(TimeValue.timeValueSeconds(15)) // <4>
+            .setPivotConfig(pivotConfig) // <5>
+            .setDescription("This is my test transform") // <6>
             .build();
         // end::put-data-frame-transform-config
 
@@ -171,6 +173,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     client.dataFrame().putDataFrameTransform(
                             request, RequestOptions.DEFAULT);
             // end::put-data-frame-transform-execute
+            transformsToClean.add(request.getConfig().getId());
 
             assertTrue(response.isAcknowledged());
         }
@@ -208,6 +211,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::put-data-frame-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            transformsToClean.add(request.getConfig().getId());
         }
     }
 
@@ -261,6 +265,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::stop-data-frame-transform-request-options
             request.setWaitForCompletion(Boolean.TRUE);  // <1>
             request.setTimeout(TimeValue.timeValueSeconds(30));  // <2>
+            request.setAllowNoMatch(true); // <3>
             // end::stop-data-frame-transform-request-options
 
             // tag::stop-data-frame-transform-execute
@@ -369,6 +374,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::delete-data-frame-transform-request
             DeleteDataFrameTransformRequest request =
                     new DeleteDataFrameTransformRequest("mega-transform"); // <1>
+            request.setForce(false); // <2>
             // end::delete-data-frame-transform-request
 
             // tag::delete-data-frame-transform-execute
@@ -431,6 +437,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     .setQueryConfig(queryConfig)
                     .build(), // <1>
                 pivotConfig); // <2>
+
         PreviewDataFrameTransformRequest request =
                 new PreviewDataFrameTransformRequest(transformConfig); // <3>
         // end::preview-data-frame-transform-request
@@ -443,6 +450,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::preview-data-frame-transform-execute
 
             assertNotNull(response.getDocs());
+            assertNotNull(response.getMappings());
         }
         {
             // tag::preview-data-frame-transform-execute-listener
@@ -478,7 +486,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         RestHighLevelClient client = highLevelClient();
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -497,11 +504,17 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setPivotConfig(pivotConfig)
             .build();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        transformsToClean.add(id);
 
         // tag::get-data-frame-transform-stats-request
         GetDataFrameTransformStatsRequest request =
                 new GetDataFrameTransformStatsRequest(id); // <1>
         // end::get-data-frame-transform-stats-request
+
+        // tag::get-data-frame-transform-stats-request-options
+        request.setPageParams(new PageParams(0, 100)); // <1>
+        request.setAllowNoMatch(true); // <2>
+        // end::get-data-frame-transform-stats-request-options
 
         {
             // tag::get-data-frame-transform-stats-execute
@@ -523,6 +536,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 stateAndStats.getTransformStats();              // <4>
             DataFrameTransformProgress progress =
                 stateAndStats.getTransformState().getProgress(); // <5>
+            NodeAttributes node =
+                stateAndStats.getTransformState().getNode(); // <6>
             // end::get-data-frame-transform-stats-response
 
             assertEquals(IndexerState.STOPPED, indexerState);
@@ -564,7 +579,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     public void testGetDataFrameTransform() throws IOException, InterruptedException {
         createIndex("source-data");
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -595,6 +609,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::get-data-frame-transform-request-options
             request.setPageParams(new PageParams(0, 100)); // <1>
+            request.setAllowNoMatch(true); // <2>
             // end::get-data-frame-transform-request-options
 
             // tag::get-data-frame-transform-execute

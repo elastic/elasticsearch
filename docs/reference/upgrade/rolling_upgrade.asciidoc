@@ -10,8 +10,8 @@ running the older version.
 Rolling upgrades are supported:
 
 * Between minor versions
-* {stack-ref-67}/upgrading-elastic-stack.html[From 5.6 to 6.7]
-* {stack-ref-70}/upgrading-elastic-stack.html[From 6.7 to 7.0]
+* {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
+* {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
 * From {prev-major-version} to {version}
 
 Upgrading directly to {version} from 6.6 or earlier requires a
@@ -30,7 +30,7 @@ include::disable-shard-alloc.asciidoc[]
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<indices-synced-flush, synced-flush>>.
+<<synced-flush-api, synced-flush>>.
 
 include::synced-flush.asciidoc[]
 
@@ -133,7 +133,7 @@ As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 
-Shards that were not <<indices-synced-flush,sync-flushed>> might take longer to
+Shards that were not <<synced-flush-api,sync-flushed>> might take longer to
 recover.  You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 

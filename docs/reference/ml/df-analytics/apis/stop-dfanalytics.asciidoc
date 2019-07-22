@@ -1,0 +1,86 @@
+[role="xpack"]
+[testenv="platinum"]
+[[stop-dfanalytics]]
+=== Stop {dfanalytics-jobs} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Stop {dfanalytics-jobs}</titleabbrev>
+++++
+
+Stops one or more {dfanalytics-jobs}.
+
+experimental[]
+
+[[ml-stop-dfanalytics-request]]
+==== {api-request-title}
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>/_stop` +
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>/_stop` +
+
+`POST _ml/data_frame/analytics/_all/_stop`
+
+[[ml-stop-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+* You must have `machine_learning_admin` built-in role to use this API. For more 
+information, see {stack-ov}/security-privileges.html[Security privileges] and 
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-stop-dfanalytics-desc]]
+==== {api-description-title}
+
+A {dfanalytics-job} can be started and stopped multiple times throughout its 
+lifecycle.
+
+You can stop multiple {dfanalytics-jobs} in a single API request by using a 
+comma-separated list of {dfanalytics-jobs} or a wildcard expression. You can 
+stop all {dfanalytics-job} by using _all or by specifying * as the 
+<data_frame_analytics_id>.
+
+[[ml-stop-dfanalytics-path-params]]
+==== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+  (Required, string) Identifier for the {dfanalytics-job}. This identifier can
+  contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
+  
+[[ml-stop-dfanalytics-query-params]]
+==== {api-query-parms-title}  
+  
+`allow_no_match`::
+  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
+  match any {dfanalytics-job} an error will be returned. The default value is
+  `true`.
+
+`force`::
+  (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
+  
+`timeout`::
+  (Optional, time) Controls the amount of time to wait until the
+  {dfanalytics-job} stops. The default value is 20 seconds.
+
+
+[[ml-stop-dfanalytics-example]]
+==== {api-examples-title}
+
+The following example stops the `loganalytics` {dfanalytics-job}:
+
+[source,js]
+--------------------------------------------------
+POST _ml/data_frame/analytics/loganalytics/_stop
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:TBD]
+
+When the {dfanalytics-job} stops, you receive the following results:
+
+[source,js]
+----
+{
+  "stopped" : true
+}
+----
+// TESTRESPONSE

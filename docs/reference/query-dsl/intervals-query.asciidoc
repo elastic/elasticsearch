@@ -1,5 +1,8 @@
 [[query-dsl-intervals-query]]
 === Intervals query
+++++
+<titleabbrev>Intervals</titleabbrev>
+++++
 
 An `intervals` query allows fine-grained control over the order and proximity of
 matching terms.  Matching rules are constructed from a small set of definitions,
@@ -81,6 +84,53 @@ Terms will be analyzed using the search analyzer from this field.  This allows y
 to search across multiple fields as if they were all the same field; for example,
 you could index the same text into stemmed and unstemmed fields, and search for
 stemmed tokens near unstemmed ones.
+
+[[intervals-prefix]]
+==== `prefix`
+
+The `prefix` rule finds terms that start with a specified prefix.  The prefix will
+expand to match at most 128 terms; if there are more matching terms in the index,
+then an error will be returned.  To avoid this limit, enable the
+<<index-prefixes,`index-prefixes`>> option on the field being searched.
+
+[horizontal]
+`prefix`::
+Match terms starting with this prefix
+`analyzer`::
+Which analyzer should be used to normalize the `prefix`.  By default, the
+search analyzer of the top-level field will be used.
+`use_field`::
+If specified, then match intervals from this field rather than the top-level field.
+The `prefix` will be normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+
+[[intervals-wildcard]]
+==== `wildcard`
+
+The `wildcard` rule finds terms that match a wildcard pattern.  The pattern will
+expand to match at most 128 terms; if there are more matching terms in the index,
+then an error will be returned.
+
+[horizontal]
+`pattern`::
+Find terms matching this pattern
++
+--
+This parameter supports two wildcard operators:
+
+* `?`, which matches any single character
+* `*`, which can match zero or more characters, including an empty one
+
+WARNING: Avoid beginning patterns with `*` or `?`. This can increase
+the iterations needed to find matching terms and slow search performance.
+--
+`analyzer`::
+Which analyzer should be used to normalize the `pattern`.  By default, the
+search analyzer of the top-level field will be used.
+`use_field`::
+If specified, then match intervals from this field rather than the top-level field.
+The `pattern` will be normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
 
 [[intervals-all_of]]
 ==== `all_of`

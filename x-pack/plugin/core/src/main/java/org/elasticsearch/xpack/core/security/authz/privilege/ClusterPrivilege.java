@@ -14,10 +14,13 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -39,6 +42,7 @@ public final class ClusterPrivilege extends Privilege {
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");
     private static final Automaton MANAGE_TOKEN_AUTOMATON = patterns("cluster:admin/xpack/security/token/*");
+    private static final Automaton MANAGE_API_KEY_AUTOMATON = patterns("cluster:admin/xpack/security/api_key/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/xpack/ml/*");
     private static final Automaton MONITOR_DATA_FRAME_AUTOMATON = patterns("cluster:monitor/data_frame/*");
@@ -60,6 +64,9 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton READ_CCR_AUTOMATON = patterns(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("cluster:admin/ilm/*");
     private static final Automaton READ_ILM_AUTOMATON = patterns(GetLifecycleAction.NAME, GetStatusAction.NAME);
+    private static final Automaton MANAGE_SLM_AUTOMATON =
+        patterns("cluster:admin/slm/*", StartILMAction.NAME, StopILMAction.NAME, GetStatusAction.NAME);
+    private static final Automaton READ_SLM_AUTOMATON = patterns(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
 
     public static final ClusterPrivilege NONE =                  new ClusterPrivilege("none",                Automatons.EMPTY);
     public static final ClusterPrivilege ALL =                   new ClusterPrivilege("all",                 ALL_CLUSTER_AUTOMATON);
@@ -84,12 +91,15 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",     MANAGE_SECURITY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SAML =           new ClusterPrivilege("manage_saml",         MANAGE_SAML_AUTOMATON);
     public static final ClusterPrivilege MANAGE_OIDC =           new ClusterPrivilege("manage_oidc", MANAGE_OIDC_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_API_KEY =        new ClusterPrivilege("manage_api_key", MANAGE_API_KEY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_PIPELINE =       new ClusterPrivilege("manage_pipeline", "cluster:admin/ingest/pipeline/*");
     public static final ClusterPrivilege MANAGE_CCR =            new ClusterPrivilege("manage_ccr", MANAGE_CCR_AUTOMATON);
     public static final ClusterPrivilege READ_CCR =              new ClusterPrivilege("read_ccr", READ_CCR_AUTOMATON);
     public static final ClusterPrivilege CREATE_SNAPSHOT =       new ClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ILM =            new ClusterPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
     public static final ClusterPrivilege READ_ILM =              new ClusterPrivilege("read_ilm", READ_ILM_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_SLM =            new ClusterPrivilege("manage_slm", MANAGE_SLM_AUTOMATON);
+    public static final ClusterPrivilege READ_SLM =              new ClusterPrivilege("read_slm", READ_SLM_AUTOMATON);
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
@@ -112,13 +122,16 @@ public final class ClusterPrivilege extends Privilege {
             entry("manage_security", MANAGE_SECURITY),
             entry("manage_saml", MANAGE_SAML),
             entry("manage_oidc", MANAGE_OIDC),
+            entry("manage_api_key", MANAGE_API_KEY),
             entry("manage_pipeline", MANAGE_PIPELINE),
             entry("manage_rollup", MANAGE_ROLLUP),
             entry("manage_ccr", MANAGE_CCR),
             entry("read_ccr", READ_CCR),
             entry("create_snapshot", CREATE_SNAPSHOT),
             entry("manage_ilm", MANAGE_ILM),
-            entry("read_ilm", READ_ILM));
+            entry("read_ilm", READ_ILM),
+            entry("manage_slm", MANAGE_SLM),
+            entry("read_slm", READ_SLM));
 
     private static final ConcurrentHashMap<Set<String>, ClusterPrivilege> CACHE = new ConcurrentHashMap<>();
 
@@ -172,5 +185,9 @@ public final class ClusterPrivilege extends Privilege {
             automata.add(patterns(actions));
         }
         return new ClusterPrivilege(name, Automatons.unionAndMinimize(automata));
+    }
+
+    public static Set<String> names() {
+        return Collections.unmodifiableSet(VALUES.keySet());
     }
 }

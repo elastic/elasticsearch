@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
@@ -22,22 +22,18 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
+public class PutLifecycleAction extends ActionType<PutLifecycleAction.Response> {
     public static final PutLifecycleAction INSTANCE = new PutLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/put";
 
     protected PutLifecycleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, PutLifecycleAction.Response::new);
     }
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(boolean acknowledged) {
@@ -58,6 +54,11 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
 
         public Request(LifecyclePolicy policy) {
             this.policy = policy;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policy = new LifecyclePolicy(in);
         }
 
         public Request() {
@@ -82,12 +83,6 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Response> {
             builder.field(POLICY_FIELD.getPreferredName(), policy);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            policy = new LifecyclePolicy(in);
         }
 
         @Override

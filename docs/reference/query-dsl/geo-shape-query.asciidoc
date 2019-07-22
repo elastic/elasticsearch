@@ -96,7 +96,7 @@ GET /locations/_search
 `location`::
 +
 --
-(Required, http://www.geojson.org[GeoJSON object]) Geoshape you wish to find.
+(Optional, http://www.geojson.org[GeoJSON object]) Geoshape you wish to find.
 
 [NOTE]
 To search for a shape already indexed in another index, use the
@@ -106,7 +106,7 @@ To search for a shape already indexed in another index, use the
 `ignore_unmapped`::
 +
 --
-(boolean) Optional. Indicates whether to ignore an unmapped `type` and not
+(Optional, boolean) Indicates whether to ignore an unmapped `type` and not
 return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `type` is unmapped.
@@ -129,18 +129,20 @@ as `New Zealand`, or document ID rather than coordinates.
 [[shape-lookup-parms]]
 ====== Shape lookup parameters
 `index`::
-Name of the index from which to fetch the shape.
+(Optional, string) Name of the index from which to fetch the shape.
 
 `id`::
-<<mapping-id-field,ID>> of the document from which to fetch the shape.
+(Optional, string) <<mapping-id-field,ID>> of the document from which to fetch
+the shape.
 
 `path`::
-Name of the field from which to fetch the shape. Defaults to `shape`.
+(Optional, string) Name of the field from which to fetch the shape. Defaults to
+`shape`.
 
 `routing`::
-Custom <<mapping-routing-field, routing value>> of the document from which to
-fetch the shape. If a custom routing value was provided when the document was
-indexed, this parameter is required.
+(Optional, string) Custom <<mapping-routing-field, routing value>> of the
+document from which to fetch the shape. If a custom routing value was provided
+when the document was indexed, this parameter is required.
 
 [[pre-indexed-shape-example]]
 ====== Shape lookup example

@@ -262,6 +262,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         IndexerState state = getIndexer().stop();
+        stateReason.set(null);
         if (state == IndexerState.STOPPED) {
             getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -331,6 +332,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         taskState.set(DataFrameTransformTaskState.FAILED);
         stateReason.set(reason);
         auditor.error(transform.getId(), reason);
+        // We should not keep retrying. Either the task will be stopped, or started
+        // If it is started again, it is registered again.
+        deregisterSchedulerJob();
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
         // This is because a FAILED state can occur because we cannot read the config from the internal index, which would imply that

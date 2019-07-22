@@ -60,17 +60,20 @@ public class ReindexTask extends AllocatedPersistentTask {
 
     private final NodeClient client;
     private final TaskId taskId;
+    private final NamedXContentRegistry xContentRegistry;
     private volatile BulkByScrollTask childTask;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
         private final ClusterService clusterService;
         private final Client client;
+        private final NamedXContentRegistry xContentRegistry;
 
-        public ReindexPersistentTasksExecutor(ClusterService clusterService, final Client client) {
+        public ReindexPersistentTasksExecutor(ClusterService clusterService, final Client client, NamedXContentRegistry xContentRegistry) {
             super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
             this.client = client;
+            this.xContentRegistry = xContentRegistry;
         }
 
         @Override
@@ -84,16 +87,17 @@ public class ReindexTask extends AllocatedPersistentTask {
                                                      PersistentTasksCustomMetaData.PersistentTask<ReindexJob> taskInProgress,
                                                      Map<String, String> headers) {
             headers.putAll(taskInProgress.getParams().getHeaders());
-            return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, client);
+            return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, xContentRegistry, client);
         }
     }
 
     private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-                        ClusterService clusterService, Client client) {
+                        ClusterService clusterService, NamedXContentRegistry xContentRegistry, Client client) {
         // TODO: description
         super(id, type, action, "persistent reindex", parentTask, headers);
-        taskId = new TaskId(clusterService.localNode().getId(), id);
+        this.xContentRegistry = xContentRegistry;
         this.client = (NodeClient) client;
+        this.taskId = new TaskId(clusterService.localNode().getId(), id);
     }
 
     @Override
@@ -133,8 +137,8 @@ public class ReindexTask extends AllocatedPersistentTask {
                 @Override
                 public void onResponse(GetResponse response) {
                     BytesReference source = response.getSourceAsBytesRef();
-                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                        LoggingDeprecationHandler.INSTANCE, source, XContentType.JSON)) {
+                    try (XContentParser parser = XContentHelper.createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source,
+                        XContentType.JSON)) {
                         ReindexTaskIndexState taskState = ReindexTaskIndexState.fromXContent(parser);
                         ReindexRequest reindexRequest = taskState.getReindexRequest();
                         reindexRequest.setParentTask(taskId);

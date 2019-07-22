@@ -49,7 +49,9 @@ import java.util.List;
 import static org.elasticsearch.client.dataframe.GetDataFrameTransformRequest.ALLOW_NO_MATCH;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.not;
 
 public class DataFrameRequestConvertersTests extends ESTestCase {
 

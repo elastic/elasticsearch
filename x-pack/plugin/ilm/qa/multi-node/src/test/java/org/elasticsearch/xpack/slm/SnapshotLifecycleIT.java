@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle;
+package org.elasticsearch.xpack.slm;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;

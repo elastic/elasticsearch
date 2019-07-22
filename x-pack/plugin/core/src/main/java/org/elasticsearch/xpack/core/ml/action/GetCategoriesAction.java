@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,18 +29,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCategoriesAction extends StreamableResponseActionType<GetCategoriesAction.Response> {
+public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response> {
 
     public static final GetCategoriesAction INSTANCE = new GetCategoriesAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";
 
     private GetCategoriesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -76,6 +71,13 @@ public class GetCategoriesAction extends StreamableResponseActionType<GetCategor
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            categoryId = in.readOptionalLong();
+            pageParams = in.readOptionalWriteable(PageParams::new);
+        }
+
         public String getJobId() { return jobId; }
 
         public PageParams getPageParams() { return pageParams; }
@@ -107,14 +109,6 @@ public class GetCategoriesAction extends StreamableResponseActionType<GetCategor
                         + "cannot be null" , validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            categoryId = in.readOptionalLong();
-            pageParams = in.readOptionalWriteable(PageParams::new);
         }
 
         @Override
@@ -170,7 +164,8 @@ public class GetCategoriesAction extends StreamableResponseActionType<GetCategor
             super(result);
         }
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public QueryPage<CategoryDefinition> getResult() {

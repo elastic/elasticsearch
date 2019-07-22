@@ -52,12 +52,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, AnalyzeAction.Response::new);
     }
 
     /**
@@ -301,7 +296,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super.readFrom(in);
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
                 tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
@@ -317,11 +311,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 }
             }
             detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         public List<AnalyzeToken> getTokens() {

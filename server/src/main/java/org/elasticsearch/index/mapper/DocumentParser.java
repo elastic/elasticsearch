@@ -670,7 +670,7 @@ final class DocumentParser {
             }
         }
         if (builder == null) {
-            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(currentFieldName);
+            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
             Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
             if (typeParser == null) {
                 throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()

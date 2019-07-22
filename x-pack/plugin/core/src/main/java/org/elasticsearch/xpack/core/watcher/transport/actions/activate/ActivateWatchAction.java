@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * This action acks a watch in memory, and the index
  */
-public class ActivateWatchAction extends StreamableResponseActionType<ActivateWatchResponse> {
+public class ActivateWatchAction extends ActionType<ActivateWatchResponse> {
 
     public static final ActivateWatchAction INSTANCE = new ActivateWatchAction();
     public static final String NAME = "cluster:admin/xpack/watcher/watch/activate";
 
     private ActivateWatchAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ActivateWatchResponse newResponse() {
-        return new ActivateWatchResponse();
+        super(NAME, ActivateWatchResponse::new);
     }
 }

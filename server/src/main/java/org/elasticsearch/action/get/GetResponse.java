@@ -204,11 +204,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         getResult.writeTo(out);
     }

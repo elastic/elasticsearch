@@ -192,6 +192,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_1"));
     }
 
+    @SuppressWarnings("unchecked")
     private void givenJobs(List<Job> jobs) throws IOException {
         SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
 
@@ -234,6 +235,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         givenClientRequests(true, false);
     }
 
+    @SuppressWarnings("unchecked")
     private void givenClientRequests(boolean shouldSearchRequestsSucceed, boolean shouldDeleteSnapshotRequestsSucceed) {
         doAnswer(new Answer<Void>() {
             int callCount = 0;

@@ -46,7 +46,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
     @Inject
     public TransportPostCalendarEventsAction(TransportService transportService, ActionFilters actionFilters, Client client,
                                              JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(PostCalendarEventsAction.NAME, transportService, PostCalendarEventsAction.Request::new, actionFilters);
+        super(PostCalendarEventsAction.NAME, transportService, actionFilters, PostCalendarEventsAction.Request::new);
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;

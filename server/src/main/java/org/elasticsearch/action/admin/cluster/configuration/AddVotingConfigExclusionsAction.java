@@ -19,18 +19,12 @@
 package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 public class AddVotingConfigExclusionsAction extends ActionType<AddVotingConfigExclusionsResponse> {
     public static final AddVotingConfigExclusionsAction INSTANCE = new AddVotingConfigExclusionsAction();
     public static final String NAME = "cluster:admin/voting_config/add_exclusions";
 
     private AddVotingConfigExclusionsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Reader<AddVotingConfigExclusionsResponse> getResponseReader() {
-        return AddVotingConfigExclusionsResponse::new;
+        super(NAME, AddVotingConfigExclusionsResponse::new);
     }
 }

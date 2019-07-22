@@ -1,5 +1,8 @@
 [[query-dsl-geo-polygon-query]]
-=== Geo Polygon Query
+=== Geo-polygon query
+++++
+<titleabbrev>Geo-polygon</titleabbrev>
+++++
 
 A query returning hits that only fall within a polygon of
 points. Here is an example:

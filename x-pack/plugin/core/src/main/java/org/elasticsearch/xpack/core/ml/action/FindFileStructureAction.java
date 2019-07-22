@@ -61,11 +61,6 @@ public class FindFileStructureAction extends ActionType<FindFileStructureAction.
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             fileStructure.writeTo(out);
         }
@@ -345,11 +340,6 @@ public class FindFileStructureAction extends ActionType<FindFileStructureAction.
                 validationException = addValidationError("sample must be specified", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

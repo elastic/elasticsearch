@@ -41,12 +41,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/stats/get";
 
     private GetDataFrameAnalyticsStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetDataFrameAnalyticsStatsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {

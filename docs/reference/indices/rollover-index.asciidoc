@@ -1,5 +1,5 @@
 [[indices-rollover-index]]
-== Rollover Index
+=== Rollover Index
 
 The rollover index API rolls an <<indices-aliases, alias>> to a new index when
 the existing index meets a condition you provide. You can use this API to retire
@@ -88,7 +88,7 @@ The above request might return the following response:
 <3> The result of each condition.
 
 [float]
-=== Naming the new index
+==== Naming the new index
 
 If the name of the existing index ends with `-` and a number -- e.g.
 `logs-000001` -- then the name of the new index will follow the same pattern,
@@ -113,7 +113,7 @@ POST /my_alias/_rollover/my_new_index_name
 // TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
 
 [float]
-=== Using date math with the rollover API
+==== Using date math with the rollover API
 
 It can be useful to use <<date-math-index-names,date math>> to name the
 rollover index according to the date that the index rolled over, e.g.
@@ -193,7 +193,7 @@ GET /%3Clogs-%7Bnow%2Fd%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-1d%7D-*%3E%2C%3Clogs-%7Bnow
 // TEST[s/now/2016.10.31||/]
 
 [float]
-=== Defining the new index
+==== Defining the new index
 
 The settings, mappings, and aliases for the new index are taken from any
 matching <<indices-templates,index templates>>. Additionally, you can specify
@@ -226,7 +226,7 @@ POST /logs_write/_rollover
 // CONSOLE
 
 [float]
-=== Dry run
+==== Dry run
 
 The rollover API supports `dry_run` mode, where request conditions can be
 checked without performing the actual rollover:
@@ -252,7 +252,7 @@ POST /logs_write/_rollover?dry_run
 // CONSOLE
 
 [float]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 Because the rollover operation creates a new index to rollover to, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
@@ -260,7 +260,7 @@ index creation applies to the rollover action as well.
 
 [[indices-rollover-is-write-index]]
 [float]
-=== Write Index Alias Behavior
+==== Write Index Alias Behavior
 
 The rollover alias when rolling over a write index that has `is_write_index` explicitly set to `true` is not
 swapped during rollover actions. Since having an alias point to multiple indices is ambiguous in distinguishing

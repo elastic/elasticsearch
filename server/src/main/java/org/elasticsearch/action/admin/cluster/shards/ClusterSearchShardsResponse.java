@@ -58,11 +58,6 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(groups.length);
         for (ClusterSearchShardsGroup response : groups) {

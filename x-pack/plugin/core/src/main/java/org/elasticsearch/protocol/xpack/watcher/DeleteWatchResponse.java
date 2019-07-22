@@ -33,17 +33,17 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
 
     public DeleteWatchResponse() {}
 
+    public DeleteWatchResponse(String id, long version, boolean found) {
+        this.id = id;
+        this.version = version;
+        this.found = found;
+    }
+
     public DeleteWatchResponse(StreamInput in) throws IOException {
         super(in);
         id = in.readString();
         version = in.readVLong();
         found = in.readBoolean();
-    }
-
-    public DeleteWatchResponse(String id, long version, boolean found) {
-        this.id = id;
-        this.version = version;
-        this.found = found;
     }
 
     public String getId() {
@@ -83,11 +83,6 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
     @Override
     public int hashCode() {
         return Objects.hash(id, version, found);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

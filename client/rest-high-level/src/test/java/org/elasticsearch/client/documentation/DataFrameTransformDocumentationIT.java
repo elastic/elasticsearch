@@ -166,6 +166,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::put-data-frame-transform-request
             PutDataFrameTransformRequest request =
                     new PutDataFrameTransformRequest(transformConfig); // <1>
+            request.setDeferValidation(false); // <2>
             // end::put-data-frame-transform-request
 
             // tag::put-data-frame-transform-execute
@@ -374,6 +375,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::delete-data-frame-transform-request
             DeleteDataFrameTransformRequest request =
                     new DeleteDataFrameTransformRequest("mega-transform"); // <1>
+            request.setForce(false); // <2>
             // end::delete-data-frame-transform-request
 
             // tag::delete-data-frame-transform-execute

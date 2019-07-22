@@ -1456,7 +1456,7 @@ public class IndexShardTests extends IndexShardTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        stats = ShardStats.readShardStats(in);
+        stats = new ShardStats(in);
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();

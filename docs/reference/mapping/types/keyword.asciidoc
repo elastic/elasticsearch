@@ -1,5 +1,8 @@
 [[keyword]]
 === Keyword datatype
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
 A field to index structured content such as email addresses, hostnames, status
 codes, zip codes or tags.

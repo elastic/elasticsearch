@@ -32,7 +32,9 @@ public class ClusterAllocationExplainResponse extends ActionResponse {
 
     private ClusterAllocationExplanation cae;
 
-    public ClusterAllocationExplainResponse() {
+    public ClusterAllocationExplainResponse(StreamInput in) throws IOException {
+        super(in);
+        this.cae = new ClusterAllocationExplanation(in);
     }
 
     public ClusterAllocationExplainResponse(ClusterAllocationExplanation cae) {
@@ -44,12 +46,6 @@ public class ClusterAllocationExplainResponse extends ActionResponse {
      */
     public ClusterAllocationExplanation getExplanation() {
         return this.cae;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.cae = new ClusterAllocationExplanation(in);
     }
 
     @Override

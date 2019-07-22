@@ -40,6 +40,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     }
 
     public SystemdPlugin() {
+        assertIsPackage();
         if (isLinux() == false) {
             enabled = false;
             return;

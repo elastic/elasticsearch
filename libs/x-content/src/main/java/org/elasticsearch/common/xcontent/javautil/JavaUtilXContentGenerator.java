@@ -85,7 +85,6 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
             throw new IOException("No insertion target on stack.");
         }
         Object map = stack.get(stack.size() - 1);
-        System.out.println("ON STACK: " + map);
         if (!(map instanceof Map<?,?>)) {
             throw new IOException("Need to create writeStartObject() to add fields to.");
         }

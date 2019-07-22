@@ -1,11 +1,17 @@
 {
   "cat.example": {
-    "documentation": "",
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/plugins/current/plugin-authors.html",
+      "description": "Example"
+    },
     "stability" : "stable",
-    "methods": ["GET"],
     "url": {
-      "paths": ["/_cat/example"],
-      "parts": {},
+      "paths": [
+        {
+          "path" : "/_cat/example",
+          "methods" : ["GET"]
+        }
+      ],
       "params": {
         "help": {
           "type": "boolean",

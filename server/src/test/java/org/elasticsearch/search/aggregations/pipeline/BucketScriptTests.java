@@ -73,6 +73,7 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
             .endObject();
         BucketScriptPipelineAggregationBuilder builder1 = BucketScriptPipelineAggregationBuilder.parse("count", createParser(content));
         assertEquals(builder1.getBucketsPaths().length , 1);
+        assertEquals(builder1.getBucketsPaths()[0], "_count");
 
         content = XContentFactory.jsonBuilder()
             .startObject()
@@ -87,6 +88,8 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
             .endObject();
         BucketScriptPipelineAggregationBuilder builder2 = BucketScriptPipelineAggregationBuilder.parse("count", createParser(content));
         assertEquals(builder2.getBucketsPaths().length , 2);
+        assertEquals(builder2.getBucketsPaths()[0], "_count1");
+        assertEquals(builder2.getBucketsPaths()[1], "_count2");
 
         content = XContentFactory.jsonBuilder()
             .startObject()
@@ -98,6 +101,8 @@ public class BucketScriptTests extends BasePipelineAggregationTestCase<BucketScr
             .endObject();
         BucketScriptPipelineAggregationBuilder builder3 = BucketScriptPipelineAggregationBuilder.parse("count", createParser(content));
         assertEquals(builder3.getBucketsPaths().length , 2);
+        assertEquals(builder3.getBucketsPaths()[0], "_count1");
+        assertEquals(builder3.getBucketsPaths()[1], "_count2");
     }
 
 }

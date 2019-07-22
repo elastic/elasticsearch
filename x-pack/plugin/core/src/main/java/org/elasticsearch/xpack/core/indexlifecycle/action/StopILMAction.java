@@ -6,20 +6,14 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class StopILMAction extends Action<AcknowledgedResponse> {
+public class StopILMAction extends ActionType<AcknowledgedResponse> {
     public static final StopILMAction INSTANCE = new StopILMAction();
     public static final String NAME = "cluster:admin/ilm/stop";
 
     protected StopILMAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
-    }
-
 }

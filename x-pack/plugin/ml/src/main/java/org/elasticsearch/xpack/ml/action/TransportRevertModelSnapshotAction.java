@@ -16,8 +16,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
+import java.io.IOException;
 import java.util.Date;
 import java.util.function.Consumer;
 
@@ -51,7 +54,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                                               JobManager jobManager, JobResultsProvider jobResultsProvider,
                                               ClusterService clusterService, Client client, JobDataCountsPersister jobDataCountsPersister) {
         super(RevertModelSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, RevertModelSnapshotAction.Request::new);
+            RevertModelSnapshotAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
@@ -65,12 +68,12 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     }
 
     @Override
-    protected RevertModelSnapshotAction.Response newResponse() {
-        return new RevertModelSnapshotAction.Response();
+    protected RevertModelSnapshotAction.Response read(StreamInput in) throws IOException {
+        return new RevertModelSnapshotAction.Response(in);
     }
 
     @Override
-    protected void masterOperation(RevertModelSnapshotAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, RevertModelSnapshotAction.Request request, ClusterState state,
                                    ActionListener<RevertModelSnapshotAction.Response> listener) {
         if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("revert model snapshot", request.getJobId()));

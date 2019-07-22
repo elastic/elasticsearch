@@ -39,6 +39,7 @@ import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,11 +57,16 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.security.InvalidKeyException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -121,7 +128,7 @@ public class AzureStorageService {
     }
 
     private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
-        final String connectionString = azureStorageSettings.buildConnectionString();
+        final String connectionString = azureStorageSettings.getConnectString();
         return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 
@@ -143,12 +150,6 @@ public class AzureStorageService {
         this.storageSettings = Map.copyOf(clientsSettings);
         // clients are built lazily by {@link client(String)}
         return prevSettings;
-    }
-
-    public boolean doesContainerExist(String account, String container) throws URISyntaxException, StorageException {
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
-        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
     }
 
     /**
@@ -189,6 +190,50 @@ public class AzureStorageService {
             logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", container, blob));
             azureBlob.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
         });
+    }
+
+    void deleteBlobDirectory(String account, String container, String path, Executor executor)
+            throws URISyntaxException, StorageException, IOException {
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        final Collection<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
+        final AtomicLong outstanding = new AtomicLong(1L);
+        final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
+        SocketAccess.doPrivilegedVoidException(() -> {
+            for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true)) {
+                // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
+                // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
+                final String blobPath = blobItem.getUri().getPath().substring(1 + container.length() + 1);
+                outstanding.incrementAndGet();
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        deleteBlob(account, container, blobPath);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        exceptions.add(e);
+                    }
+
+                    @Override
+                    public void onAfter() {
+                        if (outstanding.decrementAndGet() == 0) {
+                            result.onResponse(null);
+                        }
+                    }
+                });
+            }
+        });
+        if (outstanding.decrementAndGet() == 0) {
+            result.onResponse(null);
+        }
+        result.actionGet();
+        if (exceptions.isEmpty() == false) {
+            final IOException ex = new IOException("Deleting directory [" + path + "] failed");
+            exceptions.forEach(ex::addSuppressed);
+            throw ex;
+        }
     }
 
     public InputStream getInputStream(String account, String container, String blob)

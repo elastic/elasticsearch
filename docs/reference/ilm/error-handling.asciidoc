@@ -76,20 +76,21 @@ Which returns the following information:
       "managed" : true,                         <1>
       "policy" : "shrink-the-index",            <2>
       "lifecycle_date_millis" : 1541717265865,
-      "phase" : "warm",                         <3>
+      "age": "5.1d",                            <3>
+      "phase" : "warm",                         <4>
       "phase_time_millis" : 1541717272601,
-      "action" : "shrink",                      <4>
+      "action" : "shrink",                      <5>
       "action_time_millis" : 1541717272601,
-      "step" : "ERROR",                         <5>
+      "step" : "ERROR",                         <6>
       "step_time_millis" : 1541717272688,
-      "failed_step" : "shrink",                 <6>
+      "failed_step" : "shrink",                 <7>
       "step_info" : {
-        "type" : "illegal_argument_exception",   <7>
-        "reason" : "the number of target shards [4] must be less that the number of source shards [2]" <8>
+        "type" : "illegal_argument_exception",   <8>
+        "reason" : "the number of target shards [4] must be less that the number of source shards [2]" <9>
       },
       "phase_execution" : {
         "policy" : "shrink-the-index",
-        "phase_definition" : {                   <9>
+        "phase_definition" : {                   <10>
           "min_age" : "5d",
           "actions" : {
             "shrink" : {
@@ -108,13 +109,14 @@ Which returns the following information:
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 <1> this index is managed by ILM
 <2> the policy in question, in this case, "shrink-the-index"
-<3> what phase the index is currently in
-<4> what action the index is currently on
-<5> what step the index is currently on, in this case, because there is an error, the index is in the "ERROR" step
-<6> the name of the step that failed to execute, in this case "shrink"
-<7> the error class that occurred during this step
-<8> the error message that occurred during the execution failure
-<9> the definition of the phase (in this case, the "warm" phase) that the index is currently on
+<3> the current age for the index
+<4> what phase the index is currently in
+<5> what action the index is currently on
+<6> what step the index is currently on, in this case, because there is an error, the index is in the "ERROR" step
+<7> the name of the step that failed to execute, in this case "shrink"
+<8> the error class that occurred during this step
+<9> the error message that occurred during the execution failure
+<10> the definition of the phase (in this case, the "warm" phase) that the index is currently on
 
 The index here has been moved to the error step because the shrink definition in
 the policy is using an incorrect number of shards. So rectifying that in the

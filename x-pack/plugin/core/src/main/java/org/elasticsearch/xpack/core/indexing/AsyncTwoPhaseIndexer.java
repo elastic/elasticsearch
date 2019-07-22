@@ -349,31 +349,44 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             }
 
             final List<IndexRequest> docs = iterationResult.getToIndex();
-            final BulkRequest bulkRequest = new BulkRequest();
-            docs.forEach(bulkRequest::add);
 
-            // TODO this might be a valid case, e.g. if implementation filters
-            assert bulkRequest.requests().size() > 0;
+            // an iteration result might return an empty set of documents to be indexed
+            if (docs.isEmpty() == false) {
+                final BulkRequest bulkRequest = new BulkRequest();
+                docs.forEach(bulkRequest::add);
 
-            stats.markStartIndexing();
-            doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
-                // TODO we should check items in the response and move after accordingly to
-                // resume the failing buckets ?
-                if (bulkResponse.hasFailures()) {
-                    logger.warn("Error while attempting to bulk index documents: " + bulkResponse.buildFailureMessage());
+                stats.markStartIndexing();
+                doNextBulk(bulkRequest, ActionListener.wrap(bulkResponse -> {
+                    // TODO we should check items in the response and move after accordingly to
+                    // resume the failing buckets ?
+                    if (bulkResponse.hasFailures()) {
+                        logger.warn("Error while attempting to bulk index documents: " + bulkResponse.buildFailureMessage());
+                    }
+                    stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
+
+                    // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
+                    if (checkState(getState()) == false) {
+                        return;
+                    }
+
+                    JobPosition newPosition = iterationResult.getPosition();
+                    position.set(newPosition);
+
+                    onBulkResponse(bulkResponse, newPosition);
+                }, this::finishWithIndexingFailure));
+            } else {
+                // no documents need to be indexed, continue with search
+                try {
+                    JobPosition newPosition = iterationResult.getPosition();
+                    position.set(newPosition);
+
+                    ActionListener<SearchResponse> listener = ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure);
+                    nextSearch(listener);
+                } catch (Exception e) {
+                    finishAndSetState();
+                    onFailure(e);
                 }
-                stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-
-                // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                if (checkState(getState()) == false) {
-                    return;
-                }
-
-                JobPosition newPosition = iterationResult.getPosition();
-                position.set(newPosition);
-
-                onBulkResponse(bulkResponse, newPosition);
-            }, this::finishWithIndexingFailure));
+            }
         } catch (Exception e) {
             finishWithSearchFailure(e);
         }

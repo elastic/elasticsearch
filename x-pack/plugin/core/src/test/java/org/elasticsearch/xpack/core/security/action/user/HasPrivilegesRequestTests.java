@@ -75,10 +75,10 @@ public class HasPrivilegesRequestTests extends ESTestCase {
         out.setVersion(version);
         original.writeTo(out);
 
-        final HasPrivilegesRequest copy = new HasPrivilegesRequest();
+
         final StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
-        copy.readFrom(in);
+        final HasPrivilegesRequest copy = new HasPrivilegesRequest(in);
         assertThat(in.read(), equalTo(-1));
         return copy;
     }

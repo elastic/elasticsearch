@@ -1,5 +1,8 @@
 [[query-dsl-regexp-query]]
-=== Regexp Query
+=== Regexp query
+++++
+<titleabbrev>Regexp</titleabbrev>
+++++
 
 Returns documents that contain terms matching a
 https://en.wikipedia.org/wiki/Regular_expression[regular expression].

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -64,7 +64,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *     retrieves all available information about the API for this specific context</li>
  * </ul>
  */
-public class PainlessContextAction extends Action<PainlessContextAction.Response> {
+public class PainlessContextAction extends ActionType<PainlessContextAction.Response> {
 
     public static final PainlessContextAction INSTANCE = new PainlessContextAction();
     private static final String NAME = "cluster:admin/scripts/painless/context";
@@ -72,17 +72,7 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 
     private PainlessContextAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PainlessContextAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -109,11 +99,6 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -145,13 +130,7 @@ public class PainlessContextAction extends Action<PainlessContextAction.Response
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeStringCollection(scriptContextNames);
             out.writeOptionalWriteable(painlessContextInfo);
         }

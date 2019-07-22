@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
@@ -23,13 +25,15 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Response;
 
+import java.io.IOException;
+
 public class TransportGetStatusAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
     public TransportGetStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, Request::new);
+            Request::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -38,12 +42,12 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<Request,
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         IndexLifecycleMetadata metadata = state.metaData().custom(IndexLifecycleMetadata.TYPE);
         final Response response;
         if (metadata == null) {

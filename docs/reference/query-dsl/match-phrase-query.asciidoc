@@ -1,5 +1,8 @@
 [[query-dsl-match-query-phrase]]
-=== Match Phrase Query
+=== Match phrase query
+++++
+<titleabbrev>Match phrase</titleabbrev>
+++++
 
 The `match_phrase` query analyzes the text and creates a `phrase` query
 out of the analyzed text. For example:

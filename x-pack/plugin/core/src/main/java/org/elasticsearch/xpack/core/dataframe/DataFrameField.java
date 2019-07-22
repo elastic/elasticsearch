@@ -26,9 +26,16 @@ public final class DataFrameField {
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
     public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
+    public static final ParseField FIELD = new ParseField("field");
+    public static final ParseField SYNC = new ParseField("sync");
+    public static final ParseField TIME_BASED_SYNC = new ParseField("time");
+    public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
 
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
     /**
      * Fields for checkpointing
      */

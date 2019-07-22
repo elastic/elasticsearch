@@ -109,9 +109,10 @@ public class AllocationService {
         Collections.sort(startedShards, Comparator.comparing(ShardRouting::primary));
         applyStartedShards(allocation, startedShards);
         gatewayAllocator.applyStartedShards(allocation, startedShards);
-        reroute(allocation);
-        String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString());
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "] ...");
+        assert RoutingNodes.assertShardStats(allocation.routingNodes());
+        String startedShardsAsString
+            = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString(), logger.isDebugEnabled());
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
     protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
@@ -208,8 +209,9 @@ public class AllocationService {
         gatewayAllocator.applyFailedShards(allocation, failedShards);
 
         reroute(allocation);
-        String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.getRoutingEntry().shardId().toString());
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "] ...");
+        String failedShardsAsString
+            = firstListElementsToCommaDelimitedString(failedShards, s -> s.getRoutingEntry().shardId().toString(), logger.isDebugEnabled());
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "]");
     }
 
     /**
@@ -240,7 +242,7 @@ public class AllocationService {
      * Checks if the are replicas with the auto-expand feature that need to be adapted.
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
-    private ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
+    public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
         final Map<Integer, List<String>> autoExpandReplicaChanges =
             AutoExpandReplicas.getAutoExpandReplicaChanges(clusterState.metaData(), clusterState.nodes());
         if (autoExpandReplicaChanges.isEmpty()) {
@@ -317,13 +319,14 @@ public class AllocationService {
      * @param <T>       The list element type.
      * @return A comma-separated string of the first few elements.
      */
-    private <T> String firstListElementsToCommaDelimitedString(List<T> elements, Function<T, String> formatter) {
+    static <T> String firstListElementsToCommaDelimitedString(List<T> elements, Function<T, String> formatter, boolean isDebugEnabled) {
         final int maxNumberOfElements = 10;
-        return elements
-                .stream()
-                .limit(maxNumberOfElements)
-                .map(formatter)
-                .collect(Collectors.joining(", "));
+        if (isDebugEnabled || elements.size() <= maxNumberOfElements) {
+            return elements.stream().map(formatter).collect(Collectors.joining(", "));
+        } else {
+            return elements.stream().limit(maxNumberOfElements).map(formatter).collect(Collectors.joining(", "))
+                + ", ... [" + elements.size() + " items in total]";
+        }
     }
 
     public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
@@ -351,22 +354,12 @@ public class AllocationService {
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
-
     /**
      * Reroutes the routing table based on the live nodes.
      * <p>
      * If the same instance of ClusterState is returned, then no change has been made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason) {
-        return reroute(clusterState, reason, false);
-    }
-
-    /**
-     * Reroutes the routing table based on the live nodes.
-     * <p>
-     * If the same instance of ClusterState is returned, then no change has been made.
-     */
-    protected ClusterState reroute(ClusterState clusterState, String reason, boolean debug) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
@@ -374,7 +367,6 @@ public class AllocationService {
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, fixedClusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime());
-        allocation.debugDecision(debug);
         reroute(allocation);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;

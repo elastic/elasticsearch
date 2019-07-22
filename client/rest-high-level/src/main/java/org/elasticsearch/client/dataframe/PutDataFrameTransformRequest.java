@@ -31,7 +31,9 @@ import java.util.Optional;
 
 public class PutDataFrameTransformRequest implements ToXContentObject, Validatable {
 
+    public static final String DEFER_VALIDATION = "defer_validation";
     private final DataFrameTransformConfig config;
+    private Boolean deferValidation;
 
     public PutDataFrameTransformRequest(DataFrameTransformConfig config) {
         this.config = config;
@@ -39,6 +41,19 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
 
     public DataFrameTransformConfig getConfig() {
         return config;
+    }
+
+    public Boolean getDeferValidation() {
+        return deferValidation;
+    }
+
+    /**
+     * Indicates if deferrable validations should be skipped until the transform starts
+     *
+     * @param deferValidation {@code true} will cause validations to be deferred
+     */
+    public void setDeferValidation(boolean deferValidation) {
+        this.deferValidation = deferValidation;
     }
 
     @Override

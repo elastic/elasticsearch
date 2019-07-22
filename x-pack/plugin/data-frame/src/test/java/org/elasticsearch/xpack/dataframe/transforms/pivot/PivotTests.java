@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -47,7 +47,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PivotTests extends ESTestCase {
 
@@ -140,10 +142,10 @@ public class PivotTests extends ESTestCase {
     public void testValidateAllUnsupportedAggregations() throws Exception {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
-            SourceConfig source = new SourceConfig(new String[]{"existing_source"}, QueryConfig.matchAll());
 
             Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
-            assertInvalidTransform(client, source, pivot);
+            RuntimeException ex = expectThrows(RuntimeException.class, pivot::validateConfig);
+            assertThat("expected aggregations to be unsupported, but they were", ex, is(notNullValue()));
         }
     }
 
@@ -154,8 +156,8 @@ public class PivotTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         @Override
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(Action<Response> action, Request request,
-                ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse>
+        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
 
             if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
@@ -248,7 +250,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Pivot pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validate(client, source, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, source, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

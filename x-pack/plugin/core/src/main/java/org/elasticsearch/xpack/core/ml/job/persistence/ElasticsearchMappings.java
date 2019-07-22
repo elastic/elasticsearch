@@ -18,14 +18,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -39,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyCause;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
@@ -134,15 +140,20 @@ public class ElasticsearchMappings {
     }
 
     public static XContentBuilder configMapping() throws IOException {
+        return configMapping(SINGLE_MAPPING_NAME);
+    }
+
+    public static XContentBuilder configMapping(String mappingType) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject(SINGLE_MAPPING_NAME);
+        builder.startObject(mappingType);
         addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
 
         addJobConfigFields(builder);
         addDatafeedConfigFields(builder);
+        addDataFrameAnalyticsFields(builder);
 
         builder.endObject()
                .endObject()
@@ -386,6 +397,60 @@ public class ElasticsearchMappings {
     }
 
     /**
+     * {@link DataFrameAnalyticsConfig} mapping.
+     * Does not include mapping for CREATE_TIME as this mapping is added by {@link #addJobConfigFields} method.
+     */
+    public static void addDataFrameAnalyticsFields(XContentBuilder builder) throws IOException {
+        builder.startObject(DataFrameAnalyticsConfig.ID.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.SOURCE.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(DataFrameAnalyticsSource.INDEX.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(DataFrameAnalyticsSource.QUERY.getPreferredName())
+                    .field(ENABLED, false)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.DEST.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(DataFrameAnalyticsDest.INDEX.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+            .endObject()
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName())
+            .field(ENABLED, false)
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.ANALYSIS.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject(OutlierDetection.NAME.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(OutlierDetection.N_NEIGHBORS.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(OutlierDetection.METHOD.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject()
+        // re-used: CREATE_TIME
+        .startObject(DataFrameAnalyticsConfig.VERSION.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject();
+    }
+
+    /**
      * Creates a default mapping which has a dynamic template that
      * treats all dynamically added fields as keywords. This is needed
      * so that the per-job term fields will not be automatically added
@@ -449,6 +514,8 @@ public class ElasticsearchMappings {
         addResultsMapping(builder);
         addCategoryDefinitionMapping(builder);
         addDataCountsMapping(builder);
+        addTimingStatsExceptBucketCountMapping(builder);
+        addDatafeedTimingStats(builder);
         addModelSnapshotMapping(builder);
 
         addTermFields(builder, extraTermFields);
@@ -790,8 +857,6 @@ public class ElasticsearchMappings {
 
     /**
      * {@link DataCounts} mapping.
-     * The type is disabled so {@link DataCounts} aren't searchable and
-     * the '_all' field is disabled
      *
      * @throws IOException On builder write error
      */
@@ -844,6 +909,46 @@ public class ElasticsearchMappings {
         .startObject(DataCounts.LAST_DATA_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject();
+    }
+
+    /**
+     * {@link TimingStats} mapping.
+     * Does not include mapping for BUCKET_COUNT as this mapping is added by {@link #addDataCountsMapping} method.
+     *
+     * @throws IOException On builder write error
+     */
+    private static void addTimingStatsExceptBucketCountMapping(XContentBuilder builder) throws IOException {
+        builder
+            // re-used: BUCKET_COUNT
+            .startObject(TimingStats.MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject();
+    }
+
+    /**
+     * {@link DatafeedTimingStats} mapping.
+     * Does not include mapping for BUCKET_COUNT as this mapping is added by {@link #addDataCountsMapping} method.
+     *
+     * @throws IOException On builder write error
+     */
+    private static void addDatafeedTimingStats(XContentBuilder builder) throws IOException {
+        builder
+            .startObject(DatafeedTimingStats.SEARCH_COUNT.getPreferredName())
+                .field(TYPE, LONG)
+            .endObject()
+            // re-used: BUCKET_COUNT
+            .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
+                .field(TYPE, DOUBLE)
+            .endObject();
     }
 
     /**
@@ -1047,7 +1152,7 @@ public class ElasticsearchMappings {
     }
 
     public static void addDocMappingIfMissing(String alias,
-                                              CheckedBiFunction<String, Collection<String>, XContentBuilder, IOException> mappingSupplier,
+                                              CheckedFunction<String, XContentBuilder, IOException> mappingSupplier,
                                               Client client, ClusterState state, ActionListener<Boolean> listener) {
         AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
         if (aliasOrIndex == null) {
@@ -1071,7 +1176,7 @@ public class ElasticsearchMappings {
             IndexMetaData indexMetaData = state.metaData().index(indicesThatRequireAnUpdate[0]);
             String mappingType = indexMetaData.mapping().type();
 
-            try (XContentBuilder mapping = mappingSupplier.apply(mappingType, Collections.emptyList())) {
+            try (XContentBuilder mapping = mappingSupplier.apply(mappingType)) {
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                 putMappingRequest.type(mappingType);
                 putMappingRequest.source(mapping);

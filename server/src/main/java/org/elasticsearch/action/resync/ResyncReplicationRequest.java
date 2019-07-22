@@ -65,11 +65,6 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     }
 
     @Override
-    public void readFrom(final StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(final StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeZLong(trimAboveSeqNo);

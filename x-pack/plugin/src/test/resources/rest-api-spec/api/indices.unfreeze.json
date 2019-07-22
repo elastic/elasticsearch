@@ -1,9 +1,9 @@
 {
   "indices.unfreeze": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/frozen.html",
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_unfreeze",
       "paths": [ "/{index}/_unfreeze" ],
       "parts": {
         "index": {

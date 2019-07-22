@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
@@ -86,7 +85,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "node-0")
+            .put("index.routing.allocation.include._name", "integTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // create policy
@@ -105,7 +104,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         // asserts that shrink deleted the original index
-        assertBusy(() -> assertFalse(indexExists(originalIndex)), 20, TimeUnit.SECONDS);
+        assertBusy(() -> assertFalse(indexExists(originalIndex)), 60, TimeUnit.SECONDS);
         // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
@@ -114,7 +113,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "node-0")
+            .put("index.routing.allocation.include._name", "integTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // create policy
@@ -148,7 +147,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String secondIndex = index + "-000002";
         createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", "node-0")
+            .put("index.routing.allocation.include._name", "integTest-0")
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         createFullPolicy(TimeValue.timeValueHours(10));
@@ -313,7 +312,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testAllocateOnlyAllocation() throws Exception {
         createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
-        String allocateNodeName = "node-" + randomFrom(0, 1);
+        String allocateNodeName = "integTest-" + randomFrom(0, 1);
         AllocateAction allocateAction = new AllocateAction(null, null, null, singletonMap("_name", allocateNodeName));
         createNewSingletonPolicy(randomFrom("warm", "cold"), allocateAction);
         updatePolicy(index, policy);
@@ -393,9 +392,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testReadOnly() throws Exception {
@@ -509,7 +505,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             // required so the shrink doesn't wait on SetSingleNodeAllocateStep
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "node-0"));
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", "integTest-0"));
         // index document so snapshot actually does something
         indexDocument();
         // start snapshot
@@ -533,9 +529,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot succeeded
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testFreezeAction() throws Exception {
@@ -548,7 +541,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
-            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
+            assertThat(settings.get("index.frozen"), equalTo("true"));
         });
     }
 
@@ -586,14 +579,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
             assertThat(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
             assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
-            assertThat(settings.get(FrozenEngine.INDEX_FROZEN.getKey()), equalTo("true"));
+            assertThat(settings.get("index.frozen"), equalTo("true"));
         }, 2, TimeUnit.MINUTES);
         // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testSetPriority() throws Exception {
@@ -846,11 +836,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "node-1,node-2"), null, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "node-3"), null, null));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "integTest-3"), null, null));
         Map<String, Phase> phases = new HashMap<>();
         phases.put("hot", new Phase("hot", hotTime, hotActions));
         phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
@@ -977,13 +967,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         logger.info(response.getStatusLine());
     }
 
+    @SuppressWarnings("unchecked")
     private String getSnapshotState(String snapshot) throws IOException {
         Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
-        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+
+        Map<String, Object> repoResponse = ((List<Map<String, Object>>) responseMap.get("responses")).get(0);
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) repoResponse.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
     }

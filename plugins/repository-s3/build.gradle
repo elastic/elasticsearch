@@ -1,7 +1,8 @@
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.RestIntegTestTask
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -28,12 +29,11 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.505'
+  'aws': '1.11.562'
 ]
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -101,6 +101,8 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
+boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(project.rootProject.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
@@ -167,16 +169,16 @@ if (useFixture) {
     'http://127.0.0.1:' + minioPort
   }
 
-  File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
+  normalization {
+    runtimeClasspath {
+      // ignore generated address file for the purposes of build avoidance
+      ignore 's3Fixture.address'
+    }
+  }
 
   thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    outputs.file(minioAddressFile)
-    doFirst {
-      file(minioAddressFile).text = "${ -> minioAddress.call() }"
-    }
-    // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
-    systemProperty 'test.s3.endpoint', minioAddressFile.name
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
 
   task integTestMinio(type: RestIntegTestTask) {
@@ -196,7 +198,7 @@ if (useFixture) {
   testClusters.integTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-    setting 's3.client.integration_test_permanent.endpoint', minioAddress
+    setting 's3.client.integration_test_permanent.endpoint', minioAddress, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
   }
 
@@ -229,7 +231,8 @@ task s3FixtureProperties {
       "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
       "s3Fixture.temporary_session_token": s3TemporarySessionToken,
       "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
-      "s3Fixture.ecs_bucket_name"        : s3ECSBucket
+      "s3Fixture.ecs_bucket_name"        : s3ECSBucket,
+      "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
   ]
 
   doLast {
@@ -257,7 +260,8 @@ processTestResources {
           'ec2_bucket': s3EC2Bucket,
           'ec2_base_path': s3EC2BasePath,
           'ecs_bucket': s3ECSBucket,
-          'ecs_base_path': s3ECSBasePath
+          'ecs_base_path': s3ECSBasePath,
+          'disable_chunked_encoding': s3DisableChunkedEncoding,
   ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
@@ -276,12 +280,12 @@ testClusters.integTest {
   keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
   if (useFixture) {
-    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
@@ -303,9 +307,9 @@ if (useFixture) {
   check.dependsOn(integTestECS)
 
   testClusters.integTestECS {
-    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
-    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }
+    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }, IGNORE_VALUE
   }
 }
 
@@ -324,7 +328,17 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency 
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
 
 thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
+

@@ -27,7 +27,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class GetResult implements Streamable, Iterable<DocumentField>, ToXContentObject {
+public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
 
     public static final String _INDEX = "_index";
     public static final String _TYPE = "_type";
@@ -72,7 +72,29 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     private BytesReference source;
     private byte[] sourceAsBytes;
 
-    GetResult() {
+    public GetResult(StreamInput in) throws IOException {
+        index = in.readString();
+        type = in.readOptionalString();
+        id = in.readString();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        version = in.readLong();
+        exists = in.readBoolean();
+        if (exists) {
+            source = in.readBytesReference();
+            if (source.length() == 0) {
+                source = null;
+            }
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                documentFields = readFields(in);
+                metaFields = readFields(in);
+            } else {
+                Map<String, DocumentField> fields = readFields(in);
+                documentFields = new HashMap<>();
+                metaFields = new HashMap<>();
+                splitFieldsByMetadata(fields, documentFields, metaFields);
+            }
+        }
     }
 
     public GetResult(String index, String type, String id, long seqNo, long primaryTerm, long version, boolean exists,
@@ -376,12 +398,6 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         return fromXContentEmbedded(parser);
     }
 
-    public static GetResult readGetResult(StreamInput in) throws IOException {
-        GetResult result = new GetResult();
-        result.readFrom(in);
-        return result;
-    }
-
     private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
         Map<String, DocumentField> fields = null;
         int size = in.readVInt();
@@ -390,7 +406,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         } else {
             fields = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
-                DocumentField field = DocumentField.readDocumentField(in);
+                DocumentField field = new DocumentField(in);
                 fields.put(field.getName(), field);
             }
         }
@@ -407,32 +423,6 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 outMetadata.put(fieldEntry.getKey(), fieldEntry.getValue());
             } else {
                 outOther.put(fieldEntry.getKey(), fieldEntry.getValue());                
-            }
-        }
-    }
-    
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        type = in.readOptionalString();
-        id = in.readString();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        version = in.readLong();
-        exists = in.readBoolean();
-        if (exists) {
-            source = in.readBytesReference();
-            if (source.length() == 0) {
-                source = null;
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                documentFields = readFields(in);
-                metaFields = readFields(in);            
-            } else {
-                Map<String, DocumentField> fields = readFields(in);
-                documentFields = new HashMap<>();
-                metaFields = new HashMap<>();
-                splitFieldsByMetadata(fields, documentFields, metaFields);
             }
         }
     }

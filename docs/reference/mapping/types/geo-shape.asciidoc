@@ -1,5 +1,8 @@
 [[geo-shape]]
-=== Geo-Shape datatype
+=== Geo-shape datatype
+++++
+<titleabbrev>Geo-shape</titleabbrev>
+++++
 
 The `geo_shape` datatype facilitates the indexing of and searching
 with arbitrary geo shapes such as rectangles and polygons. It should be
@@ -108,6 +111,8 @@ geo-points containing any more than latitude and longitude (two dimensions) valu
 and reject the whole document.
 | `true`
 
+|`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
+| `false`
 
 |=======================================================================
 

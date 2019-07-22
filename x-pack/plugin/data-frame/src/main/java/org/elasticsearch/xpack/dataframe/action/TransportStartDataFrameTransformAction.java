@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,6 +30,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -43,11 +45,14 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskS
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
+import org.elasticsearch.xpack.dataframe.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -83,29 +88,26 @@ public class TransportStartDataFrameTransformAction extends
     }
 
     @Override
-    protected StartDataFrameTransformAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected StartDataFrameTransformAction.Response read(StreamInput in) throws IOException {
         return new StartDataFrameTransformAction.Response(in);
     }
 
     @Override
-    protected void masterOperation(StartDataFrameTransformAction.Request request,
+    protected void masterOperation(Task ignoredTask, StartDataFrameTransformAction.Request request,
                                    ClusterState state,
                                    ActionListener<StartDataFrameTransformAction.Response> listener) throws Exception {
         if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
             return;
         }
-        final DataFrameTransform transformTask = createDataFrameTransform(request.getId(), threadPool);
+        final AtomicReference<DataFrameTransform> transformTaskHolder = new AtomicReference<>();
 
-        // <3> Wait for the allocated task's state to STARTED
+        // <4> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform>> newPersistentTaskActionListener =
             ActionListener.wrap(
                 task -> {
+                    DataFrameTransform transformTask = transformTaskHolder.get();
+                    assert transformTask != null;
                     waitForDataFrameTaskStarted(task.getId(),
                         transformTask,
                         request.timeout(),
@@ -119,6 +121,8 @@ public class TransportStartDataFrameTransformAction extends
         // <3> Create the task in cluster state so that it will start executing on the node
         ActionListener<Void> createOrGetIndexListener = ActionListener.wrap(
             unused -> {
+                DataFrameTransform transformTask = transformTaskHolder.get();
+                assert transformTask != null;
                 PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> existingTask =
                     getExistingTask(transformTask.getId(), state);
                 if (existingTask == null) {
@@ -177,6 +181,10 @@ public class TransportStartDataFrameTransformAction extends
                     ));
                     return;
                 }
+                // Validate source and destination indices
+                SourceDestValidator.validate(config, clusterService.state(), indexNameExpressionResolver, false);
+
+                transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion(), config.getFrequency()));
                 final String destinationIndex = config.getDestination().getIndex();
                 String[] dest = indexNameExpressionResolver.concreteIndexNames(state,
                     IndicesOptions.lenientExpandOpen(),
@@ -226,7 +234,9 @@ public class TransportStartDataFrameTransformAction extends
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> DataframeIndex.createDestinationIndex(client,
+            mappings -> DataframeIndex.createDestinationIndex(
+                client,
+                Clock.systemUTC(),
                 config,
                 mappings,
                 ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)),
@@ -243,8 +253,8 @@ public class TransportStartDataFrameTransformAction extends
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static DataFrameTransform createDataFrameTransform(String transformId, ThreadPool threadPool) {
-        return new DataFrameTransform(transformId);
+    private static DataFrameTransform createDataFrameTransform(String transformId, Version transformVersion, TimeValue frequency) {
+        return new DataFrameTransform(transformId, transformVersion, frequency);
     }
 
     @SuppressWarnings("unchecked")

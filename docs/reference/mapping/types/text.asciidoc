@@ -1,5 +1,8 @@
 [[text]]
 === Text datatype
+++++
+<titleabbrev>Text</titleabbrev>
+++++
 
 A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an
@@ -30,6 +33,8 @@ PUT my_index
 --------------------------------
 // CONSOLE
 
+[[text-multi-fields]]
+==== Use a field as both text and keyword
 Sometimes it is useful to have both a full text (`text`) and a keyword
 (`keyword`) version of the same field: one for full text search and the
 other for aggregations and sorting. This can be achieved with

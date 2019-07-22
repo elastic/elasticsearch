@@ -19,19 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class RolloverAction extends Action<RolloverResponse> {
+public class RolloverAction extends ActionType<RolloverResponse> {
 
     public static final RolloverAction INSTANCE = new RolloverAction();
     public static final String NAME = "indices:admin/rollover";
 
     private RolloverAction() {
-        super(NAME);
+        super(NAME, RolloverResponse::new);
     }
 
-    @Override
-    public RolloverResponse newResponse() {
-        return new RolloverResponse();
-    }
 }

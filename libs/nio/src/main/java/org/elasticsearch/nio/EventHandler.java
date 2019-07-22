@@ -63,8 +63,28 @@ public class EventHandler {
      */
     protected void handleRegistration(ChannelContext<?> context) throws IOException {
         context.register();
-        SelectionKey selectionKey = context.getSelectionKey();
-        selectionKey.attach(context);
+        assert context.getSelectionKey() != null : "SelectionKey should not be null after registration";
+        assert context.getSelectionKey().attachment() != null : "Attachment should not be null after registration";
+    }
+
+    /**
+     * This method is called when an attempt to register a channel throws an exception.
+     *
+     * @param context that was registered
+     * @param exception that occurred
+     */
+    protected void registrationException(ChannelContext<?> context, Exception exception) {
+        context.handleException(exception);
+    }
+
+    /**
+     * This method is called after a NioChannel is active with the selector. It should only be called once
+     * per channel.
+     *
+     * @param context that was marked active
+     */
+    protected void handleActive(ChannelContext<?> context) throws IOException {
+        context.channelActive();
         if (context instanceof SocketChannelContext) {
             if (((SocketChannelContext) context).readyForFlush()) {
                 SelectionKeyUtils.setConnectReadAndWriteInterested(context.getSelectionKey());
@@ -78,12 +98,12 @@ public class EventHandler {
     }
 
     /**
-     * This method is called when an attempt to register a channel throws an exception.
+     * This method is called when setting a channel to active throws an exception.
      *
-     * @param context that was registered
+     * @param context that was marked active
      * @param exception that occurred
      */
-    protected void registrationException(ChannelContext<?> context, Exception exception) {
+    protected void activeException(ChannelContext<?> context, Exception exception) {
         context.handleException(exception);
     }
 

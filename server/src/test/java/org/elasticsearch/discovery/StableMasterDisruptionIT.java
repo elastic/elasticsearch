@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -41,7 +42,6 @@ import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruption
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkUnresponsive;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests relating to the loss of the master, but which work with the default fault detection settings which are rather lenient and will
  * not detect a master failure too quickly.
  */
-@TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class StableMasterDisruptionIT extends ESIntegTestCase {
 

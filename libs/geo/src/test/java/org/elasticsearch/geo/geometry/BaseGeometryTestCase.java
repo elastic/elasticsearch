@@ -22,15 +22,13 @@ package org.elasticsearch.geo.geometry;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.test.AbstractWireTestCase;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTestCase<T> {
 
@@ -53,7 +51,7 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
     @SuppressWarnings("unchecked")
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        WellKnownText wkt = new WellKnownText();
+        WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
         String text = wkt.toWKT(instance);
         try {
             return (T) wkt.fromWKT(text);
@@ -130,123 +128,4 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
         assertEquals("result", result);
     }
 
-    public static double randomLat() {
-        return randomDoubleBetween(-90, 90, true);
-    }
-
-    public static double randomLon() {
-        return randomDoubleBetween(-180, 180, true);
-    }
-
-    public static Circle randomCircle(boolean hasAlt) {
-        if (hasAlt) {
-            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDouble(),
-                randomDoubleBetween(0, 100, false));
-        } else {
-            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
-        }
-    }
-
-    public static Line randomLine() {
-        return randomLine(randomBoolean());
-    }
-
-    public static Line randomLine(boolean hasAlts) {
-        int size = randomIntBetween(2, 10);
-        double[] lats = new double[size];
-        double[] lons = new double[size];
-        double[] alts = hasAlts ? new double[size] : null;
-        for (int i = 0; i < size; i++) {
-            lats[i] = randomLat();
-            lons[i] = randomLon();
-            if (hasAlts) {
-                alts[i] = randomDouble();
-            }
-        }
-        if (hasAlts) {
-            return new Line(lats, lons, alts);
-        }
-        return new Line(lats, lons);
-    }
-
-    public static Point randomPoint() {
-        return randomPoint(randomBoolean());
-    }
-
-    public static Point randomPoint(boolean hasAlt) {
-        if (hasAlt) {
-            return new Point(randomLat(), randomLon(), randomDouble());
-        } else {
-            return new Point(randomLat(), randomLon());
-        }
-    }
-
-    public static LinearRing randomLinearRing(boolean hasAlt) {
-        int size = randomIntBetween(3, 10);
-        double[] lats = new double[size + 1];
-        double[] lons = new double[size + 1];
-        double[] alts;
-        if (hasAlt) {
-            alts = new double[size + 1];
-        } else {
-            alts = null;
-        }
-        for (int i = 0; i < size; i++) {
-            lats[i] = randomLat();
-            lons[i] = randomLon();
-            if (hasAlt) {
-                alts[i] = randomDouble();
-            }
-        }
-        lats[size] = lats[0];
-        lons[size] = lons[0];
-        if (hasAlt) {
-            alts[size] = alts[0];
-            return new LinearRing(lats, lons, alts);
-        } else {
-            return new LinearRing(lats, lons);
-        }
-    }
-
-    public static Polygon randomPolygon(boolean hasAlt) {
-        int size = randomIntBetween(0, 10);
-        List<LinearRing> holes = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            holes.add(randomLinearRing(hasAlt));
-        }
-        if (holes.size() > 0) {
-            return new Polygon(randomLinearRing(hasAlt), holes);
-        } else {
-            return new Polygon(randomLinearRing(hasAlt));
-        }
-    }
-
-    public static Rectangle randomRectangle() {
-        double lat1 = randomLat();
-        double lat2 = randomLat();
-        double minLon = randomLon();
-        double maxLon = randomLon();
-        return new Rectangle(Math.min(lat1, lat2), Math.max(lat1, lat2), minLon, maxLon);
-    }
-
-    public static GeometryCollection<Geometry> randomGeometryCollection(boolean hasAlt) {
-        return randomGeometryCollection(0, hasAlt);
-    }
-
-    private static GeometryCollection<Geometry> randomGeometryCollection(int level, boolean hasAlt) {
-        int size = randomIntBetween(1, 10);
-        List<Geometry> shapes = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = randomFrom(
-                BaseGeometryTestCase::randomCircle,
-                BaseGeometryTestCase::randomLine,
-                BaseGeometryTestCase::randomPoint,
-                BaseGeometryTestCase::randomPolygon,
-                hasAlt ? BaseGeometryTestCase::randomPoint : (b) -> randomRectangle(),
-                level < 3 ? (b) -> randomGeometryCollection(level + 1, b) : BaseGeometryTestCase::randomPoint // don't build too deep
-            );
-            shapes.add(geometry.apply(hasAlt));
-        }
-        return new GeometryCollection<>(shapes);
-    }
 }

@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class GetLicenseAction extends Action<GetLicenseResponse> {
+public class GetLicenseAction extends ActionType<GetLicenseResponse> {
 
     public static final GetLicenseAction INSTANCE = new GetLicenseAction();
     public static final String NAME = "cluster:monitor/xpack/license/get";
 
     private GetLicenseAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetLicenseResponse newResponse() {
-        return new GetLicenseResponse();
+        super(NAME, GetLicenseResponse::new);
     }
 }

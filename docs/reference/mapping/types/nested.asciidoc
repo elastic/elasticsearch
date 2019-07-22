@@ -1,5 +1,8 @@
 [[nested]]
 === Nested datatype
+++++
+<titleabbrev>Nested</titleabbrev>
+++++
 
 The `nested` type is a specialised version of the <<object,`object`>> datatype
 that allows arrays of objects to be indexed in a way that they can be queried 

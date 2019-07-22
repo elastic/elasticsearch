@@ -49,15 +49,13 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 ==== {api-query-parms-title}
 
 `defer_validation`::
- (Optional, boolean) When `true`, this will cause deferrable validations to not run.
- This behavior may be desired if the source index does not exist until
- after the the {dataframe-transform} is created.
- Deferred validations are always ran when the {dataframe-transform} is started, 
- with the exception of privilege checks. If the user who created the transform does 
- not have the required privileges on the source and destination indices then the 
- transform will start but then fail when it attempts the unauthorized operation.
-
- The default value is `false`.
+ (Optional, boolean) When `true`, deferrable validations are not run. This
+ behavior may be desired if the source index does not exist until after the
+{dataframe-transform} is created. Deferred validations are always run when the
+{dataframe-transform} is started, with the exception of privilege checks. If the
+user who created the transform does not have the required privileges on the
+source and destination indices, the transform starts but then fails when it
+attempts the unauthorized operation. The default value is `false`.
 
 [[put-data-frame-transform-request-body]]
 ==== {api-request-body-title}

@@ -22,6 +22,7 @@ package org.elasticsearch.systemd;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Build;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -35,6 +36,8 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     private final boolean enabled;
 
     public SystemdPlugin() {
+        // our build is configured to only include this module in the package distributions
+        assert Build.CURRENT.type() == Build.Type.DEB || Build.CURRENT.type() == Build.Type.RPM : Build.CURRENT.type();
         if (Constants.LINUX == false) {
             enabled = false;
             return;

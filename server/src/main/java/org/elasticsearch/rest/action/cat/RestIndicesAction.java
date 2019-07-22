@@ -67,6 +67,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesAction extends AbstractCatAction {
 
+    public static RestIndicesAction INSTANCE = null;
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
     public RestIndicesAction(Settings settings, RestController controller) {

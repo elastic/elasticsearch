@@ -2,6 +2,7 @@ package org.elasticsearch.graphql.api;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
+import org.elasticsearch.rest.RestRequest;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -66,7 +67,7 @@ public class GqlMockApi implements GqlApi {
 
     @Override
     @SuppressWarnings("unchecked")
-    public CompletableFuture<List<Object>> getIndices() throws Exception {
+    public CompletableFuture<List<Object>> getIndices(RestRequest request) throws Exception {
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
         builder
             .startArray()

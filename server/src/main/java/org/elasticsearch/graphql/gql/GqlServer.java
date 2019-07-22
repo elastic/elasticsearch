@@ -144,7 +144,7 @@ public class GqlServer {
                 .name("indices")
                 .description("List all Elasticsearch indices.")
                 .type(nonNull(list(nonNull(typeRef("Index"))))))
-            .fetcher("Query", "indices", environment -> api.getIndices());
+            .fetcher("Query", "indices", environment -> api.getIndices(((GraphQLContext) environment.getContext()).get("request")));
     }
 
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {

@@ -50,6 +50,7 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     public void usePrintLineFeedAtEnd() {}
 
     public void writeStartObject() throws IOException  {
+//        System.out.println("writeStartObject");
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         if (stack.size() > 0) {
             if (target() instanceof String) {
@@ -63,10 +64,12 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     }
 
     public void writeEndObject() {
+//        System.out.println("writeEndObject");
         pop();
     }
 
     public void writeStartArray() throws IOException {
+//        System.out.println("writeStartArray");
         List<Object> list = new ArrayList<Object>();
         if ((stack.size() > 0) && (target() instanceof String)) {
             String name = (String) pop();
@@ -76,10 +79,12 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     }
 
     public void writeEndArray() {
+//        System.out.println("writeEndArray");
         pop();
     }
 
     private Object target() throws IOException {
+//        System.out.println("target");
         if (stack.size() < 1) {
             throw new IOException("No insertion target on stack.");
         }
@@ -88,6 +93,7 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> targetMap() throws IOException {
+//        System.out.println("targetMap");
         if (stack.size() < 1) {
             throw new IOException("No insertion target on stack.");
         }
@@ -100,6 +106,7 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
 
     @SuppressWarnings("unchecked")
     private List<Object> targetList() throws IOException {
+//        System.out.println("targetList");
         if (stack.size() < 1) {
             throw new IOException("No insertion target on stack.");
         }
@@ -111,10 +118,12 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     }
 
     private void writeAnyField(String name, Object value) throws IOException {
+//        System.out.println("writeAnyField " + name + " " + value);
         targetMap().put(name, value);
     }
 
     private void writeAnyValue(Object value) throws IOException {
+//        System.out.println("writeAnyValue " + value);
         if (target() instanceof String) {
             String name = (String) pop();
             targetMap().put(name, value);
@@ -129,6 +138,7 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     }
 
     public void writeFieldName(String name) throws IOException {
+//        System.out.println("writeFieldName " + name);
         if (!(target() instanceof Map)) {
             throw new IOException("Need to create writeStartObject() to add fields to.");
         }
@@ -212,26 +222,35 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     }
 
     public void writeString(char[] text, int offset, int len) throws IOException {
-        writeAnyValue("NOT_IMPLEMENTED");
+//        System.out.println("writeString (char[]) " + text + " " + offset + " " + len);
+        String str = new String(text);
+        writeAnyValue(str.substring(offset, offset + len));
     }
 
     public void writeUTF8String(byte[] value, int offset, int length) throws IOException {
-        writeAnyValue("NOT_IMPLEMENTED");
+//        System.out.println("writeUTF8String " + value + " " + offset + " " + length);
+        writeAnyValue("writeUTF8String_NOT_IMPLEMENTED");
     }
 
     public void writeBinaryField(String name, byte[] value) throws IOException {
-        writeAnyField(name, new String(value, StandardCharsets.UTF_8));
+//        System.out.println("writeBinaryField " + name + " " + value);
+        writeAnyField(name, new String(value, StandardCharsets.US_ASCII));
     }
 
     public void writeBinary(byte[] value) throws IOException {
-        writeAnyValue("NOT_IMPLEMENTED");
+//        System.out.println("writeBinary " + value);
+//        writeAnyValue(new String(value, StandardCharsets.UTF_8));
+        System.out.println("writeBinary not implemented");
     }
 
     public void writeBinary(byte[] value, int offset, int length) throws IOException {
-        writeAnyValue("NOT_IMPLEMENTED");
+//        System.out.println("writeBinary " + value + " " + offset + " " + length);
+//        writeAnyValue("writeBinary_NOT_IMPLEMENTED");
+        System.out.println("writeBinary [2] not implemented");
     }
 
     public void writeRawField(String name, InputStream value) throws IOException {
+//        System.out.println("writeRawField " + name + " " + value);
         java.util.Scanner scanner = new java.util.Scanner(value).useDelimiter("\\A");
         String str = scanner.hasNext() ? scanner.next() : "";
         writeAnyField(name, str);

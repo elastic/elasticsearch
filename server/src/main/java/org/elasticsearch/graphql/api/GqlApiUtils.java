@@ -5,6 +5,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,7 +19,8 @@ import java.util.concurrent.CompletableFuture;
 public class GqlApiUtils {
 
     static XContentBuilder createJavaUtilBuilder() throws IOException  {
-        XContentBuilder builder = new XContentBuilder(JavaUtilXContent.javaUtilXContent, null);
+        BytesStreamOutput bos = new BytesStreamOutput();
+        XContentBuilder builder = new XContentBuilder(JavaUtilXContent.javaUtilXContent, bos);
         return builder;
     }
 

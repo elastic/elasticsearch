@@ -23,6 +23,8 @@ mv /etc/samba/smb.conf /etc/samba/smb.conf.orig
 
 samba-tool domain provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL --realm=AD.TEST.ELASTICSEARCH.COM --domain=ADES --adminpass=Passw0rd --use-ntvfs
 
+samba-tool domain passwordsettings set --max-pwd-age=0
+
 cp /var/lib/samba/private/krb5.conf /etc/krb5.conf
 
 service samba-ad-dc restart

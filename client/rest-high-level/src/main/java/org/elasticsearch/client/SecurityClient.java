@@ -982,9 +982,10 @@ public final class SecurityClient {
      * @return the response from the create token call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DelegatePkiAuthenticationResponse delegatePkiAuthentication(DelegatePkiAuthenticationRequest request, RequestOptions options) throws IOException {
+    public DelegatePkiAuthenticationResponse delegatePkiAuthentication(DelegatePkiAuthenticationRequest request, RequestOptions options)
+            throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
-            DelegatePkiAuthenticationResponse::fromXContent, emptySet());
+                DelegatePkiAuthenticationResponse::fromXContent, emptySet());
     }
 
     /**
@@ -996,7 +997,8 @@ public final class SecurityClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options, ActionListener<DelegatePkiAuthenticationResponse> listener) {
+    public void delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options,
+            ActionListener<DelegatePkiAuthenticationResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }

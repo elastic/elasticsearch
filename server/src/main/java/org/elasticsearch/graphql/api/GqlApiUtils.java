@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.graphql.api;
 
 import org.apache.logging.log4j.LogManager;
@@ -12,6 +31,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContent;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
+import org.elasticsearch.graphql.api.fake.GqlApiFakeHttpChannel;
+import org.elasticsearch.graphql.api.fake.GqlApiFakeHttpRequest;
+import org.elasticsearch.graphql.api.fake.GqlApiFakeRestChannel;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
@@ -80,56 +102,9 @@ public class GqlApiUtils {
         GqlApiFakeHttpRequest internalHttpRequest = new GqlApiFakeHttpRequest(method, uri, BytesArray.EMPTY, new HashMap<>());
         GqlApiFakeHttpChannel internalHttpChannel = new GqlApiFakeHttpChannel(null);
         RestRequest innerRequest = RestRequest.request(NamedXContentRegistry.EMPTY, internalHttpRequest, internalHttpChannel);
+        GqlApiFakeRestChannel internalRestChannel = new GqlApiFakeRestChannel(builder, innerRequest, promise);
 
-        handler.handleRequest(innerRequest, new RestChannel() {
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-
-            @Override
-            public XContentBuilder newBuilder() throws IOException {
-                return builder;
-            }
-
-            @Override
-            public XContentBuilder newErrorBuilder() throws IOException {
-                return builder;
-            }
-
-            @Override
-            public XContentBuilder newBuilder(XContentType xContentType, boolean useFiltering) throws IOException {
-                return builder;
-            }
-
-            @Override
-            public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering) throws IOException {
-                return builder;
-            }
-
-            @Override
-            public BytesStreamOutput bytesOutput() {
-                return bytesStreamOutput;
-            }
-
-            @Override
-            public RestRequest request() {
-                return innerRequest;
-            }
-
-            @Override
-            public boolean detailedErrorsEnabled() {
-                return false;
-            }
-
-            @Override
-            public void sendResponse(RestResponse response) {
-                try {
-                    List<Object> result = (List) GqlApiUtils.getJavaUtilBuilderResult(builder);
-                    logger.info("executeRestHandler result: {} {} {} {}", handler.getName(), method, uri, result);
-                    promise.complete(result);
-                } catch (Exception e) {
-                    promise.completeExceptionally(e);
-                }
-            }
-        }, client);
+        handler.handleRequest(innerRequest, internalRestChannel, client);
 
         return promise;
     }

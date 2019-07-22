@@ -24,8 +24,13 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -37,9 +42,11 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.LeafFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,6 +63,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends ESIntegTestCase {
@@ -110,7 +118,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         });
     }
 
-    private void disableBlocks(List<ScriptedBlockPlugin> plugins) throws Exception {
+    private void disableBlocks(List<ScriptedBlockPlugin> plugins) {
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.disableBlock();
         }
@@ -136,6 +144,40 @@ public class SearchCancellationIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException ex) {
             logger.info("All shards failed with", ex);
             return null;
+        }
+    }
+
+    public void testMultiSearchCancellation() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        logger.info("Executing msearch");
+        MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
+        int numSearches = 1; //TODO increase
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(scriptQuery(new Script(
+            ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())));
+        //TODO fail fetch phase too
+        for (int i = 0; i < numSearches; i++) {
+            multiSearchRequestBuilder.add(new SearchRequest("test").source(sourceBuilder));
+        }
+
+        ActionFuture<MultiSearchResponse> multiSearchResponseFuture = multiSearchRequestBuilder.execute();
+
+        awaitForBlock(plugins);
+        cancelSearch(MultiSearchAction.NAME);
+        disableBlocks(plugins);
+        logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
+
+        MultiSearchResponse multiSearchResponse = multiSearchResponseFuture.actionGet();
+        for (MultiSearchResponse.Item item : multiSearchResponse) {
+            if (item.isFailure()) {
+                logger.info("All shards failed with", item.getFailure());
+                assertThat(item.getFailure(), instanceOf(SearchPhaseExecutionException.class));
+            } else {
+                SearchResponse response = item.getResponse();
+                logger.info("Search response {}", response);
+                assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
+            }
         }
     }
 

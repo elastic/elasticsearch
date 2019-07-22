@@ -131,9 +131,12 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
     }
 
     public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String id) {
-        Map<String, Object> config = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(2, 5); i++) {
-            config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
+        Map<String, Object> config = null;
+        if (randomBoolean()) {
+            config = new HashMap<>();
+            for (int i = 0; i < randomIntBetween(2, 5); i++) {
+                config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
+            }
         }
         return new SnapshotLifecyclePolicy(id,
             randomAlphaOfLength(4),

@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -361,7 +361,7 @@ public class UpdateRequestTests extends ESTestCase {
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", UNASSIGNED_SEQ_NO, 0, 0, false, null, null, null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
-            Streamable action = result.action();
+            Writeable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
             IndexRequest indexAction = (IndexRequest) action;
             assertEquals(nowInMillis, indexAction.sourceAsMap().get("update_timestamp"));
@@ -374,7 +374,7 @@ public class UpdateRequestTests extends ESTestCase {
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", 0, 1, 0, true, new BytesArray("{}"), null, null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> 42L);
-            Streamable action = result.action();
+            Writeable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
         }
     }
@@ -424,7 +424,7 @@ public class UpdateRequestTests extends ESTestCase {
                 updateRequest,
                 getResult,
                 ESTestCase::randomNonNegativeLong);
-        final Streamable action = result.action();
+        final Writeable action = result.action();
         assertThat(action, instanceOf(ReplicationRequest.class));
         final ReplicationRequest<?> request = (ReplicationRequest<?>) action;
         assertThat(request.timeout(), equalTo(updateRequest.timeout()));

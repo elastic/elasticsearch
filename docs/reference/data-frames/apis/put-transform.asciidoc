@@ -45,6 +45,18 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
+[[put-data-frame-transform-query-parms]]
+==== {api-query-parms-title}
+
+`defer_validation`::
+ (Optional, boolean) When `true`, deferrable validations are not run. This
+ behavior may be desired if the source index does not exist until after the
+{dataframe-transform} is created. Deferred validations are always run when the
+{dataframe-transform} is started, with the exception of privilege checks. If the
+user who created the transform does not have the required privileges on the
+source and destination indices, the transform starts but then fails when it
+attempts the unauthorized operation. The default value is `false`.
+
 [[put-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
@@ -62,9 +74,11 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
     (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
 
 `frequency`::
-  (Optional, time units) The interval between checks for changes in the source indices
-  when the {dataframe-transform} is running continuously. Defaults to `1m`.
-  The lowest permitted value is `1s`; the highest `1h`.
+  (Optional, time units) The interval between checks for changes in the source
+  indices when the {dataframe-transform} is running continuously. Also determines
+  the retry interval in the event of transient failures while the {dataframe-transform} is
+  searching or indexing. The minimum value is `1s` and the maximum is `1h`. The
+  default value is `1m`.
 
 `pivot`::
   (Required, object) Defines the pivot function `group by` fields and the aggregation to

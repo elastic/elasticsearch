@@ -114,7 +114,7 @@ public class HighlightFieldTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testField.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                HighlightField deserializedCopy = HighlightField.readHighlightField(in);
+                HighlightField deserializedCopy = new HighlightField(in);
                 assertEquals(testField, deserializedCopy);
                 assertEquals(testField.hashCode(), deserializedCopy.hashCode());
                 assertNotSame(testField, deserializedCopy);

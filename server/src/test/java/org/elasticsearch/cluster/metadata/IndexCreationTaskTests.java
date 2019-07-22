@@ -433,7 +433,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
             @Override
             protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
-
+                // we have to make this a no-op since we are not mocking enough for this method to be able to execute
             }
 
         };

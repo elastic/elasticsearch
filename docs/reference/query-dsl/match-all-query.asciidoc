@@ -24,9 +24,9 @@ GET /_search
 [[match-all-top-level-params]]
 === Top-level parameters for `match_all`
 
-`boost` (Optional)::
+`boost`::
 +
 --
-(float) <<query-filter-context, Relevance score>> for all returned documents.
-Defaults to `1.0`.
+(Optional, float) <<query-filter-context, Relevance score>> for all returned
+documents. Defaults to `1.0`.
 --

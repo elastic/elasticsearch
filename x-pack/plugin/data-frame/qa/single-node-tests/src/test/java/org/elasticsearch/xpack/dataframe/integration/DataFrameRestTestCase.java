@@ -51,10 +51,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
     }
 
-    protected void createReviewsIndex(String indexName) throws IOException {
+    protected void createReviewsIndex(String indexName, int numDocs) throws IOException {
         int[] distributionTable = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1};
-
-        final int numDocs = 1000;
 
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
@@ -144,6 +142,10 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
      */
     protected void createReviewsIndex() throws IOException {
         createReviewsIndex(REVIEWS_INDEX_NAME);
+    }
+
+    protected void createReviewsIndex(String indexName) throws IOException {
+        createReviewsIndex(indexName, 1000);
     }
 
     protected void createPivotReviewsTransform(String transformId, String dataFrameIndex, String query) throws IOException {

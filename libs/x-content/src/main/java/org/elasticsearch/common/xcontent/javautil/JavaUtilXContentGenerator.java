@@ -29,14 +29,27 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Plain Java Map and List XContentGenerator.
  */
 public class JavaUtilXContentGenerator implements XContentGenerator {
+    public static String toCamelCase(String text) {
+        if (text.matches( "([a-z]+[a-zA-Z0-9]+)+" )) {
+            return text;
+        }
+        String bactrianCamel = Stream.of(text.split("[^a-zA-Z0-9]"))
+            .map(v -> v.substring(0, 1).toUpperCase() + v.substring(1).toLowerCase())
+            .collect(Collectors.joining());
+        return bactrianCamel.toLowerCase().substring(0, 1) + bactrianCamel.substring(1);
+    }
+
     private Stack<Object> stack = new Stack<Object>();
     private Boolean closed = false;
     private Object lastPopped = null;
+    public Boolean forceCamelCase = true;
 
     public Object getResult() throws Exception {
         if (stack.size() > 0) {
@@ -137,7 +150,11 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     }
 
     private void writeAnyField(String name, Object value) throws IOException {
-//        System.out.println("writeAnyField " + name + " " + value);
+        System.out.println("writeAnyField " + name + " " + value);
+        if (forceCamelCase) {
+            name = toCamelCase(name);
+        }
+        System.out.println("name " + name);
         targetMap().put(name, value);
     }
 
@@ -160,6 +177,9 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
 //        System.out.println("writeFieldName " + name);
         if (!(target() instanceof Map)) {
             throw new IOException("Need to create writeStartObject() to add fields to.");
+        }
+        if (forceCamelCase) {
+            name = toCamelCase(name);
         }
         stack.push(name);
     }

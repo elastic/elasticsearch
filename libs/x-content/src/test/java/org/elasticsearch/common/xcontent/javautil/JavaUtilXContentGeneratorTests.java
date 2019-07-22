@@ -80,4 +80,20 @@ public class JavaUtilXContentGeneratorTests extends ESTestCase {
         Map<String, Object> map = (Map<String, Object>) list.get(0);
         assertEquals(map.get("foo"), "bar");
     }
+
+    @SuppressWarnings("unchecked")
+    public void testForcesFieldNamesToCamelCase() throws Exception {
+        JavaUtilXContentGenerator gen = new JavaUtilXContentGenerator();
+
+        gen.writeStartObject();
+        gen.writeStringField("helloWorld", "1");
+        gen.writeStringField("cluster_size", "2");
+        gen.writeStringField("doc.count", "3");
+        gen.writeEndObject();
+
+        Map<String, Object> map = (Map<String, Object>) gen.getResult();
+        assertEquals("1", map.get("helloWorld"));
+        assertEquals("2", map.get("clusterSize"));
+        assertEquals("3", map.get("docCount"));
+    }
 }

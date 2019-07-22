@@ -79,9 +79,7 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
             randomFrom(DataFrameTransformTaskState.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : randomNodeAttributes(),
-            // On the server side the stats has transform ID "_all" when embedded in another doc
-            // TODO: change this so that the outer document sets the correct transform ID during parsing
-            // It's very confusing and could cause subtle errors that the inner object has a surprising ID
+            // TODO: remove this ID field from the server side as it's no longer needed
             randomStats("_all"),
             DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }

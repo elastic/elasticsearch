@@ -676,8 +676,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 getProgress());
             logger.debug("Updating persistent state of transform [{}] to [{}]", transformConfig.getId(), state.toString());
 
-            // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
-            // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
+            // Persist the current state and stats in the internal index. The interval of this method being
+            // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
+            // often when doing bulk indexing calls or at the end of one indexing run.
             transformsConfigManager.putOrUpdateTransformStoredDoc(
                     new DataFrameTransformStoredDoc(transformId, state, getStats()),
                     ActionListener.wrap(

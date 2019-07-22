@@ -171,6 +171,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -463,7 +464,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(datafeedUpdate.getScrollSize(), equalTo(updatedDatafeed.getScrollSize()));
     }
 
-    public void testUpdateDatafeed_UpdatingJobIdIsDeprecated() throws Exception {
+    public void testUpdateDatafeed_UpdatingJobIdIsProhibited() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         String jobId = randomValidJobId();
@@ -478,14 +479,19 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
         execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
 
+        DatafeedUpdate datafeedUpdateWithUnchangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(jobId).build();
+        execute(new UpdateDatafeedRequest(datafeedUpdateWithUnchangedJobId),
+            machineLearningClient::updateDatafeed,
+            machineLearningClient::updateDatafeedAsync);
+
         DatafeedUpdate datafeedUpdateWithChangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(anotherJobId).build();
-        WarningFailureException exception = expectThrows(
-            WarningFailureException.class,
+        ElasticsearchStatusException exception = expectThrows(
+            ElasticsearchStatusException.class,
             () -> execute(
                 new UpdateDatafeedRequest(datafeedUpdateWithChangedJobId),
                 machineLearningClient::updateDatafeed,
                 machineLearningClient::updateDatafeedAsync));
-        assertThat(exception.getResponse().getWarnings(), contains("The ability to update a datafeed's job_id is deprecated."));
+        assertThat(exception.getMessage(), containsString("Datafeed's job_id cannot be changed"));
     }
 
     public void testGetDatafeed() throws Exception {

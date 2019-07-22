@@ -49,6 +49,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -77,14 +78,11 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     }
 
     public static DatafeedUpdate createRandomized(String datafeedId) {
-        return createRandomized(datafeedId, null, true);
+        return createRandomized(datafeedId, null);
     }
 
-    public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed, boolean canSetJobId) {
+    public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(datafeedId);
-        if (randomBoolean() && datafeed == null && canSetJobId) {
-            builder.setJobId(randomAlphaOfLength(10));
-        }
         if (randomBoolean()) {
             builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, Integer.MAX_VALUE)));
         }
@@ -197,6 +195,22 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         expectThrows(IllegalArgumentException.class, () -> createRandomized(datafeed.getId() + "_2").apply(datafeed, null));
     }
 
+    public void testApply_failBecauseJobIdChanged() {
+        DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
+
+        DatafeedUpdate datafeedUpdateWithUnchangedJobId = new DatafeedUpdate.Builder(datafeed.getId())
+            .setJobId("foo")
+            .build();
+        DatafeedConfig updatedDatafeed = datafeedUpdateWithUnchangedJobId.apply(datafeed, Collections.emptyMap());
+        assertThat(updatedDatafeed, equalTo(datafeed));
+
+        DatafeedUpdate datafeedUpdateWithChangedJobId = new DatafeedUpdate.Builder(datafeed.getId())
+            .setJobId("bar")
+            .build();
+        Exception ex = expectThrows(Exception.class, () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap()));
+        assertThat(ex.getMessage(), containsString(DatafeedUpdate.ERROR_MESSAGE_ON_JOB_ID_UPDATE));
+    }
+
     public void testApply_givenEmptyUpdate() {
         DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig("foo");
         DatafeedConfig updatedDatafeed = new DatafeedUpdate.Builder(datafeed.getId()).build().apply(datafeed, Collections.emptyMap());
@@ -223,7 +237,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig datafeed = datafeedBuilder.build();
         QueryProvider queryProvider = createRandomValidQueryProvider("a", "b");
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
-        update.setJobId("bar");
         update.setIndices(Collections.singletonList("i_2"));
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
         update.setFrequency(TimeValue.timeValueSeconds(142));
@@ -235,7 +248,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
-        assertThat(updatedDatafeed.getJobId(), equalTo("bar"));
+        assertThat(updatedDatafeed.getJobId(), equalTo("foo-feed"));
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_2")));
         assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
@@ -276,9 +289,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 withoutAggs.setAggProvider(null);
                 datafeed = withoutAggs.build();
             }
-            DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed, true);
+            DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed);
             while (update.isNoop(datafeed)) {
-                update = createRandomized(datafeed.getId(), datafeed, true);
+                update = createRandomized(datafeed.getId(), datafeed);
             }
 
             DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
@@ -339,12 +352,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) throws IOException {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(0, 9)) {
-        case 0:
-            builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
-            break;
+        switch (between(1, 9)) {
         case 1:
-            builder.setJobId(instance.getJobId() + randomAlphaOfLength(5));
+            builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
             break;
         case 2:
             if (instance.getQueryDelay() == null) {

@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -775,8 +776,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected void updateMappings(IndexShard shard, IndexMetaData indexMetadata) {
-        shard.indexSettings().updateIndexMetaData(indexMetadata);
         shard.mapperService().merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+        shard.indexSettings().updateIndexMetaData(
+            IndexMetaData.builder(indexMetadata).putMapping(new MappingMetaData(shard.mapperService().documentMapper())).build());
     }
 
     protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {

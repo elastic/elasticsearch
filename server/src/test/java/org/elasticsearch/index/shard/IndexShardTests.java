@@ -94,6 +94,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -139,7 +140,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -2596,37 +2596,12 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         List<Translog.Operation> operations = new ArrayList<>();
         int numTotalEntries = randomIntBetween(0, 10);
-        int numCorruptEntries = 0;
         for (int i = 0; i < numTotalEntries; i++) {
-            if (randomBoolean()) {
-                operations.add(new Translog.Index("_doc", "1", 0, primary.getPendingPrimaryTerm(), 1,
-                    "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1));
-            } else {
-                // corrupt entry
-                operations.add(new Translog.Index("_doc", "2", 1,  primary.getPendingPrimaryTerm(), 1,
-                    "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, -1));
-                numCorruptEntries++;
-            }
+            operations.add(new Translog.Index("_doc", "1", 0, primary.getPendingPrimaryTerm(), 1,
+                "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1));
         }
 
-        Iterator<Translog.Operation> iterator = operations.iterator();
-        Translog.Snapshot snapshot = new Translog.Snapshot() {
-
-            @Override
-            public void close() {
-
-            }
-
-            @Override
-            public int totalOperations() {
-                return numTotalEntries;
-            }
-
-            @Override
-            public Translog.Operation next() throws IOException {
-                return iterator.hasNext() ? iterator.next() : null;
-            }
-        };
+        Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
         primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
             getFakeDiscoNode(primary.routingEntry().currentNodeId()),
             null));
@@ -2637,8 +2612,43 @@ public class IndexShardTests extends IndexShardTestCase {
         primary.state = IndexShardState.RECOVERING; // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
         primary.runTranslogRecovery(primary.getEngine(), snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
             primary.recoveryState().getTranslog()::incrementRecoveredOperations);
-        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries));
+        closeShards(primary);
+    }
 
+    public void testFailOnReplayCorruptTranslog() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE)).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        List<Translog.Operation> operations = new ArrayList<>();
+        int numCorruptEntries = randomIntBetween(1, 10);
+        for (int i = 0; i < numCorruptEntries; i++) {
+            // corrupt entry
+            operations.add(new Translog.Index("_doc", "2", 1, primary.getPendingPrimaryTerm(), 1,
+                "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, -1));
+        }
+        int numGoodEntries = randomIntBetween(0, 10);
+        for (int i = 0; i < numGoodEntries; i++) {
+            operations.add(new Translog.Index("_doc", "1", 0, primary.getPendingPrimaryTerm(), 1,
+                "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1));
+        }
+        Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(operations);
+        primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
+            getFakeDiscoNode(primary.routingEntry().currentNodeId()), null));
+        primary.recoverFromStore();
+        primary.recoveryState().getTranslog().totalOperations(snapshot.totalOperations());
+        primary.recoveryState().getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+        primary.state = IndexShardState.RECOVERING; // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
+        MapperParsingException error = expectThrows(MapperParsingException.class, () ->
+            primary.runTranslogRecovery(primary.getEngine(), snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                primary.recoveryState().getTranslog()::incrementRecoveredOperations));
+        assertThat(error.getMessage(), containsString("failed to parse field [foo] of type [text] in document with id '2'"));
         closeShards(primary);
     }
 

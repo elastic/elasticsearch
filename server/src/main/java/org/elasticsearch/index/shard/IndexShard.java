@@ -142,7 +142,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1440,17 +1439,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     default:
                         throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
                 }
-
-                opsRecovered++;
-                onOperationRecovered.run();
+            } catch (IOException e) {
+                throw e;
             } catch (Exception e) {
-                if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
-                    // mainly for MapperParsingException and Failure to detect xcontent
-                    logger.info("ignoring recovery of a corrupt translog entry", e);
-                } else {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
+                throw ExceptionsHelper.convertToRuntime(e);
             }
+            opsRecovered++;
+            onOperationRecovered.run();
         }
         return opsRecovered;
     }

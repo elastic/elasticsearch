@@ -18,7 +18,14 @@ public class XPackUsageResponse extends ActionResponse {
 
     private List<XPackFeatureSet.Usage> usages;
 
-    public XPackUsageResponse() {}
+    public XPackUsageResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        usages = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class));
+        }
+    }
 
     public XPackUsageResponse(List<XPackFeatureSet.Usage> usages) {
         this.usages = usages;
@@ -30,20 +37,10 @@ public class XPackUsageResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(usages.size());
         for (XPackFeatureSet.Usage usage : usages) {
             out.writeNamedWriteable(usage);
         }
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        usages = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class));
-        }
     }
-}

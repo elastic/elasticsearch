@@ -23,6 +23,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DateEsField;
@@ -42,7 +43,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -57,38 +57,39 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class IndexResolver {
 
     public enum IndexType {
-
-        INDEX("BASE TABLE"),
-        ALIAS("VIEW"),
+        STANDARD_INDEX("BASE TABLE", "INDEX"),
+        ALIAS("VIEW", "ALIAS"),
+        FROZEN_INDEX("BASE TABLE", "FROZEN INDEX"),
         // value for user types unrecognized
-        UNKNOWN("UNKNOWN");
+        UNKNOWN("UNKNOWN", "UNKNOWN");
 
-        public static final EnumSet<IndexType> VALID = EnumSet.of(INDEX, ALIAS);
+        public static final String SQL_BASE_TABLE = "BASE TABLE";
+        public static final String SQL_TABLE = "TABLE";
+        public static final String SQL_VIEW = "VIEW";
+
+        public static final EnumSet<IndexType> VALID_INCLUDE_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
+        public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS);
+        public static final EnumSet<IndexType> INDICES_ONLY = EnumSet.of(STANDARD_INDEX, FROZEN_INDEX);
 
         private final String toSql;
+        private final String toNative;
 
-        IndexType(String sql) {
+        IndexType(String sql, String toNative) {
             this.toSql = sql;
+            this.toNative = toNative;
         }
 
         public String toSql() {
             return toSql;
         }
-
-        public static IndexType from(String name) {
-            if (name != null) {
-                name = name.toUpperCase(Locale.ROOT);
-                for (IndexType type : IndexType.VALID) {
-                    if (type.toSql.equals(name)) {
-                        return type;
-                    }
-                }
-            }
-            return IndexType.UNKNOWN;
+        
+        public String toNative() {
+            return toNative;
         }
     }
 
@@ -136,7 +137,17 @@ public class IndexResolver {
     }
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
+            EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES, Option.IGNORE_THROTTLED),
+            EnumSet.of(WildcardStates.OPEN));
+    private static final IndicesOptions FROZEN_INDICES_OPTIONS = new IndicesOptions(
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
+
+    public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = new IndicesOptions(
+            EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_THROTTLED), EnumSet.of(WildcardStates.OPEN));
+    public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = new IndicesOptions(
+            EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE), EnumSet.of(WildcardStates.OPEN));
+
+
     private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
     private static final String UNMAPPED = "unmapped";
 
@@ -161,7 +172,8 @@ public class IndexResolver {
 
         // first get aliases (if specified)
         boolean retrieveAliases = CollectionUtils.isEmpty(types) || types.contains(IndexType.ALIAS);
-        boolean retrieveIndices = CollectionUtils.isEmpty(types) || types.contains(IndexType.INDEX);
+        boolean retrieveIndices = CollectionUtils.isEmpty(types) || types.contains(IndexType.STANDARD_INDEX);
+        boolean retrieveFrozenIndices = CollectionUtils.isEmpty(types) || types.contains(IndexType.FROZEN_INDEX);
 
         String[] indices = Strings.commaDelimitedListToStringArray(indexWildcard);
         if (retrieveAliases) {
@@ -170,8 +182,8 @@ public class IndexResolver {
                     .aliases(indices)
                     .indicesOptions(IndicesOptions.lenientExpandOpen());
     
-            client.admin().indices().getAliases(aliasRequest, ActionListener.wrap(aliases ->
-                            resolveIndices(indices, javaRegex, aliases, retrieveIndices, listener),
+            client.admin().indices().getAliases(aliasRequest, wrap(aliases ->
+                            resolveIndices(indices, javaRegex, aliases, retrieveIndices, retrieveFrozenIndices, listener),
                             ex -> {
                                 // with security, two exception can be thrown:
                                 // INFE - if no alias matches
@@ -179,36 +191,46 @@ public class IndexResolver {
     
                                 // in both cases, that is allowed and we continue with the indices request
                                 if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                    resolveIndices(indices, javaRegex, null, retrieveIndices, listener);
+                                    resolveIndices(indices, javaRegex, null, retrieveIndices, retrieveFrozenIndices, listener);
                                 } else {
                                     listener.onFailure(ex);
                                 }
                             }));
         } else {
-            resolveIndices(indices, javaRegex, null, retrieveIndices, listener);
+            resolveIndices(indices, javaRegex, null, retrieveIndices, retrieveFrozenIndices, listener);
         }
     }
 
     private void resolveIndices(String[] indices, String javaRegex, GetAliasesResponse aliases,
-            boolean retrieveIndices, ActionListener<Set<IndexInfo>> listener) {
+            boolean retrieveIndices, boolean retrieveFrozenIndices, ActionListener<Set<IndexInfo>> listener) {
 
-        if (retrieveIndices) {
+        if (retrieveIndices || retrieveFrozenIndices) {
+            
             GetIndexRequest indexRequest = new GetIndexRequest()
                     .local(true)
                     .indices(indices)
                     .features(Feature.SETTINGS)
                     .includeDefaults(false)
                     .indicesOptions(INDICES_ONLY_OPTIONS);
+
+            // if frozen indices are requested, make sure to update the request accordingly
+            if (retrieveFrozenIndices) {
+                indexRequest.indicesOptions(FROZEN_INDICES_OPTIONS);
+            }
     
             client.admin().indices().getIndex(indexRequest,
-                    ActionListener.wrap(response -> filterResults(javaRegex, aliases, response, listener),
+                    wrap(response -> filterResults(javaRegex, aliases, response, retrieveIndices, retrieveFrozenIndices, listener),
                             listener::onFailure));
+            
         } else {
-            filterResults(javaRegex, aliases, null, listener);
+            filterResults(javaRegex, aliases, null, false, false, listener);
         }
     }
 
     private void filterResults(String javaRegex, GetAliasesResponse aliases, GetIndexResponse indices,
+            // these are needed to filter out the different results from the same index response
+            boolean retrieveIndices,
+            boolean retrieveFrozenIndices,
             ActionListener<Set<IndexInfo>> listener) {
         
         // since the index name does not support ?, filter the results manually
@@ -226,12 +248,16 @@ public class IndexResolver {
                 }
             }
         }
+        
         // filter indices (if present)
         String[] indicesNames = indices != null ? indices.indices() : null;
         if (indicesNames != null) {
             for (String indexName : indicesNames) {
+                boolean isFrozen = retrieveFrozenIndices
+                        && IndexSettings.INDEX_SEARCH_THROTTLED.get(indices.getSettings().get(indexName)) == Boolean.TRUE;
+
                 if (pattern == null || pattern.matcher(indexName).matches()) {
-                    result.add(new IndexInfo(indexName, IndexType.INDEX));
+                    result.add(new IndexInfo(indexName, isFrozen ? IndexType.FROZEN_INDEX : IndexType.STANDARD_INDEX));
                 }
             }
         }
@@ -242,8 +268,9 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, ActionListener<IndexResolution> listener) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard);
+    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, boolean includeFrozen,
+            ActionListener<IndexResolution> listener) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
                         response -> listener.onResponse(mergedMappings(indexWildcard, response.getIndices(), response.get())),
@@ -287,7 +314,7 @@ public class IndexResolver {
             // type is okay, check aggregation
             else {
                 FieldCapabilities fieldCap = types.values().iterator().next();
-                    
+
                 // validate search/agg-able
                 if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
                     errorMessage.append("mapped as aggregatable except in ");
@@ -305,16 +332,16 @@ public class IndexResolver {
                     return new InvalidMappedField(n, errorMessage.toString());
                 }
             }
-            
+
             // everything checks
             return null;
         });
-    
+
         if (indices.size() != 1) {
             throw new SqlIllegalArgumentException("Incorrect merging of mappings (likely due to a bug) - expect 1 but found [{}]",
                     indices.size());
         }
-        
+
         return IndexResolution.valid(indices.get(0));
     }
 
@@ -356,7 +383,7 @@ public class IndexResolver {
         }
 
         EsField esField = field.apply(fieldName);
-
+        
         parentProps.put(fieldName, esField);
         flattedMapping.put(fullFieldName, esField);
 
@@ -382,17 +409,27 @@ public class IndexResolver {
         }
     }
 
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen) {
+        return new FieldCapabilitiesRequest()
+                .indices(Strings.commaDelimitedListToStringArray(index))
+                .fields("*")
+                .includeUnmapped(true)
+                //lenient because we throw our own errors looking at the response e.g. if something was not resolved
+                //also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
+                .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
+    }
 
     /**
      * Resolves a pattern to multiple, separate indices. Doesn't perform validation.
      */
-    public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, ActionListener<List<EsIndex>> listener) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard);
+    public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, boolean includeFrozen,
+            ActionListener<List<EsIndex>> listener) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
                         response -> listener.onResponse(separateMappings(indexWildcard, javaRegex, response.getIndices(), response.get())),
                         listener::onFailure));
-        
+
     }
     
     static List<EsIndex> separateMappings(String indexPattern, String javaRegex, String[] indexNames,
@@ -430,7 +467,7 @@ public class IndexResolver {
         for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
             String fieldName = entry.getKey();
             Map<String, FieldCapabilities> types = entry.getValue();
-            
+
             // ignore size added by the mapper plugin
             if (FIELD_NAMES_BLACKLIST.contains(fieldName)) {
                 continue;
@@ -438,7 +475,7 @@ public class IndexResolver {
 
             // apply verification
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
-            
+
             // filter meta fields and unmapped
             FieldCapabilities unmapped = types.get(UNMAPPED);
             Set<String> unmappedIndices = unmapped != null ? new HashSet<>(asList(unmapped.indices())) : emptySet();
@@ -447,7 +484,7 @@ public class IndexResolver {
             for (Entry<String, FieldCapabilities> typeEntry : types.entrySet()) {
                 FieldCapabilities typeCap = typeEntry.getValue();
                 String[] capIndices = typeCap.indices();
-                
+
                 // Skip internal fields (name starting with underscore and its type reported by field_caps starts
                 // with underscore as well). A meta field named "_version", for example, has the type named "_version".
                 if (typeEntry.getKey().startsWith("_") && typeCap.getType().startsWith("_")) {
@@ -460,7 +497,7 @@ public class IndexResolver {
                     if (unmappedIndices.isEmpty() == true) {
                         concreteIndices = asList(capIndices);
                     } else {
-                        concreteIndices = new ArrayList<>(capIndices.length - unmappedIndices.size() + 1);
+                        concreteIndices = new ArrayList<>(capIndices.length);
                         for (String capIndex : capIndices) {
                             // add only indices that have a mapping
                             if (unmappedIndices.contains(capIndex) == false) {
@@ -483,9 +520,9 @@ public class IndexResolver {
                         }
                         EsField field = indexFields.flattedMapping.get(fieldName);
                         if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
-                            createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping, s ->
-                                invalidField != null ? invalidField :
-                                    createField(s, typeCap.getType(), emptyMap(), typeCap.isAggregatable()));
+                            createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
+                                    s -> invalidField != null ? invalidField : createField(s, typeCap.getType(), emptyMap(),
+                                            typeCap.isAggregatable()));
                         }
                     }
                 }
@@ -499,15 +536,5 @@ public class IndexResolver {
         }
         foundIndices.sort(Comparator.comparing(EsIndex::name));
         return foundIndices;
-    }
-
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index) {
-        return new FieldCapabilitiesRequest()
-                .indices(Strings.commaDelimitedListToStringArray(index))
-                .fields("*")
-                .includeUnmapped(true)
-                //lenient because we throw our own errors looking at the response e.g. if something was not resolved
-                //also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
     }
 }

@@ -3,7 +3,7 @@
 
 [role="exclude",id="painless-api-reference-ingest-org-elasticsearch-ingest-common"]
 === Ingest API for package org.elasticsearch.ingest.common
-See the <<painless-api-reference-ingest, Ingest API>> for a high-level overview of all packages.
+See the <<painless-api-reference-ingest, Ingest API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-ingest-Processors]]
 ==== Processors

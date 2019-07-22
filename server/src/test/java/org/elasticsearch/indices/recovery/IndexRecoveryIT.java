@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -52,9 +53,12 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.flush.SyncedFlushUtil;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -67,7 +71,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -84,14 +87,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -282,12 +290,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
     }
 
-    @TestLogging(
-            "_root:DEBUG,"
-                    + "org.elasticsearch.cluster.service:TRACE,"
-                    + "org.elasticsearch.indices.cluster:TRACE,"
-                    + "org.elasticsearch.indices.recovery:TRACE,"
-                    + "org.elasticsearch.index.shard:TRACE")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -512,7 +514,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         assertThat(client().admin().cluster().prepareGetSnapshots(REPO_NAME).setSnapshots(SNAP_NAME).get()
-                .getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+                .getSnapshots(REPO_NAME).get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         client().admin().indices().prepareClose(INDEX_NAME).execute().actionGet();
 
@@ -704,7 +706,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
      * Tests scenario where recovery target successfully sends recovery request to source but then the channel gets closed while
      * the source is working on the recovery process.
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.indices.recovery:TRACE")
     public void testDisconnectsDuringRecovery() throws Exception {
         boolean primaryRelocation = randomBoolean();
         final String indexName = "test";
@@ -823,7 +824,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.indices.recovery:TRACE")
     public void testHistoryRetention() throws Exception {
         internalCluster().startNodes(3);
 
@@ -844,8 +844,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             flush(indexName);
         }
 
-        internalCluster().stopRandomNode(s -> true);
-        internalCluster().stopRandomNode(s -> true);
+        String firstNodeToStop = randomFrom(internalCluster().getNodeNames());
+        Settings firstNodeToStopDataPathSettings = internalCluster().dataPathSettings(firstNodeToStop);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(firstNodeToStop));
+        String secondNodeToStop = randomFrom(internalCluster().getNodeNames());
+        Settings secondNodeToStopDataPathSettings = internalCluster().dataPathSettings(secondNodeToStop);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondNodeToStop));
 
         final long desyncNanoTime = System.nanoTime();
         while (System.nanoTime() <= desyncNanoTime) {
@@ -862,7 +866,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
-        internalCluster().startNode();
+        internalCluster().startNode(randomFrom(firstNodeToStopDataPathSettings, secondNodeToStopDataPathSettings));
         ensureGreen(indexName);
 
         final RecoveryResponse recoveryResponse = client().admin().indices().recoveries(new RecoveryRequest(indexName)).get();
@@ -910,6 +914,83 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().get(), numDocs);
     }
 
+    /** Makes sure the new master does not repeatedly fetch index metadata from recovering replicas */
+    public void testOngoingRecoveryAndMasterFailOver() throws Exception {
+        String indexName = "test";
+        internalCluster().startNodes(2);
+        String nodeWithPrimary = internalCluster().startDataOnlyNode();
+        assertAcked(client().admin().indices().prepareCreate(indexName)
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.include._name", nodeWithPrimary)));
+        MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
+        CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
+        CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
+        Semaphore blockRecovery = new Semaphore(1);
+        transport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
+                phase1ReadyBlocked.countDown();
+                try {
+                    allowToCompletePhase1Latch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        try {
+            String nodeWithReplica = internalCluster().startDataOnlyNode();
+            assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)));
+            phase1ReadyBlocked.await();
+            internalCluster().restartNode(clusterService().state().nodes().getMasterNode().getName(),
+                new InternalTestCluster.RestartCallback());
+            internalCluster().ensureAtLeastNumDataNodes(3);
+            assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .putNull("index.routing.allocation.include._name")));
+            assertFalse(client().admin().cluster().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
+        } finally {
+            allowToCompletePhase1Latch.countDown();
+        }
+        ensureGreen(indexName);
+    }
+
+    public void testRecoveryFlushReplica() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        String indexName = "test-index";
+        createIndex(indexName, Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build());
+        int numDocs = randomIntBetween(0, 10);
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, numDocs)
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.number_of_replicas", 1)));
+        ensureGreen(indexName);
+        ShardId shardId = null;
+        for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()) {
+            shardId = shardStats.getShardRouting().shardId();
+            if (shardStats.getShardRouting().primary() == false) {
+                assertThat(shardStats.getCommitStats().getNumDocs(), equalTo(numDocs));
+                SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                    shardStats.getCommitStats().getUserData().entrySet());
+                assertThat(commitInfo.localCheckpoint, equalTo(shardStats.getSeqNoStats().getLocalCheckpoint()));
+                assertThat(commitInfo.maxSeqNo, equalTo(shardStats.getSeqNoStats().getMaxSeqNo()));
+            }
+        }
+        SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
+        assertBusy(() -> assertThat(client().admin().indices().prepareSyncedFlush(indexName).get().failedShards(), equalTo(0)));
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("index.number_of_replicas", 2)));
+        ensureGreen(indexName);
+        // Recovery should keep syncId if no indexing activity on the primary after synced-flush.
+        Set<String> syncIds = Stream.of(client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards())
+            .map(shardStats -> shardStats.getCommitStats().syncId())
+            .collect(Collectors.toSet());
+        assertThat(syncIds, hasSize(1));
+    }
+
     public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
         final AtomicBoolean throwParsingError = new AtomicBoolean();
         @Override
@@ -926,4 +1007,5 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 });
         }
     }
+
 }

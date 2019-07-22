@@ -19,9 +19,9 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.IOException;
@@ -42,17 +42,13 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
-        try {
-            return blobStore.blobExists(buildKey(blobName));
-        } catch (Exception e) {
-            throw new BlobStoreException("Failed to check if blob [" + blobName + "] exists", e);
-        }
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
+        return blobStore.listBlobs(path);
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
-        return blobStore.listBlobs(path);
+    public Map<String, BlobContainer> children() throws IOException {
+        return blobStore.listChildren(path());
     }
 
     @Override
@@ -78,6 +74,11 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         blobStore.deleteBlob(buildKey(blobName));
+    }
+
+    @Override
+    public void delete() throws IOException {
+        blobStore.deleteDirectory(path().buildAsString());
     }
 
     @Override

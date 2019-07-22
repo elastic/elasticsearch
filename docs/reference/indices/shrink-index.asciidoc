@@ -1,5 +1,5 @@
 [[indices-shrink-index]]
-== Shrink Index
+=== Shrink Index
 
 The shrink index API allows you to shrink an existing index into a new index
 with fewer primary shards. The requested number of primary shards in the target index
@@ -17,13 +17,16 @@ Shrinking works as follows:
 
 * Then it hard-links segments from the source index into the target index. (If
   the file system doesn't support hard-linking, then all segments are copied
-  into the new index, which is a much more time consuming process.)
+  into the new index, which is a much more time consuming process. Also if using 
+  multiple data paths, shards on different data paths require a full copy of 
+  segment files if they are not on the same disk since hardlinks don’t work across
+  disks)
 
 * Finally, it recovers the target index as though it were a closed index which
   had just been re-opened.
 
 [float]
-=== Preparing an index for shrinking
+==== Preparing an index for shrinking
 
 In order to shrink an index, the index must be marked as read-only, and a
 (primary or replica) copy of every shard in the index must be relocated to the
@@ -55,7 +58,7 @@ with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 with the `wait_for_no_relocating_shards` parameter.
 
 [float]
-=== Shrinking an index
+==== Shrinking an index
 
 To shrink `my_source_index` into a new index called `my_target_index`, issue
 the following request:
@@ -131,7 +134,7 @@ POST my_source_index/_shrink/my_target_index
 NOTE: Mappings may not be specified in the `_shrink` request.
 
 [float]
-=== Monitoring the shrink process
+==== Monitoring the shrink process
 
 The shrink process can be monitored with the <<cat-recovery,`_cat recovery`
 API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
@@ -150,7 +153,7 @@ become `active`. At that  point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 [float]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 Because the shrink operation creates a new index to shrink the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting

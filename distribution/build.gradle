@@ -17,18 +17,16 @@
  * under the License.
  */
 
+
+import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RunTask
-import org.apache.tools.ant.filters.FixCrLfFilter
 
 import java.nio.file.Files
-import java.nio.file.Path
-import java.util.regex.Matcher
-import java.util.regex.Pattern
-
+import java.nio.file.Path 
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -119,7 +117,7 @@ task buildTransportModules {
 
 void copyModule(Sync copyTask, Project module) {
   copyTask.configure {
-    dependsOn { module.bundlePlugin }
+    dependsOn "${module.path}:bundlePlugin"
     from({ zipTree(module.bundlePlugin.outputs.files.singleFile) }) {
       includeEmptyDirs false
 
@@ -169,6 +167,7 @@ buildDefaultLog4jConfig.doLast(writeLog4jProperties)
 
 // copy log4j2.properties from modules that have it
 void copyLog4jProperties(Task buildTask, Project module) {
+  buildTask.dependsOn "${module.path}:bundlePlugin"
   buildTask.doFirst {
     FileTree tree = zipTree(module.bundlePlugin.outputs.files.singleFile)
     FileTree filtered = tree.matching {
@@ -219,72 +218,6 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
 
-/*****************************************************************************
- *                                    JDKs                                   *
- *****************************************************************************/
-// extract the bundled jdk version, broken into elements as: [feature, interim, update, build]
-// Note the "patch" version is not yet handled here, as it has not yet been used by java.
-Pattern JDK_VERSION = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)@([a-f0-9]{32})?")
-Matcher jdkVersionMatcher = JDK_VERSION.matcher(VersionProperties.bundledJdk)
-if (jdkVersionMatcher.matches() == false) {
-  throw new IllegalArgumentException("Malformed jdk version [" + VersionProperties.bundledJdk + "]")
-}
-String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "")
-String jdkMajor = jdkVersionMatcher.group(1)
-String jdkBuild = jdkVersionMatcher.group(3)
-String hash = jdkVersionMatcher.group(4)
-
-repositories {
-  // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
-  ivy {
-    name "legacy-jdk"
-    url "https://download.oracle.com"
-    metadataSources {
-      artifact()
-    }
-    patternLayout {
-      artifact "java/GA/jdk${jdkMajor}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
-    }
-  }
-  // current pattern since 12.0.1
-  ivy {
-    name "jdk"
-    url "https://download.oracle.com"
-    metadataSources {
-      artifact()
-    }
-    patternLayout {
-      artifact "java/GA/jdk${jdkVersion}/${hash}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
-    }
-  }
-}
-for (String platform : ['linux', 'darwin', 'windows']) {
-  String jdkConfigName = "jdk_${platform}"
-  Configuration jdkConfig = configurations.create(jdkConfigName)
-  String extension = platform.equals('windows') ? 'zip' : 'tar.gz'
-  dependencies.add(jdkConfigName, "jdk:${platform.equals('darwin') ? 'osx' : platform}:${jdkVersion}@${extension}")
-
-  int rootNdx = platform.equals('darwin') ? 2 : 1
-  Closure removeRootDir = {
-    it.eachFile { FileCopyDetails details ->
-      details.relativePath = new RelativePath(true, details.relativePath.segments[rootNdx..-1] as String[])
-    }
-    it.includeEmptyDirs false
-  }
-  String extractDir = "${buildDir}/jdks/openjdk-${jdkVersion}_${platform}"
-  project.task("extract${platform.capitalize()}Jdk", type: Copy) {
-    doFirst {
-      project.delete(extractDir)
-    }
-    into extractDir
-    if (extension.equals('zip')) {
-      from({ zipTree(jdkConfig.singleFile) }, removeRootDir)
-    } else {
-      from({ tarTree(resources.gzip(jdkConfig.singleFile)) }, removeRootDir)
-    }
-  }
-}
-
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir
 task clean(type: Delete) {
@@ -292,6 +225,9 @@ task clean(type: Delete) {
 }
 
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
+
+  apply plugin: 'elasticsearch.jdk-download'
+
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
@@ -306,7 +242,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from { project(':server').jar }
         from { project(':server').configurations.runtime }
-        from { project(':libs:plugin-classloader').jar }
+        from { project(':libs:elasticsearch-plugin-classloader').jar }
         from { project(':distribution:tools:java-version-checker').jar }
         from { project(':distribution:tools:launchers').jar }
         into('tools/plugin-cli') {
@@ -433,12 +369,21 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { platform ->
-      copySpec {
-        from project(':distribution').tasks.getByName("extract${platform.capitalize()}Jdk")
+    jdkFiles = { project, platform ->
+      project.jdks {
+        "bundled_${platform}" {
+          it.platform = platform
+          it.version = VersionProperties.bundledJdk
+        }
+      }
+      return copySpec {
+        from project.jdks."bundled_${platform}"
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755
+          }
+          if (details.name == 'src.zip') {
+            details.exclude()
           }
         }
       }
@@ -456,11 +401,11 @@ task run(type: RunTask) {
       setting 'xpack.graph.enabled', 'true'
       setting 'xpack.watcher.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
-      setupCommand 'setupTestAdmin',
-        'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     } else if (licenseType != 'basic') {
       throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
     }
+    setupCommand 'setupTestAdmin',
+            'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'true'
     setting 'xpack.sql.enabled', 'true'

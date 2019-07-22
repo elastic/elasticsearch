@@ -25,6 +25,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -34,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -502,5 +504,165 @@ public class Augmentation {
      */
     public static String decodeBase64(String receiver) {
         return new String(Base64.getDecoder().decode(receiver.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Split 'receiver' by 'token' as many times as possible..
+     */
+    public static String[] splitOnToken(String receiver, String token) {
+        return splitOnToken(receiver, token, -1);
+    }
+
+    /**
+     * Split 'receiver' by 'token' up to 'limit' times.  Any limit less than 1 is ignored.
+     */
+    public static String[] splitOnToken(String receiver, String token, int limit) {
+        // Check if it's even possible to perform a split
+        if (receiver == null || receiver.length() == 0 || token == null || token.length() == 0 || receiver.length() < token.length()) {
+            return new String[] { receiver };
+        }
+
+        // List of string segments we have found
+        ArrayList<String> result = new ArrayList<String>();
+
+        // Keep track of where we are in the string
+        // indexOf(tok, startPos) is faster than creating a new search context ever loop with substring(start, end)
+        int pos = 0;
+
+        // Loop until we hit the limit or forever if we are passed in less than one (signifying no limit)
+        // If Integer.MIN_VALUE is passed in, it will still continue to loop down to 1 from MAX_VALUE
+        // This edge case should be fine as we are limited by receiver length (Integer.MAX_VALUE) even if we split at every char
+        for(;limit != 1; limit--) {
+
+            // Find the next occurrence of token after current pos
+            int idx = receiver.indexOf(token, pos);
+
+            // Reached the end of the string without another match
+            if (idx == -1) {
+                break;
+            }
+
+            // Add the found segment to the result list
+            result.add(receiver.substring(pos, idx));
+
+            // Move our search position to the next possible location
+            pos = idx + token.length();
+        }
+        // Add the remaining string to the result list
+        result.add(receiver.substring(pos));
+
+        // O(N) or faster depending on implementation
+        return result.toArray(new String[0]);
+    }
+
+    /**
+     * Access values in nested containers with a dot separated path.  Path elements are treated
+     * as strings for Maps and integers for Lists.
+     * @throws IllegalArgumentException if any of the following:
+     *  - path is empty
+     *  - path contains a trailing '.' or a repeated '.'
+     *  - an element of the path does not exist, ie key or index not present
+     *  - there is a non-container type at a non-terminal path element
+     *  - a path element for a List is not an integer
+     * @return object at path
+     */
+    public static <E> Object getByPath(List<E> receiver, String path) {
+        return getByPathDispatch(receiver, splitPath(path), 0, throwCantFindValue(path));
+    }
+
+    /**
+     * Same as {@link #getByPath(List, String)}, but for Map.
+     */
+    public static <K,V> Object getByPath(Map<K,V> receiver, String path) {
+        return getByPathDispatch(receiver, splitPath(path), 0, throwCantFindValue(path));
+    }
+
+    /**
+     * Same as {@link #getByPath(List, String)}, but with a default value.
+     * @return element at path or {@code defaultValue} if the terminal path element does not exist.
+     */
+    public static <E> Object getByPath(List<E> receiver, String path, Object defaultValue) {
+        return getByPathDispatch(receiver, splitPath(path), 0, () -> defaultValue);
+    }
+
+    /**
+     * Same as {@link #getByPath(List, String, Object)}, but for Map.
+     */
+    public static <K,V> Object getByPath(Map<K,V> receiver, String path, Object defaultValue) {
+        return getByPathDispatch(receiver, splitPath(path), 0, () -> defaultValue);
+    }
+
+    // Dispatches to getByPathMap, getByPathList or returns obj if done. See handleMissing for dealing with missing
+    // elements.
+    private static Object getByPathDispatch(Object obj, String[] elements, int i, Supplier<Object> defaultSupplier) {
+        if (i > elements.length - 1) {
+            return obj;
+        } else if (elements[i].length() == 0 ) {
+            String format = "Extra '.' in path [%s] at index [%d]";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, format, String.join(".", elements), i));
+        } else if (obj instanceof Map<?,?>) {
+            return getByPathMap((Map<?,?>) obj, elements, i, defaultSupplier);
+        } else if (obj instanceof List<?>) {
+            return getByPathList((List<?>) obj, elements, i, defaultSupplier);
+        }
+        return handleMissing(obj, elements, i, defaultSupplier);
+    }
+
+    // lookup existing key in map, call back to dispatch.
+    private static <K,V> Object getByPathMap(Map<K,V> map, String[] elements, int i, Supplier<Object> defaultSupplier) {
+        String element = elements[i];
+        if (map.containsKey(element)) {
+            return getByPathDispatch(map.get(element), elements, i + 1, defaultSupplier);
+        }
+        return handleMissing(map, elements, i, defaultSupplier);
+    }
+
+    // lookup existing index in list, call back to dispatch.  Throws IllegalArgumentException with NumberFormatException
+    // if index can't be parsed as an int.
+    private static <E> Object getByPathList(List<E> list, String[] elements, int i, Supplier<Object> defaultSupplier) {
+        String element = elements[i];
+        try {
+            int elemInt = Integer.parseInt(element);
+            if (list.size() >= elemInt) {
+                return getByPathDispatch(list.get(elemInt), elements, i + 1, defaultSupplier);
+            }
+        } catch (NumberFormatException e) {
+            String format = "Could not parse [%s] as a int index into list at path [%s] and index [%d]";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, format, element, String.join(".", elements), i), e);
+        }
+        return handleMissing(list, elements, i, defaultSupplier);
+    }
+
+    // Split path on '.', throws IllegalArgumentException for empty paths and paths ending in '.'
+    private static String[] splitPath(String path) {
+        if (path.length() == 0) {
+            throw new IllegalArgumentException("Missing path");
+        }
+        if (path.endsWith(".")) {
+            String format = "Trailing '.' in path [%s]";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, format, path));
+        }
+        return path.split("\\.");
+    }
+
+    // A supplier that throws IllegalArgumentException
+    private static Supplier<Object> throwCantFindValue(String path) {
+        return () -> {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Could not find value at path [%s]", path));
+        };
+    }
+
+    // Use defaultSupplier if at last path element, otherwise throw IllegalArgumentException
+    private static Object handleMissing(Object obj, String[] elements, int i, Supplier<Object> defaultSupplier) {
+        if (obj instanceof List || obj instanceof Map) {
+            if (elements.length - 1 == i) {
+                return defaultSupplier.get();
+            }
+            String format = "Container does not have [%s], for non-terminal index [%d] in path [%s]";
+            throw new IllegalArgumentException(String.format(Locale.ROOT, format, elements[i], i, String.join(".", elements)));
+        }
+        String format = "Non-container [%s] at [%s], index [%d] in path [%s]";
+        throw new IllegalArgumentException(
+            String.format(Locale.ROOT, format, obj.getClass().getName(), elements[i], i, String.join(".", elements)));
     }
 }

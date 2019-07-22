@@ -8,6 +8,7 @@ You can use the following APIs to perform security activities.
 * <<security-api-clear-cache>>
 * <<security-api-has-privileges>>
 * <<security-api-ssl>>
+* <<security-api-get-builtin-privileges>>
 
 [float]
 [[security-api-app-privileges]]
@@ -76,6 +77,8 @@ native realm:
 * <<security-api-enable-user,Enable users>>
 * <<security-api-get-user,Get users>>
 
+[float]
+[[security-openid-apis]]
 === OpenID Connect
 
 You can use the following APIs to authenticate users against an OpenID Connect
@@ -103,6 +106,7 @@ include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
 include::security/get-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
+include::security/get-builtin-privileges.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]
@@ -110,7 +114,7 @@ include::security/get-users.asciidoc[]
 include::security/has-privileges.asciidoc[]
 include::security/invalidate-api-keys.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
-include::security/ssl.asciidoc[]
 include::security/oidc-prepare-authentication-api.asciidoc[]
 include::security/oidc-authenticate-api.asciidoc[]
 include::security/oidc-logout-api.asciidoc[]
+include::security/ssl.asciidoc[]

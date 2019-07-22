@@ -47,18 +47,18 @@ teardown:
         transform_id: "airline-transform-stats"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.indexer_state: "started" }
-  - match: { transforms.0.state.task_state: "started" }
-  - match: { transforms.0.state.checkpoint: 0 }
-  - match: { transforms.0.stats.pages_processed: 0 }
+  - match: { transforms.0.state.indexer_state: "/started|indexing|stopped/" }
+  - match: { transforms.0.state.task_state: "/started|stopped/" }
+  - lte: { transforms.0.state.checkpoint: 1 }
+  - lte: { transforms.0.stats.pages_processed: 1 }
   - match: { transforms.0.stats.documents_processed: 0 }
   - match: { transforms.0.stats.documents_indexed: 0 }
-  - match: { transforms.0.stats.trigger_count: 0 }
+  - lte: { transforms.0.stats.trigger_count: 1 }
   - match: { transforms.0.stats.index_time_in_ms: 0 }
   - match: { transforms.0.stats.index_total: 0 }
   - match: { transforms.0.stats.index_failures: 0 }
-  - match: { transforms.0.stats.search_time_in_ms: 0 }
-  - match: { transforms.0.stats.search_total: 0 }
+  - gte: { transforms.0.stats.search_time_in_ms: 0 }
+  - lte: { transforms.0.stats.search_total: 1 }
   - match: { transforms.0.stats.search_failures: 0 }
 
 ---
@@ -123,7 +123,7 @@ teardown:
         transform_id: "_all"
         from: 0
         size: 1
-  - match: { count: 1 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
 
   - do:
@@ -131,7 +131,7 @@ teardown:
         transform_id: "_all"
         from: 1
         size: 2
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats-dos" }
   - match: { transforms.1.id: "airline-transform-stats-the-third" }
 
@@ -163,7 +163,7 @@ teardown:
         transform_id: "*"
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing|stopped/" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
   - match: { transforms.1.state.indexer_state: "stopped" }
 
@@ -172,7 +172,7 @@ teardown:
         transform_id: "_all"
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing|stopped/" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
   - match: { transforms.1.state.indexer_state: "stopped" }
 
@@ -209,3 +209,56 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
+---
+"Test get continuous transform stats":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-stats-continuous"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-continuous" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": { "time": { "field": "time", "delay": "1m" } }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-stats-continuous"
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-stats-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats-continuous" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing|stopped/" }
+  # Since this is continuous, there is no worry of it automatically stopping
+  - match: { transforms.0.state.task_state: "started" }
+  - lte: { transforms.0.state.checkpoint: 1 }
+  # Since this is continuous, and _start does not return until it is assigned
+  # we should see a node assignment
+  - is_true: transforms.0.state.node
+  - is_true: transforms.0.state.node.id
+  - is_true: transforms.0.state.node.name
+  - is_true: transforms.0.state.node.ephemeral_id
+  - is_true: transforms.0.state.node.transport_address
+  - lte: { transforms.0.stats.pages_processed: 1 }
+  - match: { transforms.0.stats.documents_processed: 0 }
+  - match: { transforms.0.stats.documents_indexed: 0 }
+  - lte: { transforms.0.stats.trigger_count: 1 }
+  - match: { transforms.0.stats.index_time_in_ms: 0 }
+  - match: { transforms.0.stats.index_total: 0 }
+  - match: { transforms.0.stats.index_failures: 0 }
+  - gte: { transforms.0.stats.search_time_in_ms: 0 }
+  - lte: { transforms.0.stats.search_total: 1 }
+  - match: { transforms.0.stats.search_failures: 0 }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-stats-continuous"
+        wait_for_completion: true
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-stats-continuous"

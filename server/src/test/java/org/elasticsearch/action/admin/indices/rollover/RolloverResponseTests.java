@@ -19,15 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-
-import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +32,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class RolloverResponseTests extends AbstractStreamableXContentTestCase<RolloverResponse> {
+public class RolloverResponseTests extends AbstractSerializingTestCase<RolloverResponse> {
 
     @Override
     protected RolloverResponse createTestInstance() {
@@ -64,8 +61,8 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
     }
 
     @Override
-    protected RolloverResponse createBlankInstance() {
-        return new RolloverResponse();
+    protected Writeable.Reader<RolloverResponse> instanceReader() {
+        return RolloverResponse::new;
     }
 
     @Override
@@ -130,10 +127,5 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
             default:
                 throw new UnsupportedOperationException();
         }
-    }
-
-    public void testOldSerialisation() throws IOException {
-        RolloverResponse original = createTestInstance();
-        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0));
     }
 }

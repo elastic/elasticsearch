@@ -42,7 +42,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
 ---
 "Test start missing transform":
@@ -56,7 +56,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       catch: /Unable to start data frame transform \[airline-transform-start-stop\] as it is in state \[STARTED\]/
@@ -68,7 +68,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
   - do:
       indices.get_mapping:
         index: airline-data-by-airline-start-stop
@@ -83,7 +83,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
   - do:
       indices.get_mapping:
         index: airline-data-by-airline-start-stop
@@ -93,20 +93,21 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { stopped: true }
+        wait_for_completion: true
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
@@ -119,16 +120,85 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
+  - match: { transforms.0.state.task_state: "started" }
+---
+"Test start/stop/start continuous transform":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-stop-cont" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
+  - match: { transforms.0.state.task_state: "stopped" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
+  - match: { transforms.0.state.task_state: "started" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-stop-continuous"
 ---
 "Test stop missing transform":
   - do:
@@ -137,11 +207,24 @@ teardown:
         transform_id: "missing-transform"
 
 ---
+"Test stop missing transform by expression":
+  - do:
+      data_frame.stop_data_frame_transform:
+        allow_no_match: true
+        transform_id: "missing-transform*"
+
+  - do:
+      catch: missing
+      data_frame.stop_data_frame_transform:
+        allow_no_match: false
+        transform_id: "missing-transform*"
+
+---
 "Test stop already stopped transform":
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { stopped: true }
+  - match: { acknowledged: true }
 
 ---
 "Test start/stop only starts/stops specified transform":
@@ -160,14 +243,14 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
   - do:
@@ -181,25 +264,28 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-later"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { stopped: true }
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "airline-transform-start-later"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-later" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-later"
-  - match: { stopped: true }
+        wait_for_completion: true
+  - match: { acknowledged: true }
 
   - do:
       data_frame.delete_data_frame_transform:
@@ -222,17 +308,18 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-stop-all"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "_all"
-  - match: { stopped: true }
+        wait_for_completion: true
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:

@@ -3,7 +3,7 @@
 
 [role="exclude",id="painless-api-reference-analysis-org-elasticsearch-analysis-common"]
 === Analysis API for package org.elasticsearch.analysis.common
-See the <<painless-api-reference-analysis, Analysis API>> for a high-level overview of all packages.
+See the <<painless-api-reference-analysis, Analysis API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-analysis-AnalysisPredicateScript-Token]]
 ==== AnalysisPredicateScript.Token

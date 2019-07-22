@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -171,7 +172,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
-            .add(newNode("master", Collections.singleton(DiscoveryNode.Role.MASTER)))
+            .add(newNode("master", Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)))
             .localNodeId("master")
             .masterNodeId("master")
             .build();

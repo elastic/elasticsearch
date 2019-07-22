@@ -5,7 +5,7 @@ To upgrade directly to {es} {version} from versions 6.0-6.6, you must shut down
 all nodes in the cluster, upgrade each node to {version}, and restart the cluster.
 
 NOTE: If you are running a version prior to 6.0,
-https://www.elastic.co/guide/en/elastic-stack/6.7/upgrading-elastic-stack.html[upgrade to 6.7]
+{stack-ref-68}/upgrading-elastic-stack.html[upgrade to 6.8]
 and reindex your old indices or bring up a new {version} cluster and
 <<reindex-upgrade-remote, reindex from remote>>.
 
@@ -20,7 +20,7 @@ include::disable-shard-alloc.asciidoc[]
 . *Stop indexing and perform a synced flush.*
 +
 --
-Performing a <<indices-synced-flush, synced-flush>> speeds up shard
+Performing a <<synced-flush-api, synced-flush>> speeds up shard
 recovery.
 
 include::synced-flush.asciidoc[]

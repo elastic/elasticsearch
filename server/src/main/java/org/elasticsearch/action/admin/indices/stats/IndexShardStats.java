@@ -21,20 +21,27 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class IndexShardStats implements Iterable<ShardStats>, Streamable {
+public class IndexShardStats implements Iterable<ShardStats>, Writeable {
 
     private ShardId shardId;
 
     private ShardStats[] shards;
 
-    private IndexShardStats() {}
+    public IndexShardStats(StreamInput in) throws IOException {
+        shardId = new ShardId(in);
+        int shardSize = in.readVInt();
+        shards = new ShardStats[shardSize];
+        for (int i = 0; i < shardSize; i++) {
+            shards[i] = new ShardStats(in);
+        }
+    }
 
     public IndexShardStats(ShardId shardId, ShardStats[] shards) {
         this.shardId = shardId;
@@ -89,16 +96,6 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
-        int shardSize = in.readVInt();
-        shards = new ShardStats[shardSize];
-        for (int i = 0; i < shardSize; i++) {
-            shards[i] = ShardStats.readShardStats(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
         out.writeVInt(shards.length);
@@ -106,11 +103,4 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
             stats.writeTo(out);
         }
     }
-
-    public static IndexShardStats readIndexShardStats(StreamInput in) throws IOException {
-        IndexShardStats indexShardStats = new IndexShardStats();
-        indexShardStats.readFrom(in);
-        return indexShardStats;
-    }
-
 }

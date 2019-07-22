@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,8 +34,10 @@ import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SslConfigurationLoaderTests extends ESTestCase {
@@ -216,5 +219,19 @@ public class SslConfigurationLoaderTests extends ESTestCase {
         assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
         assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.jks")));
         assertThat(keyConfig.createKeyManager(), notNullValue());
+    }
+
+    public void testChaCha20InCiphersOnJdk12Plus() {
+        assumeTrue("Test is only valid on JDK 12+ JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1);
+        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_CHACHA20_POLY1305_SHA256"));
+        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"));
+        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"));
+    }
+
+    public void testChaCha20NotInCiphersOnPreJdk12() {
+        assumeTrue("Test is only valid on pre JDK 12 JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0);
+        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_CHACHA20_POLY1305_SHA256")));
+        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256")));
+        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256")));
     }
 }

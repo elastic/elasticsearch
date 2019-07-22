@@ -10,7 +10,7 @@
 |Aggs Reduce | <<painless-api-reference-shared, Shared API>> | 
 |Analysis | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-analysis, Specialized API>>
 |Bucket Aggregation | <<painless-api-reference-shared, Shared API>> | 
-|Field | <<painless-api-reference-shared, Shared API>> | 
+|Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-field, Specialized API>>
 |Filter | <<painless-api-reference-shared, Shared API>> | 
 |Ingest | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-ingest, Specialized API>>
 |Interval | <<painless-api-reference-shared, Shared API>> | 
@@ -33,6 +33,7 @@
 
 include::painless-api-reference-shared/index.asciidoc[]
 include::painless-api-reference-analysis/index.asciidoc[]
+include::painless-api-reference-field/index.asciidoc[]
 include::painless-api-reference-ingest/index.asciidoc[]
 include::painless-api-reference-moving-function/index.asciidoc[]
 include::painless-api-reference-score/index.asciidoc[]

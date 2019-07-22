@@ -17,18 +17,16 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RealmSettingsTests extends ESTestCase {
-    private static final List<String> CACHE_HASHING_ALGOS = Arrays.stream(Hasher.values()).map(Hasher::name).collect(Collectors.toList());
+    private static final List<String> CACHE_HASHING_ALGOS = Hasher.getAvailableAlgoCacheHash();
 
     public void testRealmWithBlankTypeDoesNotValidate() throws Exception {
         final Settings.Builder builder = baseSettings(false);

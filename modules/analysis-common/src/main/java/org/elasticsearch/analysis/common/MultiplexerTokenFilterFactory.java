@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -62,18 +61,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter() {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        }
-        else {
-            if (preserveOriginal) {
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
-                    + "] will not be usable to parse synonyms after v7.0");
-                return IDENTITY_FILTER;
-            }
-            throw new IllegalArgumentException("Token filter [" + name()
-                + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
-        }
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
     @Override
@@ -120,18 +108,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenFilterFactory getSynonymFilter() {
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                    throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-                }
-                else {
-                    if (preserveOriginal) {
-                        DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
-                            + "] will not be usable to parse synonyms after v7.0");
-                        return IDENTITY_FILTER;
-                    }
-                    throw new IllegalArgumentException("Token filter [" + name()
-                        + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
-                }
+                throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
             }
         };
     }

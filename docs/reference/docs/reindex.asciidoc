@@ -1,5 +1,5 @@
 [[docs-reindex]]
-== Reindex API
+=== Reindex API
 
 IMPORTANT: Reindex requires <<mapping-source-field,`_source`>> to be enabled for
 all documents in the source index.
@@ -190,14 +190,14 @@ not a good idea to rely on this behavior. Instead, make sure that IDs are unique
 using a script.
 
 It's also possible to limit the number of processed documents by setting
-`size`. This will only copy a single document from `twitter` to
+`max_docs`. This will only copy a single document from `twitter` to
 `new_twitter`:
 
 [source,js]
 --------------------------------------------------
 POST _reindex
 {
-  "size": 1,
+  "max_docs": 1,
   "source": {
     "index": "twitter"
   },
@@ -211,14 +211,14 @@ POST _reindex
 
 If you want a particular set of documents from the `twitter` index you'll
 need to use `sort`. Sorting makes the scroll less efficient but in some contexts
-it's worth it. If possible, prefer a more selective query to `size` and `sort`.
+it's worth it. If possible, prefer a more selective query to `max_docs` and `sort`.
 This will copy 10000 documents from `twitter` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
 POST _reindex
 {
-  "size": 10000,
+  "max_docs": 10000,
   "source": {
     "index": "twitter",
     "sort": { "date": "desc" }
@@ -392,7 +392,7 @@ POST _reindex
 
 [float]
 [[reindex-from-remote]]
-=== Reindex from Remote
+==== Reindex from Remote
 
 Reindex supports reindexing from a remote Elasticsearch cluster:
 
@@ -525,7 +525,7 @@ POST _reindex
 
 [float]
 [[reindex-ssl]]
-==== Configuring SSL parameters
+===== Configuring SSL parameters
 
 Reindex from remote supports configurable SSL settings. These must be
 specified in the `elasticsearch.yml` file, with the exception of the
@@ -617,7 +617,7 @@ Defaults to the keystore password. This setting cannot be used with
 `reindex.ssl.keystore.key_password`.
 
 [float]
-=== URL Parameters
+==== URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
 supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
@@ -667,7 +667,7 @@ starting the next set. This is "bursty" instead of "smooth". The default value i
 
 [float]
 [[docs-reindex-response-body]]
-=== Response body
+==== Response body
 
 //////////////////////////
 [source,js]
@@ -781,7 +781,7 @@ the `conflicts` option to prevent reindex from aborting on version conflicts.
 
 [float]
 [[docs-reindex-task-api]]
-=== Works with the Task API
+==== Works with the Task API
 
 You can fetch the status of all running reindex requests with the
 <<tasks,Task API>>:
@@ -868,7 +868,7 @@ you to delete that document.
 
 [float]
 [[docs-reindex-cancel-task-api]]
-=== Works with the Cancel Task API
+==== Works with the Cancel Task API
 
 Any reindex can be canceled using the <<task-cancellation,Task Cancel API>>. For 
 example:
@@ -887,7 +887,7 @@ API will continue to list the task until it wakes to cancel itself.
 
 [float]
 [[docs-reindex-rethrottle]]
-=== Rethrottling
+==== Rethrottling
 
 The value of `requests_per_second` can be changed on a running reindex using
 the `_rethrottle` API:
@@ -909,7 +909,7 @@ timeouts.
 
 [float]
 [[docs-reindex-change-name]]
-=== Reindex to change the name of a field
+==== Reindex to change the name of a field
 
 `_reindex` can be used to build a copy of an index with renamed fields. Say you
 create an index containing documents that look like this:
@@ -976,15 +976,19 @@ which will return:
 
 [float]
 [[docs-reindex-slice]]
-=== Slicing
+==== Slicing
 
 Reindex supports <<sliced-scroll>> to parallelize the reindexing process.
 This parallelization can improve efficiency and provide a convenient way to
 break the request down into smaller parts.
 
+NOTE: Reindexing from remote clusters does not support
+<<docs-reindex-manual-slice, manual>> or
+<<docs-reindex-automatic-slice, automatic slicing>>.
+
 [float]
 [[docs-reindex-manual-slice]]
-==== Manual slicing
+===== Manual slicing
 Slice a reindex request manually by providing a slice id and total number of
 slices to each request:
 
@@ -1047,7 +1051,7 @@ which results in a sensible `total` like this one:
 
 [float]
 [[docs-reindex-automatic-slice]]
-==== Automatic slicing
+===== Automatic slicing
 
 You can also let `_reindex` automatically parallelize using <<sliced-scroll>> to
 slice on `_uid`. Use `slices` to specify the number of slices to use:
@@ -1111,17 +1115,17 @@ sub-request proportionally.
 * Due to the nature of `slices` each sub-request won't get a perfectly even
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
-* Parameters like `requests_per_second` and `size` on a request with `slices`
-are distributed proportionally to each sub-request. Combine that with the point
-above about distribution being uneven and you should conclude that the using
-`size` with `slices` might not result in exactly `size` documents being
-reindexed.
+* Parameters like `requests_per_second` and `max_docs` on a request with
+`slices` are distributed proportionally to each sub-request. Combine that with
+the point above about distribution being uneven and you should conclude that
+using `max_docs` with `slices` might not result in exactly `max_docs` documents
+being reindexed.
 * Each sub-request gets a slightly different snapshot of the source index,
 though these are all taken at approximately the same time.
 
 [float]
 [[docs-reindex-picking-slices]]
-===== Picking the number of slices
+====== Picking the number of slices
 
 If slicing automatically, setting `slices` to `auto` will choose a reasonable
 number for most indices. If slicing manually or otherwise tuning
@@ -1140,7 +1144,7 @@ Whether query or indexing performance dominates the runtime depends on the
 documents being reindexed and cluster resources.
 
 [float]
-=== Reindexing many indices
+==== Reindexing many indices
 If you have many indices to reindex it is generally better to reindex them
 one at a time rather than using a glob pattern to pick up many indices. That
 way you can resume the process if there are any errors by removing the
@@ -1166,7 +1170,7 @@ done
 // NOTCONSOLE
 
 [float]
-=== Reindex daily indices
+==== Reindex daily indices
 
 Notwithstanding the above advice, you can use `_reindex` in combination with
 <<modules-scripting-painless, Painless>> to reindex daily indices to apply
@@ -1224,7 +1228,7 @@ The previous method can also be used in conjunction with <<docs-reindex-change-n
 to load only the existing data into the new index and rename any fields if needed.
 
 [float]
-=== Extracting a random subset of an index
+==== Extracting a random subset of an index
 
 `_reindex` can be used to extract a random subset of an index for testing:
 
@@ -1232,7 +1236,7 @@ to load only the existing data into the new index and rename any fields if neede
 ----------------------------------------------------------------
 POST _reindex
 {
-  "size": 10,
+  "max_docs": 10,
   "source": {
     "index": "twitter",
     "query": {

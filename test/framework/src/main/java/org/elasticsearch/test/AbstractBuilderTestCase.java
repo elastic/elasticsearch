@@ -22,6 +22,7 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -67,6 +68,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -94,6 +98,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
@@ -350,7 +355,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
             SettingsModule settingsModule =
                     new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter(), Collections.emptySet());
-            searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(indicesModule.getNamedWriteables());
@@ -417,13 +422,19 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         QueryShardContext createShardContext(IndexReader reader) {
-            return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService::getForField, mapperService,
-                similarityService, scriptService, xContentRegistry, namedWriteableRegistry, this.client, reader, () -> nowInMillis, null);
+            return new QueryShardContext(0, idxSettings, bitsetFilterCache, IndexSearcher::new, indexFieldDataService::getForField,
+                mapperService, similarityService, scriptService, xContentRegistry, namedWriteableRegistry, this.client, reader,
+                () -> nowInMillis, null);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
             if (scriptPlugins == null || scriptPlugins.isEmpty()) {
-                return newTestScriptModule();
+                return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
+                    @Override
+                    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                        return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"), emptyMap());
+                    }
+                }));
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }

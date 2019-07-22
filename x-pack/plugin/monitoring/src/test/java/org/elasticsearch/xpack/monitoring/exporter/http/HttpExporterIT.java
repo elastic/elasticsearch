@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST,
-                              numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+                              numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private final List<String> clusterAlertBlacklist =
@@ -635,7 +635,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         long intervalMillis = randomNonNegativeLong();
         MonitoringDoc.Node sourceNode = MonitoringTestUtils.randomMonitoringNode(random());
 
-        return new IndexRecoveryMonitoringDoc(clusterUUID, timestamp, intervalMillis, sourceNode, new RecoveryResponse());
+        return new IndexRecoveryMonitoringDoc(clusterUUID, timestamp, intervalMillis, sourceNode,
+            new RecoveryResponse(0, 0, 0, null, null));
     }
 
     private List<MonitoringDoc> newRandomMonitoringDocs(int nb) {

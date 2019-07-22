@@ -29,7 +29,7 @@ include::install_remove.asciidoc[]
 [[analysis-icu-analyzer]]
 ==== ICU Analyzer
 
-Performs basic normalization, tokenization and character folding, using the
+The `icu_analyzer` analyzer performs basic normalization, tokenization and character folding, using the
 `icu_normalizer` char filter, `icu_tokenizer` and `icu_normalizer` token filter
 
 The following parameters are accepted:

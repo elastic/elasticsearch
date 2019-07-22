@@ -31,7 +31,11 @@ public class RecoveryWaitForClusterStateRequest extends TransportRequest {
     private ShardId shardId;
     private long clusterStateVersion;
 
-    public RecoveryWaitForClusterStateRequest() {
+    public RecoveryWaitForClusterStateRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        clusterStateVersion = in.readVLong();
     }
 
     RecoveryWaitForClusterStateRequest(long recoveryId, ShardId shardId, long clusterStateVersion) {
@@ -50,14 +54,6 @@ public class RecoveryWaitForClusterStateRequest extends TransportRequest {
 
     public long clusterStateVersion() {
         return clusterStateVersion;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
-        clusterStateVersion = in.readVLong();
     }
 
     @Override

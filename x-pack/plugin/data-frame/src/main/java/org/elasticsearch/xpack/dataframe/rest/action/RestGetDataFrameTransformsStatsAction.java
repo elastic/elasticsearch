@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 
+import static org.elasticsearch.xpack.core.dataframe.DataFrameField.ALLOW_NO_MATCH;
+
 public class RestGetDataFrameTransformsStatsAction extends BaseRestHandler {
 
     public RestGetDataFrameTransformsStatsAction(Settings settings, RestController controller) {
@@ -28,12 +30,14 @@ public class RestGetDataFrameTransformsStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
         GetDataFrameTransformsStatsAction.Request request = new GetDataFrameTransformsStatsAction.Request(id);
+        request.setAllowNoMatch(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        return channel -> client.execute(GetDataFrameTransformsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetDataFrameTransformsStatsAction.INSTANCE, request,
+                new RestToXContentListener<>(channel));
     }
 
     @Override

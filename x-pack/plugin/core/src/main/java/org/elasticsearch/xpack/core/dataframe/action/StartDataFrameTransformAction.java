@@ -6,13 +6,12 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -22,23 +21,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformAction extends Action<StartDataFrameTransformAction.Response> {
+public class StartDataFrameTransformAction extends ActionType<StartDataFrameTransformAction.Response> {
 
     public static final StartDataFrameTransformAction INSTANCE = new StartDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/start";
 
     private StartDataFrameTransformAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StartDataFrameTransformAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -96,33 +85,33 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
-        private final boolean started;
+        private final boolean acknowledged;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            started = in.readBoolean();
+            acknowledged = in.readBoolean();
         }
 
-        public Response(boolean started) {
+        public Response(boolean acknowledged) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.started = started;
+            this.acknowledged = acknowledged;
         }
 
-        public boolean isStarted() {
-            return started;
+        public boolean isAcknowledged() {
+            return acknowledged;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(started);
+            out.writeBoolean(acknowledged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentCommon(builder, params);
-            builder.field("started", started);
+            builder.field("acknowledged", acknowledged);
             builder.endObject();
             return builder;
         }
@@ -137,12 +126,12 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
                 return false;
             }
             Response response = (Response) obj;
-            return started == response.started;
+            return acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(started);
+            return Objects.hash(acknowledged);
         }
     }
 }

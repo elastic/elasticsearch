@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsAction.Response>{
+public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransformsAction.Response> {
 
     public static final GetDataFrameTransformsAction INSTANCE = new GetDataFrameTransformsAction();
     public static final String NAME = "cluster:monitor/data_frame/get";
@@ -37,17 +37,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
             LogManager.getLogger(GetDataFrameTransformsAction.class));
 
     private GetDataFrameTransformsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetDataFrameTransformsAction.Response::new);
     }
 
     public static class Request extends AbstractGetResourcesRequest {
@@ -91,8 +81,8 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
 
-        public Response(List<DataFrameTransformConfig> transformConfigs) {
-            super(new QueryPage<>(transformConfigs, transformConfigs.size(), DataFrameField.TRANSFORMS));
+        public Response(List<DataFrameTransformConfig> transformConfigs, long count) {
+            super(new QueryPage<>(transformConfigs, count, DataFrameField.TRANSFORMS));
         }
 
         public Response() {

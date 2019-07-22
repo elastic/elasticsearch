@@ -128,6 +128,18 @@ level security].
 Set to `false` to prevent document and field level security
 from being configured. Defaults to `true`.
 
+`xpack.security.dls.bitset.cache.ttl`::
+The time-to-live for cached `BitSet` entries for document level security.
+Document level security queries may depend on Lucene BitSet objects, and these are
+automatically cached to improve performance. Defaults to expire entries that are
+unused for `168h` (7 days).
+
+`xpack.security.dls.bitset.cache.size`::
+The maximum memory usage of cached `BitSet` entries for document level security.
+Document level security queries may depend on Lucene BitSet objects, and these are
+automatically cached to improve performance. Defaults to `50mb`, after which 
+least-recently-used entries will be evicted.
+
 [float]
 [[token-service-settings]]
 ==== Token service settings
@@ -513,8 +525,7 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the LDAP server. 
@@ -765,8 +776,7 @@ and `full`. Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of these values.
 
 `ssl.supported_protocols`::
-Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+Supported protocols for TLS/SSL (with versions). Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
 communicating with the Active Directory server. 
@@ -940,11 +950,10 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 
 `nameid_format`::
 The NameID format that should be requested when asking the IdP to authenticate
-the current user. Defaults to requesting _transient_ names 
-(`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`). 
+the current user. The default is to not  include the `nameid_format` attribute.
 
 `nameid.allow_create`:: The value of the `AllowCreate` attribute of the 
-`NameIdPolicy` element in an authentication request. Defaults to `false`. 
+`NameIdPolicy` element in an authentication request. The default value is false.
 
 `nameid.sp_qualifier`:: The value of the `SPNameQualifier` attribute of the 
 `NameIdPolicy` element in an authentication request. The default is to not 
@@ -1173,8 +1182,7 @@ Defaults to `full`.
 See <<ssl-tls-settings,`ssl.verification_mode`>> for a more detailed explanation of these values.
 
 `ssl.supported_protocols`::
-Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+Specifies the supported protocols for TLS/SSL. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 
 `ssl.cipher_suites`::
 Specifies the
@@ -1494,8 +1502,7 @@ For more information, see
 
 `*.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
-the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1`.
 +
 --
 NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello` 
@@ -1526,13 +1533,18 @@ Controls the verification of certificates. Valid values are:
 The default value is `full`.
 
 `*.ssl.cipher_suites`::
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
-`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA`. If the _Java Cryptography Extension (JCE) Unlimited Strength
-Jurisdiction Policy Files_ has been installed, the default value also includes `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`,
-`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`.
+Supported cipher suites can be found in Oracle's
+https://docs.oracle.com/en/java/javase/11/security/oracle-providers.html#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2[Java Cryptography Architecture documentation].
+Defaults to `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
+`TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
 
 [float]
 [[tls-ssl-key-settings]]
@@ -1565,6 +1577,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 :client-auth-default:    none
 :verifies!:
 :server:
+:ssl-context:            security-http
 
 include::ssl-settings.asciidoc[]
 
@@ -1574,6 +1587,7 @@ include::ssl-settings.asciidoc[]
 :client-auth-default!:
 :verifies:
 :server:
+:ssl-context:            security-transport
 
 include::ssl-settings.asciidoc[]
 

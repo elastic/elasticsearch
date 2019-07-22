@@ -94,11 +94,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public String[] types() {
-        return shardSearchLocalRequest.types();
-    }
-
-    @Override
     public SearchSourceBuilder source() {
         return shardSearchLocalRequest.source();
     }
@@ -161,11 +156,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public String preference() {
         return shardSearchLocalRequest.preference();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

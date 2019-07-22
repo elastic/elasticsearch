@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
+import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.Rollup;
 
@@ -45,7 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Each RollupJobTask also registers itself into the Scheduler so that it can be triggered on the cron's interval.
  */
 public class RollupJobTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
-    private static final Logger logger = Logger.getLogger(RollupJobTask.class.getName());
+    private static final Logger logger = LogManager.getLogger(RollupJobTask.class.getName());
 
     static final String SCHEDULE_NAME = RollupField.TASK_NAME + "/schedule";
 
@@ -210,8 +212,10 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     /**
-     * Attempt to start the indexer.  If the state is anything other than STOPPED, this will fail.
-     * Otherwise, the persistent task's status will be updated to reflect the change.
+     * Attempt to start the indexer.
+     * - If the indexer is started/indexing, returns OK
+     * - If the indexer is stopped, starts task, updates persistent task's status, returns ok
+     * - Anything else returns error
      *
      * Note that while the job is started, the indexer will not necessarily run immediately.  That
      * will only occur when the scheduler triggers it based on the cron
@@ -220,8 +224,14 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
      */
     public synchronized void start(ActionListener<StartRollupJobAction.Response> listener) {
         final IndexerState prevState = indexer.getState();
-        if (prevState != IndexerState.STOPPED) {
-            // fails if the task is not STOPPED
+
+        if (prevState == IndexerState.STARTED || prevState == IndexerState.INDEXING) {
+            // We're already running so just return acknowledgement
+            logger.debug("Indexer already running (State: [" + prevState + "]), acknowledging start without change.");
+            listener.onResponse(new StartRollupJobAction.Response(true));
+            return;
+        } else if (prevState != IndexerState.STOPPED) {
+            // if we're not already started/indexing, we must be STOPPED to get started
             listener.onFailure(new ElasticsearchException("Cannot start task for Rollup Job [" + job.getConfig().getId() + "] because"
                     + " state was [" + prevState + "]"));
             return;
@@ -230,10 +240,9 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         final IndexerState newState = indexer.start();
         if (newState != IndexerState.STARTED) {
             listener.onFailure(new ElasticsearchException("Cannot start task for Rollup Job [" + job.getConfig().getId() + "] because"
-                    + " state was [" + newState + "]"));
+                    + " new state was [" + newState + "]"));
             return;
         }
-
 
         final RollupJobStatus state = new RollupJobStatus(IndexerState.STARTED, indexer.getPosition());
         logger.debug("Updating state for rollup job [" + job.getConfig().getId() + "] to [" + state.getIndexerState() + "][" +

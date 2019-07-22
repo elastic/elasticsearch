@@ -4,6 +4,14 @@
 == SQL Limitations
 
 [float]
+[[large-parsing-trees]]
+=== Large queries may throw `ParsingExpection`
+
+Extremely large queries can consume too much memory during the parsing phase, in which case the {es-sql} engine will
+abort parsing and throw an error. In such cases, consider reducing the query to a smaller size by potentially
+simplifying it or splitting it into smaller queries.
+
+[float]
 [[sys-columns-describe-table-nested-fields]]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 
@@ -79,8 +87,8 @@ It is recommended to use `LIMIT` for queries that use sorting by aggregation, es
 SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 --------------------------------------------------
 
-It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*512*) is passed, an exception will be
-returned as {es-sql} is unable to track (and sort) all the results returned.
+It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
+an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
 
 [float]
 === Using aggregation functions on top of scalar functions
@@ -142,3 +150,14 @@ SELECT count(*) FROM test GROUP BY MINUTE((CAST(date_created AS TIME));
 -------------------------------------------------------------
 SELECT HISTOGRAM(CAST(birth_date AS TIME), INTERVAL '10' MINUTES) as h, COUNT(*) FROM t GROUP BY h
 -------------------------------------------------------------
+
+[float]
+[[geo-sql-limitations]]
+=== Geo-related functions
+
+Since `geo_shape` fields don't have doc values these fields cannot be used for filtering, grouping or sorting.
+
+By default,`geo_points` fields are indexed and have doc values. However only latitude and longitude are stored and
+indexed with some loss of precision from the original values (4.190951585769653E-8 for the latitude and
+8.381903171539307E-8 for longitude). The altitude component is accepted but not stored in doc values nor indexed.
+Therefore calling `ST_Z` function in the filtering, grouping or sorting will return `null`.

@@ -1,5 +1,5 @@
 [[cat-shards]]
-== cat shards
+=== cat shards
 
 The `shards` command is the detailed view of what nodes contain which
 shards.  It will tell you if it's a primary or replica, the number of
@@ -23,11 +23,11 @@ twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
 // TESTRESPONSE[s/192.168.56.10/.*/]
-// TESTRESPONSE[s/H5dfFeA/node-0/ _cat]
+// TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
 [float]
 [[index-pattern]]
-=== Index pattern
+==== Index pattern
 
 If you have many shards, you may wish to limit which indices show up
 in the output.  You can always do this with `grep`, but you can save
@@ -49,12 +49,12 @@ twitter 0 p STARTED 3014 31.1mb 192.168.56.10 H5dfFeA
 // TESTRESPONSE[s/3014/\\d+/]
 // TESTRESPONSE[s/31.1mb/\\d+(\.\\d+)?[kmg]?b/]
 // TESTRESPONSE[s/192.168.56.10/.*/]
-// TESTRESPONSE[s/H5dfFeA/node-0/ _cat]
+// TESTRESPONSE[s/H5dfFeA/node-0/ non_json]
 
 
 [float]
 [[relocation]]
-=== Relocation
+==== Relocation
 
 Let's say you've checked your health and you see relocating
 shards.  Where are they from and where are they going?
@@ -72,11 +72,11 @@ A relocating shard will be shown as follows
 ---------------------------------------------------------------------------
 twitter 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 [float]
 [[states]]
-=== Shard states
+==== Shard states
 
 Before a shard can be used, it goes through an `INITIALIZING` state.
 `shards` can show you which ones.
@@ -95,7 +95,7 @@ You can get the initializing state in the response like this
 twitter 0 p STARTED      3014 31.1mb 192.168.56.10 H5dfFeA
 twitter 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 If a shard cannot be assigned, for example you've overallocated the
 number of replicas for the number of nodes in the cluster, the shard
@@ -119,11 +119,11 @@ twitter 0 r STARTED    3014 31.1mb 192.168.56.30 bGG90GE
 twitter 0 r STARTED    3014 31.1mb 192.168.56.20 I8hydUG
 twitter 0 r UNASSIGNED ALLOCATION_FAILED
 ---------------------------------------------------------------------------
-// TESTRESPONSE[_cat]
+// TESTRESPONSE[non_json]
 
 [float]
 [[reason-unassigned]]
-=== Reasons for unassigned shard
+==== Reasons for unassigned shard
 
 These are the possible reasons for a shard to be in a unassigned state:
 

@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -33,6 +32,10 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
@@ -46,6 +49,7 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -55,19 +59,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuilder> {
-    @Override
-    protected boolean isCacheable(MatchQueryBuilder queryBuilder) {
-        return queryBuilder.fuzziness() != null
-                ||  isCacheable(singletonList(queryBuilder.fieldName()), queryBuilder.value().toString());
-    }
+public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
@@ -125,10 +123,6 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         }
 
         if (randomBoolean()) {
-            matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
-        }
-
-        if (randomBoolean()) {
             matchQuery.autoGenerateSynonymsPhraseQuery(randomBoolean());
         }
         return matchQuery;
@@ -160,7 +154,8 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
-            if (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple")) {
+            if (isTextField(queryBuilder.fieldName())
+                  && (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple"))) {
                 queryValue = queryValue.toLowerCase(Locale.ROOT);
             }
             Query expectedTermQuery = fieldType.termQuery(queryValue, context);
@@ -183,18 +178,6 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
             if (queryBuilder.analyzer() == null && queryBuilder.value().toString().length() > 0) {
                 assertEquals(bq.clauses().size(), queryBuilder.value().toString().split(" ").length);
             }
-        }
-
-        if (query instanceof ExtendedCommonTermsQuery) {
-            assertTrue(queryBuilder.cutoffFrequency() != null);
-            ExtendedCommonTermsQuery ectq = (ExtendedCommonTermsQuery) query;
-            List<Term> terms = ectq.getTerms();
-            if (!terms.isEmpty()) {
-                Term term = terms.iterator().next();
-                String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-                assertThat(term.field(), equalTo(expectedFieldName));
-            }
-            assertEquals(queryBuilder.cutoffFrequency(), ectq.getMaxTermFrequency(), Float.MIN_VALUE);
         }
 
         if (query instanceof FuzzyQuery) {
@@ -471,6 +454,29 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         }
     }
 
+    public void testMultiWordSynonymsPhrase() throws Exception {
+        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        final Query actual = matchQuery.parse(Type.PHRASE, STRING_FIELD_NAME, "guinea pig dogs");
+        Query expected = SpanNearQuery.newOrderedNearQuery(STRING_FIELD_NAME)
+            .addClause(
+                new SpanOrQuery(new SpanQuery[]{
+                    SpanNearQuery.newOrderedNearQuery(STRING_FIELD_NAME)
+                        .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
+                        .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig")))
+                        .setSlop(0)
+                        .build(),
+                    new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))
+                })
+            )
+            .addClause(new SpanOrQuery(new SpanQuery[]{
+                new SpanTermQuery(new Term(STRING_FIELD_NAME, "dogs")),
+                new SpanTermQuery(new Term(STRING_FIELD_NAME, "dog"))
+            }))
+            .build();
+        assertEquals(expected, actual);
+    }
+
     public void testMaxBooleanClause() {
         MatchQuery query = new MatchQuery(createShardContext());
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
@@ -478,7 +484,7 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
-    
+
     private static class MockGraphAnalyzer extends Analyzer {
 
         CannedBinaryTokenStream tokenStream;
@@ -529,5 +535,23 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
             tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
         }
         return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);
+    }
+
+    /**
+     * "now" on date fields should make the query non-cachable.
+     */
+    public void testCachingStrategiesWithNow() throws IOException {
+        // if we hit a date field with "now", this should diable cachability
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(DATE_FIELD_NAME, "now");
+        QueryShardContext context = createShardContext();
+        assert context.isCacheable();
+        /*
+         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
+         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
+         * actual lucene query
+         */
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewritten.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 }

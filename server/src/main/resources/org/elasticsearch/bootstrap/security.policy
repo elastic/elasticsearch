@@ -47,7 +47,7 @@ grant codeBase "${codebase.lucene-misc}" {
   permission java.nio.file.LinkPermission "hard";
 };
 
-grant codeBase "${codebase.plugin-classloader}" {
+grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   // needed to create the classloader which allows plugins to extend other plugins
   permission java.lang.RuntimePermission "createClassLoader";
 };
@@ -55,6 +55,8 @@ grant codeBase "${codebase.plugin-classloader}" {
 //// Everything else:
 
 grant {
+  // needed by vendored Guice
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
 
   // checked by scripting engines, and before hacks and other issues in
   // third party code, to safeguard these against unprivileged code like scripts.

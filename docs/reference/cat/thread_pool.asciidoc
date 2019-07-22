@@ -1,5 +1,5 @@
 [[cat-thread-pool]]
-== cat thread pool
+=== cat thread pool
 
 The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
 statistics are returned for all thread pools.
@@ -23,7 +23,7 @@ node-0 flush               0 0 0
 node-0 write               0 0 0
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)*/]
-// TESTRESPONSE[s/\d+/\\d+/ _cat]
+// TESTRESPONSE[s/\d+/\\d+/ non_json]
 // The substitutions do two things:
 // 1. Expect any number of extra thread pools. This allows us to only list a
 //    few thread pools. The list would be super long otherwise. In addition,
@@ -59,7 +59,7 @@ ml_autodetect (default distro only)
 ml_datafeed (default distro only)
 ml_utility (default distro only)
 refresh
-rollup_indexing (default distro only)`
+rollup_indexing (default distro only)
 search
 security-token-key (default distro only)
 snapshot
@@ -107,13 +107,13 @@ which looks like:
 id                     name    active rejected completed
 0EWUhXeBQtaVGlexUeVwMg generic      0        0        70
 --------------------------------------------------
-// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ _cat]
+// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ non_json]
 
 Here the host columns and the active, rejected and completed suggest thread pool statistics are displayed.
 
 All <<modules-threadpool,built-in thread pools>> and custom thread pools are available.
 [float]
-==== Thread Pool Fields
+===== Thread Pool Fields
 
 For each thread pool, you can load details about it by using the field names
 in the table below.
@@ -136,7 +136,7 @@ in the table below.
 |=======================================================================
 
 [float]
-=== Other Fields
+==== Other Fields
 
 In addition to details about each thread pool, it is also convenient to get an
 understanding of where those thread pools reside. As such, you can request

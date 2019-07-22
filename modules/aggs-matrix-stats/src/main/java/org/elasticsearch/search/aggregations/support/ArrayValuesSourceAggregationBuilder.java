@@ -239,10 +239,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected final ArrayValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
                                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
-        ArrayValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
+        ArrayValuesSourceAggregatorFactory<VS> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -255,9 +255,9 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
+    protected abstract ArrayValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context,
                                                                 Map<String, ValuesSourceConfig<VS>> configs,
-                                                                AggregatorFactory<?> parent,
+                                                                AggregatorFactory parent,
                                                                 AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
@@ -354,30 +354,21 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(fields, format, missing, targetValueType, valueType, valuesSourceType,
-            innerHashCode());
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), fields, format, missing, targetValueType, valueType, valuesSourceType);
     }
-
-    protected abstract int innerHashCode();
 
     @Override
-    protected final boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         ArrayValuesSourceAggregationBuilder<?, ?> other = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
-        if (!Objects.equals(fields, other.fields))
-            return false;
-        if (!Objects.equals(format, other.format))
-            return false;
-        if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(targetValueType, other.targetValueType))
-            return false;
-        if (!Objects.equals(valueType, other.valueType))
-            return false;
-        if (!Objects.equals(valuesSourceType, other.valuesSourceType))
-            return false;
-        return innerEquals(obj);
+        return Objects.equals(fields, other.fields)
+            && Objects.equals(format, other.format)
+            && Objects.equals(missing, other.missing)
+            && Objects.equals(targetValueType, other.targetValueType)
+            && Objects.equals(valueType, other.valueType)
+            && Objects.equals(valuesSourceType, other.valuesSourceType);
     }
-
-    protected abstract boolean innerEquals(Object obj);
 }

@@ -24,12 +24,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -99,21 +100,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         return source * x == target;
     }
 
-    public void testNumberOfShards() {
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(
-                    random(),
-                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(5));
-        }
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
-        }
-    }
-
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
@@ -178,8 +164,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
-        routingTable = service.applyStartedShards(clusterState,
-            routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int targetShards;
         do {
@@ -248,8 +233,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
-        routingTable = service.applyStartedShards(clusterState,
-            routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         MetaDataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
@@ -384,9 +368,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
 
         // now we start the shard
-        final RoutingTable routingTable = service.applyStartedShards(
-                routingTableClusterState,
-                initialRoutingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        final RoutingTable routingTable
+            = ESAllocationTestCase.startInitializingShardsAndReroute(service, routingTableClusterState, indexName).routingTable();
         final ClusterState clusterState = ClusterState.builder(routingTableClusterState).routingTable(routingTable).build();
 
         final Settings.Builder indexSettingsBuilder = Settings.builder().put("index.number_of_shards", 1).put(requestSettings);
@@ -412,7 +395,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 nodeId,
                 buildNewFakeTransportAddress(),
                 emptyMap(),
-                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA), Version.CURRENT);
+                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
     }
 
     public void testValidateIndexName() throws Exception {
@@ -448,12 +431,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
 
-        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0);
-        int numShards = randomIntBetween(1, 1000);
-        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
-        assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards,
-            VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), latestV6)));
-
         for (int i = 0; i < 1000; i++) {
             int randomNumShards = randomIntBetween(1, 10000);
             int numRoutingShards = MetaDataCreateIndexService.calculateNumRoutingShards(randomNumShards, Version.CURRENT);
@@ -466,7 +443,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
             double ratio = numRoutingShards / randomNumShards;
             int intRatio = (int) ratio;
-            assertEquals(ratio, (double)(intRatio), 0.0d);
+            assertEquals(ratio, intRatio, 0.0d);
             assertTrue(1 < ratio);
             assertTrue(ratio <= 1024);
             assertEquals(0, intRatio % 2);

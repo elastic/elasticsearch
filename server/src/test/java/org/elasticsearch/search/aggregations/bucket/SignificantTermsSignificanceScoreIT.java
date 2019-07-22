@@ -94,11 +94,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         return Arrays.asList(CustomSignificanceHeuristicPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(CustomSignificanceHeuristicPlugin.class);
-    }
-
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
@@ -111,7 +106,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         if ("text".equals(type) && randomBoolean()) {
             // Use significant_text on text fields but occasionally run with alternative of
             // significant_terms on legacy fieldData=true too.
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(
                             terms("class")
                             .field(CLASS_FIELD)
@@ -122,7 +117,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                     );
         }else
         {
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(
                             terms("class")
                             .field(CLASS_FIELD)
@@ -276,11 +271,11 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         if ("text".equals(type) && randomBoolean() ) {
             // Use significant_text on text fields but occasionally run with alternative of
             // significant_terms on legacy fieldData=true too.
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(terms("class").field(CLASS_FIELD)
                             .subAggregation(significantText("sig_terms", TEXT_FIELD)));
         } else {
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(terms("class").field(CLASS_FIELD)
                             .subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)));
         }
@@ -375,7 +370,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         SearchRequestBuilder request;
         if (randomBoolean() ) {
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request = client().prepareSearch(INDEX_NAME)
                 .addAggregation(
                         terms("class")
                         .field(CLASS_FIELD)
@@ -385,7 +380,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                         .minDocCount(1)));
         }else
         {
-            request = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(
                             terms("class")
                             .field(CLASS_FIELD)
@@ -418,7 +413,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         final boolean useSigText = randomBoolean() && type.equals("text");
         SearchRequestBuilder request1;
         if (useSigText) {
-            request1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request1 = client().prepareSearch(INDEX_NAME)
                     .addAggregation(terms("class")
                             .field(CLASS_FIELD)
                             .subAggregation(
@@ -428,7 +423,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                                     significanceHeuristicExpectingSuperset)));
         }else
         {
-            request1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request1 = client().prepareSearch(INDEX_NAME)
                     .addAggregation(terms("class")
                             .field(CLASS_FIELD)
                             .subAggregation(
@@ -444,7 +439,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         SearchRequestBuilder request2;
         if (useSigText) {
-            request2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request2 = client().prepareSearch(INDEX_NAME)
                     .addAggregation(filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0"))
                             .subAggregation(significantText("sig_terms", TEXT_FIELD)
                                     .minDocCount(1)
@@ -457,7 +452,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                     .significanceHeuristic(significanceHeuristicExpectingSeparateSets)));
         }else
         {
-            request2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+            request2 = client().prepareSearch(INDEX_NAME)
                     .addAggregation(filter("0", QueryBuilders.termQuery(CLASS_FIELD, "0"))
                             .subAggregation(significantTerms("sig_terms")
                                     .field(TEXT_FIELD)

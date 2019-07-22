@@ -52,10 +52,10 @@ PUT _cluster/settings
   "persistent": {
     "cluster": {
       "remote": {
-        "cluster_one": {
+        "one": {
           "seeds": [ "10.0.1.1:9300" ]
         },
-        "cluster_two": {
+        "two": {
           "seeds": [ "10.0.2.1:9300" ]
         }
       }
@@ -83,7 +83,7 @@ First, enable cluster `one` to perform cross cluster search on remote cluster
 PUT _cluster/settings
 {
   "persistent": {
-    "cluster.remote.cluster_two.seeds": [ "10.0.2.1:9300" ]
+    "cluster.remote.two.seeds": [ "10.0.2.1:9300" ]
   }
 }
 -----------------------------------------------------------
@@ -156,5 +156,4 @@ GET two:logs-2017.04/_search <1>
 // TEST[skip:todo]
 //TBD: Is there a missing description of the <1> callout above?
 
-:edit_url: https://github.com/elastic/kibana/edit/{branch}/docs/security/cross-cluster-kibana.asciidoc
 include::{kib-repo-dir}/security/cross-cluster-kibana.asciidoc[]

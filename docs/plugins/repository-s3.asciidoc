@@ -62,13 +62,28 @@ with the exception of the secure settings, which you add to the {es} keystore.
 For more information about creating and updating the {es} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
-For example, before you start the node, run these commands to add AWS access key
-settings to the keystore:
+For example, if you want to use specific credentials to access S3 then run the
+following commands to add these credentials to the keystore:
 
 [source,sh]
 ----
 bin/elasticsearch-keystore add s3.client.default.access_key
 bin/elasticsearch-keystore add s3.client.default.secret_key
+# a session token is optional so the following command may not be needed
+bin/elasticsearch-keystore add s3.client.default.session_token
+----
+
+If instead you want to use the instance role or container role to access S3
+then you should leave these settings unset. You can switch from using specific
+credentials back to the default of using the instance role or container role by
+removing these settings from the keystore as follows:
+
+[source,sh]
+----
+bin/elasticsearch-keystore remove s3.client.default.access_key
+bin/elasticsearch-keystore remove s3.client.default.secret_key
+# a session token is optional so the following command may not be needed
+bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this plugin are
@@ -88,16 +103,17 @@ settings belong in the `elasticsearch.yml` file.
 
 `access_key` ({ref}/secure-settings.html[Secure])::
 
-    An S3 access key. The `secret_key` setting must also be specified.
+    An S3 access key. If set, the `secret_key` setting must also be specified.
+    If unset, the client will use the instance or container role instead.
 
 `secret_key` ({ref}/secure-settings.html[Secure])::
 
-    An S3 secret key. The `access_key` setting must also be specified.
+    An S3 secret key. If set, the `access_key` setting must also be specified.
 
 `session_token` ({ref}/secure-settings.html[Secure])::
 
-    An S3 session token. The `access_key` and `secret_key` settings must also be
-    specified.
+    An S3 session token. If set, the `access_key` and `secret_key` settings
+    must also be specified.
 
 `endpoint`::
 
@@ -144,6 +160,31 @@ settings belong in the `elasticsearch.yml` file.
 
     Whether retries should be throttled (i.e. should back off). Must be `true`
     or `false`. Defaults to `true`.
+
+`path_style_access`::
+
+   Whether to force the use of the path style access pattern. If `true`, the
+   path style access pattern will be used. If `false`, the access pattern will
+   be automatically determined by the AWS Java SDK (See
+   https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#setPathStyleAccessEnabled-java.lang.Boolean-[AWS
+   documentation] for details). Defaults to `false`.
+
+[[repository-s3-path-style-deprecation]]
+NOTE: In versions `7.0`, `7.1`, `7.2` and `7.3` all bucket operations used the
+https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/[now-deprecated]
+path style access pattern. If your deployment requires the path style access
+pattern then you should set this setting to `true` when upgrading.
+
+`disable_chunked_encoding`::
+
+    Whether chunked encoding should be disabled or not. If `false`, chunked
+    encoding is enabled and will be used where appropriate. If `true`, chunked
+    encoding is disabled and will not be used, which may mean that snapshot
+    operations consume more resources and take longer to complete. It should
+    only be set to `true` if you are using a storage service that does not
+    support chunked encoding. See the
+    https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#disableChunkedEncoding--[AWS
+    Java SDK documentation] for details. Defaults to `false`.
 
 [float]
 [[repository-s3-compatible-services]]
@@ -380,10 +421,6 @@ bucket, in this example, named "foo".
 
 The bucket needs to exist to register a repository for snapshots. If you did not
 create the bucket then the repository registration will fail.
-
-Note: Starting in version 7.0, all bucket operations are using the path style
-access pattern. In previous versions the decision to use virtual hosted style or
-path style access was made by the AWS Java SDK.
 
 [[repository-s3-aws-vpc]]
 [float]

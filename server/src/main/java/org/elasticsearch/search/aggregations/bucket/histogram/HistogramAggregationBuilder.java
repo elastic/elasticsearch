@@ -295,26 +295,29 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
                 context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(order, keyed, minDocCount, interval, offset, minBound, maxBound);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), order, keyed, minDocCount, interval, offset, minBound, maxBound);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         HistogramAggregationBuilder other = (HistogramAggregationBuilder) obj;
         return Objects.equals(order, other.order)
-                && Objects.equals(keyed, other.keyed)
-                && Objects.equals(minDocCount, other.minDocCount)
-                && Objects.equals(interval, other.interval)
-                && Objects.equals(offset, other.offset)
-                && Objects.equals(minBound, other.minBound)
-                && Objects.equals(maxBound, other.maxBound);
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(minDocCount, other.minDocCount)
+            && Objects.equals(interval, other.interval)
+            && Objects.equals(offset, other.offset)
+            && Objects.equals(minBound, other.minBound)
+            && Objects.equals(maxBound, other.maxBound);
     }
 }

@@ -1,5 +1,9 @@
 [[query-dsl-ids-query]]
-=== Ids Query
+=== IDs
+++++
+<titleabbrev>IDs</titleabbrev>
+++++
+
 Returns documents based on their IDs. This query uses document IDs stored in
 the <<mapping-id-field,`_id`>> field.
 
@@ -21,8 +25,5 @@ GET /_search
 [[ids-query-top-level-parameters]]
 ==== Top-level parameters for `ids`
 
-[cols="v,v",options="header"]
-|======
-|Parameter  |Description
-|`values`   |An array of <<mapping-id-field, document IDs>>.
-|======
+`values`::
+An array of <<mapping-id-field, document IDs>>.

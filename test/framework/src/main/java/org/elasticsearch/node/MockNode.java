@@ -20,11 +20,11 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +54,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -158,11 +157,11 @@ public class MockNode extends Node {
 
     @Override
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
-                                                       ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listener) {
+                                                       ThreadPool threadPool, NodeClient client) {
         if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
-            return super.newClusterInfoService(settings, clusterService, threadPool, client, listener);
+            return super.newClusterInfoService(settings, clusterService, threadPool, client);
         } else {
-            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client, listener);
+            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
         }
     }
 
@@ -178,5 +177,9 @@ public class MockNode extends Node {
     @Override
     protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
         //do not configure this in tests as this is causing SetOnce to throw exceptions when jvm is used for multiple tests
+    }
+
+    public NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

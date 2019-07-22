@@ -59,11 +59,6 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         return Collections.singletonList(TestPersistentTasksPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
     protected boolean ignoreExternalCluster() {
         return true;
     }

@@ -2,9 +2,9 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   compile 'org.ow2.asm:asm:7.1'
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile "org.elasticsearch.test:framework:${version}"
+  compile project(':server')
+  compile project(':x-pack:plugin:core')
+  testCompile project(':test:framework')
 }
 
 forbiddenApisMain.enabled = true

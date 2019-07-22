@@ -1,5 +1,9 @@
 [[query-dsl-prefix-query]]
-=== Prefix Query
+=== Prefix query
+++++
+<titleabbrev>Prefix</titleabbrev>
+++++
+
 Returns documents that contain a specific prefix in a provided field.
 
 [[prefix-query-ex-request]]

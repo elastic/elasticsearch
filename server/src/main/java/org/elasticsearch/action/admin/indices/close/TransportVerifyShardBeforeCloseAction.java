@@ -20,7 +20,9 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -51,6 +53,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
     protected Logger logger = LogManager.getLogger(getClass());
 
     @Inject
@@ -63,8 +66,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
     @Override
@@ -94,12 +97,12 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) {
+    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws IOException {
         executeShardOperation(shardRequest, replica);
         return new ReplicaResult();
     }
 
-    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
+    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) throws IOException {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
             throw new IllegalStateException("Index shard " + shardId + " is not blocking all operations during closing");
@@ -109,9 +112,19 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
-        indexShard.verifyShardBeforeIndexClosing();
-        indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
-        logger.trace("{} shard is ready for closing", shardId);
+        if (request.isPhase1()) {
+            // in order to advance the global checkpoint to the maximum sequence number, the (persisted) local checkpoint needs to be
+            // advanced first, which, when using async translog syncing, does not automatically hold at the time where we have acquired
+            // all operation permits. Instead, this requires and explicit sync, which communicates the updated (persisted) local checkpoint
+            // to the primary (we call this phase1), and phase2 can then use the fact that the global checkpoint has moved to the maximum
+            // sequence number to pass the verifyShardBeforeIndexClosing check and create a safe commit where the maximum sequence number
+            // is equal to the global checkpoint.
+            indexShard.sync();
+        } else {
+            indexShard.verifyShardBeforeIndexClosing();
+            indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            logger.trace("{} shard is ready for closing", shardId);
+        }
     }
 
     @Override
@@ -136,14 +149,22 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
 
         private final ClusterBlock clusterBlock;
 
+        private final boolean phase1;
+
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                phase1 = in.readBoolean();
+            } else {
+                phase1 = false;
+            }
         }
 
-        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
+        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final boolean phase1, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);
+            this.phase1 = phase1;
             setParentTask(parentTaskId);
         }
 
@@ -153,18 +174,20 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
 
         @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeBoolean(phase1);
+            }
         }
 
         public ClusterBlock clusterBlock() {
             return clusterBlock;
+        }
+
+        public boolean isPhase1() {
+            return phase1;
         }
     }
 }

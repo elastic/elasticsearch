@@ -434,9 +434,9 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
         assertToXContentResponse(clearResponse, true, clearResponse.getNumFreed());
 
-        assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse1.getScrollId())
+        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse1.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
-        assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse2.getScrollId())
+        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse2.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
@@ -484,7 +484,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
+        assertThrows(internalCluster().client().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 
     public void testStringSortMissingAscTerminates() throws Exception {
@@ -496,7 +496,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-                .setTypes("test")
+
                 .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
                 .setScroll("1m")
                 .get();
@@ -509,7 +509,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertNoSearchHits(response);
 
         response = client().prepareSearch("test")
-                .setTypes("test")
+
                 .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_first"))
                 .setScroll("1m")
                 .get();

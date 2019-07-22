@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.OS
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -18,10 +20,12 @@ String[] noSecurityManagerITClasses = [ "**/CloseFollowerIndexIT.class" ]
 
 task internalClusterTestNoSecurityManager(type: Test) {
     description = 'Java fantasy integration tests with no security manager'
-    
+
     include noSecurityManagerITClasses
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
     systemProperty 'tests.security.manager', 'false'
+    // Disable tests on windows https://github.com/elastic/elasticsearch/issues/44610
+    onlyIf { OS.WINDOWS.equals(OS.current()) == false }
 }
 
 // Instead we create a separate task to run the
@@ -30,10 +34,12 @@ task internalClusterTest(type: Test) {
     description = 'Java fantasy integration tests'
     dependsOn internalClusterTestNoSecurityManager
     mustRunAfter test
-    
+
     include '**/*IT.class'
     exclude noSecurityManagerITClasses
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
+    // Disable tests on windows https://github.com/elastic/elasticsearch/issues/44610
+    onlyIf { OS.WINDOWS.equals(OS.current()) == false }
 }
 
 check.dependsOn internalClusterTest
@@ -48,10 +54,13 @@ gradle.projectsEvaluated {
 }
 
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compileOnly project(":server")
 
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
 }
 

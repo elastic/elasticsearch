@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePo
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction.Response;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,7 +37,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
                                                      ThreadPool threadPool, ActionFilters actionFilters,
                                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, Request::new);
+            Request::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -43,8 +46,8 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
     }
 
     @Override
-    protected Response newResponse() {
-        return new Response();
+    protected Response read(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
     @Override
@@ -53,7 +56,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), request.indices());
         clusterService.submitStateUpdateTask("remove-lifecycle-for-index",
                 new AckedClusterStateUpdateTask<Response>(request, listener) {

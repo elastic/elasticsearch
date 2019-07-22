@@ -1,9 +1,9 @@
 {
   "scroll": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-body.html#request-body-search-scroll",
+    "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_search/scroll",
       "paths": ["/_search/scroll"],
       "deprecated_paths" : [
         {

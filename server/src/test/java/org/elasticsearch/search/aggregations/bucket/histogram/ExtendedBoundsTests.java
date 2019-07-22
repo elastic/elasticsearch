@@ -100,7 +100,7 @@ public class ExtendedBoundsTests extends ESTestCase {
         SearchContext context = mock(SearchContext.class);
         QueryShardContext qsc = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
+                null, null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
         when(context.getQueryShardContext()).thenReturn(qsc);
         DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);

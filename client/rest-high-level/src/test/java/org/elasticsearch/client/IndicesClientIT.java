@@ -28,8 +28,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -58,6 +56,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
+import org.elasticsearch.client.indices.AnalyzeRequest;
+import org.elasticsearch.client.indices.AnalyzeResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
@@ -73,6 +73,8 @@ import org.elasticsearch.client.indices.IndexTemplateMetaData;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
+import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -190,8 +192,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             = new org.elasticsearch.action.admin.indices.get.GetIndexRequest();
         request.indices(indexName);
 
-        boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync,
-                expectWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE));
+        boolean response = execute(request, highLevelClient().indices()::exists, highLevelClient().indices()::existsAsync);
         assertTrue(response);
     }
 
@@ -1852,12 +1853,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         RestHighLevelClient client = highLevelClient();
 
-        AnalyzeRequest noindexRequest = new AnalyzeRequest().text("One two three").analyzer("english");
+        AnalyzeRequest noindexRequest = AnalyzeRequest.withGlobalAnalyzer("english", "One two three");
         AnalyzeResponse noindexResponse = execute(noindexRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertThat(noindexResponse.getTokens(), hasSize(3));
 
-        AnalyzeRequest detailsRequest = new AnalyzeRequest().text("One two three").analyzer("english").explain(true);
+        AnalyzeRequest detailsRequest = AnalyzeRequest.withGlobalAnalyzer("english", "One two three").explain(true);
         AnalyzeResponse detailsResponse = execute(detailsRequest, client.indices()::analyze, client.indices()::analyzeAsync);
 
         assertNotNull(detailsResponse.detail());
@@ -1876,5 +1877,15 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             client.indices()::unfreezeAsync);
         assertTrue(unfreeze.isShardsAcknowledged());
         assertTrue(unfreeze.isAcknowledged());
+    }
+
+    public void testReloadAnalyzer() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        RestHighLevelClient client = highLevelClient();
+
+        ReloadAnalyzersResponse reloadResponse = execute(new ReloadAnalyzersRequest("test"), client.indices()::reloadAnalyzers,
+            client.indices()::reloadAnalyzersAsync);
+        assertNotNull(reloadResponse.shards());
+        assertTrue(reloadResponse.getReloadedDetails().containsKey("test"));
     }
 }

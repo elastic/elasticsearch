@@ -69,7 +69,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     public ReplicationRequest(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         } else {
             shardId = null;
         }
@@ -185,11 +185,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

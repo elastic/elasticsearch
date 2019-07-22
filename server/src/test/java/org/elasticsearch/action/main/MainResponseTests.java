@@ -23,17 +23,18 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;
 
-public class MainResponseTests extends AbstractStreamableXContentTestCase<MainResponse> {
+public class MainResponseTests extends AbstractSerializingTestCase<MainResponse> {
 
     @Override
     protected MainResponse createTestInstance() {
@@ -41,7 +42,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_1, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Build build = new Build(
             Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(),
             version.toString()
@@ -50,8 +51,8 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
     }
 
     @Override
-    protected MainResponse createBlankInstance() {
-        return new MainResponse();
+    protected Writeable.Reader<MainResponse> instanceReader() {
+        return MainResponse::new;
     }
 
     @Override

@@ -24,16 +24,18 @@ public class EsRelation extends LeafPlan {
 
     private final EsIndex index;
     private final List<Attribute> attrs;
+    private final boolean frozen;
 
-    public EsRelation(Source source, EsIndex index) {
+    public EsRelation(Source source, EsIndex index, boolean frozen) {
         super(source);
         this.index = index;
-        attrs = flatten(source, index.mapping());
+        this.attrs = flatten(source, index.mapping());
+        this.frozen = frozen;
     }
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index);
+        return NodeInfo.create(this, EsRelation::new, index, frozen);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -63,6 +65,10 @@ public class EsRelation extends LeafPlan {
         return index;
     }
 
+    public boolean frozen() {
+        return frozen;
+    }
+
     @Override
     public List<Attribute> output() {
         return attrs;
@@ -75,7 +81,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index);
+        return Objects.hash(index, frozen);
     }
 
     @Override
@@ -89,7 +95,8 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index);
+        return Objects.equals(index, other.index)
+                && frozen == other.frozen;
     }
 
     private static final int TO_STRING_LIMIT = 52;

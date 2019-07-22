@@ -39,15 +39,6 @@ public interface BlobContainer {
     BlobPath path();
 
     /**
-     * Tests whether a blob with the given blob name exists in the container.
-     *
-     * @param   blobName
-     *          The name of the blob whose existence is to be determined.
-     * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
-     */
-    boolean blobExists(String blobName);
-
-    /**
      * Creates a new {@link InputStream} for the given blob name.
      *
      * @param   blobName
@@ -110,6 +101,12 @@ public interface BlobContainer {
     void deleteBlob(String blobName) throws IOException;
 
     /**
+     * Deletes this container and all its contents from the repository.
+     * @throws IOException on failure
+     */
+    void delete() throws IOException;
+
+    /**
      * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception
      * when one or multiple of the given blobs don't exist and simply ignore this case.
      *
@@ -157,6 +154,16 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetaData> listBlobs() throws IOException;
+
+    /**
+     * Lists all child containers under this container. A child container is defined as a container whose {@link #path()} method returns
+     * a path that has this containers {@link #path()} return as its prefix and has one more path element than the current
+     * container's path.
+     *
+     * @return Map of name of the child container to child container
+     * @throws IOException on failure to list child containers
+     */
+    Map<String, BlobContainer> children() throws IOException;
 
     /**
      * Lists all blobs in the container that match the specified prefix.

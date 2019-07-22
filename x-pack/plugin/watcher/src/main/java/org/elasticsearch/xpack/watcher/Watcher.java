@@ -21,8 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.regex.Regex;
@@ -58,6 +56,8 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
@@ -226,16 +226,14 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     private BulkProcessor bulkProcessor;
 
     protected final Settings settings;
-    protected final boolean transportClient;
     protected final boolean enabled;
     protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
-        this.transportClient = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
 
-        if (enabled && transportClient == false) {
+        if (enabled) {
             validAutoCreateIndex(settings, logger);
         }
     }
@@ -332,14 +330,23 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 if (response.hasFailures()) {
-                    Map<String, String> triggeredWatches = Arrays.stream(response.getItems())
+                    Map<String, String> triggeredFailures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
                         .filter(r -> r.getIndex().startsWith(TriggeredWatchStoreField.INDEX_NAME))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
-                    if (triggeredWatches.isEmpty() == false) {
-                        String failure = triggeredWatches.values().stream().collect(Collectors.joining(", "));
+                    Map<String, String> historyFailures = Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                    if (triggeredFailures.isEmpty() == false) {
+                        String failure = triggeredFailures.values().stream().collect(Collectors.joining(", "));
                         logger.error("triggered watches could not be deleted {}, failure [{}]",
-                            triggeredWatches.keySet(), Strings.substring(failure, 0, 2000));
+                            triggeredFailures.keySet(), Strings.substring(failure, 0, 2000));
+                    }
+                    if (historyFailures.isEmpty() == false) {
+                        String failure = historyFailures.values().stream().collect(Collectors.joining(", "));
+                        logger.error("watch history could not be written {}, failure [{}]",
+                            historyFailures.keySet(), Strings.substring(failure, 0, 2000));
                     }
 
                     Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
@@ -410,7 +417,8 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         listener = new WatcherIndexingListener(watchParser, getClock(), triggerService);
         clusterService.addListener(listener);
 
-        return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
+        // note: clock is needed here until actions can be constructed directly instead of by guice
+        return Arrays.asList(new ClockHolder(getClock()), registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
                 configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
@@ -425,20 +433,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
         return new AsyncTriggerEventConsumer(executionService);
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        List<Module> modules = new ArrayList<>();
-        modules.add(b -> b.bind(Clock.class).toInstance(getClock())); //currently assuming the only place clock is bound
-        modules.add(b -> {
-            XPackPlugin.bindFeatureSet(b, WatcherFeatureSet.class);
-            if (transportClient || enabled == false) {
-                b.bind(WatcherService.class).toProvider(Providers.of(null));
-            }
-        });
-
-        return modules;
     }
 
     @Override
@@ -534,8 +528,10 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.WATCHER, WatcherUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.WATCHER, WatcherInfoTransportAction.class);
         if (false == enabled) {
-            return emptyList();
+            return Arrays.asList(usageAction, infoAction);
         }
         return Arrays.asList(new ActionHandler<>(PutWatchAction.INSTANCE, TransportPutWatchAction.class),
                 new ActionHandler<>(DeleteWatchAction.INSTANCE, TransportDeleteWatchAction.class),
@@ -544,7 +540,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
                 new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
                 new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
                 new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
-                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class));
+                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
+                usageAction,
+                infoAction);
     }
 
     @Override
@@ -567,7 +565,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void onIndexModule(IndexModule module) {
-        if (enabled == false || transportClient) {
+        if (enabled == false) {
             return;
         }
 
@@ -676,7 +674,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      */
     @Override
     public void reload(Settings settings) {
-        if (enabled == false || transportClient) {
+        if (enabled == false) {
             return;
         }
         reloadableServices.forEach(s -> s.reload(settings));

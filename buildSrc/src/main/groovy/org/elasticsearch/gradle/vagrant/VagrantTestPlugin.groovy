@@ -1,11 +1,18 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.FileContentsTask
+import org.elasticsearch.gradle.Jdk
+import org.elasticsearch.gradle.JdkDownloadPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.BwcVersions
-import org.gradle.api.*
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.NamedDomainObjectContainer
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
@@ -14,6 +21,8 @@ import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.StopExecutionException
 import org.gradle.api.tasks.TaskState
+
+import java.nio.file.Paths
 
 import static java.util.Collections.unmodifiableList
 
@@ -30,7 +39,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             'oel-6',
             'oel-7',
             'opensuse-42',
-            'rhel-8',
+            /* TODO: need a real RHEL license now that it is out of beta 'rhel-8',*/
             'sles-12',
             'ubuntu-1604',
             'ubuntu-1804'
@@ -85,8 +94,33 @@ class VagrantTestPlugin implements Plugin<Project> {
     /** extra env vars to pass to vagrant for box configuration **/
     Map<String, String> vagrantBoxEnvVars = [:]
 
+    private static final String SYSTEM_JDK_VERSION = "11.0.2+9"
+    private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691"
+    private Jdk linuxSystemJdk;
+    private Jdk linuxGradleJdk;
+    private Jdk windowsSystemJdk;
+    private Jdk windowsGradleJdk;
+
     @Override
     void apply(Project project) {
+        project.pluginManager.apply(JdkDownloadPlugin.class)
+        NamedDomainObjectContainer<Jdk> jdksContainer = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+        linuxSystemJdk = jdksContainer.create("linux_system") {
+            version = SYSTEM_JDK_VERSION
+            platform = "linux"
+        }
+        linuxGradleJdk = jdksContainer.create("linux_gradle") {
+            version = GRADLE_JDK_VERSION
+            platform = "linux"
+        }
+        windowsSystemJdk = jdksContainer.create("windows_system") {
+            version = SYSTEM_JDK_VERSION
+            platform = "windows"
+        }
+        windowsGradleJdk = jdksContainer.create("windows_gradle") {
+            version = GRADLE_JDK_VERSION
+            platform = "windows"
+        }
 
         collectAvailableBoxes(project)
 
@@ -264,7 +298,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void createPrepareVagrantTestEnvTask(Project project) {
+    private void createPrepareVagrantTestEnvTask(Project project) {
         File packagingDir = new File(project.buildDir, PACKAGING_CONFIGURATION)
 
         File archivesDir = new File(packagingDir, 'archives')
@@ -280,7 +314,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Task createLinuxRunnerScript = project.tasks.create('createLinuxRunnerScript', FileContentsTask) {
-            dependsOn copyPackagingTests
+            dependsOn copyPackagingTests, linuxGradleJdk, linuxSystemJdk
             file "${testsDir}/run-tests.sh"
             contents """\
                      if [ "\$#" -eq 0 ]; then
@@ -288,22 +322,33 @@ class VagrantTestPlugin implements Plugin<Project> {
                      else
                        test_args=( "\$@" )
                      fi
-                     "\$SYSTEM_JAVA_HOME"/bin/java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
+                     
+                     if [ -z "\$SYSTEM_JAVA_HOME" ]; then
+                       export SYSTEM_JAVA_HOME="${-> convertLinuxPath(project, linuxSystemJdk.toString()) }"
+                     fi
+                     "${-> convertLinuxPath(project, linuxGradleJdk.toString()) }"/bin/java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
                      """
         }
         Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
-            dependsOn copyPackagingTests
+            dependsOn copyPackagingTests, windowsGradleJdk, windowsSystemJdk
             file "${testsDir}/run-tests.ps1"
             // the use of $args rather than param() here is deliberate because the syntax for array (multivalued) parameters is likely
             // a little trappy for those unfamiliar with powershell
             contents """\
-                     if (\$args.Count -eq 0) {
-                       \$testArgs = @("${-> project.extensions.esvagrant.testClass}")
-                     } else {
-                       \$testArgs = \$args
+                     try {
+                         if (\$args.Count -eq 0) {
+                           \$testArgs = @("${-> project.extensions.esvagrant.testClass}")
+                         } else {
+                           \$testArgs = \$args
+                         }
+                         \$Env:SYSTEM_JAVA_HOME = "${-> convertWindowsPath(project, windowsSystemJdk.toString()) }"
+                         & "${-> convertWindowsPath(project, windowsGradleJdk.toString()) }/bin/java" -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
+                         exit \$LASTEXITCODE
+                     } catch {
+                         # catch if we have a failure to even run the script at all above, equivalent to set -e, sort of
+                         echo "\$_.Exception.Message"
+                         exit 1
                      }
-                     & "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
-                     exit \$LASTEXITCODE
                      """
         }
 
@@ -539,10 +584,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
             if (LINUX_BOXES.contains(box)) {
                 Task batsPackagingTest = project.tasks.create("vagrant${boxTask}#batsPackagingTest", BatsOverVagrantTask) {
-                    remoteCommand BATS_TEST_COMMAND
+                    remoteCommand "export SYSTEM_JAVA_HOME=\"${-> convertLinuxPath(project, linuxSystemJdk.toString())}\"; " + BATS_TEST_COMMAND
                     boxName box
                     environmentVars vagrantEnvVars
-                    dependsOn up, setupPackagingTest
+                    dependsOn up, setupPackagingTest, linuxSystemJdk
                     finalizedBy halt
                 }
 
@@ -586,7 +631,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 // https://github.com/hashicorp/vagrant/blob/9c299a2a357fcf87f356bb9d56e18a037a53d138/plugins/communicators/winrm/communicator.rb#L195-L225
                 // https://devops-collective-inc.gitbooks.io/secrets-of-powershell-remoting/content/manuscript/accessing-remote-computers.html
                 javaPackagingTest.command = 'winrm'
-                javaPackagingTest.args = ['--elevated', '--command', 'powershell -File "$Env:PACKAGING_TESTS/run-tests.ps1"']
+                javaPackagingTest.args = ['--elevated', '--command', '& "$Env:PACKAGING_TESTS/run-tests.ps1"; exit $LASTEXITCODE']
             }
 
             TaskExecutionAdapter javaPackagingReproListener = createReproListener(project, javaPackagingTest.path)
@@ -616,5 +661,13 @@ class VagrantTestPlugin implements Plugin<Project> {
                 }
             }
         }
+    }
+
+    // convert the given path from an elasticsearch repo path to a VM path
+    private String convertLinuxPath(Project project, String path) {
+        return "/elasticsearch/" + project.rootDir.toPath().relativize(Paths.get(path));
+    }
+    private String convertWindowsPath(Project project, String path) {
+        return "C:\\elasticsearch\\" + project.rootDir.toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
     }
 }

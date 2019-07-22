@@ -9,51 +9,34 @@ package org.elasticsearch.xpack.dataframe.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributes;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
-import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -69,18 +52,16 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     private static final Logger logger = LogManager.getLogger(TransportGetDataFrameTransformsStatsAction.class);
 
-    private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     private final DataFrameTransformsCheckpointService transformsCheckpointService;
 
     @Inject
     public TransportGetDataFrameTransformsStatsAction(TransportService transportService, ActionFilters actionFilters,
-                                                      ClusterService clusterService, Client client,
+                                                      ClusterService clusterService,
                                                       DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
                                                       DataFrameTransformsCheckpointService transformsCheckpointService) {
         super(GetDataFrameTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
             Response::new, ThreadPool.Names.SAME);
-        this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.transformsCheckpointService = transformsCheckpointService;
     }
@@ -94,7 +75,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
             .collect(Collectors.toList());
         List<ElasticsearchException> allFailedNodeExceptions = new ArrayList<>(failedNodeExceptions);
         allFailedNodeExceptions.addAll(tasks.stream().flatMap(r -> r.getNodeFailures().stream()).collect(Collectors.toList()));
-        return new Response(responses, taskOperationFailures, allFailedNodeExceptions);
+        return new Response(responses, responses.size(), taskOperationFailures, allFailedNodeExceptions);
     }
 
     @Override
@@ -104,41 +85,72 @@ public class TransportGetDataFrameTransformsStatsAction extends
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
             transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
-                    ActionListener.wrap(checkpointStats -> {
-                        listener.onResponse(new Response(Collections.singletonList(
-                        new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(), task.getStats(), checkpointStats))));
-            }, e -> {
-                    listener.onResponse(new Response(
-                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
-                                task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
+                ActionListener.wrap(checkpointStats -> listener.onResponse(new Response(
+                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(),
+                            task.getState(),
+                            task.getStats(),
+                            checkpointStats)),
+                        1L)),
+                    e -> listener.onResponse(new Response(
+                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(),
+                            task.getState(),
+                            task.getStats(),
+                            DataFrameTransformCheckpointingInfo.EMPTY)),
+                        1L,
                         Collections.emptyList(),
-                        Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))));
-            }));
+                        Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))))
+                ));
         } else {
-            listener.onResponse(new Response(Collections.emptyList()));
+            listener.onResponse(new Response(Collections.emptyList(), 0L));
         }
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
-        dataFrameTransformsConfigManager.expandTransformIds(request.getId(), request.getPageParams(), ActionListener.wrap(
-            ids -> {
-                request.setExpandedIds(ids);
+        dataFrameTransformsConfigManager.expandTransformIds(request.getId(),
+            request.getPageParams(),
+            request.isAllowNoMatch(),
+            ActionListener.wrap(hitsAndIds -> {
+                request.setExpandedIds(hitsAndIds.v2());
+                final ClusterState state = clusterService.state();
+                request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), state));
                 super.doExecute(task, request, ActionListener.wrap(
-                    response -> collectStatsForTransformsWithoutTasks(request, response, finalListener),
+                    response -> {
+                        PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                        if (tasksInProgress != null) {
+                            // Mutates underlying state object with the assigned node attributes
+                            response.getTransformsStateAndStats().forEach(dtsas -> setNodeAttributes(dtsas, tasksInProgress, state));
+                        }
+                        collectStatsForTransformsWithoutTasks(request, response, ActionListener.wrap(
+                            finalResponse -> finalListener.onResponse(new Response(finalResponse.getTransformsStateAndStats(),
+                                hitsAndIds.v1(),
+                                finalResponse.getTaskFailures(),
+                                finalResponse.getNodeFailures())),
+                            finalListener::onFailure
+                        ));
+                    },
                     finalListener::onFailure
                 ));
             },
             e -> {
                 // If the index to search, or the individual config is not there, just return empty
-                logger.error("failed to expand ids", e);
                 if (e instanceof ResourceNotFoundException) {
-                    finalListener.onResponse(new Response(Collections.emptyList()));
+                    finalListener.onResponse(new Response(Collections.emptyList(), 0L));
                 } else {
                     finalListener.onFailure(e);
                 }
             }
         ));
+    }
+
+    private static void setNodeAttributes(DataFrameTransformStateAndStats dataFrameTransformStateAndStats,
+                                                                     PersistentTasksCustomMetaData persistentTasksCustomMetaData,
+                                                                     ClusterState state) {
+        var pTask = persistentTasksCustomMetaData.getTask(dataFrameTransformStateAndStats.getTransformId());
+        if (pTask != null) {
+            dataFrameTransformStateAndStats.getTransformState()
+                .setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
+        }
     }
 
     private void collectStatsForTransformsWithoutTasks(Request request,
@@ -157,32 +169,28 @@ public class TransportGetDataFrameTransformsStatsAction extends
         // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
         assert transformsWithoutTasks.size() <= Request.MAX_SIZE_RETURN;
 
-        ActionListener<SearchResponse> searchStatsListener = ActionListener.wrap(
-            searchResponse -> {
-                List<ElasticsearchException> nodeFailures = new ArrayList<>(response.getNodeFailures());
-                if (searchResponse.getShardFailures().length > 0) {
-                    for(ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                        String nodeId = "";
-                        if (shardSearchFailure.shard() != null) {
-                            nodeId = shardSearchFailure.shard().getNodeId();
-                        }
-                        nodeFailures.add(new FailedNodeException(nodeId, shardSearchFailure.toString(), shardSearchFailure.getCause()));
-                    }
-                    logger.error("transform statistics document search returned shard failures: {}",
-                        Arrays.toString(searchResponse.getShardFailures()));
-                }
+        ActionListener<List<DataFrameTransformStateAndStats>> searchStatsListener = ActionListener.wrap(
+            stats -> {
                 List<DataFrameTransformStateAndStats> allStateAndStats = response.getTransformsStateAndStats();
-                for(SearchHit hit : searchResponse.getHits().getHits()) {
-                    BytesReference source = hit.getSourceRef();
-                    try {
-                        DataFrameIndexerTransformStats stats = parseFromSource(source);
-                        allStateAndStats.add(DataFrameTransformStateAndStats.initialStateAndStats(stats.getTransformId(), stats));
-                        transformsWithoutTasks.remove(stats.getTransformId());
-                    } catch (IOException e) {
-                        listener.onFailure(new ElasticsearchParseException("Could not parse data frame transform stats", e));
-                        return;
-                    }
-                }
+                // If the persistent task does NOT exist, it is STOPPED
+                // There is a potential race condition where the saved document does not actually have a STOPPED state
+                //    as the task is cancelled before we persist state.
+                stats.forEach(stat ->
+                    allStateAndStats.add(new DataFrameTransformStateAndStats(
+                        stat.getId(),
+                        new DataFrameTransformState(DataFrameTransformTaskState.STOPPED,
+                            IndexerState.STOPPED,
+                            stat.getTransformState().getPosition(),
+                            stat.getTransformState().getCheckpoint(),
+                            stat.getTransformState().getReason(),
+                            stat.getTransformState().getProgress()),
+                        stat.getTransformStats(),
+                        stat.getCheckpointingInfo()))
+                );
+                transformsWithoutTasks.removeAll(
+                        stats.stream().map(DataFrameTransformStateAndStats::getId).collect(Collectors.toSet()));
+
+                // Transforms that have not been started and have no state or stats.
                 transformsWithoutTasks.forEach(transformId ->
                     allStateAndStats.add(DataFrameTransformStateAndStats.initialStateAndStats(transformId)));
 
@@ -190,7 +198,10 @@ public class TransportGetDataFrameTransformsStatsAction extends
                 // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs
                 allStateAndStats.sort(Comparator.comparing(DataFrameTransformStateAndStats::getId));
 
-                listener.onResponse(new Response(allStateAndStats, response.getTaskFailures(), nodeFailures));
+                listener.onResponse(new Response(allStateAndStats,
+                    allStateAndStats.size(),
+                    response.getTaskFailures(),
+                    response.getNodeFailures()));
             },
             e -> {
                 if (e instanceof IndexNotFoundException) {
@@ -201,26 +212,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
             }
         );
 
-        QueryBuilder builder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), transformsWithoutTasks))
-            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameIndexerTransformStats.NAME)));
-
-        SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
-            .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
-            .setQuery(builder)
-            .request();
-
-        ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ClientHelper.DATA_FRAME_ORIGIN,
-            searchRequest,
-            searchStatsListener, client::search);
-    }
-
-    private static DataFrameIndexerTransformStats parseFromSource(BytesReference source) throws IOException {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return DataFrameIndexerTransformStats.fromXContent(parser);
-        }
+        dataFrameTransformsConfigManager.getTransformStats(transformsWithoutTasks, searchStatsListener);
     }
 }

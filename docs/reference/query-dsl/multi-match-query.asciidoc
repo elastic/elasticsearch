@@ -1,5 +1,8 @@
 [[query-dsl-multi-match-query]]
-=== Multi Match Query
+=== Multi-match query
+++++
+<titleabbrev>Multi-match</titleabbrev>
+++++
 
 The `multi_match` query builds on the <<query-dsl-match-query,`match` query>>
 to allow multi-field queries:
@@ -151,8 +154,8 @@ follows:
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`,
- `cutoff_frequency`, `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
-  as explained in <<query-dsl-match-query, match query>>.
+`auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
+as explained in <<query-dsl-match-query, match query>>.
 
 [IMPORTANT]
 [[operator-min]]
@@ -247,9 +250,7 @@ The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`
-and `cutoff_frequency`, as explained in <<query-dsl-match-query,match query>>, but
-*see <<operator-min>>*.
+`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, and `zero_terms_query`.
 
 [[type-phrase]]
 ==== `phrase` and `phrase_prefix`
@@ -292,9 +293,9 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-Also, accepts `analyzer`, `boost`, `lenient`, `slop` and `zero_terms_query`  as explained
-in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
-`max_expansions`.
+Also, accepts `analyzer`, <<mapping-boost,`boost`>>, `lenient` and `zero_terms_query` as explained
+in <<query-dsl-match-query>>, as well as `slop` which is explained in <<query-dsl-match-query-phrase>>.
+Type `phrase_prefix` additionally accepts `max_expansions`.
 
 [IMPORTANT]
 [[phrase-fuzziness]]
@@ -389,8 +390,7 @@ explanation:
     +blended("smith", fields: [first_name, last_name])
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
-`lenient`, `zero_terms_query` and `cutoff_frequency`, as explained in
-<<query-dsl-match-query, match query>>.
+`lenient` and `zero_terms_query`.
 
 [[cross-field-analysis]]
 ===== `cross_field` and analysis
@@ -554,5 +554,4 @@ explained in <<query-dsl-match-query, match query>> are supported. The
 construct term queries, but do not have an effect on the prefix query
 constructed from the final term.
 
-The `slop` and `cutoff_frequency` parameters are not supported by this query
-type.
+The `slop` parameter is not supported by this query type.

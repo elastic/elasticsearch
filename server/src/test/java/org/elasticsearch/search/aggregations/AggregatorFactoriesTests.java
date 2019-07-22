@@ -67,7 +67,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
             String type = randomAlphaOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, false, emptyList()).getNamedXContents());
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(settings, emptyList()).getNamedXContents());
     }
 
     public void testGetAggregatorFactories_returnsUnmodifiableList() {

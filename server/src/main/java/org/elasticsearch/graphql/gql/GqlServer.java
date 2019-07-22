@@ -32,6 +32,7 @@ public class GqlServer {
         addPingResolver(builder);
         addFooResolver(builder);
         addHelloQuery(builder);
+        addIndicesQuery(builder);
 
         schema = builder.build();
         graphql = GraphQL.newGraphQL(schema).build();
@@ -126,6 +127,24 @@ public class GqlServer {
                 .description("Get generic server information.")
                 .type(nonNull(typeRef("HelloInfo"))))
             .fetcher("Query", "hello", environment -> api.getHello());
+    }
+
+    private void addIndicesQuery(GqlBuilder builder) {
+        builder
+            .type(newObject()
+                .name("Index")
+                .description("Elasticsearch database index.")
+                .field(newFieldDefinition()
+                    .name("health")
+                    .description("Status of Elasticsearch index.")
+                    .type(nonNull(GraphQLString))
+                )
+                .build())
+            .queryField(newFieldDefinition()
+                .name("indices")
+                .description("List all Elasticsearch indices.")
+                .type(nonNull(list(nonNull(typeRef("Index"))))))
+            .fetcher("Query", "indices", environment -> api.getIndices());
     }
 
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {

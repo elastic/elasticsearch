@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class X509AuthenticationToken implements AuthenticationToken {
@@ -24,7 +25,7 @@ public class X509AuthenticationToken implements AuthenticationToken {
 
     public X509AuthenticationToken(X509Certificate[] certificates, boolean isDelegated) {
         this.credentials = Objects.requireNonNull(certificates);
-        if (false == CertParsingUtils.isOrderedCertificateChain(certificates)) {
+        if (false == CertParsingUtils.isOrderedCertificateChain(Arrays.asList(certificates))) {
             throw new IllegalArgumentException("certificates chain array is not ordered");
         }
         this.dn = certificates.length == 0 ? "" : certificates[0].getSubjectX500Principal().toString();

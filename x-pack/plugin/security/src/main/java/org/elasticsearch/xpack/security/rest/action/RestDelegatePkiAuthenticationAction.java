@@ -41,7 +41,7 @@ public final class RestDelegatePkiAuthenticationAction extends TokenBaseRestHand
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final DelegatePkiAuthenticationRequest delegatePkiRequest = DelegatePkiAuthenticationRequest.PARSER.apply(parser, null);
+            final DelegatePkiAuthenticationRequest delegatePkiRequest = DelegatePkiAuthenticationRequest.fromXContent(parser);
             return channel -> client.execute(TransportDelegatePkiAuthenticationAction.TYPE, delegatePkiRequest,
                     new RestBuilderListener<DelegatePkiAuthenticationResponse>(channel) {
                         @Override

@@ -6,34 +6,26 @@
 
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.AuthenticateResponse.RealmInfo;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
-import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
@@ -80,14 +72,22 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
     public void testDelegatePki() throws Exception {
         X509Certificate clientCertificate = readCert("testClient.crt");
         X509Certificate intermediateCA = readCert("testIntermediateCA.crt");
-        DelegatePkiAuthenticationRequest delegatePkiRequest = new DelegatePkiAuthenticationRequest(
-                new X509Certificate[] { clientCertificate, intermediateCA });
-
-        DelegatePkiAuthenticationResponse response = callDelegatePkiAuthentication(delegatePkiRequest);
-
-        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-        optionsBuilder.addHeader("Authorization", "Bearer " + response.getTokenString());
+        X509Certificate rootCA = readCert("testRootCA.crt");
+        RequestOptions.Builder optionsBuilder;
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            DelegatePkiAuthenticationRequest delegatePkiRequest;
+            if (randomBoolean()) {
+                delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA));
+            } else {
+                delegatePkiRequest = new DelegatePkiAuthenticationRequest(Arrays.asList(clientCertificate, intermediateCA, rootCA));
+            }
+            optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+            optionsBuilder.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                    new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+            DelegatePkiAuthenticationResponse delegatePkiResponse = restClient.security().delegatePkiAuthentication(delegatePkiRequest,
+                    optionsBuilder.build());
+            optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+            optionsBuilder.addHeader("Authorization", "Bearer " + delegatePkiResponse.getAccessToken());
             AuthenticateResponse resp = restClient.security().authenticate(optionsBuilder.build());
             User user = resp.getUser();
             assertThat(user, is(notNullValue()));
@@ -105,20 +105,6 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             return (X509Certificate) factory.generateCertificate(in);
         }
-    }
-
-    private DelegatePkiAuthenticationResponse callDelegatePkiAuthentication(DelegatePkiAuthenticationRequest delegatePkiRequest) throws Exception {
-        Request httpRequest = new Request("POST", "/_security/delegate_pki");
-        RequestOptions.Builder options = httpRequest.getOptions().toBuilder();
-        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
-        httpRequest.setOptions(options);
-        final XContentBuilder builder = XContentFactory.jsonBuilder();
-        delegatePkiRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        httpRequest.setJsonEntity(Strings.toString(builder));
-        Response rawHttpResponse = getRestClient().performRequest(httpRequest);
-        XContentParser responseContent = createParser(JsonXContent.jsonXContent, EntityUtils.toString(rawHttpResponse.getEntity()));
-        return DelegatePkiAuthenticationResponse.PARSER.apply(responseContent, null);
     }
 
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.pki.X509AuthenticationToken;
 
+import java.security.cert.X509Certificate;
 import java.util.Map;
 
 /**
@@ -68,7 +69,8 @@ public final class TransportDelegatePkiAuthenticationAction
             ActionListener<DelegatePkiAuthenticationResponse> listener) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication delegateeAuthentication = Authentication.getAuthentication(threadContext);
-        final X509AuthenticationToken x509DelegatedToken = new X509AuthenticationToken(request.getCertificates(), true);
+        final X509AuthenticationToken x509DelegatedToken = new X509AuthenticationToken(
+                request.getCertificateChain().toArray(new X509Certificate[0]), true);
         logger.trace("Attempting to authenticate delegated x509Token [{}]", x509DelegatedToken);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authenticationService.authenticate(ACTION_NAME, request, x509DelegatedToken, ActionListener.wrap(authentication -> {

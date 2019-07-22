@@ -31,6 +31,8 @@ import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeletePrivilegesResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
@@ -968,5 +970,34 @@ public final class SecurityClient {
                                       final ActionListener<InvalidateApiKeyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
                 InvalidateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Creates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request for the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DelegatePkiAuthenticationResponse delegatePkiAuthentication(DelegatePkiAuthenticationRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
+            DelegatePkiAuthenticationResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request for the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options, ActionListener<DelegatePkiAuthenticationResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
+                DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
 }

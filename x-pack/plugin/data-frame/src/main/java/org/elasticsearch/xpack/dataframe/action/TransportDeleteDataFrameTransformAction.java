@@ -62,7 +62,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state,
+    protected void masterOperation(Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         final PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null && request.isForce() == false) {

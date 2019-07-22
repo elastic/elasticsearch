@@ -70,11 +70,11 @@ testClusters.integTest {
     plugin file(project(':plugins:repository-azure').bundlePlugin.archiveFile)
     keystore 'azure.client.integration_test.account', azureAccount
     if (azureKey != null && azureKey.isEmpty() == false) {
-        println "Using access key in external service tests."
+        logger.debug("Using access key in external service tests.")
         keystore 'azure.client.integration_test.key', azureKey
     }
     if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-        println "Using SAS token in external service tests."
+        logger.debug("Using SAS token in external service tests.")
         keystore 'azure.client.integration_test.sas_token', azureSasToken
     }
 
@@ -87,6 +87,6 @@ testClusters.integTest {
         String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
         setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
     } else {
-        println "Using an external service to test the repository-azure plugin"
+        logger.debug("Using an external service to test the repository-azure plugin")
     }
 }

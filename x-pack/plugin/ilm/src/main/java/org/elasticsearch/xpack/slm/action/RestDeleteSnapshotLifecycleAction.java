@@ -4,37 +4,35 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle.action;
+package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
 
-public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
+public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
 
-    public RestGetSnapshotLifecycleAction(Settings settings, RestController controller) {
+    public RestDeleteSnapshotLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_slm/policy", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_slm/policy/{name}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_slm/policy/{name}", this);
     }
 
     @Override
     public String getName() {
-        return "slm_get_lifecycle";
+        return "slm_delete_lifecycle";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String[] lifecycleNames = Strings.splitStringByCommaToArray(request.param("name"));
-        GetSnapshotLifecycleAction.Request req = new GetSnapshotLifecycleAction.Request(lifecycleNames);
+        String lifecycleId = request.param("name");
+        DeleteSnapshotLifecycleAction.Request req = new DeleteSnapshotLifecycleAction.Request(lifecycleId);
         req.timeout(request.paramAsTime("timeout", req.timeout()));
         req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
 
-        return channel -> client.execute(GetSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

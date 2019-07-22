@@ -6,7 +6,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -33,11 +32,14 @@ public class GqlElasticsearchApi implements GqlApi {
 
     @Override
     @SuppressWarnings("unchecked")
-    public CompletableFuture<List<Object>> getIndices(RestRequest request) throws Exception {
+    public CompletableFuture<List<Object>> getIndices() throws Exception {
         CompletableFuture<List<Object>> promise = new CompletableFuture<>();
-        GqlApiFakeHttpRequest internalRequest = new GqlApiFakeHttpRequest(RestRequest.Method.GET, "/_cat/indices?format=json", BytesArray.EMPTY, new HashMap<>());
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
-        RestRequest innerRequest = RestRequest.request(NamedXContentRegistry.EMPTY, internalRequest, request.getHttpChannel());
+
+        GqlApiFakeHttpRequest internalHttpRequest = new GqlApiFakeHttpRequest(RestRequest.Method.GET, "/_cat/indices?format=json", BytesArray.EMPTY, new HashMap<>());
+        GqlApiFakeHttpChannel internalHttpChannel = new GqlApiFakeHttpChannel(null);
+        RestRequest innerRequest = RestRequest.request(NamedXContentRegistry.EMPTY, internalHttpRequest, internalHttpChannel);
+
         BaseRestHandler.RestChannelConsumer channelConsumer = RestIndicesAction.INSTANCE.doCatRequest(innerRequest, client);
         channelConsumer.accept(new RestChannel() {
             BytesStreamOutput bytes1 = new BytesStreamOutput();
@@ -86,7 +88,7 @@ public class GqlElasticsearchApi implements GqlApi {
                     System.out.println(result);
                     promise.complete(result);
                 } catch (Exception e) {
-                    System.out.println("COULD NOT PRINT " + e);
+                    promise.completeExceptionally(e);
                 }
             }
         });

@@ -80,7 +80,6 @@ final class FetchSearchPhase extends SearchPhase {
         context.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
-                Thread.sleep(10000L);
                 // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
                 // off immediately instead of forking when we send back the response to the user since there we only need
                 // to merge together the fetched results which is a linear operation.

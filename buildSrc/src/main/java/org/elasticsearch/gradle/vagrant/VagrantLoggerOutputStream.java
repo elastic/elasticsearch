@@ -74,6 +74,7 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
 
     @Override
     public void close() {
+        flush();
         progressLogger.completed();
     }
 }

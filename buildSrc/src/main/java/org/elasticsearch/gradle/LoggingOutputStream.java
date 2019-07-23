@@ -21,6 +21,7 @@ package org.elasticsearch.gradle;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 
 /**
  * Writes data passed to this stream as log messages.
@@ -59,10 +60,7 @@ public abstract class LoggingOutputStream extends OutputStream {
                 end = len;
             } else {
                 // otherwise extend the buffer
-                final int newBufferLength = buffer.length + DEFAULT_BUFFER_LENGTH;
-                final byte[] newBuffer = new byte[newBufferLength];
-                System.arraycopy(buffer, 0, newBuffer, 0, buffer.length);
-                buffer = newBuffer;
+                buffer = Arrays.copyOf(buffer, buffer.length + DEFAULT_BUFFER_LENGTH);
             }
         }
 

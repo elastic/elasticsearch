@@ -29,8 +29,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Adapts an OutputStream containing output from bats into a ProgressLogger
- * and a Logger. Every test output goes to the ProgressLogger and all failures
+ * Adapts an OutputStream containing TAP output from bats into a ProgressLogger and a Logger.
+ *
+ * TAP (Test Anything Protocol, https://testanything.org) is used by BATS for its output format.
+ *
+ * Every test output goes to the ProgressLogger and all failures
  * and non-test output goes to the Logger. That means you can always glance
  * at the result of the last test and the cumulative pass/fail/skip stats and
  * the failures are all logged.
@@ -109,6 +112,7 @@ public class TapLoggerOutputStream extends LoggingOutputStream {
 
     @Override
     public void close() {
+        flush();
         progressLogger.completed();
     }
 }

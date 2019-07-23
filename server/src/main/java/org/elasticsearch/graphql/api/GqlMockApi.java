@@ -23,6 +23,7 @@ import static org.elasticsearch.graphql.api.GqlApiUtils.getJavaUtilBuilderResult
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -115,5 +116,10 @@ public class GqlMockApi implements GqlApi {
             .endArray();
 
         return CompletableFuture.completedFuture((Map) getJavaUtilBuilderResult(builder));
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception {
+        return CompletableFuture.completedFuture(new HashMap<>());
     }
 }

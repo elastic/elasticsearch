@@ -55,6 +55,7 @@ public class GqlServer {
         addHelloQuery(builder);
         addIndicesQuery(builder);
         addIndexQuery(builder);
+        addDocumentGetQuery(builder);
 
         schema = builder.build();
         graphql = GraphQL.newGraphQL(schema).build();
@@ -275,6 +276,35 @@ public class GqlServer {
                 return api.getIndex(name);
             })
             .fetcher("Index", "_", environment -> environment.getSource());
+    }
+
+    private void addDocumentGetQuery(GqlBuilder builder) {
+        builder
+            .type(newObject()
+                .name("Document")
+                .description("A document stored in Elasticsearch index.")
+                .field(newFieldDefinition()
+                    .name("_index")
+                    .description("Document index name.")
+                    .type(GraphQLString))
+                .build())
+            .queryField(newFieldDefinition()
+                .name("document")
+                .description("Fetch a single document.")
+                .type(typeRef("Document"))
+                .argument(newArgument()
+                    .name("index")
+                    .type(nonNull(GraphQLID))
+                    .description("Index name from which to fetch document."))
+                .argument(newArgument()
+                    .name("id")
+                    .type(nonNull(GraphQLID))
+                .description("Document ID.")))
+            .fetcher("Query", "document", environment -> {
+                String indexName = environment.getArgument("index");
+                String documentId = environment.getArgument("id");
+                return api.getDocument(indexName, documentId);
+            });
     }
 
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {

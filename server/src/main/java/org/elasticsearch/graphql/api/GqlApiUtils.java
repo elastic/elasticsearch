@@ -103,12 +103,12 @@ public class GqlApiUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static public CompletableFuture<List<Object>> executeRestHandler(NodeClient client,
+    static public <T> CompletableFuture<T> executeRestHandler(NodeClient client,
                                                                      BaseRestHandler handler,
                                                                      RestRequest.Method method,
                                                                      String uri) throws Exception {
         logger.info("executeRestHandler {} {} {}", handler.getName(), method, uri);
-        CompletableFuture<List<Object>> promise = new CompletableFuture<>();
+        CompletableFuture<T> promise = new CompletableFuture<T>();
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
 
         GqlApiFakeHttpRequest internalHttpRequest = new GqlApiFakeHttpRequest(method, uri, BytesArray.EMPTY, new HashMap<>());

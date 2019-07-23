@@ -22,17 +22,19 @@ package org.elasticsearch.graphql.api;
 import static org.elasticsearch.graphql.api.GqlApiUtils.futureToListener;
 import static org.elasticsearch.graphql.api.GqlApiUtils.log;
 import static org.elasticsearch.graphql.api.GqlApiUtils.getSomeMapKey;
+import static org.elasticsearch.graphql.api.GqlApiUtils.executeRestHandler;
+import static org.elasticsearch.graphql.api.GqlApiUtils.executeAction;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.client.node.NodeClient;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 import org.elasticsearch.rest.action.cat.RestIndicesAction;
 
 import java.util.*;
@@ -50,13 +52,13 @@ public class GqlElasticsearchApi implements GqlApi {
 
     @Override
     public CompletableFuture<Map<String, Object>> getHello() throws Exception {
-        return GqlApiUtils.executeAction(client, MainAction.INSTANCE, new MainRequest());
+        return executeAction(client, MainAction.INSTANCE, new MainRequest());
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public CompletableFuture<List<Object>> getIndices() throws Exception {
-        return GqlApiUtils.executeRestHandler(client, RestIndicesAction.INSTANCE, GET, "/_cat/indices?format=json");
+        return executeRestHandler(client, RestIndicesAction.INSTANCE, GET, "/_cat/indices?format=json");
     }
 
     @SuppressWarnings("unchecked")
@@ -142,5 +144,28 @@ public class GqlElasticsearchApi implements GqlApi {
             .thenApply(GqlApiUtils::toMapSafe)
             .thenApply(mapIndexData)
             .thenApply(log(logger, "getIndex"));
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception {
+        logger.info("getDocument [indexName = {}, documentId]", indexName, documentId);
+
+        GetRequest request = new GetRequest(indexName, documentId);
+        CompletableFuture<GetResponse> future = new CompletableFuture<GetResponse>();
+        client.get(request, futureToListener(future));
+
+        /*
+        {_index=twitter, _type=_doc, _id=1, _version=1, _seq_no=0, _primary_term=1, found=true, _source={
+   │          "user" : "kimchy",
+   │          "post_date" : "2009-11-15T14:12:12",
+   │          "message" : "trying out Elasticsearch"
+   │      }
+         */
+
+        return future
+            .thenApply(GqlApiUtils::toMapSafe)
+//            .thenAppyy(mapIndexData)
+            .thenApply(log(logger, "getDocument"));
+
     }
 }

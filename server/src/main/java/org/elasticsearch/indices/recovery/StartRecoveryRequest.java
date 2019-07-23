@@ -43,7 +43,16 @@ public class StartRecoveryRequest extends TransportRequest {
     private boolean primaryRelocation;
     private long startingSeqNo;
 
-    public StartRecoveryRequest() {
+    public StartRecoveryRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        targetAllocationId = in.readString();
+        sourceNode = new DiscoveryNode(in);
+        targetNode = new DiscoveryNode(in);
+        metadataSnapshot = new Store.MetadataSnapshot(in);
+        primaryRelocation = in.readBoolean();
+        startingSeqNo = in.readLong();
     }
 
     /**
@@ -108,19 +117,6 @@ public class StartRecoveryRequest extends TransportRequest {
 
     public long startingSeqNo() {
         return startingSeqNo;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = new ShardId(in);
-        targetAllocationId = in.readString();
-        sourceNode = new DiscoveryNode(in);
-        targetNode = new DiscoveryNode(in);
-        metadataSnapshot = new Store.MetadataSnapshot(in);
-        primaryRelocation = in.readBoolean();
-        startingSeqNo = in.readLong();
     }
 
     @Override

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.elasticsearch.script.ScriptContext;
 
 /**

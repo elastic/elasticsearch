@@ -43,6 +43,40 @@ setup:
         transform_id: "missing transform"
 
 ---
+"Test put transform with frequency too low":
+  - do:
+      catch: /minimum permitted \[frequency\] is \[1s\]/
+      data_frame.put_data_frame_transform:
+        transform_id: "frequency-too-low"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest" },
+            "frequency": "999ms",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+---
+"Test put transform with frequency too high":
+  - do:
+      catch: /highest permitted \[frequency\] is \[1h\]/
+      data_frame.put_data_frame_transform:
+        transform_id: "frequency-too-low"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest" },
+            "frequency": "3600001ms",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+---
 "Test put transform with invalid source index":
   - do:
       catch: /Source index \[missing-index\] does not exist/
@@ -57,6 +91,20 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "missing-source-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "missing-index" },
+            "dest": { "index": "missing-source-dest" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
 ---
 "Test basic transform crud":
   - do:
@@ -225,6 +273,39 @@ setup:
   - match: { transforms.0.sync.time.field: "time" }
   - match: { transforms.0.sync.time.delay: "90m" }
 ---
+"Test PUT continuous transform without delay set":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-continuous"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "airline-data-by-airline-continuous" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time"
+              }
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform-continuous"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-continuous" }
+  - match: { transforms.0.source.index.0: "airline-data" }
+  - match: { transforms.0.dest.index: "airline-data-by-airline-continuous" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "60s" }
+---
 "Test transform with invalid page parameter":
   - do:
       catch: /Param \[size\] has a max acceptable value of \[1000\]/
@@ -238,6 +319,22 @@ setup:
       catch: /Destination index \[airline-data-by-airline\] is included in source expression \[airline-data/
       data_frame.put_data_frame_transform:
         transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"]
+            },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        defer_validation: true
         body: >
           {
             "source": {
@@ -491,3 +588,47 @@ setup:
             "description": "yaml test transform on airline-data",
             "version": "7.3.0"
           }
+---
+"Test force deleting a running transform":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-delete" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-delete"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-delete" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
+  - match: { transforms.0.state.task_state: "started" }
+
+  - do:
+      catch: /Cannot delete data frame \[airline-transform-start-delete\] as the task is running/
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+        force: true
+  - match: { acknowledged: true }

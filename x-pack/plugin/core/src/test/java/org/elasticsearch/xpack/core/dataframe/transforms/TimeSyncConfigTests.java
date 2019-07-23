@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class TimeSyncConfigTests extends AbstractSerializingTestCase<TimeSyncConfig> {
 
     public static TimeSyncConfig randomTimeSyncConfig() {
@@ -35,4 +37,8 @@ public class TimeSyncConfigTests extends AbstractSerializingTestCase<TimeSyncCon
         return TimeSyncConfig::new;
     }
 
+    public void testDefaultDelay() {
+        TimeSyncConfig config = new TimeSyncConfig(randomAlphaOfLength(10), null);
+        assertThat(config.getDelay(), equalTo(TimeSyncConfig.DEFAULT_DELAY));
+    }
 }

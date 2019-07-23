@@ -51,7 +51,10 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
     }
 
-    protected DefaultShardOperationFailedException() {
+    protected DefaultShardOperationFailedException() {}
+
+    protected DefaultShardOperationFailedException(StreamInput in) throws IOException {
+        readFrom(in, this);
     }
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
@@ -64,17 +67,14 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     }
 
     public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {
-        DefaultShardOperationFailedException exp = new DefaultShardOperationFailedException();
-        exp.readFrom(in);
-        return exp;
+        return new DefaultShardOperationFailedException(in);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readOptionalString();
-        shardId = in.readVInt();
-        cause = in.readException();
-        status = RestStatus.readFrom(in);
+    public static void readFrom(StreamInput in, DefaultShardOperationFailedException f) throws IOException {
+        f.index = in.readOptionalString();
+        f.shardId = in.readVInt();
+        f.cause = in.readException();
+        f.status = RestStatus.readFrom(in);
     }
 
     @Override

@@ -497,7 +497,7 @@ public class IndexResolver {
                     if (unmappedIndices.isEmpty() == true) {
                         concreteIndices = asList(capIndices);
                     } else {
-                        concreteIndices = new ArrayList<>(capIndices.length - unmappedIndices.size() + 1);
+                        concreteIndices = new ArrayList<>(capIndices.length);
                         for (String capIndex : capIndices) {
                             // add only indices that have a mapping
                             if (unmappedIndices.contains(capIndex) == false) {

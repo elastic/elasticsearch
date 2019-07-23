@@ -108,8 +108,8 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         BulkByScrollResponse reindexResponse = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
         assertThat(reindexResponse, matcher().created(max).batches(max, 5));
-        // TODO: Added assertBusy
-        assertBusy(() -> assertHitCount(client().prepareSearch("dest").setSize(0).get(), max));
+        refresh("dest");
+        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
 
         // Copy some of the docs
         int half = max / 2;
@@ -120,8 +120,8 @@ public class ReindexBasicTests extends ReindexTestCase {
         request = new StartReindexJobAction.Request(copy.request(), true);
         BulkByScrollResponse reindexResponse2 = client().execute(StartReindexJobAction.INSTANCE, request).get().getReindexResponse();
         assertThat(reindexResponse2, matcher().created(half).batches(half, 5));
-        // TODO: Added assertBusy
-        assertBusy(() -> assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half));
+        refresh("dest_half");
+        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
     }
 
     public void testCopyManyWithSlices() throws Exception {

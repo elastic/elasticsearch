@@ -52,6 +52,7 @@ public class GqlServer {
         addFooResolver(builder);
         addHelloQuery(builder);
         addIndicesQuery(builder);
+        addIndexQuery(builder);
 
         schema = builder.build();
         graphql = GraphQL.newGraphQL(schema).build();
@@ -85,35 +86,35 @@ public class GqlServer {
                     .description("Build version.")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("build_flavor")
+                    .name("buildFlavor")
                     .type(GraphQLString))
                     .description("...")
                 .field(newFieldDefinition()
-                    .name("build_type")
+                    .name("buildType")
                     .description("...")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("build_hash")
+                    .name("buildHash")
                     .description("...")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("build_date")
+                    .name("buildDate")
                     .description("...")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("build_snapshot")
+                    .name("buildSnapshot")
                     .description("...")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("lucene_version")
+                    .name("luceneVersion")
                     .description("...")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("minimum_wire_compatibility_version")
+                    .name("minimumWireCompatibilityVersion")
                     .description("...")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("minimum_index_compatibility_version")
+                    .name("minimumIndexCompatibilityVersion")
                     .description("...")
                     .type(GraphQLString))
                 .build())
@@ -125,11 +126,11 @@ public class GqlServer {
                     .description("Server node name.")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("cluster_name")
+                    .name("clusterName")
                     .description("Name of the server cluster.")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
-                    .name("cluster_uuid")
+                    .name("clusterUuid")
                     .description("UUID.")
                     .type(GraphQLString))
                 .field(newFieldDefinition()
@@ -151,7 +152,7 @@ public class GqlServer {
     private void addIndicesQuery(GqlBuilder builder) {
         builder
             .type(newObject()
-                .name("Index")
+                .name("IndexCat")
                 .description("Elasticsearch database index.")
                 .field(newFieldDefinition()
                     .name("health")
@@ -197,8 +198,32 @@ public class GqlServer {
             .queryField(newFieldDefinition()
                 .name("indices")
                 .description("List all Elasticsearch indices.")
-                .type(nonNull(list(nonNull(typeRef("Index"))))))
+                .type(nonNull(list(nonNull(typeRef("IndexCat"))))))
             .fetcher("Query", "indices", environment -> api.getIndices());
+    }
+
+    private void addIndexQuery(GqlBuilder builder) {
+        builder
+            .type(newObject()
+                .name("Index")
+                .description("Elasticsearch index.")
+                .field(newFieldDefinition()
+                    .name("format")
+                    .description("...")
+                    .type(GraphQLString))
+                .build())
+            .queryField(newFieldDefinition()
+                .name("index")
+                .description("Get index information.")
+                .type(typeRef("Index"))
+                .argument(newArgument()
+                    .name("name")
+                    .description("Index name")
+                    .type(nonNull(GraphQLID))))
+            .fetcher("Query", "index", environment -> {
+                String name = environment.getArgument("name");
+                return api.getIndex(name);
+            });
     }
 
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {

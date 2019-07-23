@@ -64,6 +64,16 @@ public class GqlApiUtils {
         return (Map) getJavaUtilBuilderResult(builder);
     }
 
+    static public Map<String, Object> toMapSafe(ToXContentObject response) {
+        logger.trace("toMapSafe {}", response);
+        try {
+            return toMap(response);
+        } catch (Exception e) {
+            System.out.println("Exception " + e);
+            return null;
+        }
+    }
+
     static public <Request extends ActionRequest, Response extends ActionResponse>
             CompletableFuture<Map<String, Object>> executeAction(NodeClient client,
                                                                  ActionType<Response> action,
@@ -107,5 +117,19 @@ public class GqlApiUtils {
         handler.handleRequest(innerRequest, internalRestChannel, client);
 
         return promise;
+    }
+
+    static public ActionListener futureToListener(CompletableFuture promise) {
+        return new ActionListener() {
+            @Override
+            public void onResponse(Object o) {
+                promise.complete(o);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                promise.completeExceptionally(e);
+            }
+        };
     }
 }

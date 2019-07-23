@@ -19,6 +19,7 @@
 
 package org.elasticsearch.graphql.api;
 
+import static org.elasticsearch.graphql.api.GqlApiUtils.getJavaUtilBuilderResult;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
 
@@ -102,6 +103,17 @@ public class GqlMockApi implements GqlApi {
                 .endObject()
             .endArray();
 
-        return CompletableFuture.completedFuture((List) GqlApiUtils.getJavaUtilBuilderResult(builder));
+        return CompletableFuture.completedFuture((List) getJavaUtilBuilderResult(builder));
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception {
+        XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
+        builder
+            .startArray()
+            .endArray();
+
+        return CompletableFuture.completedFuture((Map) getJavaUtilBuilderResult(builder));
     }
 }

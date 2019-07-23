@@ -26,4 +26,5 @@ import java.util.concurrent.CompletableFuture;
 public interface GqlApi {
     public CompletableFuture<Map<String, Object>> getHello() throws Exception;
     public CompletableFuture<List<Object>> getIndices() throws Exception;
+    public CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception;
 }

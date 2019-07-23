@@ -1,5 +1,6 @@
 package org.elasticsearch.common.xcontent.javautil;
 
+import static org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator.toCamelCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -95,5 +96,17 @@ public class JavaUtilXContentGeneratorTests extends ESTestCase {
         assertEquals("1", map.get("helloWorld"));
         assertEquals("2", map.get("clusterSize"));
         assertEquals("3", map.get("docCount"));
+    }
+
+    public void testCamelCasesStringsCorrectly() throws Exception {
+        assertEquals("test", toCamelCase("test"));
+        assertEquals("foobar", toCamelCase("foobar"));
+        assertEquals("fooBar", toCamelCase("foo.bar"));
+        assertEquals("fooBar", toCamelCase("foo_bar"));
+        assertEquals("fooBar", toCamelCase("foo-bar"));
+        assertEquals("fooBarBaz", toCamelCase("foo.bar.baz"));
+        assertEquals("fooBarBaz", toCamelCase("foo_bar_baz"));
+        assertEquals("fooBarBaz", toCamelCase("foo-bar-baz"));
+//        assertEquals("security7", toCamelCase(".security-7"));
     }
 }

@@ -19,10 +19,14 @@
 
 package org.elasticsearch.graphql.api;
 
+import static org.elasticsearch.graphql.api.GqlApiUtils.futureToListener;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.client.node.NodeClient;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 import org.elasticsearch.rest.action.cat.RestIndicesAction;
 
 import java.util.*;
@@ -44,5 +48,35 @@ public class GqlElasticsearchApi implements GqlApi {
     @SuppressWarnings("unchecked")
     public CompletableFuture<List<Object>> getIndices() throws Exception {
         return GqlApiUtils.executeRestHandler(client, RestIndicesAction.INSTANCE, GET, "/_cat/indices?format=json");
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception {
+        String[] indices = { indexName };
+
+        final GetIndexRequest getIndexRequest = new GetIndexRequest()
+            .indices(indices);
+//            .indicesOptions(options);
+//        getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
+//        getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
+//        getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
+//        getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
+        CompletableFuture<GetIndexResponse> future = new CompletableFuture();
+        client.admin().indices().getIndex(getIndexRequest, futureToListener(future));
+
+        return future
+            .thenApply(GqlApiUtils::toMapSafe)
+            .thenApply(map -> {
+                System.out.println("map " + map);
+                try {
+                    map = (Map<String, Object>) map.get(indexName);
+                    map = (Map<String, Object>) map.get("settings");
+                    map = (Map<String, Object>) map.get("index");
+                    return map;
+                } catch (Exception e) {
+                    return null;
+                }
+            });
     }
 }

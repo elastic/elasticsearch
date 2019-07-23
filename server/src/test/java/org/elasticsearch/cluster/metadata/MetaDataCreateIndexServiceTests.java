@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +52,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -64,8 +64,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
@@ -487,14 +489,19 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
             .build();
 
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        Optional<String> errorMessage = MetaDataCreateIndexService.checkShardLimit(indexSettings, state);
+        final ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> MetaDataCreateIndexService.checkShardLimit(indexSettings, state));
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertTrue(errorMessage.isPresent());
-        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
-            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
+        final String expectedMessage = String.format(
+            Locale.ROOT,
+            "this action would add [%d] total shards, but this cluster currently has [%d]/[%d] maximum shards open",
+            totalShards,
+            currentShards,
+            maxShards);
+        assertThat(e, hasToString(containsString(expectedMessage)));
     }
 
 }

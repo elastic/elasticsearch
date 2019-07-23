@@ -281,9 +281,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 final BlobStore blobStore = repo.blobStore();
                 future.onResponse(
                     blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
-                        && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists("bar")
-                        && blobStore.blobContainer(repo.basePath()).blobExists("meta-foo.dat")
-                        && blobStore.blobContainer(repo.basePath()).blobExists("snap-foo.dat")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath().add("indices").add("foo")), "bar")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "meta-foo.dat")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "snap-foo.dat")
                 );
             }
         });

@@ -313,11 +313,6 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public boolean blobExists(String blobName) {
-                return super.blobExists(blobName);
-            }
-
-            @Override
             public InputStream readBlob(String name) throws IOException {
                 maybeIOExceptionOrBlock(name);
                 return super.readBlob(name);

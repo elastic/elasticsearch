@@ -58,8 +58,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         this.threadPool = threadPool;
     }
 
-    @Override
-    public boolean blobExists(String blobName) {
+    private boolean blobExists(String blobName) {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));

@@ -106,11 +106,6 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(indices);
@@ -163,11 +158,6 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public Response(String evaluationName, List<EvaluationMetricResult> metrics) {
             this.evaluationName = Objects.requireNonNull(evaluationName);
             this.metrics = Objects.requireNonNull(metrics);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

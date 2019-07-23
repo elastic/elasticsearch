@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.gcs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.IOException;
@@ -41,15 +40,6 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         super(path);
         this.blobStore = blobStore;
         this.path = path.buildAsString();
-    }
-
-    @Override
-    public boolean blobExists(String blobName) {
-        try {
-            return blobStore.blobExists(buildKey(blobName));
-        } catch (Exception e) {
-            throw new BlobStoreException("Failed to check if blob [" + blobName + "] exists", e);
-        }
     }
 
     @Override

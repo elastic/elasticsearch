@@ -49,7 +49,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 /**
  * A base class for operations that needs to be performed on the master node.
@@ -66,26 +65,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     protected TransportMasterNodeAction(String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
-    }
-
-    protected TransportMasterNodeAction(String actionName, TransportService transportService,
-                                        ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
         this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
-    }
-
-    protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,
-                                        TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        Supplier<Request> request) {
-        super(actionName, canTripCircuitBreaker, transportService, request, actionFilters);
-        this.transportService = transportService;
-        this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = executor();
     }
 
     protected TransportMasterNodeAction(String actionName, boolean canTripCircuitBreaker,

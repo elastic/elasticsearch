@@ -143,11 +143,6 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
-        return Files.exists(path.resolve(blobName));
-    }
-
-    @Override
     public InputStream readBlob(String name) throws IOException {
         final Path resolvedPath = path.resolve(name);
         try {

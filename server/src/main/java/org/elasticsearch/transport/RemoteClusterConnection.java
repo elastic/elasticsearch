@@ -92,7 +92,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private final TimeValue initialConnectionTimeout;
-    private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
+    private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -208,9 +208,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
                     @Override
                     public ClusterStateResponse read(StreamInput in) throws IOException {
-                        ClusterStateResponse response = new ClusterStateResponse();
-                        response.readFrom(in);
-                        return response;
+                        return new ClusterStateResponse(in);
                     }
 
                     @Override
@@ -253,6 +251,22 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         DiscoveryNode discoveryNode = getAnyConnectedNode();
         Transport.Connection connection = connectionManager.getConnection(discoveryNode);
         return new ProxyConnection(connection, remoteClusterNode);
+    }
+
+    private Predicate<ClusterName> getRemoteClusterNamePredicate() {
+        return
+            new Predicate<ClusterName>() {
+                @Override
+                public boolean test(ClusterName c) {
+                    return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
+                }
+
+                @Override
+                public String toString() {
+                    return remoteClusterName.get() == null ? "any cluster name"
+                        : "expected remote cluster name [" + remoteClusterName.get().value() + "]";
+                }
+            };
     }
 
 
@@ -454,10 +468,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
                                 handshakeResponse = PlainActionFuture.get(fut ->
                                     transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                                        (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()), fut));
+                                        getRemoteClusterNamePredicate(), fut));
                             } catch (IllegalStateException ex) {
-                                logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
-                                    "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
+                                logger.warn(new ParameterizedMessage("failed to connect to seed node [{}]", connection.getNode()), ex);
                                 throw ex;
                             }
 
@@ -552,9 +565,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
             @Override
             public ClusterStateResponse read(StreamInput in) throws IOException {
-                ClusterStateResponse response = new ClusterStateResponse();
-                response.readFrom(in);
-                return response;
+                return new ClusterStateResponse(in);
             }
 
             @Override

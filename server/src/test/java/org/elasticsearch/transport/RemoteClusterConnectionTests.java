@@ -92,6 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -100,6 +101,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.endsWith;
 
 public class RemoteClusterConnectionTests extends ESTestCase {
 
@@ -1106,9 +1108,11 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connection.assertNoRunningConnections());
                     IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () ->
                         updateSeedNodes(connection, Arrays.asList(Tuple.tuple("other", otherClusterTransport::getLocalDiscoNode))));
-                    assertThat(illegalStateException.getMessage(),
-                        startsWith("handshake failed, mismatched cluster name [Cluster [otherCluster]]" +
-                            " - {other_cluster_discoverable_node}"));
+                    assertThat(illegalStateException.getMessage(), allOf(
+                        startsWith("handshake with [{other_cluster_discoverable_node}"),
+                        containsString(otherClusterTransport.getLocalDiscoNode().toString()),
+                        endsWith(" failed: remote cluster name [otherCluster] " +
+                            "does not match expected remote cluster name [testClusterNameIsChecked]")));
                 }
             }
         }

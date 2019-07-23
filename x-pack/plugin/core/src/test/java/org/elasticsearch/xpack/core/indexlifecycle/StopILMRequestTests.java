@@ -6,18 +6,19 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class StopILMRequestTests extends AbstractStreamableTestCase<StopILMRequest> {
-
-    @Override
-    protected StopILMRequest createBlankInstance() {
-        return new StopILMRequest();
-    }
+public class StopILMRequestTests extends AbstractWireSerializingTestCase<StopILMRequest> {
 
     @Override
     protected StopILMRequest createTestInstance() {
         return new StopILMRequest();
+    }
+
+    @Override
+    protected Writeable.Reader<StopILMRequest> instanceReader() {
+        return StopILMRequest::new;
     }
 
     public void testValidate() {

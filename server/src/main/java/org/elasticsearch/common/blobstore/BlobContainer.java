@@ -40,15 +40,6 @@ public interface BlobContainer {
     BlobPath path();
 
     /**
-     * Tests whether a blob with the given blob name exists in the container.
-     *
-     * @param   blobName
-     *          The name of the blob whose existence is to be determined.
-     * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
-     */
-    boolean blobExists(String blobName);
-
-    /**
      * Creates a new {@link InputStream} for the given blob name.
      *
      * @param   blobName

@@ -37,7 +37,7 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     @Inject
     public TransportRemoteInfoAction(TransportService transportService, ActionFilters actionFilters,
                                      SearchTransportService searchTransportService) {
-        super(RemoteInfoAction.NAME, transportService, RemoteInfoRequest::new, actionFilters);
+        super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 

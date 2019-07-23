@@ -60,15 +60,6 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean blobExists(String blobName) {
-        try {
-            return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    @Override
     public void deleteBlob(String blobName) throws IOException {
         try {
             if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {

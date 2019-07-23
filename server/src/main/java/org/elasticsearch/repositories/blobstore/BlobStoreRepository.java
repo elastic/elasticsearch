@@ -131,13 +131,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final int BUFFER_SIZE = 4096;
 
-    private static final String SNAPSHOT_PREFIX = "snap-";
+    public static final String SNAPSHOT_PREFIX = "snap-";
 
-    private static final String SNAPSHOT_CODEC = "snapshot";
+    public static final String SNAPSHOT_CODEC = "snapshot";
 
-    private static final String INDEX_FILE_PREFIX = "index-";
+    public static final String INDEX_FILE_PREFIX = "index-";
 
-    private static final String INDEX_LATEST_BLOB = "index.latest";
+    public static final String INDEX_LATEST_BLOB = "index.latest";
 
     private static final String TESTS_FILE = "tests-";
 
@@ -182,7 +182,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ChecksumBlobStoreFormat<IndexMetaData> indexMetaDataFormat;
 
-    private final ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
+    protected final ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
 
     private final boolean readOnly;
 
@@ -1071,7 +1071,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         } else {
             BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
-            if (testBlobContainer.blobExists("master.dat")) {
+            try (InputStream ignored = testBlobContainer.readBlob("master.dat")) {
                 try {
                     BytesArray bytes = new BytesArray(seed);
                     try (InputStream stream = bytes.streamInput()) {
@@ -1081,11 +1081,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
                         "] is not accessible on the node [" + localNode + "]", exp);
                 }
-            } else {
+            } catch (NoSuchFileException e) {
                 throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() +
                     "] cannot be accessed on the node [" + localNode + "]. " +
                     "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
-                    "that permissions on the store don't allow reading files written by the master node");
+                    "that permissions on the store don't allow reading files written by the master node", e);
+            } catch (IOException e) {
+                throw new RepositoryVerificationException(metadata.name(), "Failed to verify repository", e);
             }
         }
     }

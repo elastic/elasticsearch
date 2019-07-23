@@ -34,6 +34,11 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         this(Strings.EMPTY_ARRAY);
     }
 
+    public IndicesSegmentsRequest(StreamInput in) throws IOException {
+        super(in);
+        verbose = in.readBoolean();
+    }
+
     public IndicesSegmentsRequest(String... indices) {
         super(indices);
     }
@@ -60,11 +65,4 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         out.writeBoolean(verbose);
         
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        verbose = in.readBoolean();
-    }
-    
 }

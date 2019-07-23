@@ -138,9 +138,4 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         out.writeOptionalString(id);
         out.writeOptionalString(name);
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

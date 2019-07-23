@@ -37,6 +37,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -612,6 +613,71 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertThat(sendFilesError.get(), instanceOf(IllegalStateException.class));
         assertThat(sendFilesError.get().getMessage(), containsString("test chunk exception"));
         assertThat("no more chunks should be sent", sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks)));
+        store.close();
+    }
+
+    public void testCancelRecoveryDuringPhase1() throws Exception {
+        Store store = newStore(createTempDir("source"), false);
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.store()).thenReturn(store);
+        Directory dir = store.directory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
+        int numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            Document document = new Document();
+            document.add(new StringField("id", Integer.toString(i), Field.Store.YES));
+            document.add(newField("field", randomUnicodeOfCodepointLengthBetween(1, 10), TextField.TYPE_STORED));
+            writer.addDocument(document);
+        }
+        writer.commit();
+        writer.close();
+        AtomicBoolean wasCancelled = new AtomicBoolean();
+        SetOnce<Runnable> cancelRecovery = new SetOnce<>();
+        final TestRecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
+            @Override
+            public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
+                                        List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
+                recoveryExecutor.execute(() -> listener.onResponse(null));
+                if (randomBoolean()) {
+                    wasCancelled.set(true);
+                    cancelRecovery.get().run();
+                }
+            }
+
+            @Override
+            public void writeFileChunk(StoreFileMetaData md, long position, BytesReference content,
+                                       boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+                recoveryExecutor.execute(() -> listener.onResponse(null));
+                if (rarely()) {
+                    wasCancelled.set(true);
+                    cancelRecovery.get().run();
+                }
+            }
+
+            @Override
+            public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData,
+                                   ActionListener<Void> listener) {
+                recoveryExecutor.execute(() -> listener.onResponse(null));
+                if (randomBoolean()) {
+                    wasCancelled.set(true);
+                    cancelRecovery.get().run();
+                }
+            }
+        };
+        final RecoverySourceHandler handler = new RecoverySourceHandler(
+            shard, recoveryTarget, threadPool, getStartRecoveryRequest(), between(1, 16), between(1, 4));
+        cancelRecovery.set(() -> handler.cancel("test"));
+        final StepListener<RecoverySourceHandler.SendFileResult> phase1Listener = new StepListener<>();
+        try {
+            final CountDownLatch latch = new CountDownLatch(1);
+            handler.phase1(DirectoryReader.listCommits(dir).get(0), randomNonNegativeLong(), () -> 0,
+                new LatchedActionListener<>(phase1Listener, latch));
+            latch.await();
+            phase1Listener.result();
+        } catch (Exception e) {
+            assertTrue(wasCancelled.get());
+            assertNotNull(ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class));
+        }
         store.close();
     }
 

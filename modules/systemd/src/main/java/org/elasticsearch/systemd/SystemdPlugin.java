@@ -60,7 +60,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     }
 
     int sd_notify(@SuppressWarnings("SameParameterValue") final int unset_environment, final String state) {
-        return Libsystemd.sd_notify(0, state);
+        return Libsystemd.sd_notify(unset_environment, state);
     }
 
     @Override

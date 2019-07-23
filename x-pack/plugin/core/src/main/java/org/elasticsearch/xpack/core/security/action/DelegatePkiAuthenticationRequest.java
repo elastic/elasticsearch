@@ -30,8 +30,20 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest {
         this.certificates = certificates;
     }
 
-    public DelegatePkiAuthenticationRequest(StreamInput in) throws IOException {
-        this.readFrom(in);
+    public DelegatePkiAuthenticationRequest(StreamInput input) throws IOException {
+        super(input);
+        try {
+            final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+            certificates = input.readArray(in -> {
+                try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
+                    return (X509Certificate) certificateFactory.generateCertificate(bis);
+                } catch (CertificateException e) {
+                    throw new IOException(e);
+                }
+            }, X509Certificate[]::new);
+        } catch (CertificateException e) {
+            throw new IOException(e);
+        }
     }
 
     @Override
@@ -49,23 +61,6 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest {
 
     public X509Certificate[] getCertificates() {
         return certificates;
-    }
-
-    @Override
-    public void readFrom(StreamInput input) throws IOException {
-        super.readFrom(input);
-        try {
-            final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            certificates = input.readArray(in -> {
-                try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
-                    return (X509Certificate) certificateFactory.generateCertificate(bis);
-                } catch (CertificateException e) {
-                    throw new IOException(e);
-                }
-            }, X509Certificate[]::new);
-        } catch (CertificateException e) {
-            throw new IOException(e);
-        }
     }
 
     @Override

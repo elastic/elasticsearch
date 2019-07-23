@@ -20,6 +20,13 @@
         }
       ]
     },
+    "params": {
+      "defer_validation": {
+        "type": "boolean",
+        "required": false,
+        "description": "If validations should be deferred until data frame transform starts, defaults to false."
+      }
+    },
     "body":{
       "description":"The data frame transform definition",
       "required":true

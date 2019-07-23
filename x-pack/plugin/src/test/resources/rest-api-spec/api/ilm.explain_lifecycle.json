@@ -20,6 +20,15 @@
         }
       ]
     },
-    "params":{}
+    "params": {
+      "only_managed": {
+        "type": "boolean",
+        "description": "filters the indices included in the response to ones managed by ILM"
+      },
+      "only_errors": {
+        "type": "boolean",
+        "description": "filters the indices included in the response to ones in an ILM error state, implies only_managed"
+      }
+    }
   }
 }

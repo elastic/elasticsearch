@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;

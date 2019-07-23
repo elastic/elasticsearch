@@ -57,7 +57,7 @@ PUT /my_locations/_doc/1
 // CONSOLE
 --
 
-[[geo-bbox-query-ex-query]]
+[[geo-distance-query-ex-query]]
 ===== Example query
 The following search uses a `bool` query with a nested `geo_distance`
 <<query-dsl-bool-query,filter>> to find the indexed geopoint.

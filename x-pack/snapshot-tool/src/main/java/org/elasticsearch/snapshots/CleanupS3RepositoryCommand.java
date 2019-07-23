@@ -34,7 +34,6 @@ public class CleanupS3RepositoryCommand extends AbstractCleanupCommand {
                 .withRequiredArg();
     }
 
-
     @Override
     public void execute(Terminal terminal, OptionSet options) throws Exception {
         super.execute(terminal, options);
@@ -59,7 +58,7 @@ public class CleanupS3RepositoryCommand extends AbstractCleanupCommand {
             throw new ElasticsearchException("secret_key option is required for cleaning up S3 repository");
         }
 
-        Repository repository = new S3Repository(
+        S3Repository repository = new S3Repository(
                 terminal,
                 safetyGapMillisOption.value(options),
                 parallelismOption.value(options),

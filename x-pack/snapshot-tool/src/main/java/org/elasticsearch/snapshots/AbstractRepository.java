@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
-public abstract class AbstractRepository implements Repository {
+public abstract class AbstractRepository {
     private static final long DEFAULT_SAFETY_GAP_MILLIS = 3600 * 1000;
     private static final int DEFAULT_PARALLELISM = 100;
 
@@ -163,7 +163,6 @@ public abstract class AbstractRepository implements Repository {
         }
     }
 
-    @Override
     public void cleanup() throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining latest index file generation and creation timestamp");
         Tuple<Long, Date> latestIndexIdAndTimestamp = getLatestIndexIdAndTimestamp();
@@ -312,4 +311,14 @@ public abstract class AbstractRepository implements Repository {
     protected String fullPath(String path) {
         return basePath + "/" + path;
     }
+
+    protected abstract Tuple<Long, Date> getLatestIndexIdAndTimestamp() throws IOException;
+
+    protected abstract InputStream getBlobInputStream(String blobName);
+
+    protected abstract Set<String> getAllIndexDirectoryNames();
+
+    protected abstract Date getIndexTimestamp(String indexDirectoryName);
+
+    protected abstract Tuple<Integer, Long> deleteIndex(String indexDirectoryName);
 }

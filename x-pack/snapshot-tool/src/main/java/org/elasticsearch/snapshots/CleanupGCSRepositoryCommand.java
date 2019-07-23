@@ -30,7 +30,7 @@ public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
             throw new ElasticsearchException("credentials_file option is required for cleaning up GCS repository");
         }
 
-        Repository repository = new GCSRepository(terminal,
+        GCSRepository repository = new GCSRepository(terminal,
                 safetyGapMillisOption.value(options),
                 parallelismOption.value(options),
                 credentialsFile,

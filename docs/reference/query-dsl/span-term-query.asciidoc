@@ -4,42 +4,75 @@
 <titleabbrev>Span term</titleabbrev>
 ++++
 
-Matches spans containing a term. The span term query maps to Lucene
-`SpanTermQuery`. Here is an example:
+Matches spans that contain an *exact* term in a provided field.
+
+You can combine the `span_term` query with other <<span-queries,span queries>>,
+like `span_first` and `span_near`, to create more complex searches.
+
+[[span-term-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
-        "span_term" : { "user" : "kimchy" }
+        "span_term" : {
+            "user": {
+                "value": "Kimchy",
+                "boost": 2.0
+            }
+        }
     }
 }    
---------------------------------------------------
+----
 // CONSOLE
 
-A boost can also be associated with the query:
+[[span-term-top-level-params]]
+==== Top-level parameters for `span_term`
+`<field>`::
+(Required, object) Field you wish to search.
+
+[[span-term-field-params]]
+==== Parameters for `<field>`
+`value`::
+(Required, string) Term you wish to find in the provided `<field>`. To return a
+document, the term must exactly match the field value, including whitespace and
+capitalization.
+
+`boost`::
++
+--
+(Optional, float) Floating point number used to decrease or increase the
+<<query-filter-context, relevance scores>> of a query. Defaults to `1.0`.
+
+WARNING: When using the `span_term` query with compound <<span-queries,span
+queries>>, like <<query-dsl-span-near-query,`span_near`>>, you can only set a
+`boost` value for the outermost span query.
+
+Boost values are relative to the default value of `1.0`. A boost value between
+`0` and `1.0` decreases the relevance score. A value greater than `1.0`
+increases the relevance score.
+--
+
+
+[[span-term-query-notes]]
+==== Notes
+
+[[span-term-query-short-ex]]
+=====  Short request example
+You can simplify the `span_query` query syntax by combining the `<field>` and
+`value` parameters. For example:
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
-       "span_term" : { "user" : { "value" : "kimchy", "boost" : 2.0 } }
+        "span_term" : { 
+            "user" : "kimchy"
+        }
     }
 }    
---------------------------------------------------
-// CONSOLE
-
-Or :
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "span_term" : { "user" : { "term" : "kimchy", "boost" : 2.0 } }
-    }
-}    
---------------------------------------------------
+----
 // CONSOLE

@@ -105,11 +105,11 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     private final String forecastId;
     private long recordCount;
     private List<String> messages;
-    private Instant timestamp = Instant.ofEpochMilli(Instant.EPOCH.toEpochMilli());
-    private Instant startTime = Instant.ofEpochMilli(Instant.EPOCH.toEpochMilli());
-    private Instant endTime = Instant.ofEpochMilli(Instant.EPOCH.toEpochMilli());
-    private Instant createTime = Instant.ofEpochMilli(Instant.EPOCH.toEpochMilli());
-    private Instant expiryTime = Instant.ofEpochMilli(Instant.EPOCH.toEpochMilli());
+    private Instant timestamp = Instant.EPOCH;
+    private Instant startTime = Instant.EPOCH;
+    private Instant endTime = Instant.EPOCH;
+    private Instant createTime = Instant.EPOCH;
+    private Instant expiryTime = Instant.EPOCH;
     private double progress;
     private long processingTime;
     private long memoryUsage;

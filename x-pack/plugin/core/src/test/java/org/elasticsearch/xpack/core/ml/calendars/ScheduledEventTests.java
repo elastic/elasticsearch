@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
@@ -26,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
 
     public static ScheduledEvent createScheduledEvent(String calendarId) {
-        Instant start = Instant.ofEpochMilli(Instant.now().toEpochMilli());
+        Instant start = Instant.now();
         return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
                 calendarId, null);
     }

@@ -40,6 +40,10 @@ public final class DataFrameField {
      * Fields for checkpointing
      */
     // the timestamp of the checkpoint, mandatory
+    public static final ParseField CHECKPOINT = new ParseField("checkpoint");
+    public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
+    public static final ParseField POSITION = new ParseField("position");
+    public static final ParseField CHECKPOINT_PROGRESS = new ParseField("checkpoint_progress");
     public static final ParseField TIMESTAMP_MILLIS = new ParseField("timestamp_millis");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     // checkpoint for for time based sync

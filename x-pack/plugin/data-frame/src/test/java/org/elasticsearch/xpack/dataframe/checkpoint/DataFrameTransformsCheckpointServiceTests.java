@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,7 +60,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 
@@ -78,7 +77,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 
@@ -95,7 +94,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
         // low-level compare
         for (Entry<String, long[]> entry : expectedCheckpoints.entrySet()) {
-            assertTrue(Arrays.equals(entry.getValue(), checkpoints.get(entry.getKey())));
+            assertArrayEquals(entry.getValue(), checkpoints.get(entry.getKey()));
         }
     }
 

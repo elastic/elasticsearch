@@ -7,9 +7,6 @@ setup:
         timeout: 70s
 ---
 "Get start, stop, and delete old and mixed cluster batch data frame transforms":
-  - skip:
-      version: "7.4.0 - "
-      reason: waiting backport of https://github.com/elastic/elasticsearch/pull/44590
   # Simple and complex OLD transforms
   - do:
       data_frame.get_data_frame_transform:
@@ -165,9 +162,6 @@ setup:
 
 ---
 "Test GET, stop, delete, old and mixed continuous transforms":
-  - skip:
-      version: "7.4.0 - "
-      reason: waiting backport of https://github.com/elastic/elasticsearch/pull/44590
   - do:
       data_frame.get_data_frame_transform:
         transform_id: "old-simple-continuous-transform"

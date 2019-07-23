@@ -140,10 +140,10 @@ the `<field>` parameter.
 
 `STRICT` (Default):: Do not accept an invalid geopoint.
 
-`COERCE`:: Accepts an invalid geopoint. Attempt to infer the correct latitude
+`COERCE`:: Accept an invalid geopoint. Attempt to infer the correct latitude
 and longitude of the geopoint.
 
-`IGNORE_MALFORMED`:: Accepts an invalid geopoint Do not attempt to infer the
+`IGNORE_MALFORMED`:: Accept an invalid geopoint. Do not attempt to infer the
 correct latitude and longitude of the geopoint.
 --
 

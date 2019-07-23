@@ -130,6 +130,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testPooledMemoryChoiceOnNotSmallHeap() throws InterruptedException, IOException {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
         final String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
         assertThat(
                 JvmErgonomics.choose(Arrays.asList("-Xms" + largeHeap, "-Xmx" + largeHeap)),

@@ -27,6 +27,7 @@ coming[8.0.0]
 * <<breaking_80_reindex_changes>>
 * <<breaking_80_search_changes>>
 * <<breaking_80_settings_changes>>
+* <<breaking_80_indices_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

@@ -11,6 +11,7 @@
                    filter           .+   \n
                    routing.index    .+   \n
                    routing.search   .+   \n
+                   is_write_index   .+   \n
                $/
 
 ---
@@ -47,6 +48,7 @@
                     -                   \s+
                     -                   \s+
                     -                   \s+
+                    -                   \s+
                 $/
 
 ---
@@ -68,6 +70,7 @@
             body:
                 index_routing:  ir
                 search_routing: "sr1,sr2"
+                is_write_index: true
                 filter:
                     term:
                         foo: bar
@@ -82,6 +85,7 @@
                     [*]                 \s+
                     ir                  \s+
                     sr1,sr2             \s+
+                    true                \s+
                 $/
 
 ---
@@ -189,13 +193,15 @@
                    index           \s+
                    filter          \s+
                    routing.index   \s+
-                   routing.search
+                   routing.search  \s+
+                   is_write_index
                    \n
                    test_1          \s+
                    test            \s+
                    -               \s+
                    -               \s+
                    -               \s+
+                  -               \s+
                $/
 
 
@@ -252,6 +258,7 @@
                 /^
                     test_alias          \s+
                     test_index          \s+
+                    -                   \s+
                     -                   \s+
                     -                   \s+
                     -                   \s+

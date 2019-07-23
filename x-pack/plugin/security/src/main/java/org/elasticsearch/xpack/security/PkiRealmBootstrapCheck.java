@@ -38,11 +38,11 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
     public BootstrapCheckResult check(BootstrapContext context) {
         final Settings settings = context.settings();
         final Map<RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
-        final boolean pkiRealmEnabled = realms.entrySet().stream()
+        final boolean pkiRealmEnabledWithoutDelegation = realms.entrySet().stream()
                 .filter(e -> PkiRealmSettings.TYPE.equals(e.getKey().getType()))
                 .map(Map.Entry::getValue)
-                .anyMatch(s -> s.getAsBoolean("enabled", true));
-        if (pkiRealmEnabled) {
+                .anyMatch(s -> s.getAsBoolean("enabled", true) && (false == s.getAsBoolean("delegation.enabled", false)));
+        if (pkiRealmEnabledWithoutDelegation) {
             for (String contextName : getSslContextNames(settings)) {
                 final SSLConfiguration configuration = sslService.getSSLConfiguration(contextName);
                 if (sslService.isSSLClientAuthEnabled(configuration)) {

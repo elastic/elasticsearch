@@ -1,15 +1,71 @@
 [[query-dsl-geo-polygon-query]]
-=== Geo-polygon query
+=== Geo polygon query
 ++++
-<titleabbrev>Geo-polygon</titleabbrev>
+<titleabbrev>Geo polygon</titleabbrev>
 ++++
 
-A query returning hits that only fall within a polygon of
-points. Here is an example:
+Returns documents containing a point location, or <<geo-point,geopoint>>, within
+a provided polygon.
+
+[[geo-polygon-query-ex-request]]
+==== Example request
+
+[[geo-polygon-query-index-setup]]
+===== Index setup
+To see how you can set up an index for the `geo_polygon` query, try the
+following example.
+
+. Create an index with a <<geo-point,geopoint>> field mapping.
++
+--
+[source,js]
+----
+PUT /my_locations
+{
+    "mappings": {
+        "properties": {
+            "pin": {
+                "properties": {
+                    "location": {
+                        "type": "geo_point"
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// CONSOLE
+// TESTSETUP
+--
+
+. Index a document with a value in the geopoint field.
++
+--
+[source,js]
+----
+PUT /my_locations/_doc/1
+{
+    "pin" : {
+        "location" : {
+            "lat" : 40.12,
+            "lon" : -69.34
+        }
+    }
+}
+----
+// CONSOLE
+--
+
+[[geo-polygon-query-ex-query]]
+===== Example query
+
+The following search uses a `bool` query with a nested `geo_polygon`
+<<query-dsl-bool-query,filter>> to find the indexed geopoint.
 
 [source,js]
---------------------------------------------------
-GET /_search
+----
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -18,7 +74,7 @@ GET /_search
             },
             "filter" : {
                 "geo_polygon" : {
-                    "person.location" : {
+                    "pin.location" : {
                         "points" : [
                             {"lat" : 40, "lon" : -70},
                             {"lat" : 30, "lon" : -80},
@@ -30,35 +86,77 @@ GET /_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-==== Query Options
+[[geo-polygon-top-level-params]]
+==== Top-level parameters for `geo_polygon`
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Option |Description
-|`_name` |Optional name field to identify the filter
+`<field>`::
+(Required, object) <<geo-point,Geopoint>> field you wish to search. If this is
+not a <<geo-point,geopoint>> field, {es} returns an error.
 
-|`validation_method` |Set to `IGNORE_MALFORMED` to accept geo points with
-invalid latitude or longitude, `COERCE` to try and infer correct latitude
-or longitude, or `STRICT` (default is `STRICT`).
-|=======================================================================
+[[geo-polygon-field-params]]
+==== Parameters for `<field>`
 
-[float]
-==== Allowed Formats
+`points`::
++
+--
+(Required, array of <<geo-polygon-accepted-formats,latitude-longitude pairs>>)
+Array of latitude-longitude pairs used to create a polygon. The query returns
+documents containing geopoints in the provided `<field>` that are within this
+polygon.
 
-[float]
-===== Lat Long as Array
+See <<geo-polygon-accepted-formats>> for a list of supported formats.
+--
 
-Format as `[lon, lat]`
+`ignore_unmapped`::
++
+--
+(Optional, boolean) Indicates whether to ignore an unmapped `<field>` and not
+return any documents instead of an error. Defaults to `false`.
 
-Note: the order of lon/lat here must
-conform with http://geojson.org/[GeoJSON].
+If `false`, {es} returns an error if the `<field>` is unmapped.
+
+You can use this parameter to query multiple indices that may not contain the
+`<field>`.
+--
+
+`validation_method`::
++
+--
+(Optional, string) Indicates whether the query accepts invalid
+latitude or longitude values in the `<field>` parameter.
+
+`STRICT` (Default):: Do not accept invalid latitude or longitude values.
+
+`COERCE`:: Accept invalid latitude or longitude values. Attempt to infer the
+correct latitude or longitude.
+
+`IGNORE_MALFORMED`:: Accept invalid latitude or longitude values. Do not attempt
+to infer the correct latitude or longitude.
+--
+
+
+[[geo-polygon-query-notes]]
+==== Notes
+
+[[geo-polygon-accepted-formats]]
+===== Accepted latitude-longitude formats
+
+The `points` parameter accepts the following latitude-longitude formats:
+
+* <<geo-polygon-format-array,Array>>
+* <<geo-polygon-format-geohash,Geohash>>
+* <<geo-polygon-format-string,String>>
+
+[[geo-polygon-format-array]]
+====== Array
+The following search uses the `[longitude, latitude]` array format. Note
+the longitude-latitude order conforms with http://geojson.org/[GeoJSON].
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
@@ -68,7 +166,7 @@ GET /_search
             },
             "filter" : {
                 "geo_polygon" : {
-                    "person.location" : {
+                    "pin.location" : {
                         "points" : [
                             [-70, 40],
                             [-80, 30],
@@ -80,16 +178,16 @@ GET /_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-===== Lat Lon as String
-
-Format in `lat,lon`.
+[[geo-polygon-format-geohash]]
+====== Geohash
+The following search uses the https://en.wikipedia.org/wiki/Geohash[geohash]
+format.
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
@@ -99,36 +197,7 @@ GET /_search
             },
             "filter" : {
                "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            "40, -70",
-                            "30, -80",
-                            "20, -90"
-                        ]
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-===== Geohash
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-               "geo_polygon" : {
-                    "person.location" : {
+                    "pin.location" : {
                         "points" : [
                             "drn5x1g8cu2y",
                             "30, -80",
@@ -140,20 +209,35 @@ GET /_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-[float]
-==== geo_point Type
+[[geo-polygon-format-string]]
+====== String
+The following search uses the `latitude, longitude` string format.
 
-The query *requires* the <<geo-point,`geo_point`>> type to be set on the
-relevant field.
-
-[float]
-==== Ignore Unmapped
-
-When set to `true` the `ignore_unmapped` option will ignore an unmapped field
-and will not match any documents for this query. This can be useful when
-querying multiple indexes which might have different mappings. When set to
-`false` (the default value) the query will throw an exception if the field
-is not mapped.
+[source,js]
+----
+GET /_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+               "geo_polygon" : {
+                    "pin.location" : {
+                        "points" : [
+                            "40, -70",
+                            "30, -80",
+                            "20, -90"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// CONSOLE

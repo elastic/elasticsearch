@@ -35,9 +35,4 @@ public abstract class ActionResponse extends TransportResponse {
     public ActionResponse(StreamInput in) throws IOException {
         super(in);
     }
-
-    @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

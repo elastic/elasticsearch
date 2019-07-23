@@ -111,7 +111,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         transportNodeBroadcastAction = actionName + "[n]";
 
-        transportService.registerRequestHandler(transportNodeBroadcastAction, NodeRequest::new, executor, false, canTripCircuitBreaker,
+        transportService.registerRequestHandler(transportNodeBroadcastAction, executor, false, canTripCircuitBreaker, NodeRequest::new,
             new BroadcastByNodeTransportRequestHandler());
     }
 
@@ -452,7 +452,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         protected Request indicesLevelRequest;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            indicesLevelRequest = readRequestFrom(in);
+            shards = in.readList(ShardRouting::new);
+            nodeId = in.readString();
         }
 
         public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {
@@ -477,14 +481,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         @Override
         public IndicesOptions indicesOptions() {
             return indicesLevelRequest.indicesOptions();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indicesLevelRequest = readRequestFrom(in);
-            shards = in.readList(ShardRouting::new);
-            nodeId = in.readString();
         }
 
         @Override

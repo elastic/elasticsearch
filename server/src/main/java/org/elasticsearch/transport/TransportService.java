@@ -732,7 +732,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
-        final DirectResponseChannel channel = new DirectResponseChannel(logger, localNode, action, requestId, this, threadPool);
+        final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
@@ -1141,16 +1141,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     static class DirectResponseChannel implements TransportChannel {
-        final Logger logger;
         final DiscoveryNode localNode;
         private final String action;
         private final long requestId;
         final TransportService service;
         final ThreadPool threadPool;
 
-        DirectResponseChannel(Logger logger, DiscoveryNode localNode, String action, long requestId, TransportService service,
-                              ThreadPool threadPool) {
-            this.logger = logger;
+        DirectResponseChannel(DiscoveryNode localNode, String action, long requestId, TransportService service, ThreadPool threadPool) {
             this.localNode = localNode;
             this.action = action;
             this.requestId = requestId;

@@ -439,8 +439,8 @@ public class MetaDataCreateIndexService {
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
 
                 /*
-                 * We can not check the shard limit until we have applied templates, otherwise we do not know the actual
-                 * number of shards that will be used to create this index.
+                 * We can not check the shard limit until we have applied templates, otherwise we do not know the actual number of shards
+                 * that will be used to create this index.
                  */
                 checkShardLimit(actualIndexSettings, currentState);
 

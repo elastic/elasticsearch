@@ -34,6 +34,7 @@ import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLArgument.newArgument;
 import static graphql.Scalars.*;
+import graphql.scalars.ExtendedScalars;
 
 public class GqlServer {
     private static final Logger logger = LogManager.getLogger(GqlServer.class);
@@ -48,6 +49,7 @@ public class GqlServer {
         this.api = api;
         builder = new GqlBuilder();
 
+        addScalarTypes(builder);
         addPingResolver(builder);
         addFooResolver(builder);
         addHelloQuery(builder);
@@ -56,6 +58,10 @@ public class GqlServer {
 
         schema = builder.build();
         graphql = GraphQL.newGraphQL(schema).build();
+    }
+
+    private void addScalarTypes(GqlBuilder builder) {
+        builder.type(ExtendedScalars.Json);
     }
 
     private void addPingResolver(GqlBuilder builder) {
@@ -219,6 +225,10 @@ public class GqlServer {
                     .name("uuid")
                     .description("Unique ID of index.")
                     .type(GraphQLString))
+                .field(newFieldDefinition()
+                    .name("mappings")
+                    .description("Index schema mappings.")
+                    .type(nonNull(ExtendedScalars.Json)))
                 .build())
             .queryField(newFieldDefinition()
                 .name("index")

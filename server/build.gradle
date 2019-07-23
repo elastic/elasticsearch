@@ -84,6 +84,8 @@ dependencies {
   compile 'com.graphql-java:java-dataloader:2.1.1'
   compile 'org.reactivestreams:reactive-streams:' + reactiveStreamsVersion
   compile group: 'com.graphql-java', name: 'graphql-java', version: '13.0'
+  compile group: 'com.graphql-java', name: 'graphql-java-extended-scalars', version: '1.0'
+
 
   compile project(':libs:elasticsearch-core')
   compile project(':libs:elasticsearch-secure-sm')

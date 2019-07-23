@@ -1402,8 +1402,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
                     recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
-                    return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                    final int recoveredOps = runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
                         recoveryState.getTranslog()::incrementRecoveredOperations);
+                    recoveryState.getTranslog().totalLocal(recoveredOps); // adjust the total local to reflect the actual count
+                    return recoveredOps;
                 };
                 innerOpenEngineAndTranslog();
                 getEngine().recoverFromTranslog(translogRecoveryRunner, globalCheckpoint);

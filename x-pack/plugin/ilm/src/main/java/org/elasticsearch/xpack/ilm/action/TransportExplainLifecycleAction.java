@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
+import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
 import java.util.HashMap;

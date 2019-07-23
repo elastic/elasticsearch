@@ -159,6 +159,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -1359,6 +1360,81 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert currentEngineReference.get() == null;
     }
 
+    /**
+     * A best effort to bring up this shard to the global checkpoint using the local translog before performing a peer recovery.
+     *
+     * @return a sequence number that an operation-based peer recovery can start with.
+     * This is the first operation after the local checkpoint of the safe commit if exists.
+     */
+    public long recoverLocallyUpToGlobalCheckpoint() {
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        assert recoveryState.getStage() == RecoveryState.Stage.INDEX : "unexpected recovery stage [" + recoveryState.getStage() + "]";
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+        final Optional<SequenceNumbers.CommitInfo> safeCommit;
+        final long globalCheckpoint;
+        try {
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            safeCommit = store.findSafeIndexCommit(globalCheckpoint);
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            logger.trace("skip local recovery as no index commit found");
+            return UNASSIGNED_SEQ_NO;
+        } catch (Exception e) {
+            logger.debug("skip local recovery as failed to find the safe commit", e);
+            return UNASSIGNED_SEQ_NO;
+        }
+        if (safeCommit.isPresent() == false) {
+            logger.trace("skip local recovery as no safe commit found");
+            return UNASSIGNED_SEQ_NO;
+        }
+        assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
+        try {
+            maybeCheckIndex(); // check index here and won't do it again if ops-based recovery occurs
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            if (safeCommit.get().localCheckpoint == globalCheckpoint) {
+                logger.trace("skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
+                    safeCommit.get(), globalCheckpoint);
+                recoveryState.getTranslog().totalLocal(0);
+                return globalCheckpoint + 1;
+            }
+            try {
+                final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
+                    recoveryState.getTranslog().totalLocal(snapshot.totalOperations());
+                    final int recoveredOps = runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+                        recoveryState.getTranslog()::incrementRecoveredOperations);
+                    recoveryState.getTranslog().totalLocal(recoveredOps); // adjust the total local to reflect the actual count
+                    return recoveredOps;
+                };
+                innerOpenEngineAndTranslog();
+                getEngine().recoverFromTranslog(translogRecoveryRunner, globalCheckpoint);
+                logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
+            } finally {
+                synchronized (mutex) {
+                    IOUtils.close(currentEngineReference.getAndSet(null));
+                }
+            }
+        } catch (Exception e) {
+            logger.debug(new ParameterizedMessage("failed to recover shard locally up to global checkpoint {}", globalCheckpoint), e);
+            return UNASSIGNED_SEQ_NO;
+        }
+        try {
+            // we need to find the safe commit again as we should have created a new one during the local recovery
+            final Optional<SequenceNumbers.CommitInfo> newSafeCommit = store.findSafeIndexCommit(globalCheckpoint);
+            assert newSafeCommit.isPresent() : "no safe commit found after local recovery";
+            return newSafeCommit.get().localCheckpoint + 1;
+        } catch (Exception e) {
+            if (Assertions.ENABLED) {
+                throw new AssertionError(
+                    "failed to find the safe commit after recovering shard locally up to global checkpoint " + globalCheckpoint, e);
+            }
+            logger.debug(new ParameterizedMessage(
+                "failed to find the safe commit after recovering shard locally up to global checkpoint {}", globalCheckpoint), e);
+            return UNASSIGNED_SEQ_NO;
+        }
+    }
+
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
         getEngine().trimOperationsFromTranslog(getOperationPrimaryTerm(), aboveSeqNo);
     }
@@ -1462,6 +1538,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
     public void openEngineAndRecoverFromTranslog() throws IOException {
+        assert recoveryState.getStage() == RecoveryState.Stage.INDEX : "unexpected recovery stage [" + recoveryState.getStage() + "]";
+        maybeCheckIndex();
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         final RecoveryState.Translog translogRecoveryStats = recoveryState.getTranslog();
         final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
             translogRecoveryStats.totalOperations(snapshot.totalOperations());
@@ -1478,6 +1557,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The translog is kept but its operations won't be replayed.
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+        assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "unexpected recovery stage [" + recoveryState.getStage() + "]";
         innerOpenEngineAndTranslog();
         getEngine().skipTranslogRecovery();
     }
@@ -1486,17 +1567,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
-        // also check here, before we apply the translog
-        if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
-            try {
-                checkIndex();
-            } catch (IOException ex) {
-                throw new RecoveryFailedException(recoveryState, "check index failed", ex);
-            }
-        }
-        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-
         final EngineConfig config = newEngineConfig();
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -1552,14 +1622,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void performRecoveryRestart() throws IOException {
         synchronized (mutex) {
-            if (state != IndexShardState.RECOVERING) {
-                throw new IndexShardNotRecoveringException(shardId, state);
-            }
             assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
-            final Engine engine = this.currentEngineReference.getAndSet(null);
-            IOUtils.close(engine);
-            recoveryState().setStage(RecoveryState.Stage.INIT);
+            IOUtils.close(currentEngineReference.getAndSet(null));
+            resetRecoveryStage();
         }
+    }
+
+    /**
+     * If a file-based recovery occurs, a recovery target calls this method to reset the recovery stage.
+     */
+    public void resetRecoveryStage() {
+        assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+        assert currentEngineReference.get() == null;
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState().setStage(RecoveryState.Stage.INIT);
     }
 
     /**
@@ -2294,6 +2372,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void noopUpdate(String type) {
         internalIndexingStats.noopUpdate(type);
+    }
+
+    public void maybeCheckIndex() {
+        recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+        if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
+            try {
+                checkIndex();
+            } catch (IOException ex) {
+                throw new RecoveryFailedException(recoveryState, "check index failed", ex);
+            }
+        }
     }
 
     void checkIndex() throws IOException {

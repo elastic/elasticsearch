@@ -66,6 +66,49 @@ public class GqlElasticsearchApi implements GqlApi {
         Map<String, Object> indexSettings = (Map<String, Object>) data.get("settings");
         indexSettings = (Map<String, Object>) indexSettings.get("index");
 
+        /*
+                "number_of_shards": "1",
+                "auto_expand_replicas": "0-1",
+                "provided_name": ".security-7",
+                "format": "6",
+                "creation_date": "1563885155564",
+                "analysis": {
+                    "filter": {
+                        "email": {
+                            "type": "pattern_capture",
+                            "preserve_original": "true",
+                            "patterns": [
+                                "([^@]+)",
+                                "(\\p{L}+)",
+                                "(\\d+)",
+                                "@(.+)"
+                            ]
+                        }
+                    },
+                    "analyzer": {
+                        "email": {
+                            "filter": [
+                                "email",
+                                "lowercase",
+                                "unique"
+                            ],
+                            "tokenizer": "uax_url_email"
+                        }
+                    }
+                },
+                "priority": "1000",
+                "number_of_replicas": "0",
+                "uuid": "lvvijma8RD6D-TJrtPMVUg",
+                "version": {
+                    "created": "8000099"
+                }
+         */
+        indexSettings.put("numberOfShards", indexSettings.get("number_of_shards"));
+        indexSettings.put("autoExpandReplicas", indexSettings.get("auto_expand_replicas"));
+        indexSettings.put("providerName", indexSettings.get("provided_name"));
+        indexSettings.put("creationDate", indexSettings.get("creation_date"));
+        indexSettings.put("numberOfReplicas", indexSettings.get("number_of_replicas"));
+
         indexSettings.put("mappings", data.get("mappings"));
 
         return indexSettings;

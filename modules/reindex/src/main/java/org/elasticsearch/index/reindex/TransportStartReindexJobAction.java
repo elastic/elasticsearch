@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -53,7 +54,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.index.reindex.ReindexTask.REINDEX_ORIGIN;
 
 public class TransportStartReindexJobAction
     extends TransportMasterNodeAction<StartReindexJobAction.Request, StartReindexJobAction.Response> {
@@ -70,7 +71,7 @@ public class TransportStartReindexJobAction
         this.persistentTasksService = persistentTasksService;
 
         // TODO: Need reindex origin probably.
-        this.taskClient = new OriginSettingClient(client, TASKS_ORIGIN);
+        this.taskClient = new OriginSettingClient(client, REINDEX_ORIGIN);
     }
 
     @Override
@@ -170,7 +171,7 @@ public class TransportStartReindexJobAction
 
     private void createReindexTaskDoc(String taskId, ReindexRequest reindexRequest, boolean indexExists, ActionListener<Void> listener) {
         if (indexExists) {
-            IndexRequest indexRequest = new IndexRequest(ReindexTask.REINDEX_INDEX).id(taskId);
+            IndexRequest indexRequest = new IndexRequest(ReindexTask.REINDEX_INDEX).id(taskId).opType(DocWriteRequest.OpType.CREATE);
             try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                 ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest);
                 reindexState.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -194,6 +195,7 @@ public class TransportStartReindexJobAction
             createIndexRequest.settings(reindexIndexSettings());
             createIndexRequest.index(ReindexTask.REINDEX_INDEX);
             createIndexRequest.cause("auto(reindex api)");
+            createIndexRequest.mapping("_doc", "{\"dynamic\": false}", XContentType.JSON);
 
             taskClient.admin().indices().create(createIndexRequest, new ActionListener<>() {
                 @Override

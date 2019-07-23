@@ -51,8 +51,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
-
 public class ReindexTask extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(ReindexTask.class);
@@ -60,6 +58,7 @@ public class ReindexTask extends AllocatedPersistentTask {
     // TODO: Name
     public static final String NAME = "reindex/job";
     public static final String REINDEX_INDEX = ".reindex";
+    public static final String REINDEX_ORIGIN = "reindex";
 
     private final NodeClient client;
     private final Client taskClient;
@@ -101,7 +100,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         super(id, type, action, "persistent reindex", parentTask, headers);
         this.xContentRegistry = xContentRegistry;
         this.client = (NodeClient) client;
-        this.taskClient = new OriginSettingClient(client, TASKS_ORIGIN);
+        this.taskClient = new OriginSettingClient(client, REINDEX_ORIGIN);
         this.taskId = new TaskId(clusterService.localNode().getId(), id);
     }
 

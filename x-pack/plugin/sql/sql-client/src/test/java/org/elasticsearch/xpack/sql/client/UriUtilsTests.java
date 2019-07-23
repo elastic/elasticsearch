@@ -120,9 +120,4 @@ public class UriUtilsTests extends ESTestCase {
         assertEquals(URI.create("https://server:9100/es_rest/_sql"),
                 appendSegmentToPath(URI.create("https://server:9100/es_rest/"), "/_sql"));
     }
-    
-    public void testAppendSegmentNoSchemaToPath() throws Exception {
-        assertEquals(URI.create("server:9100/es_rest/_sql"),
-                appendSegmentToPath(URI.create("server:9100/es_rest/"), "/_sql"));
-    }
 }

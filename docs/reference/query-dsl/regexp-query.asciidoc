@@ -41,7 +41,7 @@ GET /_search
 [[regexp-top-level-params]]
 ==== Top-level parameters for `regexp`
 `<field>`::
-(Required, string) Field you wish to search.
+(Required, object) Field you wish to search.
 
 [[regexp-query-field-params]]
 ==== Parameters for `<field>`

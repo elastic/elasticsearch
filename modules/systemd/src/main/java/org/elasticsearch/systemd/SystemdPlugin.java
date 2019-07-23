@@ -27,8 +27,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.io.IOException;
-
 public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     private static final Logger logger = LogManager.getLogger(SystemdPlugin.class);
@@ -76,7 +74,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (enabled) {
             final int rc = sd_notify(0, "STOPPING=1");
             logger.trace("sd_notify returned [{}]", rc);

@@ -68,7 +68,6 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testOnNodeStartedSuccess() {
         runTestOnNodeStarted(
-            true,
             Boolean.TRUE.toString(),
             randomIntBetween(0, Integer.MAX_VALUE),
             maybe -> assertThat(maybe, OptionalMatchers.isEmpty()));
@@ -77,7 +76,6 @@ public class SystemdPluginTests extends ESTestCase {
     public void testOnNodeStartedFailure() {
         final int rc = randomIntBetween(Integer.MIN_VALUE, -1);
         runTestOnNodeStarted(
-            true,
             Boolean.TRUE.toString(),
             rc,
             maybe -> {
@@ -90,23 +88,20 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testOnNodeStartedNotEnabled() {
         runTestOnNodeStarted(
-            true,
             Boolean.FALSE.toString(),
             randomInt(),
             maybe -> assertThat(maybe, OptionalMatchers.isEmpty()));
     }
 
     private void runTestOnNodeStarted(
-        final boolean isLinux,
         final String esSDNotify,
         final int rc,
         final Consumer<Optional<Exception>> assertions) {
-        runTest(isLinux, esSDNotify, rc, assertions, SystemdPlugin::onNodeStarted, "READY=1");
+        runTest(esSDNotify, rc, assertions, SystemdPlugin::onNodeStarted, "READY=1");
     }
 
     public void testCloseSuccess() {
         runTestClose(
-            true,
             Boolean.TRUE.toString(),
             randomIntBetween(1, Integer.MAX_VALUE),
             maybe -> assertThat(maybe, OptionalMatchers.isEmpty()));
@@ -114,7 +109,6 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testCloseFailure() {
         runTestClose(
-            true,
             Boolean.TRUE.toString(),
             randomIntBetween(Integer.MIN_VALUE, -1),
             maybe -> assertThat(maybe, OptionalMatchers.isEmpty()));
@@ -122,22 +116,19 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testCloseNotEnabled() {
         runTestClose(
-            true,
             Boolean.FALSE.toString(),
             randomInt(),
             maybe -> assertThat(maybe, OptionalMatchers.isEmpty()));
     }
 
     private void runTestClose(
-        final boolean isLinux,
         final String esSDNotify,
         final int rc,
         final Consumer<Optional<Exception>> assertions) {
-        runTest(isLinux, esSDNotify, rc, assertions, SystemdPlugin::close, "STOPPING=1");
+        runTest(esSDNotify, rc, assertions, SystemdPlugin::close, "STOPPING=1");
     }
 
     private void runTest(
-        final boolean isLinux,
         final String esSDNotify,
         final int rc,
         final Consumer<Optional<Exception>> assertions,
@@ -146,7 +137,7 @@ public class SystemdPluginTests extends ESTestCase {
         final AtomicBoolean invoked = new AtomicBoolean();
         final AtomicInteger invokedUnsetEnvironment = new AtomicInteger();
         final AtomicReference<String> invokedState = new AtomicReference<>();
-        final SystemdPlugin plugin = new SystemdPlugin(false, isLinux, esSDNotify) {
+        final SystemdPlugin plugin = new SystemdPlugin(false, true, esSDNotify) {
 
             @Override
             int sd_notify(final int unset_environment, final String state) {
@@ -168,7 +159,7 @@ public class SystemdPluginTests extends ESTestCase {
         if (success) {
             assertions.accept(Optional.empty());
         }
-        if (isLinux && Boolean.TRUE.toString().equals(esSDNotify)) {
+        if (Boolean.TRUE.toString().equals(esSDNotify)) {
             assertTrue(invoked.get());
             assertThat(invokedUnsetEnvironment.get(), equalTo(0));
             assertThat(invokedState.get(), equalTo(expectedState));

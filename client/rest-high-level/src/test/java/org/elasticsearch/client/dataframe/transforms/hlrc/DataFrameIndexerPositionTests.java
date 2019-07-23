@@ -40,9 +40,13 @@ public class DataFrameIndexerPositionTests extends AbstractResponseTestCase<
         return new DataFrameIndexerPosition(instance.getIndexerPosition(), instance.getBucketsPosition());
     }
 
+    public static DataFrameIndexerPosition randomDataFrameIndexerPosition() {
+        return new DataFrameIndexerPosition(randomPositionMap(), randomPositionMap());
+    }
+
     @Override
     protected DataFrameIndexerPosition createServerTestInstance() {
-        return new DataFrameIndexerPosition(randomPositionMap(), randomPositionMap());
+        return randomDataFrameIndexerPosition();
     }
 
     @Override

@@ -17,12 +17,15 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Arrays;
@@ -42,17 +45,32 @@ import java.util.TreeMap;
 public class DataFrameTransformsCheckpointService {
 
     private static class Checkpoints {
-        DataFrameTransformCheckpoint currentCheckpoint = DataFrameTransformCheckpoint.EMPTY;
-        DataFrameTransformCheckpoint inProgressCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+        long lastCheckpointNumber;
+        long nextCheckpointNumber;
+        IndexerState nextCheckpointIndexerState;
+        DataFrameIndexerPosition nextCheckpointPosition;
+        DataFrameTransformProgress nextCheckpointProgress;
+        DataFrameTransformCheckpoint lastCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+        DataFrameTransformCheckpoint nextCheckpoint = DataFrameTransformCheckpoint.EMPTY;
         DataFrameTransformCheckpoint sourceCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+
+        Checkpoints(long lastCheckpointNumber, long nextCheckpointNumber, IndexerState nextCheckpointIndexerState,
+                    DataFrameIndexerPosition nextCheckpointPosition, DataFrameTransformProgress nextCheckpointProgress) {
+            this.lastCheckpointNumber = lastCheckpointNumber;
+            this.nextCheckpointNumber = nextCheckpointNumber;
+            this.nextCheckpointIndexerState = nextCheckpointIndexerState;
+            this.nextCheckpointPosition = nextCheckpointPosition;
+            this.nextCheckpointProgress = nextCheckpointProgress;
+        }
 
         DataFrameTransformCheckpointingInfo buildInfo() {
             return new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(currentCheckpoint.getTimestamp(), currentCheckpoint.getTimeUpperBound()),
-                new DataFrameTransformCheckpointStats(inProgressCheckpoint.getTimestamp(), inProgressCheckpoint.getTimeUpperBound()),
-                DataFrameTransformCheckpoint.getBehind(currentCheckpoint, sourceCheckpoint));
+                new DataFrameTransformCheckpointStats(lastCheckpointNumber, null, null, null,
+                    lastCheckpoint.getTimestamp(), lastCheckpoint.getTimeUpperBound()),
+                new DataFrameTransformCheckpointStats(nextCheckpointNumber, nextCheckpointIndexerState, nextCheckpointPosition,
+                    nextCheckpointProgress, nextCheckpoint.getTimestamp(), nextCheckpoint.getTimeUpperBound()),
+                DataFrameTransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
         }
-
     }
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformsCheckpointService.class);
@@ -84,7 +102,7 @@ public class DataFrameTransformsCheckpointService {
      * @param listener listener to call after inner request returned
      */
     public void getCheckpoint(DataFrameTransformConfig transformConfig, long checkpoint,
-            ActionListener<DataFrameTransformCheckpoint> listener) {
+                              ActionListener<DataFrameTransformCheckpoint> listener) {
         long timestamp = System.currentTimeMillis();
 
         // for time based synchronization
@@ -127,55 +145,59 @@ public class DataFrameTransformsCheckpointService {
                 },
                 e -> listener.onFailure(new CheckpointException("Failed to create checkpoint", e))
             ));
-
     }
 
     /**
      * Get checkpointing stats for a data frame
      *
-     *
      * @param transformId The data frame task
-     * @param currentCheckpoint the current checkpoint
-     * @param inProgressCheckpoint in progress checkpoint
+     * @param lastCheckpoint the last checkpoint
+     * @param nextCheckpoint the next checkpoint
+     * @param nextCheckpointIndexerState indexer state for the next checkpoint
+     * @param nextCheckpointPosition position for the next checkpoint
+     * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    public void getCheckpointStats(
-            String transformId,
-            long currentCheckpoint,
-            long inProgressCheckpoint,
-            ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    public void getCheckpointStats(String transformId,
+                                   long lastCheckpoint,
+                                   long nextCheckpoint,
+                                   IndexerState nextCheckpointIndexerState,
+                                   DataFrameIndexerPosition nextCheckpointPosition,
+                                   DataFrameTransformProgress nextCheckpointProgress,
+                                   ActionListener<DataFrameTransformCheckpointingInfo> listener) {
 
-        Checkpoints checkpoints = new Checkpoints();
+        Checkpoints checkpoints =
+            new Checkpoints(lastCheckpoint, nextCheckpoint, nextCheckpointIndexerState, nextCheckpointPosition, nextCheckpointProgress);
 
-        // <3> notify the user once we have the current checkpoint
-        ActionListener<DataFrameTransformCheckpoint> currentCheckpointListener = ActionListener.wrap(
-            currentCheckpointObj -> {
-                checkpoints.currentCheckpoint = currentCheckpointObj;
+        // <3> notify the user once we have the last checkpoint
+        ActionListener<DataFrameTransformCheckpoint> lastCheckpointListener = ActionListener.wrap(
+            lastCheckpointObj -> {
+                checkpoints.lastCheckpoint = lastCheckpointObj;
                 listener.onResponse(checkpoints.buildInfo());
             },
             e -> {
-                logger.debug("Failed to retrieve current checkpoint [" +
-                    currentCheckpoint + "] for data frame [" + transformId + "]", e);
-                listener.onFailure(new CheckpointException("Failure during current checkpoint info retrieval", e));
+                logger.debug("Failed to retrieve last checkpoint [" +
+                    lastCheckpoint + "] for data frame [" + transformId + "]", e);
+                listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));
             }
         );
 
-        // <2> after the in progress checkpoint, get the current checkpoint
-        ActionListener<DataFrameTransformCheckpoint> inProgressCheckpointListener = ActionListener.wrap(
-            inProgressCheckpointObj -> {
-                checkpoints.inProgressCheckpoint = inProgressCheckpointObj;
-                if (currentCheckpoint != 0) {
+        // <2> after the next checkpoint, get the last checkpoint
+        ActionListener<DataFrameTransformCheckpoint> nextCheckpointListener = ActionListener.wrap(
+            nextCheckpointObj -> {
+                checkpoints.nextCheckpoint = nextCheckpointObj;
+                if (lastCheckpoint != 0) {
                     dataFrameTransformsConfigManager.getTransformCheckpoint(transformId,
-                        currentCheckpoint,
-                        currentCheckpointListener);
+                        lastCheckpoint,
+                        lastCheckpointListener);
                 } else {
-                    currentCheckpointListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
+                    lastCheckpointListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
                 }
             },
             e -> {
-                logger.debug("Failed to retrieve in progress checkpoint [" +
-                    inProgressCheckpoint + "] for data frame [" + transformId + "]", e);
-                listener.onFailure(new CheckpointException("Failure during in progress checkpoint info retrieval", e));
+                logger.debug("Failed to retrieve next checkpoint [" +
+                    nextCheckpoint + "] for data frame [" + transformId + "]", e);
+                listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
             }
         );
 
@@ -183,12 +205,12 @@ public class DataFrameTransformsCheckpointService {
         ActionListener<DataFrameTransformCheckpoint> sourceCheckpointListener = ActionListener.wrap(
             sourceCheckpoint -> {
                 checkpoints.sourceCheckpoint = sourceCheckpoint;
-                if (inProgressCheckpoint != 0) {
+                if (nextCheckpoint != 0) {
                     dataFrameTransformsConfigManager.getTransformCheckpoint(transformId,
-                        inProgressCheckpoint,
-                        inProgressCheckpointListener);
+                        nextCheckpoint,
+                        nextCheckpointListener);
                 } else {
-                    inProgressCheckpointListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
+                    nextCheckpointListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
                 }
             },
             e -> {

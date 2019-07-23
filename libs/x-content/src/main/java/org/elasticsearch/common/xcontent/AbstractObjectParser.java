@@ -179,7 +179,8 @@ public abstract class AbstractObjectParser<Value, Context>
         declareField(consumer, XContentParser::booleanValue, field, ValueType.BOOLEAN);
     }
 
-    public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> objectParser, ParseField field) {
+    public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> objectParser,
+            ParseField field) {
         declareFieldArray(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT_ARRAY);
     }
 

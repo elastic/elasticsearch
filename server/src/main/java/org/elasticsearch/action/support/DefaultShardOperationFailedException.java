@@ -45,14 +45,10 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     public static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
         "failures", true, arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1] ,(Throwable) arg[2]));
 
-    protected static <T extends DefaultShardOperationFailedException> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
-        objectParser.declareString(constructorArg(), new ParseField(INDEX));
-        objectParser.declareInt(constructorArg(), new ParseField(SHARD_ID));
-        objectParser.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
-    }
-
     static {
-        declareFields(PARSER);
+        PARSER.declareString(constructorArg(), new ParseField(INDEX));
+        PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID));
+        PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
     }
 
     protected DefaultShardOperationFailedException() {

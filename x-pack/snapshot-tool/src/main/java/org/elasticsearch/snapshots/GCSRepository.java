@@ -108,6 +108,16 @@ public class GCSRepository extends AbstractRepository {
     }
 
     @Override
+    protected boolean isBlobNotFoundException(Exception e) {
+        if (e instanceof StorageException) {
+            if (((StorageException)e).getCode() == HTTP_NOT_FOUND) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public Set<String> getAllIndexDirectoryNames() {
         final String pathPrefix = fullPath("indices/");
 

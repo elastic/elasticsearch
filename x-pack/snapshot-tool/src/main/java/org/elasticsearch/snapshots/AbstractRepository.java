@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.google.cloud.storage.StorageException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRunnable;
@@ -42,8 +40,6 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
 public abstract class AbstractRepository {
     private static final long DEFAULT_SAFETY_GAP_MILLIS = 3600 * 1000;
@@ -98,18 +94,13 @@ public abstract class AbstractRepository {
                     LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
                 return incompatibleSnapshotsFromXContent(parser);
             }
-        } catch (StorageException e) {
-            if (e.getCode() == HTTP_NOT_FOUND) {
-                return Collections.emptyList();
-            }
-            throw e;
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() == HTTP_NOT_FOUND) {
-                return Collections.emptyList();
-            }
-            throw e;
         } catch (IOException e) {
             terminal.println("Failed to read [incompatible-snapshots] blob");
+            throw e;
+        } catch (Exception e) {
+            if (isBlobNotFoundException(e)) {
+                return Collections.emptyList();
+            }
             throw e;
         }
     }
@@ -315,6 +306,8 @@ public abstract class AbstractRepository {
     protected abstract Tuple<Long, Date> getLatestIndexIdAndTimestamp() throws IOException;
 
     protected abstract InputStream getBlobInputStream(String blobName);
+
+    protected abstract boolean isBlobNotFoundException(Exception e);
 
     protected abstract Set<String> getAllIndexDirectoryNames();
 

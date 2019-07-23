@@ -12,6 +12,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -27,6 +28,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
 public class S3Repository extends AbstractRepository {
     private final AmazonS3 client;
@@ -85,6 +88,16 @@ public class S3Repository extends AbstractRepository {
     @Override
     public InputStream getBlobInputStream(String blobName) {
         return client.getObject(bucket, blobName).getObjectContent();
+    }
+
+    @Override
+    protected boolean isBlobNotFoundException(Exception e) {
+        if (e instanceof AmazonS3Exception) {
+            if (((AmazonS3Exception)e).getStatusCode() == HTTP_NOT_FOUND) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

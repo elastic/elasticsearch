@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -27,25 +28,39 @@ public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedRespo
     }
 
     public static class Request extends MasterNodeRequest<Request> {
-        private String id;
+        private final String id;
+        private final boolean force;
 
-        public Request(String id) {
+        public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.force = force;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                force = in.readBoolean();
+            } else {
+                force = false;
+            }
         }
 
         public String getId() {
             return id;
         }
 
+        public boolean isForce() {
+            return force;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+                out.writeBoolean(force);
+            }
         }
 
         @Override
@@ -55,7 +70,7 @@ public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedRespo
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(id, force);
         }
 
         @Override
@@ -68,7 +83,7 @@ public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedRespo
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+            return Objects.equals(id, other.id) && force == other.force;
         }
     }
 }

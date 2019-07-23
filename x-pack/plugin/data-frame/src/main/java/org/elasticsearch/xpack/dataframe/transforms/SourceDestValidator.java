@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -26,7 +27,14 @@ import java.util.Set;
  */
 public final class SourceDestValidator {
 
-    private SourceDestValidator() {}
+    interface SourceDestValidation {
+        boolean isDeferrable();
+        void validate(DataFrameTransformConfig config, ClusterState clusterState, IndexNameExpressionResolver indexNameExpressionResolver);
+    }
+
+    private static final List<SourceDestValidation> VALIDATIONS = Arrays.asList(new SourceMissingValidation(),
+        new DestinationInSourceValidation(),
+        new DestinationSingleIndexValidation());
 
     /**
      * Validates the DataFrameTransformConfiguration source and destination indices.
@@ -41,52 +49,111 @@ public final class SourceDestValidator {
      * @param indexNameExpressionResolver A valid IndexNameExpressionResolver object
      * @throws ElasticsearchStatusException when a validation fails
      */
-    public static void check(DataFrameTransformConfig config,
+    public static void validate(DataFrameTransformConfig config,
+                                ClusterState clusterState,
+                                IndexNameExpressionResolver indexNameExpressionResolver,
+                                boolean shouldDefer) {
+        for (SourceDestValidation validation : VALIDATIONS) {
+            if (shouldDefer && validation.isDeferrable()) {
+                continue;
+            }
+            validation.validate(config, clusterState, indexNameExpressionResolver);
+        }
+    }
+
+    static class SourceMissingValidation implements SourceDestValidation {
+
+        @Override
+        public boolean isDeferrable() {
+            return true;
+        }
+
+        @Override
+        public void validate(DataFrameTransformConfig config,
                              ClusterState clusterState,
                              IndexNameExpressionResolver indexNameExpressionResolver) {
-
-        final String destIndex = config.getDestination().getIndex();
-        Set<String> concreteSourceIndexNames = new HashSet<>();
-        for(String src : config.getSource().getIndex()) {
-            String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
-            if (concreteNames.length == 0) {
-                throw new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
-                    RestStatus.BAD_REQUEST);
+            for(String src : config.getSource().getIndex()) {
+                String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState,
+                    IndicesOptions.lenientExpandOpen(),
+                    src);
+                if (concreteNames.length == 0) {
+                    throw new ElasticsearchStatusException(
+                        DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                        RestStatus.BAD_REQUEST);
+                }
             }
-            if (Regex.simpleMatch(src, destIndex)) {
-                throw new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE, destIndex, src),
-                    RestStatus.BAD_REQUEST);
+        }
+    }
+
+    static class DestinationInSourceValidation implements SourceDestValidation {
+
+        @Override
+        public boolean isDeferrable() {
+            return true;
+        }
+
+        @Override
+        public void validate(DataFrameTransformConfig config,
+                             ClusterState clusterState,
+                             IndexNameExpressionResolver indexNameExpressionResolver) {
+            final String destIndex = config.getDestination().getIndex();
+            Set<String> concreteSourceIndexNames = new HashSet<>();
+            for(String src : config.getSource().getIndex()) {
+                String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState,
+                    IndicesOptions.lenientExpandOpen(),
+                    src);
+                if (Regex.simpleMatch(src, destIndex)) {
+                    throw new ElasticsearchStatusException(
+                        DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE, destIndex, src),
+                        RestStatus.BAD_REQUEST);
+                }
+                concreteSourceIndexNames.addAll(Arrays.asList(concreteNames));
             }
-            concreteSourceIndexNames.addAll(Arrays.asList(concreteNames));
+
+            if (concreteSourceIndexNames.contains(destIndex)) {
+                throw new ElasticsearchStatusException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                        destIndex,
+                        Strings.arrayToCommaDelimitedString(config.getSource().getIndex())),
+                    RestStatus.BAD_REQUEST
+                );
+            }
+
+            final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                destIndex);
+            if (concreteDest.length > 0 && concreteSourceIndexNames.contains(concreteDest[0])) {
+                throw new ElasticsearchStatusException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                        concreteDest[0],
+                        Strings.arrayToCommaDelimitedString(concreteSourceIndexNames.toArray(new String[0]))),
+                    RestStatus.BAD_REQUEST
+                );
+            }
+        }
+    }
+
+    static class DestinationSingleIndexValidation implements SourceDestValidation {
+
+        @Override
+        public boolean isDeferrable() {
+            return false;
         }
 
-        if (concreteSourceIndexNames.contains(destIndex)) {
-            throw new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
-                    destIndex,
-                    Strings.arrayToCommaDelimitedString(config.getSource().getIndex())),
-                RestStatus.BAD_REQUEST
-            );
-        }
+        @Override
+        public void validate(DataFrameTransformConfig config,
+                             ClusterState clusterState,
+                             IndexNameExpressionResolver indexNameExpressionResolver) {
+            final String destIndex = config.getDestination().getIndex();
+            final String[] concreteDest =
+                indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
 
-        final String[] concreteDest =
-            indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
-
-        if (concreteDest.length > 1) {
-            throw new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
-                RestStatus.BAD_REQUEST
-            );
-        }
-        if (concreteDest.length > 0 && concreteSourceIndexNames.contains(concreteDest[0])) {
-            throw new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
-                    concreteDest[0],
-                    Strings.arrayToCommaDelimitedString(concreteSourceIndexNames.toArray(new String[0]))),
-                RestStatus.BAD_REQUEST
-            );
+            if (concreteDest.length > 1) {
+                throw new ElasticsearchStatusException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
+                    RestStatus.BAD_REQUEST
+                );
+            }
         }
     }
 }

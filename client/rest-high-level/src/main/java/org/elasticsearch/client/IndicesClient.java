@@ -569,7 +569,7 @@ public final class IndicesClient {
 
     /**
      * Initiate a synced flush manually using the synced flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-flush.html#synced-flush-api">
      *     Synced flush API on elastic.co</a>
      * @param syncedFlushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -583,7 +583,7 @@ public final class IndicesClient {
 
     /**
      * Asynchronously initiate a synced flush manually using the synced flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-flush.html#synced-flush-api">
      *     Synced flush API on elastic.co</a>
      * @param syncedFlushRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

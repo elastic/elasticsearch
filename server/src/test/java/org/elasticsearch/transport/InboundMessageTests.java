@@ -224,20 +224,12 @@ public class InboundMessageTests extends ESTestCase {
 
         public String value;
 
-        private Message() {
-        }
-
         private Message(StreamInput in) throws IOException {
-            readFrom(in);
+            value = in.readString();
         }
 
         private Message(String value) {
             this.value = value;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            value = in.readString();
         }
 
         @Override

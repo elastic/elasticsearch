@@ -111,11 +111,6 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
@@ -178,11 +173,6 @@ public class UpdateModelSnapshotAction extends ActionType<UpdateModelSnapshotAct
 
         public ModelSnapshot getModel() {
             return model;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -1,5 +1,8 @@
 [[query-dsl-term-query]]
-=== Term Query
+=== Term query
+++++
+<titleabbrev>Term</titleabbrev>
+++++
 
 Returns documents that contain an *exact* term in a provided field.
 

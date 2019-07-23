@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,6 +53,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     private static final ParseField STEP_TIME_FIELD = new ParseField("step_time");
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
+    private static final ParseField AGE_FIELD = new ParseField("age");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
         "index_lifecycle_explain_response", true,
@@ -205,6 +207,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
         return phaseExecutionInfo;
     }
 
+    public TimeValue getAge() {
+        if (lifecycleDate == null) {
+            return TimeValue.MINUS_ONE;
+        } else {
+            return TimeValue.timeValueMillis(System.currentTimeMillis() - lifecycleDate);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -214,6 +224,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+                builder.field(AGE_FIELD.getPreferredName(), getAge().toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

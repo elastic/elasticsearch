@@ -1,5 +1,5 @@
 [[docs-bulk]]
-== Bulk API
+=== Bulk API
 
 The bulk API makes it possible to perform many index/delete operations
 in a single API call. This can greatly increase the indexing speed.
@@ -198,7 +198,7 @@ chunks, as this will slow things down.
 
 [float]
 [[bulk-optimistic-concurrency-control]]
-=== Optimistic Concurrency Control
+==== Optimistic Concurrency Control
 
 Each `index` and `delete` action within a bulk API call may include the
 `if_seq_no` and `if_primary_term` parameters in their respective action
@@ -209,7 +209,7 @@ documents. See <<optimistic-concurrency-control>> for more details.
 
 [float]
 [[bulk-versioning]]
-=== Versioning
+==== Versioning
 
 Each bulk item can include the version value using the
 `version` field. It automatically follows the behavior of the
@@ -218,7 +218,7 @@ support the `version_type` (see <<index-versioning, versioning>>).
 
 [float]
 [[bulk-routing]]
-=== Routing
+==== Routing
 
 Each bulk item can include the routing value using the
 `routing` field. It automatically follows the behavior of the
@@ -226,7 +226,7 @@ index / delete operation based on the `_routing` mapping.
 
 [float]
 [[bulk-wait-for-active-shards]]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 When making bulk calls, you can set the `wait_for_active_shards`
 parameter to require a minimum number of shard copies to be active
@@ -236,7 +236,7 @@ example.
 
 [float]
 [[bulk-refresh]]
-=== Refresh
+==== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh,refresh>>.
@@ -250,7 +250,7 @@ participate in the `_bulk` request at all.
 
 [float]
 [[bulk-update]]
-=== Update
+==== Update
 
 When using the `update` action, `retry_on_conflict` can be used as a field in
 the action itself (not in the extra payload line), to specify how many
@@ -280,11 +280,11 @@ POST _bulk
 
 [float]
 [[bulk-security]]
-=== Security
+==== Security
 
 See <<url-access-control>>.
 
 [float]
 [[bulk-partial-responses]]
-=== Partial responses
+==== Partial responses
 To ensure fast responses, the bulk API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.

@@ -1,5 +1,8 @@
 [[query-dsl-has-child-query]]
-=== Has Child Query
+=== Has child query
+++++
+<titleabbrev>Has child</titleabbrev>
+++++
 
 Returns parent documents whose <<parent-join,joined>> child documents match a
 provided query. You can create parent-child relationships between documents in
@@ -130,7 +133,7 @@ Add together the relevance scores of all matching child documents.
 [[has-child-query-performance]]
 ===== Sorting
 You cannot sort the results of a `has_child` query using standard
-<<search-request-sort,sort options>>.
+<<request-body-search-sort,sort options>>.
 
 If you need to sort returned documents by a field in their child documents, use
 a `function_score` query and sort by `_score`. For example, the following query

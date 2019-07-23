@@ -15,6 +15,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameTransformProgressTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformProgress> {
+
     public static DataFrameTransformProgress randomDataFrameTransformProgress() {
         long totalDocs = randomNonNegativeLong();
         return new DataFrameTransformProgress(totalDocs, randomBoolean() ? null : randomLongBetween(0, totalDocs));

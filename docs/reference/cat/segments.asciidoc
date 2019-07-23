@@ -1,5 +1,5 @@
 [[cat-segments]]
-== cat segments
+=== cat segments
 
 The `segments` command provides low level information about the segments
 in the shards of an index. It provides information similar to the

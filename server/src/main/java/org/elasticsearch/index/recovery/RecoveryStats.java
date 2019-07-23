@@ -20,7 +20,6 @@ package org.elasticsearch.index.recovery;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -34,7 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Recovery related statistics, starting at the shard level and allowing aggregation to
  * indices and node level
  */
-public class RecoveryStats implements ToXContentFragment, Writeable, Streamable {
+public class RecoveryStats implements ToXContentFragment, Writeable {
 
     private final AtomicInteger currentAsSource = new AtomicInteger();
     private final AtomicInteger currentAsTarget = new AtomicInteger();
@@ -120,11 +119,6 @@ public class RecoveryStats implements ToXContentFragment, Writeable, Streamable 
         static final String CURRENT_AS_TARGET = "current_as_target";
         static final String THROTTLE_TIME = "throttle_time";
         static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

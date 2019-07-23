@@ -54,7 +54,7 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
         if (Boolean.TRUE.toString().equals(esSDNotify) == false && Boolean.FALSE.toString().equals(esSDNotify) == false) {
             throw new RuntimeException("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]");
         }
-        enabled = "true".equals(esSDNotify);
+        enabled = Boolean.TRUE.toString().equals(esSDNotify);
     }
 
     int sd_notify(@SuppressWarnings("SameParameterValue") final int unset_environment, final String state) {

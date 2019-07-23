@@ -24,10 +24,6 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
-grant codeBase "${codebase.jna}" {
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
-
 grant codeBase "${codebase.elasticsearch-secure-sm}" {
   permission java.security.AllPermission;
 };
@@ -54,6 +50,11 @@ grant codeBase "${codebase.lucene-misc}" {
 grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   // needed to create the classloader which allows plugins to extend other plugins
   permission java.lang.RuntimePermission "createClassLoader";
+};
+
+grant codeBase "${codebase.jna}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
 //// Everything else:

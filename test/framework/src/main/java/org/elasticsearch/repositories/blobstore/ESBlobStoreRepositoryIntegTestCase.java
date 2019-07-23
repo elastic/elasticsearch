@@ -313,6 +313,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             addRandomDocuments(indexName, extraDocCount);
         }
 
+        // Wait for green so the close does not fail in the edge case of coinciding with a shard recovery that hasn't fully synced yet
+        ensureGreen();
         logger.info("-->  close index {}", indexName);
         assertAcked(client().admin().indices().prepareClose(indexName));
 

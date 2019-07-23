@@ -32,9 +32,8 @@ trial of Elasticsearch Service] in the cloud.
 [[getting-started-install]]
 == Get {es} up and running
 
-To take {es} for a test drive, you can run an instance on
-<<gs-run-elasticsearch-cloud,Elastic Cloud>> or
-on your own <<gs-run-elasticsearch-linux,Linux>>,
+To take {es} for a test drive, you can create a one-click cloud deployment on the <<gs-run-elasticsearch-cloud,Elasticsearch Service>>,
+or set up a basic {es} cluster on your own <<gs-run-elasticsearch-linux,Linux>>,
 <<gs-run-elasticsearch-mac,macOS>>, or
 <<gs-run-elasticsearch-win,Windows>> machine.
 

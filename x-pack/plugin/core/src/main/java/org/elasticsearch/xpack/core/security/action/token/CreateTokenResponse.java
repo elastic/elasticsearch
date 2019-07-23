@@ -31,6 +31,19 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
 
     CreateTokenResponse() {}
 
+    public CreateTokenResponse(StreamInput in) throws IOException {
+        super(in);
+        tokenString = in.readString();
+        expiresIn = in.readTimeValue();
+        scope = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+            refreshToken = in.readOptionalString();
+        } else if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
+            refreshToken = in.readString();
+        }
+        kerberosAuthenticationResponseToken = in.readOptionalString();
+    }
+
     public CreateTokenResponse(String tokenString, TimeValue expiresIn, String scope, String refreshToken,
                                String kerberosAuthenticationResponseToken) {
         this.tokenString = Objects.requireNonNull(tokenString);
@@ -75,20 +88,6 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
             }
         }
         out.writeOptionalString(kerberosAuthenticationResponseToken);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tokenString = in.readString();
-        expiresIn = in.readTimeValue();
-        scope = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            refreshToken = in.readOptionalString();
-        } else if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            refreshToken = in.readString();
-        }
-        kerberosAuthenticationResponseToken = in.readOptionalString();
     }
 
     @Override

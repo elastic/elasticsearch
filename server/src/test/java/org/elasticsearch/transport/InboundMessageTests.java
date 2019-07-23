@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -181,6 +183,24 @@ public class InboundMessageTests extends ESTestCase {
             + version.minimumCompatibilityVersion() + "]", ise.getMessage());
     }
 
+    public void testThrowOnNotCompressed() throws Exception {
+        OutboundMessage.Response request = new OutboundMessage.Response(
+            threadContext, Collections.emptySet(), new Message(randomAlphaOfLength(10)), Version.CURRENT, randomLong(), false, false);
+        BytesReference reference;
+        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
+            reference = request.serialize(streamOutput);
+        }
+        final byte[] serialized = BytesReference.toBytes(reference);
+        final int statusPosition = TcpHeader.HEADER_SIZE - TcpHeader.VERSION_ID_SIZE - 1;
+        // force status byte to signal compressed on the otherwise uncompressed message
+        serialized[statusPosition] = TransportStatus.setCompress(serialized[statusPosition]);
+        reference = new BytesArray(serialized);
+        InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, registry, threadContext);
+        BytesReference sliced = reference.slice(6, reference.length() - 6);
+        final IllegalStateException iste = expectThrows(IllegalStateException.class, () -> reader.deserialize(sliced));
+        assertThat(iste.getMessage(), Matchers.startsWith("stream marked as compressed, but no compressor found,"));
+    }
+
     private void testVersionIncompatibility(Version version, Version currentVersion, boolean isHandshake) throws IOException {
         String[] features = {};
         String value = randomAlphaOfLength(10);
@@ -204,20 +224,12 @@ public class InboundMessageTests extends ESTestCase {
 
         public String value;
 
-        private Message() {
-        }
-
         private Message(StreamInput in) throws IOException {
-            readFrom(in);
+            value = in.readString();
         }
 
         private Message(String value) {
             this.value = value;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            value = in.readString();
         }
 
         @Override

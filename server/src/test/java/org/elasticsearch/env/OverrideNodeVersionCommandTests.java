@@ -22,6 +22,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -29,9 +32,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static org.elasticsearch.env.NodeMetaData.NODE_ID_KEY;
+import static org.elasticsearch.env.NodeMetaData.NODE_VERSION_KEY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class OverrideNodeVersionCommandTests extends ESTestCase {
 
@@ -151,5 +157,56 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodePaths);
         assertThat(nodeMetaData.nodeId(), equalTo(nodeId));
         assertThat(nodeMetaData.nodeVersion(), equalTo(Version.CURRENT));
+    }
+
+    public void testLenientlyIgnoresExtraFields() throws Exception {
+        final String nodeId = randomAlphaOfLength(10);
+        final Version nodeVersion = NodeMetaDataTests.tooNewVersion();
+        FutureNodeMetaData.FORMAT.writeAndCleanup(new FutureNodeMetaData(nodeId, nodeVersion, randomLong()), nodePaths);
+        assertThat(expectThrows(ElasticsearchException.class,
+            () -> NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodePaths)),
+            hasToString(containsString("unknown field [future_field]")));
+
+        final MockTerminal mockTerminal = new MockTerminal();
+        mockTerminal.addTextInput(randomFrom("y", "Y"));
+        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment);
+        assertThat(mockTerminal.getOutput(), allOf(
+            containsString("data loss"),
+            containsString("You should not use this tool"),
+            containsString(Version.CURRENT.toString()),
+            containsString(nodeVersion.toString()),
+            containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)));
+        expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
+
+        final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodePaths);
+        assertThat(nodeMetaData.nodeId(), equalTo(nodeId));
+        assertThat(nodeMetaData.nodeVersion(), equalTo(Version.CURRENT));
+    }
+
+    private static class FutureNodeMetaData {
+        private final String nodeId;
+        private final Version nodeVersion;
+        private final long futureValue;
+
+        FutureNodeMetaData(String nodeId, Version nodeVersion, long futureValue) {
+            this.nodeId = nodeId;
+            this.nodeVersion = nodeVersion;
+            this.futureValue = futureValue;
+        }
+
+        static final MetaDataStateFormat<FutureNodeMetaData> FORMAT
+            = new MetaDataStateFormat<FutureNodeMetaData>(NodeMetaData.FORMAT.getPrefix()) {
+            @Override
+            public void toXContent(XContentBuilder builder, FutureNodeMetaData state) throws IOException {
+                builder.field(NODE_ID_KEY, state.nodeId);
+                builder.field(NODE_VERSION_KEY, state.nodeVersion.id);
+                builder.field("future_field", state.futureValue);
+            }
+
+            @Override
+            public FutureNodeMetaData fromXContent(XContentParser parser) {
+                throw new AssertionError("shouldn't be loading a FutureNodeMetaData");
+            }
+        };
     }
 }

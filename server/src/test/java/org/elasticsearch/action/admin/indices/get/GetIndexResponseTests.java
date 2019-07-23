@@ -29,14 +29,15 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.junit.Assert;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,7 +52,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 
-public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<GetIndexResponse> {
+public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexResponse> {
 
     /**
      * The following byte response was generated from the v6.3.0 tag
@@ -68,8 +69,8 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
     }
 
     @Override
-    protected GetIndexResponse createBlankInstance() {
-        return new GetIndexResponse();
+    protected Writeable.Reader<GetIndexResponse> instanceReader() {
+        return GetIndexResponse::new;
     }
 
     @Override
@@ -179,8 +180,7 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
     public void testCanDecode622Response() throws IOException {
         StreamInput si = StreamInput.wrap(Base64.getDecoder().decode(TEST_6_3_0_RESPONSE_BYTES));
         si.setVersion(Version.V_6_3_0);
-        GetIndexResponse response = new GetIndexResponse();
-        response.readFrom(si);
+        GetIndexResponse response = new GetIndexResponse(si);
 
         Assert.assertEquals(TEST_6_3_0_RESPONSE_INSTANCE, response);
     }

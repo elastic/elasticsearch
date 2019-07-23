@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -25,18 +25,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class PutJobAction extends StreamableResponseActionType<PutJobAction.Response> {
+public class PutJobAction extends ActionType<PutJobAction.Response> {
 
     public static final PutJobAction INSTANCE = new PutJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/put";
 
     private PutJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -77,6 +72,11 @@ public class PutJobAction extends StreamableResponseActionType<PutJobAction.Resp
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobBuilder = new Job.Builder(in);
+        }
+
         public Job.Builder getJobBuilder() {
             return jobBuilder;
         }
@@ -84,12 +84,6 @@ public class PutJobAction extends StreamableResponseActionType<PutJobAction.Resp
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobBuilder = new Job.Builder(in);
         }
 
         @Override
@@ -132,27 +126,23 @@ public class PutJobAction extends StreamableResponseActionType<PutJobAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Job job;
+        private final Job job;
 
         public Response(Job job) {
             this.job = job;
         }
 
-        public Response() {
-        }
-
-        public Job getResponse() {
-            return job;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             if (in.getVersion().before(Version.V_6_3_0)) {
                 //the acknowledged flag was removed
                 in.readBoolean();
             }
             job = new Job(in);
+        }
+
+        public Job getResponse() {
+            return job;
         }
 
         @Override

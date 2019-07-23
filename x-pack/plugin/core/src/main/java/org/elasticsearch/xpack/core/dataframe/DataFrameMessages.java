@@ -43,7 +43,9 @@ public class DataFrameMessages {
     public static final String FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION =
             "Failed to parse transform statistics for data frame transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CHECKPOINT =
-            "Failed to load data frame transform configuration for transform [{0}]";
+            "Failed to load data frame transform checkpoint for transform [{0}]";
+    public static final String FAILED_TO_LOAD_TRANSFORM_STATE =
+            "Failed to load data frame transform state for transform [{0}]";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM =
             "Data frame transform configuration must specify exactly 1 function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY =

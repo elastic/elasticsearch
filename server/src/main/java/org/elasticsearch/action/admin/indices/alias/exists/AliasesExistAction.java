@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class AliasesExistAction extends StreamableResponseActionType<AliasesExistResponse> {
+public class AliasesExistAction extends ActionType<AliasesExistResponse> {
 
     public static final AliasesExistAction INSTANCE = new AliasesExistAction();
     public static final String NAME = "indices:admin/aliases/exists";
 
     private AliasesExistAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AliasesExistResponse newResponse() {
-        return new AliasesExistResponse();
+        super(NAME, AliasesExistResponse::new);
     }
 }

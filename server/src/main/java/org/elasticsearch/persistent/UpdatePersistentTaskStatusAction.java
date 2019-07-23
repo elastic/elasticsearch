@@ -20,7 +20,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -42,18 +42,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class UpdatePersistentTaskStatusAction extends StreamableResponseActionType<PersistentTaskResponse> {
+public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskResponse> {
 
     public static final UpdatePersistentTaskStatusAction INSTANCE = new UpdatePersistentTaskStatusAction();
     public static final String NAME = "cluster:admin/persistent/update_status";
 
     private UpdatePersistentTaskStatusAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PersistentTaskResponse newResponse() {
-        return new PersistentTaskResponse();
+        super(NAME, PersistentTaskResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -62,7 +57,13 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
         private long allocationId = -1L;
         private PersistentTaskState state;
 
-        public Request() {
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
+            allocationId = in.readLong();
+            state = in.readOptionalNamedWriteable(PersistentTaskState.class);
         }
 
         public Request(String taskId, long allocationId, PersistentTaskState state) {
@@ -81,14 +82,6 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
 
         public void setState(PersistentTaskState state) {
             this.state = state;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
-            allocationId = in.readLong();
-            state = in.readOptionalNamedWriteable(PersistentTaskState.class);
         }
 
         @Override
@@ -155,7 +148,7 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(UpdatePersistentTaskStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
@@ -165,8 +158,8 @@ public class UpdatePersistentTaskStatusAction extends StreamableResponseActionTy
         }
 
         @Override
-        protected PersistentTaskResponse newResponse() {
-            return new PersistentTaskResponse();
+        protected PersistentTaskResponse read(StreamInput in) throws IOException {
+            return new PersistentTaskResponse(in);
         }
 
         @Override

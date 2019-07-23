@@ -49,7 +49,7 @@ public class TransportDeleteIndexTemplateAction
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
+            DeleteIndexTemplateRequest::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -62,11 +62,6 @@ public class TransportDeleteIndexTemplateAction
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

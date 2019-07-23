@@ -28,8 +28,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportAliasesExistAction extends TransportMasterNodeReadAction<GetAliasesRequest, AliasesExistResponse> {
 
@@ -48,14 +51,14 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadAction<G
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+    protected AliasesExistResponse read(StreamInput in) throws IOException {
+        return new AliasesExistResponse(in);
     }
 
     @Override
-    protected AliasesExistResponse newResponse() {
-        return new AliasesExistResponse();
+    protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override

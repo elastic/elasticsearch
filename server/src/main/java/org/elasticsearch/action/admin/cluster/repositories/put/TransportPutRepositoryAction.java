@@ -48,7 +48,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
                                         RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver, PutRepositoryRequest::new);
+              PutRepositoryRequest::new, indexNameExpressionResolver);
         this.repositoriesService = repositoriesService;
     }
 
@@ -60,11 +60,6 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

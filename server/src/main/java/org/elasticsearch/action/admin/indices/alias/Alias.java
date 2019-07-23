@@ -27,9 +27,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -44,7 +43,7 @@ import java.util.Map;
 /**
  * Represents an alias, to be associated with an index
  */
-public class Alias implements Streamable, ToXContentFragment {
+public class Alias implements Writeable, ToXContentFragment {
 
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField ROUTING = new ParseField("routing");
@@ -66,8 +65,16 @@ public class Alias implements Streamable, ToXContentFragment {
     @Nullable
     private Boolean writeIndex;
 
-    private Alias() {
-
+    public Alias(StreamInput in) throws IOException {
+        name = in.readString();
+        filter = in.readOptionalString();
+        indexRouting = in.readOptionalString();
+        searchRouting = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            writeIndex = in.readOptionalBoolean();
+        } else {
+            writeIndex = null;
+        }
     }
 
     public Alias(String name) {
@@ -185,28 +192,6 @@ public class Alias implements Streamable, ToXContentFragment {
     public Alias writeIndex(@Nullable Boolean writeIndex) {
         this.writeIndex = writeIndex;
         return this;
-    }
-
-    /**
-     * Allows to read an alias from the provided input stream
-     */
-    public static Alias read(StreamInput in) throws IOException {
-        Alias alias = new Alias();
-        alias.readFrom(in);
-        return alias;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        filter = in.readOptionalString();
-        indexRouting = in.readOptionalString();
-        searchRouting = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            writeIndex = in.readOptionalBoolean();
-        } else {
-            writeIndex = null;
-        }
     }
 
     @Override

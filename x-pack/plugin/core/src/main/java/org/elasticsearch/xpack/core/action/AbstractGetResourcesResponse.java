@@ -40,12 +40,6 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        resources = new QueryPage<>(in, getReader());
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         resources.writeTo(out);
     }
@@ -84,5 +78,6 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
     public final String toString() {
         return Strings.toString(this);
     }
+
     protected abstract Reader<T> getReader();
 }

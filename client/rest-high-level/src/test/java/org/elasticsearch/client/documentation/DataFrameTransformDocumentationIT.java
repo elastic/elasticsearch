@@ -42,7 +42,7 @@ import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.NodeAttributes;
@@ -166,6 +166,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::put-data-frame-transform-request
             PutDataFrameTransformRequest request =
                     new PutDataFrameTransformRequest(transformConfig); // <1>
+            request.setDeferValidation(false); // <2>
             // end::put-data-frame-transform-request
 
             // tag::put-data-frame-transform-execute
@@ -374,6 +375,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::delete-data-frame-transform-request
             DeleteDataFrameTransformRequest request =
                     new DeleteDataFrameTransformRequest("mega-transform"); // <1>
+            request.setForce(false); // <2>
             // end::delete-data-frame-transform-request
 
             // tag::delete-data-frame-transform-execute
@@ -522,24 +524,25 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
             // end::get-data-frame-transform-stats-execute
 
-            assertThat(response.getTransformsStateAndStats(), hasSize(1));
+            assertThat(response.getTransformsStats(), hasSize(1));
 
             // tag::get-data-frame-transform-stats-response
-            DataFrameTransformStateAndStats stateAndStats =
-                response.getTransformsStateAndStats().get(0);   // <1>
+            DataFrameTransformStats stateAndStatsInfo =
+                response.getTransformsStats().get(0); // <1>
             DataFrameTransformTaskState taskState =
-                stateAndStats.getTransformState().getTaskState(); // <2>
+                stateAndStatsInfo.getTaskState(); // <2>
             IndexerState indexerState =
-                stateAndStats.getTransformState().getIndexerState();  // <3>
+                stateAndStatsInfo.getCheckpointingInfo()
+                    .getNext().getIndexerState(); // <3>
             DataFrameIndexerTransformStats transformStats =
-                stateAndStats.getTransformStats();              // <4>
+                stateAndStatsInfo.getIndexerStats(); // <4>
             DataFrameTransformProgress progress =
-                stateAndStats.getTransformState().getProgress(); // <5>
+                stateAndStatsInfo.getCheckpointingInfo()
+                    .getNext().getCheckpointProgress(); // <5>
             NodeAttributes node =
-                stateAndStats.getTransformState().getNode(); // <6>
+                stateAndStatsInfo.getNode(); // <6>
             // end::get-data-frame-transform-stats-response
 
-            assertEquals(IndexerState.STOPPED, indexerState);
             assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
             assertNotNull(transformStats);
             assertNull(progress);

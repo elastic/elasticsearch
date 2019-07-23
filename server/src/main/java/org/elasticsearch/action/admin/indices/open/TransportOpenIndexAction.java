@@ -53,8 +53,8 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                     DestructiveOperations destructiveOperations) {
-        super(OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            OpenIndexRequest::new);
+        super(OpenIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, OpenIndexRequest::new,
+            indexNameExpressionResolver);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
     }
@@ -63,11 +63,6 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected OpenIndexResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

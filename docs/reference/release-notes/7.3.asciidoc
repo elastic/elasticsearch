@@ -112,6 +112,7 @@ Cluster Coordination::
 * Log leader and handshake failures by default {pull}42342[#42342] (issue: {issue}42153[#42153])
 
 Data Frame::
+* [ML-DataFrame] Add a frequency option to transform config, default 1m {pull}44120[#44120]
 * [ML][Data Frame] add node attr to GET _stats {pull}43842[#43842] (issue: {issue}43743[#43743])
 * [ML][Data Frame] Add deduced mappings to _preview response payload {pull}43742[#43742] (issue: {issue}39250[#39250])
 * [ML][Data Frame] Add support for allow_no_match for endpoints {pull}43490[#43490] (issue: {issue}42766[#42766])
@@ -235,11 +236,13 @@ Aggregations::
 * Bug fix to allow access to top level params in reduce script {pull}42096[#42096] (issue: {issue}42046[#42046])
 
 Allocation::
+* Do not copy initial recovery filter during split {pull}44053[#44053] (issue: {issue}43955[#43955])
 * Avoid parallel reroutes in DiskThresholdMonitor {pull}43381[#43381] (issue: {issue}40174[#40174])
 * Reset failed allocation counter before executing routing commands {pull}42658[#42658] (issue: {issue}39546[#39546])
 * Validate routing commands using updated routing state {pull}42066[#42066] (issue: {issue}41050[#41050])
 
 Analysis::
+* Fix AnalyzeAction response serialization {pull}44284[#44284] (issue: {issue}44078[#44078])
 * Actually close IndexAnalyzers contents {pull}43914[#43914]
 * Issue deprecation warnings for preconfigured delimited_payload_filter {pull}43684[#43684] (issues: {issue}26625[#26625], {issue}43568[#43568])
 * Use preconfigured filters correctly in Analyze API {pull}43568[#43568] (issue: {issue}43002[#43002])
@@ -262,6 +265,8 @@ Cluster Coordination::
 * Omit non-masters in ClusterFormationFailureHelper {pull}41344[#41344]
 
 Data Frame::
+* [ML][Data Frame] responding with 409 status code when failing _stop {pull}44231[#44231] (issue: {issue}44103[#44103])
+* [ML][Data Frame] adds index validations to _start data frame transform {pull}44191[#44191] (issue: {issue}44104[#44104])
 * [ML] Data frame task failure do not make a 500 response {pull}44058[#44058] (issue: {issue}44011[#44011])
 * [ML-DataFrame] audit message missing for autostop {pull}43984[#43984] (issue: {issue}43977[#43977])
 * [ML-Data Frame] Add data frame transform cluster privileges to HLRC {pull}43879[#43879]
@@ -290,6 +295,7 @@ Features/CAT APIs::
 * Fix indices shown in _cat/indices {pull}43286[#43286] (issues: {issue}33888[#33888], {issue}38824[#38824], {issue}39933[#39933])
 
 Features/ILM::
+* Fix swapped variables in error message {pull}44300[#44300]
 * Account for node versions during allocation in ILM Shrink {pull}43300[#43300] (issue: {issue}41879[#41879])
 * Narrow period of Shrink action in which ILM prevents stopping {pull}43254[#43254] (issue: {issue}43253[#43253])
 * Make ILM force merging best effort {pull}43246[#43246] (issues: {issue}42824[#42824], {issue}43245[#43245])
@@ -327,6 +333,10 @@ Infra/Scripting::
 * Allow aggregations using expressions to use _score {pull}42652[#42652]
 
 Machine Learning::
+* Use specific version constant for wire bwc check {pull}44316[#44316] (issue: {issue}42501[#42501])
+* Update .ml-config mappings before indexing job, datafeed or df analytics config {pull}44216[#44216] (issue: {issue}44263[#44263])
+* [ML] Wait for .ml-config primary before assigning persistent tasks {pull}44170[#44170] (issue: {issue}44156[#44156])
+* [ML] Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
 * [ML] Fix datafeed checks when a concrete remote index is present {pull}43923[#43923]
 * [ML] Fix possible race condition when closing an opening job {pull}42506[#42506]
 
@@ -353,6 +363,10 @@ Reindex::
 * Propogate version in reindex from remote search {pull}42412[#42412] (issue: {issue}31908[#31908])
 
 SQL::
+* SQL: change the size of the list of concrete indices when resolving multiple indices {pull}43878[#43878] (issue: {issue}43876[#43876])
+* SQL: handle double quotes escaping {pull}43829[#43829] (issue: {issue}43810[#43810])
+* SQL: add pretty printing to JSON format {pull}43756[#43756]
+* SQL: handle SQL not being available in a more graceful way {pull}43665[#43665] (issue: {issue}41279[#41279])
 * SQL: fix NPE in case of subsequent scrolled requests for a CSV/TSV formatted response {pull}43365[#43365] (issue: {issue}43327[#43327])
 * Geo: Add coerce support to libs/geo WKT parser {pull}43273[#43273] (issue: {issue}43173[#43173])
 * SQL: Increase hard limit for sorting on aggregates {pull}43220[#43220] (issue: {issue}43168[#43168])
@@ -373,7 +387,6 @@ Search::
 * Deduplicate alias and concrete fields in query field expansion {pull}42328[#42328]
 
 Security::
-* Use system context for looking up connected nodes [OPEN] {pull}43991[#43991] (issue: {issue}43974[#43974])
 * SecurityIndexSearcherWrapper doesn't always carry over caches and similarity {pull}43436[#43436]
 * Detect when security index is closed {pull}42191[#42191]
 
@@ -418,6 +431,5 @@ Network::
 
 Snapshot/Restore::
 * Upgrade GCS Repository Dependencies {pull}43142[#43142]
-
 
 

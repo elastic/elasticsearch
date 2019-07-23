@@ -87,11 +87,6 @@ public class TransportStartDataFrameTransformAction extends
     }
 
     @Override
-    protected StartDataFrameTransformAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected StartDataFrameTransformAction.Response read(StreamInput in) throws IOException {
         return new StartDataFrameTransformAction.Response(in);
     }
@@ -186,7 +181,7 @@ public class TransportStartDataFrameTransformAction extends
                     return;
                 }
                 // Validate source and destination indices
-                SourceDestValidator.check(config, clusterService.state(), indexNameExpressionResolver);
+                SourceDestValidator.validate(config, clusterService.state(), indexNameExpressionResolver, false);
 
                 transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion(), config.getFrequency()));
                 final String destinationIndex = config.getDestination().getIndex();

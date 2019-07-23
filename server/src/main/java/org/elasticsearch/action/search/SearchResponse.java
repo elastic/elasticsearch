@@ -366,11 +366,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         internalResponse.writeTo(out);
         out.writeVInt(totalShards);

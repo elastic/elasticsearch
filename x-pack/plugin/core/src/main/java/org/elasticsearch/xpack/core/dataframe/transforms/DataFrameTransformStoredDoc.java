@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,51 +17,38 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DataFrameTransformStateAndStats implements Writeable, ToXContentObject {
+/**
+ * A wrapper for grouping transform state and stats when persisting to an index.
+ * Not intended to be returned in endpoint responses.
+ */
+public class DataFrameTransformStoredDoc implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_state_and_stats";
     public static final ParseField STATE_FIELD = new ParseField("state");
-    public static final ParseField CHECKPOINTING_INFO_FIELD = new ParseField("checkpointing");
 
     private final String id;
     private final DataFrameTransformState transformState;
     private final DataFrameIndexerTransformStats transformStats;
-    private final DataFrameTransformCheckpointingInfo checkpointingInfo;
 
-    public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataFrameTransformStoredDoc, Void> PARSER = new ConstructingObjectParser<>(
             NAME, true,
-            a -> new DataFrameTransformStateAndStats((String) a[0],
+            a -> new DataFrameTransformStoredDoc((String) a[0],
                     (DataFrameTransformState) a[1],
-                    (DataFrameIndexerTransformStats) a[2],
-                    (DataFrameTransformCheckpointingInfo) a[3]));
+                    (DataFrameIndexerTransformStats) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataFrameTransformState.PARSER::apply, STATE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerTransformStats.fromXContent(p),
                 DataFrameField.STATS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                                (p, c) -> DataFrameTransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
     }
 
-    public static DataFrameTransformStateAndStats fromXContent(XContentParser parser) throws IOException {
+    public static DataFrameTransformStoredDoc fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
-        return initialStateAndStats(id, new DataFrameIndexerTransformStats(id));
-    }
-
-    public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
-        return new DataFrameTransformStateAndStats(id,
-            new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null, null),
-            indexerTransformStats,
-            DataFrameTransformCheckpointingInfo.EMPTY);
     }
 
     /**
@@ -73,24 +60,19 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         return NAME + "-" + transformId;
     }
 
-    public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats,
-            DataFrameTransformCheckpointingInfo checkpointingInfo) {
+    public DataFrameTransformStoredDoc(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {
         this.id = Objects.requireNonNull(id);
         this.transformState = Objects.requireNonNull(state);
         this.transformStats = Objects.requireNonNull(stats);
-        this.checkpointingInfo = Objects.requireNonNull(checkpointingInfo);
     }
 
-    public DataFrameTransformStateAndStats(StreamInput in) throws IOException {
+    public DataFrameTransformStoredDoc(StreamInput in) throws IOException {
         this.id = in.readString();
         this.transformState = new DataFrameTransformState(in);
         this.transformStats = new DataFrameIndexerTransformStats(in);
-        this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
-    }
-
-    @Nullable
-    public String getTransformId() {
-        return transformStats.getTransformId();
+        if (in.getVersion().before(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
+            new DataFrameTransformCheckpointingInfo(in);
+        }
     }
 
     @Override
@@ -99,10 +81,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), transformState, params);
         builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
-        builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
-        if (params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
-        }
+        builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         builder.endObject();
         return builder;
     }
@@ -112,12 +91,14 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         out.writeString(id);
         transformState.writeTo(out);
         transformStats.writeTo(out);
-        checkpointingInfo.writeTo(out);
+        if (out.getVersion().before(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
+            DataFrameTransformCheckpointingInfo.EMPTY.writeTo(out);
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, transformState, transformStats, checkpointingInfo);
+        return Objects.hash(id, transformState, transformStats);
     }
 
     @Override
@@ -130,11 +111,11 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
             return false;
         }
 
-        DataFrameTransformStateAndStats that = (DataFrameTransformStateAndStats) other;
+        DataFrameTransformStoredDoc that = (DataFrameTransformStoredDoc) other;
 
-        return Objects.equals(this.id, that.id) && Objects.equals(this.transformState, that.transformState)
-                && Objects.equals(this.transformStats, that.transformStats)
-                && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);
+        return Objects.equals(this.id, that.id)
+            && Objects.equals(this.transformState, that.transformState)
+            && Objects.equals(this.transformStats, that.transformStats);
     }
 
     public String getId() {
@@ -147,10 +128,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
     public DataFrameTransformState getTransformState() {
         return transformState;
-    }
-
-    public DataFrameTransformCheckpointingInfo getCheckpointingInfo() {
-        return checkpointingInfo;
     }
 
     @Override

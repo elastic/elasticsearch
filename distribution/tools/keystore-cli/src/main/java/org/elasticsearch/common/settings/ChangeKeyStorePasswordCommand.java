@@ -20,21 +20,28 @@
 package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 /**
- * A sub-command for the keystore CLI that enables upgrading the keystore format.
+ * A sub-command for the keystore cli which changes the password.
  */
-public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
+class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
 
-    UpgradeKeyStoreCommand() {
-        super("Upgrade the keystore format", true);
+    ChangeKeyStorePasswordCommand() {
+        super("Changes the password of a keystore", true);
     }
 
     @Override
-    protected void executeCommand(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        KeyStoreWrapper.upgrade(getKeyStore(), env.configFile(), getKeyStorePassword().getChars());
+    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        try (SecureString newPassword = readPassword(terminal, true)) {
+            final KeyStoreWrapper keyStore = getKeyStore();
+            keyStore.save(env.configFile(), newPassword.getChars());
+            terminal.println("Elasticsearch keystore password changed successfully.");
+        } catch (SecurityException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
+        }
     }
-
 }

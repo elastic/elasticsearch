@@ -11,6 +11,13 @@
           "required": true,
           "description": "The id of the new transform."
         }
+      },
+      "params": {
+        "defer_validation": {
+          "type": "boolean",
+          "required": false,
+          "description": "If validations should be deferred until data frame transform starts, defaults to false."
+        }
       }
     },
     "body": {

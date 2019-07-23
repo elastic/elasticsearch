@@ -113,9 +113,9 @@ public class PublishClusterStateAction {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.incomingClusterStateListener = incomingClusterStateListener;
         this.discoverySettings = discoverySettings;
-        transportService.registerRequestHandler(SEND_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.SAME, false, false,
+        transportService.registerRequestHandler(SEND_ACTION_NAME, ThreadPool.Names.SAME, false, false, BytesTransportRequest::new,
             new SendClusterStateRequestHandler());
-        transportService.registerRequestHandler(COMMIT_ACTION_NAME, CommitClusterStateRequest::new, ThreadPool.Names.SAME, false, false,
+        transportService.registerRequestHandler(COMMIT_ACTION_NAME, ThreadPool.Names.SAME, false, false, CommitClusterStateRequest::new,
             new CommitClusterStateRequestHandler());
     }
 
@@ -462,17 +462,13 @@ public class PublishClusterStateAction {
 
         public String stateUUID;
 
-        public CommitClusterStateRequest() {
+        public CommitClusterStateRequest(StreamInput in) throws IOException {
+            super(in);
+            stateUUID = in.readString();
         }
 
         public CommitClusterStateRequest(String stateUUID) {
             this.stateUUID = stateUUID;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            stateUUID = in.readString();
         }
 
         @Override

@@ -181,6 +181,22 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
     }
 
+    public void testCreateDeleteWithDefer() throws IOException {
+        String sourceIndex = "missing-source-index";
+
+        String id = "test-with-defer";
+        DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
+        DataFrameClient client = highLevelClient().dataFrame();
+        PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(transform);
+        request.setDeferValidation(true);
+        AcknowledgedResponse ack = execute(request, client::putDataFrameTransform, client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+
+        ack = execute(new DeleteDataFrameTransformRequest(transform.getId()), client::deleteDataFrameTransform,
+            client::deleteDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+    }
+
     public void testGetTransform() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);

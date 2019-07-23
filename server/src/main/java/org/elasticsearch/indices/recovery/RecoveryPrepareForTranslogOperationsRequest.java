@@ -43,7 +43,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     }
 
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();

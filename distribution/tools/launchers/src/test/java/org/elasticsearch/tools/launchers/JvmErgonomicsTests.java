@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -135,6 +137,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
+        assumeFalse(System.getProperty("os.name").startsWith("Windows") && JavaVersion.majorVersion(JavaVersion.CURRENT) == 8);
         final Map<String, String> heapMaxDirectMemorySize = new HashMap<>();
         heapMaxDirectMemorySize.put("64M", Long.toString((64L << 20) / 2));
         heapMaxDirectMemorySize.put("512M", Long.toString((512L << 20) / 2));

@@ -22,7 +22,6 @@ package org.elasticsearch.index.store;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class StoreStats implements Streamable, Writeable, ToXContentFragment {
+public class StoreStats implements Writeable, ToXContentFragment {
 
     private long sizeInBytes;
 
@@ -71,11 +70,6 @@ public class StoreStats implements Streamable, Writeable, ToXContentFragment {
 
     public ByteSizeValue getSize() {
         return size();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

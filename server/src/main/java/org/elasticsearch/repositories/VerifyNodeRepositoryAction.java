@@ -63,7 +63,7 @@ public class VerifyNodeRepositoryAction {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT,
+        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SNAPSHOT, VerifyNodeRepositoryRequest::new,
             new VerifyNodeRepositoryRequestHandler());
     }
 
@@ -131,19 +131,15 @@ public class VerifyNodeRepositoryAction {
         private String repository;
         private String verificationToken;
 
-        public VerifyNodeRepositoryRequest() {
+        public VerifyNodeRepositoryRequest(StreamInput in) throws IOException {
+            super(in);
+            repository = in.readString();
+            verificationToken = in.readString();
         }
 
         VerifyNodeRepositoryRequest(String repository, String verificationToken) {
             this.repository = repository;
             this.verificationToken = verificationToken;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            repository = in.readString();
-            verificationToken = in.readString();
         }
 
         @Override

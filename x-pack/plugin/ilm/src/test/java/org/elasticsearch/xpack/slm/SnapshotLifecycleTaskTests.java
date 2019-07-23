@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle;
+package org.elasticsearch.xpack.slm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;

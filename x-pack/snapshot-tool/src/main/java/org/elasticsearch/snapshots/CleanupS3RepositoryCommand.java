@@ -62,12 +62,13 @@ public class CleanupS3RepositoryCommand extends AbstractCleanupCommand {
                 terminal,
                 safetyGapMillisOption.value(options),
                 parallelismOption.value(options),
-                endpoint,
-                region,
+                bucketOption.value(options),
+                basePathOption.value(options),
                 accessKey,
                 secretKey,
-                bucketOption.value(options),
-                basePathOption.value(options));
+                endpoint,
+                region);
+
         repository.cleanup();
     }
 

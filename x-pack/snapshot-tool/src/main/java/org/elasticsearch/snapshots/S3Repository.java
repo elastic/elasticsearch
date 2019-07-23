@@ -35,9 +35,8 @@ public class S3Repository extends AbstractRepository {
     private final AmazonS3 client;
     private final String bucket;
 
-    S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String endpoint, String region, String accessKey,
-                 String secretKey, String bucket,
-                 String basePath) {
+    S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String bucket, String basePath,
+                 String accessKey, String secretKey, String endpoint, String region) {
         super(terminal, safetyGapMillis, parallelism, basePath);
         this.client = buildS3Client(endpoint, region, accessKey, secretKey);
         this.bucket = bucket;

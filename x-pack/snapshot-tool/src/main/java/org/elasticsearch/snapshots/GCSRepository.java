@@ -43,12 +43,12 @@ import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
 public class GCSRepository extends AbstractRepository {
     public static final String DEVSTORAGE_FULL_CONTROL = "https://www.googleapis.com/auth/devstorage.full_control";
+
     private final String bucket;
     private final Storage storage;
 
-    protected GCSRepository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String credentialsFile, String bucket,
-                            String basePath)
-            throws IOException, GeneralSecurityException {
+    protected GCSRepository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String bucket, String basePath,
+                            String credentialsFile) throws IOException, GeneralSecurityException {
         super(terminal, safetyGapMillis, parallelism, basePath);
         this.storage = buildGCSClient(credentialsFile);
         this.bucket = bucket;

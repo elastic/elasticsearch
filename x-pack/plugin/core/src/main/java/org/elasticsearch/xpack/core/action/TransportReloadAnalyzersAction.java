@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,9 +60,7 @@ public class TransportReloadAnalyzersAction
 
     @Override
     protected ReloadResult readShardResult(StreamInput in) throws IOException {
-        ReloadResult reloadResult = new ReloadResult();
-        reloadResult.readFrom(in);
-        return reloadResult;
+        return new ReloadResult(in);
     }
 
     @Override
@@ -84,9 +82,7 @@ public class TransportReloadAnalyzersAction
 
     @Override
     protected ReloadAnalyzersRequest readRequestFrom(StreamInput in) throws IOException {
-        final ReloadAnalyzersRequest request = new ReloadAnalyzersRequest();
-        request.readFrom(in);
-        return request;
+        return new ReloadAnalyzersRequest(in);
     }
 
     @Override
@@ -97,7 +93,7 @@ public class TransportReloadAnalyzersAction
         return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
     }
 
-    static final class ReloadResult implements Streamable {
+    static final class ReloadResult implements Writeable {
         String index;
         String nodeId;
         List<String> reloadedSearchAnalyzers;
@@ -108,11 +104,7 @@ public class TransportReloadAnalyzersAction
             this.reloadedSearchAnalyzers = reloadedSearchAnalyzers;
         }
 
-        private ReloadResult() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        private ReloadResult(StreamInput in) throws IOException {
             this.index = in.readString();
             this.nodeId = in.readString();
             this.reloadedSearchAnalyzers = in.readStringList();

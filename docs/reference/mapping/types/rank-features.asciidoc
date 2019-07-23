@@ -1,5 +1,8 @@
 [[rank-features]]
 === Rank features datatype
+++++
+<titleabbrev>Rank features</titleabbrev>
+++++
 
 A `rank_features` field can index numeric feature vectors, so that they can
 later be used to boost documents in queries with a

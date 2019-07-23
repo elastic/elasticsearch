@@ -54,7 +54,7 @@ public class MultiGetShardResponse extends ActionResponse {
                 responses.add(null);
             }
             if (in.readBoolean()) {
-                failures.add(MultiGetResponse.Failure.readFailure(in));
+                failures.add(new MultiGetResponse.Failure(in));
             } else {
                 failures.add(null);
             }
@@ -71,11 +71,6 @@ public class MultiGetShardResponse extends ActionResponse {
         locations.add(location);
         responses.add(null);
         failures.add(failure);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

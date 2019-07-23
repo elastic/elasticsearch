@@ -39,6 +39,18 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
 
     private Map<String, Tuple<Version, String>> versions;
 
+    public UpgradeSettingsRequest(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        versions = new HashMap<>();
+        for (int i=0; i<size; i++) {
+            String index = in.readString();
+            Version upgradeVersion = Version.readVersion(in);
+            String oldestLuceneSegment = in.readString();
+            versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
+        }
+    }
+
     public UpgradeSettingsRequest() {
     }
 
@@ -72,20 +84,6 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
     public UpgradeSettingsRequest versions(Map<String, Tuple<Version, String>> versions) {
         this.versions = versions;
         return this;
-    }
-
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        versions = new HashMap<>();
-        for (int i=0; i<size; i++) {
-            String index = in.readString();
-            Version upgradeVersion = Version.readVersion(in);
-            String oldestLuceneSegment = in.readString();
-            versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
-        }
     }
 
     @Override

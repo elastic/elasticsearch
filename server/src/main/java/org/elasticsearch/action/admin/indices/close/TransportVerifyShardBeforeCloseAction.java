@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -52,6 +53,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
     protected Logger logger = LogManager.getLogger(getClass());
 
     @Inject
@@ -64,8 +66,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
     @Override
@@ -169,11 +171,6 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         @Override
         public String toString() {
             return "verify shard " + shardId + " before close with block " + clusterBlock;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

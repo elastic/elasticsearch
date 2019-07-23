@@ -121,9 +121,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 new TransportResponseHandler<GetTaskResponse>() {
                     @Override
                     public GetTaskResponse read(StreamInput in) throws IOException {
-                        GetTaskResponse response = new GetTaskResponse();
-                        response.readFrom(in);
-                        return response;
+                        return new GetTaskResponse(in);
                     }
 
                     @Override

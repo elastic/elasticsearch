@@ -36,6 +36,15 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         this("", true, Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap());
     }
 
+    public HasPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        completeMatch = in.readBoolean();
+        cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
+        index = readResourcePrivileges(in);
+        application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
+        username = in.readString();
+    }
+
     public HasPrivilegesResponse(String username, boolean completeMatch, Map<String, Boolean> cluster, Collection<ResourcePrivileges> index,
                                  Map<String, Collection<ResourcePrivileges>> application) {
         super();
@@ -97,15 +106,6 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
     @Override
     public int hashCode() {
         return Objects.hash(username, completeMatch, cluster, index, application);
-    }
-
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        completeMatch = in.readBoolean();
-        cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
-        index = readResourcePrivileges(in);
-        application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
-        username = in.readString();
     }
 
     private static Set<ResourcePrivileges> readResourcePrivileges(StreamInput in) throws IOException {

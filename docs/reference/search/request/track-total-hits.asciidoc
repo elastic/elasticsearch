@@ -1,5 +1,5 @@
-[[search-request-track-total-hits]]
-=== Track total hits
+[[request-body-search-track-total-hits]]
+==== Track total hits
 
 Generally the total hit count can't be computed accurately without visiting all
 matches, which is costly for queries that match lots of documents. The

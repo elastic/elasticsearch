@@ -1,5 +1,5 @@
 [[indices-get-index]]
-== Get Index
+=== Get Index
 
 The get index API allows to retrieve information about one or more indexes.
 

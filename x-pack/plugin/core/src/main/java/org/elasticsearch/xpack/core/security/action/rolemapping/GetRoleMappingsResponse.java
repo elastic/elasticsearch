@@ -21,6 +21,15 @@ public class GetRoleMappingsResponse extends ActionResponse {
 
     private ExpressionRoleMapping[] mappings;
 
+    public GetRoleMappingsResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        mappings = new ExpressionRoleMapping[size];
+        for (int i = 0; i < size; i++) {
+            mappings[i] = new ExpressionRoleMapping(in);
+        }
+    }
+
     public GetRoleMappingsResponse(ExpressionRoleMapping... mappings) {
         this.mappings = mappings;
     }
@@ -31,16 +40,6 @@ public class GetRoleMappingsResponse extends ActionResponse {
 
     public boolean hasMappings() {
         return mappings.length > 0;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        mappings = new ExpressionRoleMapping[size];
-        for (int i = 0; i < size; i++) {
-            mappings[i] = new ExpressionRoleMapping(in);
-        }
     }
 
     @Override

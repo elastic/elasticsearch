@@ -305,7 +305,7 @@ is located. Once each cluster has responded to such request, the search
 executes as if all shards were part of the same cluster. The coordinating node
 sends one request to each shard involved, each shard executes the query and
 returns its own results which are then reduced (and fetched, depending on the
-<<search-request-search-type, search type>>) by the CCS coordinating node.
+<<request-body-search-search-type, search type>>) by the CCS coordinating node.
 This strategy may be beneficial whenever there is very low network latency
 between the CCS coordinating node and the remote clusters involved, as it
 treats all shards the same, at the cost of sending many requests to each remote

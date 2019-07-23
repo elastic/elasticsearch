@@ -29,16 +29,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends
+    TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
     @Inject
     public TransportGetIndexTemplatesAction(TransportService transportService, ClusterService clusterService,
@@ -54,13 +57,13 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected GetIndexTemplatesResponse read(StreamInput in) throws IOException {
+        return new GetIndexTemplatesResponse(in);
     }
 
     @Override
-    protected GetIndexTemplatesResponse newResponse() {
-        return new GetIndexTemplatesResponse();
+    protected ClusterBlockException checkBlock(GetIndexTemplatesRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

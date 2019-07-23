@@ -1,5 +1,5 @@
-[[search-request-post-filter]]
-=== Post filter
+[[request-body-search-post-filter]]
+==== Post filter
 
 The `post_filter` is applied to the search `hits` at the very end of a search
 request,  after aggregations have already been calculated. Its purpose is

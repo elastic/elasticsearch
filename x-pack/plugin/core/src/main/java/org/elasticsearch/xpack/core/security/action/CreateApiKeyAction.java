@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * ActionType for the creation of an API key
@@ -18,11 +17,7 @@ public final class CreateApiKeyAction extends ActionType<CreateApiKeyResponse> {
     public static final CreateApiKeyAction INSTANCE = new CreateApiKeyAction();
 
     private CreateApiKeyAction() {
-        super(NAME);
+        super(NAME, CreateApiKeyResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<CreateApiKeyResponse> getResponseReader() {
-        return CreateApiKeyResponse::new;
-    }
 }

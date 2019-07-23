@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction.Request;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class RetryRequestTests extends AbstractStreamableTestCase<Request> {
+public class RetryRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -27,6 +28,11 @@ public class RetryRequestTests extends AbstractStreamableTestCase<Request> {
             request.indicesOptions(indicesOptions);
         }
         return request;
+    }
+
+    @Override
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
@@ -49,10 +55,5 @@ public class RetryRequestTests extends AbstractStreamableTestCase<Request> {
         newRequest.indices(indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
-    }
-
-    @Override
-    protected Request createBlankInstance() {
-        return new Request();
     }
 }

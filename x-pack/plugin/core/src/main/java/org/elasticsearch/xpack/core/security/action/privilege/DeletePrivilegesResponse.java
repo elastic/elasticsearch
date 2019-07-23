@@ -24,7 +24,9 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     private Set<String> found;
 
-    public DeletePrivilegesResponse() {
+    public DeletePrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public DeletePrivilegesResponse(Collection<String> found) {
@@ -39,12 +41,6 @@ public final class DeletePrivilegesResponse extends ActionResponse implements To
 
     public Set<String> found() {
         return this.found;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.found = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     @Override

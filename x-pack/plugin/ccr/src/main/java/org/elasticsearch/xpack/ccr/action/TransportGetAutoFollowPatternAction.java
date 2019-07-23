@@ -48,11 +48,6 @@ public class TransportGetAutoFollowPatternAction
     }
 
     @Override
-    protected GetAutoFollowPatternAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected GetAutoFollowPatternAction.Response read(StreamInput in) throws IOException {
         return new GetAutoFollowPatternAction.Response(in);
     }

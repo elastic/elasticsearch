@@ -26,6 +26,15 @@ about any failures.
 
 ==== Request Parameters
 
+`only_managed`::
+  (boolean) Filters the returned indices to only indices that are managed by
+  ILM.
+
+`only_errors`::
+  (boolean) Filters the returned indices to only indices that are managed by
+  ILM and are in an error state, either due to an encountering an error while
+  executing the policy, or attempting to use a policy that does not exist.
+
 include::{docdir}/rest-api/timeoutparms.asciidoc[]
 
 ==== Authorization

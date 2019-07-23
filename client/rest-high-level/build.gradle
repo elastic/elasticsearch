@@ -116,6 +116,7 @@ if (isEclipse) {
 
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
+File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
 
 integTest.runner {
   systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
@@ -133,6 +134,12 @@ testClusters.integTest {
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  setting 'xpack.security.authc.realms.native.native.order', '1'
+  setting 'xpack.security.authc.realms.pki.pki1.order', '2'
+  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', 'testRootCA.crt'
+  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+
   setting 'indices.lifecycle.poll_interval', '1000ms'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   user username:  System.getProperty('tests.rest.cluster.username', 'test_user'),
@@ -140,4 +147,5 @@ testClusters.integTest {
 
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
+  extraConfigFile pkiTrustCert.name, pkiTrustCert
 }

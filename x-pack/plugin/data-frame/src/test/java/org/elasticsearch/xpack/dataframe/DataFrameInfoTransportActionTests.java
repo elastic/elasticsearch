@@ -78,9 +78,9 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
         assertThat(DataFrameInfoTransportAction.parseSearchAggs(withEmptyAggs),
-            equalTo(DataFrameIndexerTransformStats.withDefaultTransformId()));
+            equalTo(DataFrameIndexerTransformStats.createEmpty()));
 
-        DataFrameIndexerTransformStats expectedStats = new DataFrameIndexerTransformStats("_all",
+        DataFrameIndexerTransformStats expectedStats = new DataFrameIndexerTransformStats(
             1,  // numPages
             2,  // numInputDocuments
             3,  // numOutputDocuments

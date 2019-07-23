@@ -66,7 +66,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
         boolean available = licenseState.isDataFrameAllowed();
         if (enabled == false) {
             var usage = new DataFrameFeatureSetUsage(available, enabled, Collections.emptyMap(),
-                DataFrameIndexerTransformStats.withDefaultTransformId());
+                DataFrameIndexerTransformStats.createEmpty());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
         }
@@ -99,7 +99,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
                 long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
                 if (totalTransforms == 0) {
                     var usage = new DataFrameFeatureSetUsage(available, enabled, transformsCountByState,
-                        DataFrameIndexerTransformStats.withDefaultTransformId());
+                        DataFrameIndexerTransformStats.createEmpty());
                     listener.onResponse(new XPackUsageFeatureResponse(usage));
                     return;
                 }

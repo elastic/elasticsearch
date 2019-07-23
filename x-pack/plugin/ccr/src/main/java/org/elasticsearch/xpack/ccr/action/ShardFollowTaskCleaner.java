@@ -23,7 +23,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * A {@link ClusterStateListener} that completes any {@link ShardFollowTask} which concerns tao deleted index.
+ * A {@link ClusterStateListener} that completes any {@link ShardFollowTask} which concerns a deleted index.
  */
 public class ShardFollowTaskCleaner implements ClusterStateListener {
 

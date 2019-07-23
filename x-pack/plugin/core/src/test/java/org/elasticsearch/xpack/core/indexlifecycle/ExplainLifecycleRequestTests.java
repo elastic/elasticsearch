@@ -26,6 +26,12 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             request.indicesOptions(indicesOptions);
         }
+        if (randomBoolean()) {
+            request.onlyErrors(randomBoolean());
+        }
+        if (randomBoolean()) {
+            request.onlyManaged(randomBoolean());
+        }
         return request;
     }
 
@@ -33,21 +39,31 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
     protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) throws IOException {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
-        switch (between(0, 1)) {
-        case 0:
-            indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
+        boolean onlyErrors = instance.onlyErrors();
+        boolean onlyManaged = instance.onlyManaged();
+        switch (between(0, 3)) {
+            case 0:
+                indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
                     () -> generateRandomStringArray(20, 10, false, false));
-            break;
-        case 1:
-            indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
+                break;
+            case 1:
+                indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+                break;
+            case 2:
+                onlyErrors = !onlyErrors;
+                break;
+            case 3:
+                onlyManaged = !onlyManaged;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest();
         newRequest.indices(indices);
         newRequest.indicesOptions(indicesOptions);
+        newRequest.onlyErrors(onlyErrors);
+        newRequest.onlyManaged(onlyManaged);
         return newRequest;
     }
 

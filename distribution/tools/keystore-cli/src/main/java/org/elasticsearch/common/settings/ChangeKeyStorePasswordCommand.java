@@ -36,18 +36,12 @@ class ChangeKeyStorePasswordCommand extends BaseKeyStoreCommand {
 
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        SecureString newPassword = null;
-        try {
-            newPassword = readPassword(terminal, true);
+        try (SecureString newPassword = readPassword(terminal, true)) {
             final KeyStoreWrapper keyStore = getKeyStore();
             keyStore.save(env.configFile(), newPassword.getChars());
             terminal.println("Elasticsearch keystore password changed successfully.");
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
-        } finally {
-            if (null != newPassword) {
-                newPassword.close();
-            }
         }
     }
 }

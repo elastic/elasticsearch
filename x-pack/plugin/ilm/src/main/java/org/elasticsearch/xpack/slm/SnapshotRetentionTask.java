@@ -10,7 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -182,10 +184,32 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     void deleteSnapshots(List<Tuple<String, SnapshotInfo>> snapshotsToDelete) {
         // TODO: make this more resilient and possibly only delete for a certain amount of time
         logger.info("starting snapshot retention deletion for [{}] snapshots", snapshotsToDelete.size());
-        CountDownLatch latch = new CountDownLatch(snapshotsToDelete.size());
         snapshotsToDelete.forEach(snap -> {
             logger.info("[{}] snapshot retention deleting snapshot [{}]", snap.v1(), snap.v2().snapshotId());
-            client.admin().cluster().prepareDeleteSnapshot(snap.v1(), snap.v2().snapshotId().getName()).get();
+            CountDownLatch latch = new CountDownLatch(1);
+            client.admin().cluster().prepareDeleteSnapshot(snap.v1(), snap.v2().snapshotId().getName())
+                .execute(new LatchedActionListener<>(new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        if (acknowledgedResponse.isAcknowledged()) {
+                            logger.debug("[{}] snapshot [{}] deleted successfully", snap.v1(), snap.v2().snapshotId());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
+                            snap.v1(), snap.v2().snapshotId()), e);
+                    }
+                }, latch));
+            try {
+                // Deletes cannot occur simultaneously, so wait for this
+                // deletion to complete before attempting the next one
+                latch.await();
+            } catch (InterruptedException e) {
+                logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
+                    snap.v1(), snap.v2().snapshotId()), e);
+            }
         });
     }
 }

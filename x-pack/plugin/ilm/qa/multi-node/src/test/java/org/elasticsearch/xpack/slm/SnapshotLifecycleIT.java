@@ -280,25 +280,37 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             Response updateSettingsResp = client().performRequest(r);
         }
 
-        // Check that the snapshot created by the policy has been removed by retention
-        assertBusy(() -> {
-            // We expect a failed response because the snapshot should not exist
-            try {
-                Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
-                assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
-            } catch (ResponseException e) {
-                assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
+        try {
+            // Check that the snapshot created by the policy has been removed by retention
+            assertBusy(() -> {
+                // We expect a failed response because the snapshot should not exist
+                try {
+                    Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
+                    assertThat(EntityUtils.toString(response.getEntity()), containsString("snapshot_missing_exception"));
+                } catch (ResponseException e) {
+                    assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
+                }
+            });
+
+            Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
+            assertOK(client().performRequest(delReq));
+
+            // It's possible there could have been a snapshot in progress when the
+            // policy is deleted, so wait for it to be finished
+            assertBusy(() -> {
+                assertThat(wipeSnapshots().size(), equalTo(0));
+            });
+        } finally {
+            // Unset retention
+            ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest();
+            unsetRequest.transientSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
+            try (XContentBuilder builder = jsonBuilder()) {
+                unsetRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                Request r = new Request("PUT", "/_cluster/settings");
+                r.setJsonEntity(Strings.toString(builder));
+                client().performRequest(r);
             }
-        });
-
-        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
-        assertOK(client().performRequest(delReq));
-
-        // It's possible there could have been a snapshot in progress when the
-        // policy is deleted, so wait for it to be finished
-        assertBusy(() -> {
-            assertThat(wipeSnapshots().size(), equalTo(0));
-        });
+        }
     }
 
     @SuppressWarnings("unchecked")

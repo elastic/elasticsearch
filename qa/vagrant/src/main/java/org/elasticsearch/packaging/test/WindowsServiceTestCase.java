@@ -92,7 +92,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
             Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
                 "Write-Output $files; " +
                 "foreach ($file in $files) {" +
-                    "Write-Output \"$file\"; " +    
+                    "Write-Output \"$file\"; " +
                     "Get-Content \"$file\" " +
                 "}");
             logger.error(logs.stdout);

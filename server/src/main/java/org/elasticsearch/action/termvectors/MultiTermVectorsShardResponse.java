@@ -74,11 +74,6 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(locations.size());
         for (int i = 0; i < locations.size(); i++) {

@@ -37,9 +37,14 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
         return new DataFrameTransformProgress(instance.getTotalDocs(), instance.getRemainingDocs());
     }
 
+    public static DataFrameTransformProgress randomDataFrameTransformProgress() {
+        long totalDocs = randomNonNegativeLong();
+        return new DataFrameTransformProgress(totalDocs, randomBoolean() ? null : randomLongBetween(0, totalDocs));
+    }
+
     @Override
     protected DataFrameTransformProgress createServerTestInstance() {
-        return DataFrameTransformStateTests.randomDataFrameTransformProgress();
+        return randomDataFrameTransformProgress();
     }
 
     @Override

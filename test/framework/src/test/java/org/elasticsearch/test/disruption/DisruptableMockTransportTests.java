@@ -256,7 +256,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
     }
 
     private void registerRequestHandler(TransportService transportService, TransportRequestHandler<TransportRequest.Empty> handler) {
-        transportService.registerRequestHandler("internal:dummy", () -> TransportRequest.Empty.INSTANCE, ThreadPool.Names.GENERIC, handler);
+        transportService.registerRequestHandler("internal:dummy", ThreadPool.Names.GENERIC, TransportRequest.Empty::new, handler);
     }
 
     private void send(TransportService transportService, DiscoveryNode destinationNode,

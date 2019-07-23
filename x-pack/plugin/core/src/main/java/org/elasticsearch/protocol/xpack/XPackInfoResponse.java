@@ -86,11 +86,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public boolean equals(Object other) {
         if (other == null || other.getClass() != getClass()) return false;
         if (this == other) return true;

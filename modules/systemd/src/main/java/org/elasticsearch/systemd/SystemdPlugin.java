@@ -63,25 +63,27 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @Override
     public void onNodeStarted() {
-        if (enabled) {
-            final int rc = sd_notify(0, "READY=1");
-            logger.trace("sd_notify returned [{}]", rc);
-            if (rc < 0) {
-                // treat failure to notify systemd of readiness as a startup failure
-                throw new RuntimeException("sd_notify returned error [" + rc + "]");
-            }
+        if (enabled == false) {
+            return;
+        }
+        final int rc = sd_notify(0, "READY=1");
+        logger.trace("sd_notify returned [{}]", rc);
+        if (rc < 0) {
+            // treat failure to notify systemd of readiness as a startup failure
+            throw new RuntimeException("sd_notify returned error [" + rc + "]");
         }
     }
 
     @Override
     public void close() {
-        if (enabled) {
-            final int rc = sd_notify(0, "STOPPING=1");
-            logger.trace("sd_notify returned [{}]", rc);
-            if (rc < 0) {
-                // do not treat failure to notify systemd of stopping as a failure
-                logger.warn("sd_notify returned error [{}]", rc);
-            }
+        if (enabled == false) {
+            return;
+        }
+        final int rc = sd_notify(0, "STOPPING=1");
+        logger.trace("sd_notify returned [{}]", rc);
+        if (rc < 0) {
+            // do not treat failure to notify systemd of stopping as a failure
+            logger.warn("sd_notify returned error [{}]", rc);
         }
     }
 

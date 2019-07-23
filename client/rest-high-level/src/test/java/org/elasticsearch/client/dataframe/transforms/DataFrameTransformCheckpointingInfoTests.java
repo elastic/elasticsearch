@@ -30,32 +30,31 @@ public class DataFrameTransformCheckpointingInfoTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser,
-                DataFrameTransformCheckpointingInfoTests::randomDataFrameTransformCheckpointingInfo,
-                DataFrameTransformCheckpointingInfoTests::toXContent,
-                DataFrameTransformCheckpointingInfo::fromXContent)
+            DataFrameTransformCheckpointingInfoTests::randomDataFrameTransformCheckpointingInfo,
+            DataFrameTransformCheckpointingInfoTests::toXContent,
+            DataFrameTransformCheckpointingInfo::fromXContent)
                 .supportsUnknownFields(false)
                 .test();
     }
 
     public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
         return new DataFrameTransformCheckpointingInfo(
-                DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
-                DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
-                randomLongBetween(0, 10000));
+            DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
+            DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
+            randomLongBetween(0, 10000));
     }
 
     public static void toXContent(DataFrameTransformCheckpointingInfo info, XContentBuilder builder) throws IOException {
         builder.startObject();
-        if (info.getCurrent().getTimestampMillis() > 0) {
-            builder.field("current");
-            DataFrameTransformCheckpointStatsTests.toXContent(info.getCurrent(), builder);
+        if (info.getLast().getTimestampMillis() > 0) {
+            builder.field(DataFrameTransformCheckpointingInfo.LAST_CHECKPOINT.getPreferredName());
+            DataFrameTransformCheckpointStatsTests.toXContent(info.getLast(), builder);
         }
-        if (info.getInProgress().getTimestampMillis() > 0) {
-            builder.field("in_progress");
-            DataFrameTransformCheckpointStatsTests.toXContent(info.getInProgress(), builder);
+        if (info.getNext().getTimestampMillis() > 0) {
+            builder.field(DataFrameTransformCheckpointingInfo.NEXT_CHECKPOINT.getPreferredName());
+            DataFrameTransformCheckpointStatsTests.toXContent(info.getNext(), builder);
         }
-        builder.field("operations_behind", info.getOperationsBehind());
+        builder.field(DataFrameTransformCheckpointingInfo.OPERATIONS_BEHIND.getPreferredName(), info.getOperationsBehind());
         builder.endObject();
     }
-
 }

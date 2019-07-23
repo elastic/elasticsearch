@@ -30,7 +30,7 @@ efficiently compressed.
 
 By default, global ordinals are loaded at search-time, which is the right
 trade-off if you are optimizing for indexing speed. However, if you are more
-interested in search speed, it could be interesting to set
+interested in search speed, it could be beneficial to set
 `eager_global_ordinals: true` on fields that you plan to use in terms
 aggregations:
 
@@ -49,9 +49,25 @@ PUT my_index/_mapping
 // CONSOLE
 // TEST[s/^/PUT my_index\n/]
 
-This will shift the cost from search-time to refresh-time. Elasticsearch will
-make sure that global ordinals are built before publishing updates to the
-content of the index.
+This will shift the cost of building the global ordinals from search-time to
+refresh-time. Elasticsearch will make sure that global ordinals are built
+before exposing to searches any changes to the content of the index.
+Elasticsearch will also eagerly build global ordinals when starting a new copy
+of a shard, such as when increasing the number of replicas or when relocating a
+shard onto a new node.
+
+If a shard has been <<indices-forcemerge,force-merged>> down to a single
+segment then its global ordinals are identical to the ordinals for its unique
+segment, which means there is no extra cost for using global ordinals on such a
+shard. Note that for performance reasons you should only force-merge an index
+to which you will never write again.
+
+On a <<frozen-indices,frozen index>>, global ordinals are discarded after each
+search and rebuilt again on the next search if needed or if
+`eager_global_ordinals` is set. This means `eager_global_ordinals` should not
+be used on frozen indices. Instead, force-merge an index to a single segment
+before freezing it so that global ordinals need not be built separately on each
+search.
 
 If you ever decide that you do not need to run `terms` aggregations on this
 field anymore, then you can disable eager loading of global ordinals at any

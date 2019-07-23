@@ -53,9 +53,7 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
             }
             return;
         }
-        System.out.println("LINE: [" + line + "]");
         if (line.startsWith(squashedPrefix)) {
-            System.out.println("found prefix");
             line = line.substring(squashedPrefix.length());
             inProgressReport = false;
             lastLine = line;
@@ -71,13 +69,11 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
         } else {
             return;
         }
-        System.out.println("PROGRESS: " + line);
         progressLogger.progress(line);
     }
 
     @Override
     public void close() {
-        System.out.println("closing");
         progressLogger.completed();
     }
 }

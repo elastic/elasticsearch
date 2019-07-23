@@ -35,7 +35,11 @@ import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.client.node.NodeClient;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.cat.RestIndicesAction;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -174,7 +178,8 @@ public class GqlElasticsearchApi implements GqlApi {
         obj.put("primaryTerm", obj.get("_primary_term"));
         obj.remove("_primary_term");
 
-        obj.put("source", obj.get("_source"));
+        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, (String) obj.get("_source"), false);
+        obj.put("source", source);
         obj.remove("_source");
 
         return obj;
@@ -193,6 +198,7 @@ public class GqlElasticsearchApi implements GqlApi {
         logger.info("getDocument [indexName = {}, documentId]", indexName, documentId);
 
         GetRequest request = new GetRequest(indexName, documentId);
+        request.fetchSourceContext(new FetchSourceContext(true));
         CompletableFuture<GetResponse> future = new CompletableFuture<GetResponse>();
         client.get(request, futureToListener(future));
 

@@ -284,6 +284,10 @@ public class GqlServer {
                 .name("Document")
                 .description("A document stored in Elasticsearch index.")
                 .field(newFieldDefinition()
+                    .name("_")
+                    .description("Fetch all `Document` data.")
+                    .type(ExtendedScalars.Json))
+                .field(newFieldDefinition()
                     .name("indexName")
                     .description("Document index name.")
                     .type(GraphQLID))
@@ -332,7 +336,8 @@ public class GqlServer {
                 String indexName = environment.getArgument("index");
                 String documentId = environment.getArgument("id");
                 return api.getDocument(indexName, documentId);
-            });
+            })
+            .fetcher("Document", "_", environment -> environment.getSource());
     }
 
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {

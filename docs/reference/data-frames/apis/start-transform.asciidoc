@@ -27,6 +27,16 @@ have `view_index_metadata` privileges on the source index for the
 {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
+[[start-data-frame-transform-desc]]
+==== {api-description-title}
+
+When a {dataframe-transform} starts, a series of validations occur to ensure its
+success. If you deferred validation when you created the {dataframe-transform},
+they occur when you start the transform--with the exception of privilege checks.
+If the user who created the transform does not have the required privileges on
+the source and destination indices, the transform starts but then fails when
+it attempts the unauthorized operation.
+
 [[start-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 

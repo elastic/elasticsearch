@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import java.util.concurrent.Semaphore;
 import java.util.function.LongSupplier;
 
 import org.elasticsearch.action.ActionListener;
@@ -13,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
@@ -25,6 +27,8 @@ public class EnrichPolicyExecutor {
     private final LongSupplier nowSupplier;
     private final int fetchSize;
     private final EnrichPolicyLocks policyLocks;
+    private final int maximumConcurrentPolicyExecutions;
+    private final Semaphore policyExecutionPermits;
 
     EnrichPolicyExecutor(Settings settings,
                          ClusterService clusterService,
@@ -40,6 +44,26 @@ public class EnrichPolicyExecutor {
         this.nowSupplier = nowSupplier;
         this.policyLocks = policyLocks;
         this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
+        this.maximumConcurrentPolicyExecutions = EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.get(settings);
+        this.policyExecutionPermits = new Semaphore(maximumConcurrentPolicyExecutions);
+    }
+
+    private void tryLockingPolicy(String policyName) {
+        policyLocks.lockPolicy(policyName);
+        if (policyExecutionPermits.tryAcquire() == false) {
+            // Release policy lock, and throw a different exception
+            policyLocks.releasePolicy(policyName);
+            throw new EsRejectedExecutionException("Policy execution failed. Policy execution for [" + policyName + "] would exceed " +
+                "maximum concurrent policy executions [" + maximumConcurrentPolicyExecutions + "]");
+        }
+    }
+
+    private void releasePolicy(String policyName) {
+        try {
+            policyExecutionPermits.release();
+        } finally {
+            policyLocks.releasePolicy(policyName);
+        }
     }
 
     private class PolicyUnlockingListener implements ActionListener<PolicyExecutionResult> {
@@ -53,13 +77,13 @@ public class EnrichPolicyExecutor {
 
         @Override
         public void onResponse(PolicyExecutionResult policyExecutionResult) {
-            policyLocks.releasePolicy(policyName);
+            releasePolicy(policyName);
             listener.onResponse(policyExecutionResult);
         }
 
         @Override
         public void onFailure(Exception e) {
-            policyLocks.releasePolicy(policyName);
+            releasePolicy(policyName);
             listener.onFailure(e);
         }
     }
@@ -80,13 +104,13 @@ public class EnrichPolicyExecutor {
     }
 
     public void runPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
-        policyLocks.lockPolicy(policyName);
+        tryLockingPolicy(policyName);
         try {
             Runnable runnable = createPolicyRunner(policyName, policy, new PolicyUnlockingListener(policyName, listener));
             threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
         } catch (Exception e) {
             // Be sure to unlock if submission failed.
-            policyLocks.releasePolicy(policyName);
+            releasePolicy(policyName);
             throw e;
         }
     }

@@ -85,7 +85,7 @@ ab+     # matches 'abb', 'abbb', 'abbbb', etc.
 Repeat the preceding character zero or more times. For example:
 
 ....
-abc     # matches 'ab', 'abb', 'abbb', 'abbbb', etc.
+ab*     # matches 'ab', 'abb', 'abbb', 'abbbb', etc.
 ....
 --
 

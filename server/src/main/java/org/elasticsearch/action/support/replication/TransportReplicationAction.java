@@ -1101,11 +1101,6 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(targetAllocationID);
             out.writeVLong(primaryTerm);
@@ -1146,11 +1141,6 @@ public abstract class TransportReplicationAction<
             super(request, targetAllocationID, primaryTerm);
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

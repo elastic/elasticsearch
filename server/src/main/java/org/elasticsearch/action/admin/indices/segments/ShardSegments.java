@@ -50,7 +50,7 @@ public class ShardSegments implements Writeable, Iterable<Segment> {
         } else {
             segments = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                segments.add(Segment.readSegment(in));
+                segments.add(new Segment(in));
             }
         }
     }

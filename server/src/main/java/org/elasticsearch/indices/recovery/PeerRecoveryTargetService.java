@@ -105,22 +105,22 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         this.clusterService = clusterService;
         this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
-        transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest::new, ThreadPool.Names.GENERIC, new
-                FilesInfoRequestHandler());
-        transportService.registerRequestHandler(Actions.FILE_CHUNK, RecoveryFileChunkRequest::new, ThreadPool.Names.GENERIC, new
-                FileChunkTransportRequestHandler());
+        transportService.registerRequestHandler(Actions.FILES_INFO, ThreadPool.Names.GENERIC, RecoveryFilesInfoRequest::new,
+            new FilesInfoRequestHandler());
+        transportService.registerRequestHandler(Actions.FILE_CHUNK, ThreadPool.Names.GENERIC, RecoveryFileChunkRequest::new,
+            new FileChunkTransportRequestHandler());
         transportService.registerRequestHandler(Actions.CLEAN_FILES, ThreadPool.Names.GENERIC,
             RecoveryCleanFilesRequest::new, new CleanFilesRequestHandler());
         transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
                 RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, RecoveryTranslogOperationsRequest::new,
             new TranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
-                FinalizeRecoveryRequestHandler());
+        transportService.registerRequestHandler(Actions.FINALIZE, ThreadPool.Names.GENERIC, RecoveryFinalizeRecoveryRequest::new,
+            new FinalizeRecoveryRequestHandler());
         transportService.registerRequestHandler(
                 Actions.HANDOFF_PRIMARY_CONTEXT,
-                RecoveryHandoffPrimaryContextRequest::new,
                 ThreadPool.Names.GENERIC,
+                RecoveryHandoffPrimaryContextRequest::new,
                 new HandoffPrimaryContextRequestHandler());
     }
 

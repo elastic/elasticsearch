@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle.action;
+package org.elasticsearch.xpack.slm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
-import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
-import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleTask;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 
 import java.io.IOException;
 import java.util.Optional;

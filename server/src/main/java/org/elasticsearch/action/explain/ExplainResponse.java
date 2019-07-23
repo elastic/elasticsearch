@@ -91,7 +91,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
             explanation = readExplanation(in);
         }
         if (in.readBoolean()) {
-            getResult = GetResult.readGetResult(in);
+            getResult = new GetResult(in);
         }
     }
 

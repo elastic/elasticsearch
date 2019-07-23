@@ -92,7 +92,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private final TimeValue initialConnectionTimeout;
-    private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
+    private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
     /**
      * Creates a new {@link RemoteClusterConnection}

@@ -46,7 +46,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
             Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
 
-    private final ThreadPool threadPool;
     private final Reindexer reindexer;
 
     @Inject
@@ -54,7 +53,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
         super(ReindexAction.NAME, transportService, actionFilters, (Writeable.Reader<ReindexRequest>) ReindexRequest::new);
-        this.threadPool = threadPool;
         this.reindexer = new Reindexer(settings, clusterService, client, threadPool, indexNameExpressionResolver, autoCreateIndex,
             scriptService, sslConfig);
 
@@ -62,18 +60,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        // We dispatch here because the new ReindexTask uses this action. When an action is executed locally,
-        // it is not dispatched from the ctor argument.
-        threadPool.generic().execute(new ActionRunnable<>(listener) {
-
-            @Override
-            protected void doRun() {
-                reindexer.initialValidation(request);
-
-                BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-                reindexer.execute(request, listener);
-
-            }
-        });
+        reindexer.initialValidation(request);
+        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+        reindexer.execute(bulkByScrollTask, request, listener);
     }
 }

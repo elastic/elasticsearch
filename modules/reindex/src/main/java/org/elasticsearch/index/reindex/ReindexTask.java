@@ -50,6 +50,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
     private final NodeClient client;
     private final TaskId taskId;
+    private final BulkByScrollTask newTask;
     private volatile BulkByScrollTask childTask;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
@@ -84,19 +85,16 @@ public class ReindexTask extends AllocatedPersistentTask {
         super(id, type, action, "persistent " + reindexRequest.toString(), parentTask, headers);
         taskId = new TaskId(clusterService.localNode().getId(), id);
         this.client = (NodeClient) client;
+        this.newTask = new BulkByScrollTask(id, type, action, getDescription(), parentTask, headers);
     }
 
     @Override
     public Status getStatus() {
-        if (childTask == null) {
-            return super.getStatus();
-        } else {
-            return childTask.getStatus();
-        }
+        return newTask.getStatus();
     }
 
     public BulkByScrollTask getChildTask() {
-        return childTask;
+        return newTask;
     }
 
     private void startTaskAndNotify(ReindexJob reindexJob) {

@@ -113,15 +113,14 @@ public class Reindexer {
             state);
     }
 
-    public void execute(ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) null;
-        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
+    public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+        BulkByScrollParallelizationHelper.startSlicedAction(request, task, ReindexAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
-                    bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, sslConfig,
-                    request, listener).start();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
+                AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
+                    scriptService, sslConfig, request, listener);
+                searchAction.start();
             }
         );
 

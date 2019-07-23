@@ -65,7 +65,10 @@ import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING =
-        Setting.intSetting("index.xpack.enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
+        Setting.intSetting("enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
+
+    static final Setting<Integer> ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS =
+        Setting.intSetting("enrich.max_concurrent_policy_executions", 50, 1, Setting.Property.NodeScope);
 
     static final Setting<TimeValue> ENRICH_CLEANUP_PERIOD =
         Setting.timeSetting("enrich.cleanup_period", new TimeValue(15, TimeUnit.MINUTES), Setting.Property.NodeScope);
@@ -173,6 +176,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             ENRICH_FETCH_SIZE_SETTING,
+            ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS,
             ENRICH_CLEANUP_PERIOD,
             COORDINATOR_PROXY_MAX_CONCURRENT_REQUESTS,
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,

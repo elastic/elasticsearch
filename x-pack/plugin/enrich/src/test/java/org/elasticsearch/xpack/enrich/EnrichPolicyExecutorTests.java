@@ -137,4 +137,52 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         secondTaskBlock.countDown();
         secondTaskComplete.await();
     }
+
+    public void testMaximumPolicyExecutionLimit() throws InterruptedException {
+        String testPolicyBaseName = "test_policy_";
+        Settings testSettings = Settings.builder().put(EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.getKey(), 2).build();
+        EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("some_index"), "keyfield",
+            Collections.singletonList("valuefield"));
+        final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(testSettings, null, null, testThreadPool,
+            new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);
+
+        // Launch a two fake policy runs that will block until counted down to use up the maximum concurrent
+        final CountDownLatch firstTaskComplete = new CountDownLatch(1);
+        final CountDownLatch firstTaskBlock = testExecutor.testRunPolicy(testPolicyBaseName + "1", testPolicy,
+            new LatchedActionListener<>(noOpListener, firstTaskComplete));
+
+        final CountDownLatch secondTaskComplete = new CountDownLatch(1);
+        final CountDownLatch secondTaskBlock = testExecutor.testRunPolicy(testPolicyBaseName + "2", testPolicy,
+            new LatchedActionListener<>(noOpListener, secondTaskComplete));
+
+        // Launch a third fake run that should fail immediately because the lock is obtained.
+        EsRejectedExecutionException expected = expectThrows(EsRejectedExecutionException.class,
+            "Expected exception but nothing was thrown", () -> {
+                CountDownLatch countDownLatch = testExecutor.testRunPolicy(testPolicyBaseName + "3", testPolicy, noOpListener);
+                // Should throw exception on the previous statement, but if it doesn't, be a
+                // good citizen and conclude the fake runs to keep the logs clean from interrupted exceptions
+                countDownLatch.countDown();
+                firstTaskBlock.countDown();
+                secondTaskBlock.countDown();
+                firstTaskComplete.await();
+                secondTaskComplete.await();
+            });
+
+        // Conclude the first mock run
+        firstTaskBlock.countDown();
+        secondTaskBlock.countDown();
+        firstTaskComplete.await();
+        secondTaskComplete.await();
+
+        // Validate exception from second run
+        assertThat(expected.getMessage(), containsString("Policy execution failed. Policy execution for [test_policy_3] would exceed " +
+            "maximum concurrent policy executions [2]"));
+
+        // Ensure that the lock from the previous run has been cleared
+        CountDownLatch finalTaskComplete = new CountDownLatch(1);
+        CountDownLatch finalTaskBlock = testExecutor.testRunPolicy(testPolicyBaseName + "1", testPolicy,
+            new LatchedActionListener<>(noOpListener, finalTaskComplete));
+        finalTaskBlock.countDown();
+        finalTaskComplete.await();
+    }
 }

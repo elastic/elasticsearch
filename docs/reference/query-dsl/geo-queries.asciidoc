@@ -1,25 +1,32 @@
 [[geo-queries]]
 == Geo queries
 
-Elasticsearch supports two types of geo data:
-<<geo-point,`geo_point`>> fields which support lat/lon pairs, and
-<<geo-shape,`geo_shape`>> fields, which support points,
-lines, circles, polygons, multi-polygons, etc.
+{es} supports two type of geometric, or geo, data:
 
-The queries in this group are:
+* <<geo-point,Geopoint>> fields which support latitude-longitude pairs
+* <<geo-shape,Geoshape>> fields which support points, lines, circles,
+polygons, multi-polygons, etc.
+
+You can use **geo queries** to find documents based on geo data fields in an
+index.
+
+[float]
+[[geo-query-types]]
+=== Types of geo queries
 
 <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query::
-Finds documents with geo-points that fall into the specified rectangle.
+Returns documents based on geopoint within a
+provided rectangle.
 
 <<query-dsl-geo-distance-query,`geo_distance`>> query::
-Finds documents with geo-points within the specified distance of a central point.
+Returns documents containing a geopoint within a provided distance from another
+geopoint.
 
 <<query-dsl-geo-polygon-query,`geo_polygon`>> query::
-Find documents with geo-points within the specified polygon.
+Returns documents containing a geopoint within a provided polygon.
 
 <<query-dsl-geo-shape-query,`geo_shape`>> query::
-Finds documents with geo-shapes which either intersect, are contained by, or do not intersect with the specified
-geo-shape.
+Returns documents intersecting with, outside, or within a geoshape.
 
 
 include::geo-bounding-box-query.asciidoc[]

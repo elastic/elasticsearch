@@ -214,6 +214,10 @@ public class GqlServer {
                 .name("Index")
                 .description("Elasticsearch index.")
                 .field(newFieldDefinition()
+                    .name("_")
+                    .description("Fetch all `Index` data.")
+                    .type(ExtendedScalars.Json))
+                .field(newFieldDefinition()
                     .name("numberOfShards")
                     .description("Number of shard in this index.")
                     .type(GraphQLInt))
@@ -269,7 +273,8 @@ public class GqlServer {
             .fetcher("Query", "index", environment -> {
                 String name = environment.getArgument("name");
                 return api.getIndex(name);
-            });
+            })
+            .fetcher("Index", "_", environment -> environment.getSource());
     }
 
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {

@@ -104,10 +104,15 @@ public class GqlElasticsearchApi implements GqlApi {
                 }
          */
         indexSettings.put("numberOfShards", indexSettings.get("number_of_shards"));
+        indexSettings.remove("number_of_shards");
         indexSettings.put("autoExpandReplicas", indexSettings.get("auto_expand_replicas"));
+        indexSettings.remove("auto_expand_replicas");
         indexSettings.put("providerName", indexSettings.get("provided_name"));
+        indexSettings.remove("provided_name");
         indexSettings.put("creationDate", indexSettings.get("creation_date"));
+        indexSettings.remove("creation_date");
         indexSettings.put("numberOfReplicas", indexSettings.get("number_of_replicas"));
+        indexSettings.remove("number_of_replicas");
 
         indexSettings.put("mappings", data.get("mappings"));
 

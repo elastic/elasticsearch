@@ -1,9 +1,9 @@
 ---
 "Test url escaping with url mustache function":
-    - skip:
+  - skip:
       version: "all"
       reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/41172"
-    - do:
+  - do:
       cluster.health:
           wait_for_status: yellow
 

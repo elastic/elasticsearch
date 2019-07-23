@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -61,13 +63,16 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
     private final DataFrameAuditor auditor;
+    private volatile int numFailureRetries;
 
     public DataFrameTransformPersistentTasksExecutor(Client client,
                                                      DataFrameTransformsConfigManager transformsConfigManager,
                                                      DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService,
                                                      SchedulerEngine schedulerEngine,
                                                      DataFrameAuditor auditor,
-                                                     ThreadPool threadPool) {
+                                                     ThreadPool threadPool,
+                                                     ClusterService clusterService,
+                                                     Settings settings) {
         super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformsConfigManager = transformsConfigManager;
@@ -75,6 +80,9 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         this.schedulerEngine = schedulerEngine;
         this.auditor = auditor;
         this.threadPool = threadPool;
+        this.numFailureRetries = DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
 
     @Override
@@ -286,7 +294,11 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                            Long previousCheckpoint,
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);
-        buildTask.start(previousCheckpoint, listener);
+        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
+    }
+
+    private void setNumFailureRetries(int numFailureRetries) {
+        this.numFailureRetries = numFailureRetries;
     }
 
     @Override

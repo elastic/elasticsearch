@@ -53,7 +53,10 @@ public abstract class LoggingOutputStream extends OutputStream {
         if (end == buffer.length) {
             if (start != 0) {
                 // first try shifting the used buffer back to the beginning to make space
-                System.arraycopy(buffer, start, buffer, 0, end - start);
+                int len = end - start;
+                System.arraycopy(buffer, start, buffer, 0, len);
+                start = 0;
+                end = len;
             } else {
                 // otherwise extend the buffer
                 final int newBufferLength = buffer.length + DEFAULT_BUFFER_LENGTH;

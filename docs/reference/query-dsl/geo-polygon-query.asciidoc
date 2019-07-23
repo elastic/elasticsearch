@@ -157,7 +157,7 @@ the longitude-latitude order conforms with http://geojson.org/[GeoJSON].
 
 [source,js]
 ----
-GET /_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -188,7 +188,7 @@ format.
 
 [source,js]
 ----
-GET /_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {
@@ -218,7 +218,7 @@ The following search uses the `latitude, longitude` string format.
 
 [source,js]
 ----
-GET /_search
+GET /my_locations/_search
 {
     "query": {
         "bool" : {

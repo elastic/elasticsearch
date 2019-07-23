@@ -153,7 +153,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
 
         public int getFailureCount() {
@@ -446,12 +446,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         public static final String NAME = "cluster:admin/tasks/testunblock";
 
         private UnblockTestTasksAction() {
-            super(NAME);
-        }
-
-        @Override
-        public Writeable.Reader<UnblockTestTasksResponse> getResponseReader() {
-            return UnblockTestTasksResponse::new;
+            super(NAME, UnblockTestTasksResponse::new);
         }
     }
 

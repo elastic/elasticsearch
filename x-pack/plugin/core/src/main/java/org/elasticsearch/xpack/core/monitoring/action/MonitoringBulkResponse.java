@@ -25,13 +25,6 @@ public class MonitoringBulkResponse extends ActionResponse {
     private Error error;
     private boolean ignored;
 
-    public MonitoringBulkResponse(StreamInput in) throws IOException {
-        super(in);
-        tookInMillis = in.readVLong();
-        error = in.readOptionalWriteable(Error::new);
-        ignored = in.readBoolean();
-    }
-
     public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
         this.tookInMillis = tookInMillis;
         this.ignored = ignored;
@@ -40,6 +33,13 @@ public class MonitoringBulkResponse extends ActionResponse {
     public MonitoringBulkResponse(final long tookInMillis, final Error error) {
         this(tookInMillis, false);
         this.error = error;
+    }
+
+    public MonitoringBulkResponse(StreamInput in) throws IOException {
+        super(in);
+        tookInMillis = in.readVLong();
+        error = in.readOptionalWriteable(Error::new);
+        ignored = in.readBoolean();
     }
 
     public TimeValue getTook() {
@@ -77,11 +77,6 @@ public class MonitoringBulkResponse extends ActionResponse {
 
     public Error getError() {
         return error;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

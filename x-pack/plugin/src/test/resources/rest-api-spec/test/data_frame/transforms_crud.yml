@@ -91,6 +91,20 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "missing-source-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "missing-index" },
+            "dest": { "index": "missing-source-dest" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
 ---
 "Test basic transform crud":
   - do:
@@ -305,6 +319,22 @@ setup:
       catch: /Destination index \[airline-data-by-airline\] is included in source expression \[airline-data/
       data_frame.put_data_frame_transform:
         transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"]
+            },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        defer_validation: true
         body: >
           {
             "source": {
@@ -558,3 +588,47 @@ setup:
             "description": "yaml test transform on airline-data",
             "version": "7.3.0"
           }
+---
+"Test force deleting a running transform":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-delete" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-delete"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-delete" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
+  - match: { transforms.0.state.task_state: "started" }
+
+  - do:
+      catch: /Cannot delete data frame \[airline-transform-start-delete\] as the task is running/
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-delete"
+        force: true
+  - match: { acknowledged: true }

@@ -1,5 +1,5 @@
 [[request-body-search-index-boost]]
-=== Index Boost
+==== Index Boost
 
 Allows to configure different boost level per index when searching
 across more than one indices. This is very handy when hits coming from

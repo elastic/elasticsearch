@@ -51,14 +51,13 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
 
         public Request() {}
 
-        public String getIndexPattern() {
-            return indexPattern;
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.indexPattern = in.readString();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.indexPattern = in.readString();
+        public String getIndexPattern() {
+            return indexPattern;
         }
 
         @Override

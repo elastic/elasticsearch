@@ -58,12 +58,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
 
     private ShardChangesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, ShardChangesAction.Response::new);
     }
 
     public static class Request extends SingleShardRequest<Request> {
@@ -283,11 +278,6 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
             this.operations = operations;
             this.tookInMillis = tookInMillis;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

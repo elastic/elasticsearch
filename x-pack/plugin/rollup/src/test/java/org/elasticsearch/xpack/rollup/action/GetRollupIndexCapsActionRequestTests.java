@@ -10,7 +10,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -27,7 +28,7 @@ import static org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsA
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class GetRollupIndexCapsActionRequestTests extends AbstractStreamableTestCase<GetRollupIndexCapsAction.Request> {
+public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializingTestCase<GetRollupIndexCapsAction.Request> {
 
     @Override
     protected GetRollupIndexCapsAction.Request createTestInstance() {
@@ -38,10 +39,9 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractStreamableTest
     }
 
     @Override
-    protected GetRollupIndexCapsAction.Request createBlankInstance() {
-        return new GetRollupIndexCapsAction.Request();
+    protected Writeable.Reader<GetRollupIndexCapsAction.Request> instanceReader() {
+        return GetRollupIndexCapsAction.Request::new;
     }
-
 
     public void testNoIndicesByRollup() {
         ImmutableOpenMap<String, IndexMetaData> indices = new ImmutableOpenMap.Builder<String, IndexMetaData>().build();

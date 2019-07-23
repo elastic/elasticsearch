@@ -280,7 +280,7 @@ public abstract class AbstractRepository {
                 return true;
             } else {
                 terminal.println(Terminal.Verbosity.VERBOSE,
-                        "Index  " + candidate + " might not be orphaned because its modification timestamp "
+                        "Index " + candidate + " might not be orphaned because its modification timestamp "
                                 + indexTimestamp +
                                 " is gte than index-N shifted timestamp " + shiftedIndexNTimestamp);
             }

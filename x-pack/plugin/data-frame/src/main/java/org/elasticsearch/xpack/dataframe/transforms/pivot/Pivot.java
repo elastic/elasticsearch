@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -51,6 +52,7 @@ public class Pivot {
     private static final Logger logger = LogManager.getLogger(Pivot.class);
 
     private final PivotConfig config;
+    private final boolean supportsIncrementalBucketUpdate;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
@@ -58,6 +60,13 @@ public class Pivot {
     public Pivot(PivotConfig config) {
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
+
+        boolean supportsIncrementalBucketUpdate = false;
+        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
+            supportsIncrementalBucketUpdate |= entry.getValue().supportsIncrementalBucketUpdate();
+        }
+
+        this.supportsIncrementalBucketUpdate = supportsIncrementalBucketUpdate;
     }
 
     public void validate(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
@@ -104,8 +113,8 @@ public class Pivot {
         sourceBuilder.size(0);
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
+        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         return searchRequest;
-
     }
 
     public AggregationBuilder buildAggregation(Map<String, Object> position, int pageSize) {
@@ -133,6 +142,10 @@ public class Pivot {
         }
 
         return changedBuckets;
+    }
+
+    public boolean supportsIncrementalBucketUpdate() {
+        return supportsIncrementalBucketUpdate;
     }
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,

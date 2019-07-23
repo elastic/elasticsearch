@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.shingle.FixedShingleFilter;
+import org.apache.lucene.analysis.tokenattributes.BytesTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
@@ -688,7 +689,10 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
             String field = name();
-            if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
+            // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
+            // or if the incoming token stream is the output of a token graph due to
+            // https://issues.apache.org/jira/browse/LUCENE-8916
+            if (indexPhrases && slop == 0 && hasGaps(stream) == false && stream.hasAttribute(BytesTermAttribute.class) == false) {
                 stream = new FixedShingleFilter(stream, 2);
                 field = field + FAST_PHRASE_SUFFIX;
             }
@@ -701,6 +705,9 @@ public class TextFieldMapper extends FieldMapper {
 
             stream.reset();
             while (stream.incrementToken()) {
+                if (termAtt.getBytesRef() == null) {
+                    throw new IllegalStateException("Null term while building phrase query");
+                }
                 if (enablePosIncrements) {
                     position += posIncrAtt.getPositionIncrement();
                 }

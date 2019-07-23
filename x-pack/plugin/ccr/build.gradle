@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.OS
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -22,6 +24,8 @@ task internalClusterTestNoSecurityManager(type: Test) {
     include noSecurityManagerITClasses
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
     systemProperty 'tests.security.manager', 'false'
+    // Disable tests on windows https://github.com/elastic/elasticsearch/issues/44610
+    onlyIf { OS.WINDOWS.equals(OS.current()) == false }
 }
 
 // Instead we create a separate task to run the
@@ -34,6 +38,8 @@ task internalClusterTest(type: Test) {
     include '**/*IT.class'
     exclude noSecurityManagerITClasses
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
+    // Disable tests on windows https://github.com/elastic/elasticsearch/issues/44610
+    onlyIf { OS.WINDOWS.equals(OS.current()) == false }
 }
 
 check.dependsOn internalClusterTest

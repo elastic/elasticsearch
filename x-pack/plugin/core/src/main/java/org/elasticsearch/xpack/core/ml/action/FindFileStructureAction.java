@@ -339,7 +339,7 @@ public class FindFileStructureAction extends StreamableResponseActionType<FindFi
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             linesToSample = in.readOptionalVInt();
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 lineMergeSizeLimit = in.readOptionalVInt();
             }
             timeout = in.readOptionalTimeValue();
@@ -360,7 +360,7 @@ public class FindFileStructureAction extends StreamableResponseActionType<FindFi
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalVInt(linesToSample);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeOptionalVInt(lineMergeSizeLimit);
             }
             out.writeOptionalTimeValue(timeout);

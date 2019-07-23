@@ -44,23 +44,16 @@ These functions effectively ignore empty buckets.
 * <<ml-sum-functions>>
 * <<ml-time-functions>>
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/count.asciidoc
 include::functions/count.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/geo.asciidoc
 include::functions/geo.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/info.asciidoc
 include::functions/info.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/metric.asciidoc
 include::functions/metric.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/rare.asciidoc
 include::functions/rare.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/sum.asciidoc
 include::functions/sum.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ml/functions/time.asciidoc
 include::functions/time.asciidoc[]

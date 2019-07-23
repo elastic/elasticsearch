@@ -8,7 +8,6 @@ import java.nio.file.Paths
 import org.elasticsearch.gradle.ElasticsearchDistribution
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   compile project(":server")
@@ -31,6 +30,7 @@ dependencies {
   // GCS dependencies
   compile 'com.google.cloud:google-cloud-storage:1.77.0'
   compile 'com.google.cloud:google-cloud-core:1.77.0'
+  compile 'com.google.guava:guava:26.0-jre'
   compile 'com.google.http-client:google-http-client:1.30.1'
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -69,56 +69,82 @@ dependencyLicenses {
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
-}
 
-test {
-  // these are tested explicitly in separate test tasks
-  exclude '**/S3CleanupTests.class'
+  mapping from: /google-cloud-.*/, to: 'google-cloud'
+  mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /http.*/, to: 'httpclient'
+  mapping from: /protobuf.*/, to: 'protobuf'
+  mapping from: /proto-google.*/, to: 'proto-google'
 }
 
 // Disabled to quiet the testing convention check since we only run third party tests
 test.enabled = false
 
-String s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
-String s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
-String s3PermanentBucket = 'permanent-bucket-test'
-String s3PermanentBasePath = 'integration_test'
+boolean gcsEnabled = Boolean.getBoolean("test.google.enabled")
+boolean s3Enabled = Boolean.getBoolean("test.s3.enabled")
 
-task thirdPartyTest(type: Test) {
-  include '**/S3CleanupTests.class'
-  systemProperty 'tests.security.manager', 'false'
-  systemProperty 'test.s3.account', s3PermanentAccessKey
-  systemProperty 'test.s3.key', s3PermanentSecretKey
-  systemProperty 'test.s3.bucket', s3PermanentBucket
-  systemProperty 'test.s3.base', s3PermanentBasePath
-}
+task thirdPartyTest {}
 
-task writeDockerFile {
-  File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
-  outputs.file(minioDockerfile)
-  doLast {
-    minioDockerfile.parentFile.mkdirs()
-    minioDockerfile.text = 
-            "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-            "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-            "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-            "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+if (s3Enabled) {
+  apply plugin: 'elasticsearch.test.fixtures'
+
+  String s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
+  String s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
+  String s3PermanentBucket = 'permanent-bucket-test'
+  String s3PermanentBasePath = 'integration_test'
+
+  task writeDockerFile {
+    File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
+    outputs.file(minioDockerfile)
+    doLast {
+      minioDockerfile.parentFile.mkdirs()
+      minioDockerfile.text =
+              "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
+                      "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+                      "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+                      "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+    }
   }
+
+  preProcessFixture {
+    dependsOn(writeDockerFile)
+  }
+
+  def minioAddress = {
+    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+    assert minioPort > 0
+    'http://127.0.0.1:' + minioPort
+  }
+
+  task thirdPartyTestS3(type: Test) {
+    include '**/S3CleanupTests.class'
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'test.s3.account', s3PermanentAccessKey
+    systemProperty 'test.s3.key', s3PermanentSecretKey
+    systemProperty 'test.s3.bucket', s3PermanentBucket
+    systemProperty 'test.s3.base', s3PermanentBasePath
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${-> minioAddress.call()}"
+  }
+
+  thirdPartyTest.dependsOn(thirdPartyTestS3)
 }
 
-preProcessFixture {
-  dependsOn(writeDockerFile)
-}
+if (gcsEnabled) {
+  String gcsCredentialsFile = System.getProperty("test.google.credentials_file")
+  String gcsBucket = System.getProperty("test.google.bucket")
+  String gcsBasePath = "integration_test"
+  
+  task thirdPartyTestGCS(type: Test) {
+    include '**/GCSCleanupTests.class'
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty 'test.google.credentials_file', gcsCredentialsFile
+    systemProperty 'test.google.bucket', gcsBucket
+    systemProperty 'test.google.base', gcsBasePath
+  }
 
-def minioAddress = {
-  int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
-  assert minioPort > 0
-  'http://127.0.0.1:' + minioPort
-}
-
-thirdPartyTest {
-  dependsOn tasks.postProcessFixture
-  nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
+  thirdPartyTest.dependsOn(thirdPartyTestGCS)
 }
 
 task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
@@ -162,42 +188,80 @@ task buildTarArchive(dependsOn: copyRuntimeLibs, type: Tar) {
 
 assemble.dependsOn(buildTarArchive)
 
-thirdPartyAudit.ignoreMissingClasses (
-  // classes are missing
-  'javax.activation.DataHandler',
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'software.amazon.ion.IonReader',
-  'software.amazon.ion.IonSystem',
-  'software.amazon.ion.IonType',
-  'software.amazon.ion.IonWriter',
-  'software.amazon.ion.Timestamp',
-  'software.amazon.ion.system.IonBinaryWriterBuilder',
-  'software.amazon.ion.system.IonSystemBuilder',
-  'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder',
-  // We don't use the kms dependency
-  'com.amazonaws.services.kms.AWSKMS',
-  'com.amazonaws.services.kms.AWSKMSClient',
-  'com.amazonaws.services.kms.model.DecryptRequest',
-  'com.amazonaws.services.kms.model.DecryptResult',
-  'com.amazonaws.services.kms.model.EncryptRequest',
-  'com.amazonaws.services.kms.model.EncryptResult',
-  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
+thirdPartyAudit.ignoreMissingClasses(
+        // classes are missing
+        'javax.activation.DataHandler',
+        'javax.servlet.ServletContextEvent',
+        'javax.servlet.ServletContextListener',
+        'org.apache.avalon.framework.logger.Logger',
+        'org.apache.log.Hierarchy',
+        'org.apache.log.Logger',
+        'software.amazon.ion.IonReader',
+        'software.amazon.ion.IonSystem',
+        'software.amazon.ion.IonType',
+        'software.amazon.ion.IonWriter',
+        'software.amazon.ion.Timestamp',
+        'software.amazon.ion.system.IonBinaryWriterBuilder',
+        'software.amazon.ion.system.IonSystemBuilder',
+        'software.amazon.ion.system.IonTextWriterBuilder',
+        'software.amazon.ion.system.IonWriterBuilder',
+        // We don't use the kms dependency
+        'com.amazonaws.services.kms.AWSKMS',
+        'com.amazonaws.services.kms.AWSKMSClient',
+        'com.amazonaws.services.kms.model.DecryptRequest',
+        'com.amazonaws.services.kms.model.DecryptResult',
+        'com.amazonaws.services.kms.model.EncryptRequest',
+        'com.amazonaws.services.kms.model.EncryptResult',
+        'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+        'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+
+        'com.google.appengine.api.datastore.Blob',
+        'com.google.appengine.api.datastore.DatastoreService',
+        'com.google.appengine.api.datastore.DatastoreServiceFactory',
+        'com.google.appengine.api.datastore.Entity',
+        'com.google.appengine.api.datastore.Key',
+        'com.google.appengine.api.datastore.KeyFactory',
+        'com.google.appengine.api.datastore.PreparedQuery',
+        'com.google.appengine.api.datastore.Query',
+        'com.google.appengine.api.memcache.Expiration',
+        'com.google.appengine.api.memcache.MemcacheService',
+        'com.google.appengine.api.memcache.MemcacheServiceFactory',
+        'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+        'com.google.appengine.api.urlfetch.FetchOptions',
+        'com.google.appengine.api.urlfetch.HTTPHeader',
+        'com.google.appengine.api.urlfetch.HTTPMethod',
+        'com.google.appengine.api.urlfetch.HTTPRequest',
+        'com.google.appengine.api.urlfetch.HTTPResponse',
+        'com.google.appengine.api.urlfetch.URLFetchService',
+        'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+        // commons-logging optional dependencies
+        'org.apache.avalon.framework.logger.Logger',
+        'org.apache.log.Hierarchy',
+        'org.apache.log.Logger',
+        // commons-logging provided dependencies
+        'javax.servlet.ServletContextEvent',
+        'javax.servlet.ServletContextListener'
 )
 
-String gcsCredentialsFile = System.getenv("google_storage_credentials_file")
-String gcsBucket = System.getenv("google_storage_bucket")
-String gcsBasePath = "integration_test"
-
-task thirdPartyTestGCS(type: Test) {
-    include '**/GCSCleanupTests.class'
-    systemProperty 'tests.security.manager', 'false'
-    systemProperty 'test.google.credentials_file', gcsCredentialsFile
-    systemProperty 'test.google.bucket', gcsBucket
-    systemProperty 'test.google.base', gcsBasePath
-}
+thirdPartyAudit.ignoreViolations (
+        // uses internal java api: sun.misc.Unsafe
+        'com.google.protobuf.UnsafeUtil',
+        'com.google.protobuf.UnsafeUtil$1',
+        'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+        'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+        'com.google.common.cache.Striped64',
+        'com.google.common.cache.Striped64$1',
+        'com.google.common.cache.Striped64$Cell',
+        'com.google.common.hash.Striped64',
+        'com.google.common.hash.Striped64$1',
+        'com.google.common.hash.Striped64$Cell',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+        'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+        'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+        'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+)

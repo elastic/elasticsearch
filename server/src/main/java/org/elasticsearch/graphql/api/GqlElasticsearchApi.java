@@ -146,6 +146,48 @@ public class GqlElasticsearchApi implements GqlApi {
             .thenApply(log(logger, "getIndex"));
     }
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> transformDocumentData(Map<String, Object> obj) throws Exception {
+        /*
+            {_index=twitter, _type=_doc, _id=1, _version=1, _seq_no=0, _primary_term=1, found=true, _source={
+       │          "user" : "kimchy",
+       │          "post_date" : "2009-11-15T14:12:12",
+       │          "message" : "trying out Elasticsearch"
+   │        }
+         */
+
+        obj.put("indexName", obj.get("_index"));
+        obj.remove("_index");
+
+        obj.put("type", obj.get("_type"));
+        obj.remove("_type");
+
+        obj.put("id", obj.get("_id"));
+        obj.remove("_id");
+
+        obj.put("version", obj.get("_version"));
+        obj.remove("_version");
+
+        obj.put("sequenceNumber", obj.get("_seq_no"));
+        obj.remove("_seq_no");
+
+        obj.put("primaryTerm", obj.get("_primary_term"));
+        obj.remove("_primary_term");
+
+        obj.put("source", obj.get("_source"));
+        obj.remove("_source");
+
+        return obj;
+    }
+
+    private static Function<Map<String, Object>, Map<String, Object>> mapDocumentData = obj -> {
+        try {
+            return transformDocumentData(obj);
+        } catch (Exception e) {
+            return null;
+        }
+    };
+
     @Override
     public CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception {
         logger.info("getDocument [indexName = {}, documentId]", indexName, documentId);
@@ -154,17 +196,9 @@ public class GqlElasticsearchApi implements GqlApi {
         CompletableFuture<GetResponse> future = new CompletableFuture<GetResponse>();
         client.get(request, futureToListener(future));
 
-        /*
-        {_index=twitter, _type=_doc, _id=1, _version=1, _seq_no=0, _primary_term=1, found=true, _source={
-   │          "user" : "kimchy",
-   │          "post_date" : "2009-11-15T14:12:12",
-   │          "message" : "trying out Elasticsearch"
-   │      }
-         */
-
         return future
             .thenApply(GqlApiUtils::toMapSafe)
-//            .thenAppyy(mapIndexData)
+            .thenApply(mapDocumentData)
             .thenApply(log(logger, "getDocument"));
 
     }

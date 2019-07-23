@@ -20,6 +20,11 @@
 package org.elasticsearch.graphql.api;
 
 import static org.elasticsearch.graphql.api.GqlApiUtils.futureToListener;
+import static org.elasticsearch.graphql.api.GqlApiUtils.log;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.main.MainAction;
@@ -31,8 +36,11 @@ import org.elasticsearch.rest.action.cat.RestIndicesAction;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 public class GqlElasticsearchApi implements GqlApi {
+    private static final Logger logger = LogManager.getLogger(GqlElasticsearchApi.class);
+
     NodeClient client;
 
     public GqlElasticsearchApi(NodeClient client) {
@@ -50,33 +58,41 @@ public class GqlElasticsearchApi implements GqlApi {
         return GqlApiUtils.executeRestHandler(client, RestIndicesAction.INSTANCE, GET, "/_cat/indices?format=json");
     }
 
-    @Override
     @SuppressWarnings("unchecked")
+    private static Map<String, Object> transformIndexData(String indexName, Map<String, Object> map) throws Exception {
+        Map<String, Object> data = (Map<String, Object>) map.get(indexName);
+        Map<String, Object> indexSettings = (Map<String, Object>) data.get("settings");
+        indexSettings = (Map<String, Object>) indexSettings.get("index");
+
+        indexSettings.put("mappings", data.get("mappings"));
+
+        return indexSettings;
+    }
+
+    private static Function<Map<String, Object>, Map<String, Object>> mapIndexData(String indexName) {
+        return map -> {
+            try {
+                return transformIndexData(indexName, map);
+            } catch (Exception e) {
+                return null;
+            }
+        };
+    }
+
+    @Override
     public CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception {
+        logger.info("getIndex [indexName = {}]", indexName);
+
         String[] indices = { indexName };
 
         final GetIndexRequest getIndexRequest = new GetIndexRequest()
             .indices(indices);
-//            .indicesOptions(options);
-//        getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
-//        getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
-//        getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
-//        getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        CompletableFuture<GetIndexResponse> future = new CompletableFuture();
+        CompletableFuture<GetIndexResponse> future = new CompletableFuture<GetIndexResponse>();
         client.admin().indices().getIndex(getIndexRequest, futureToListener(future));
 
         return future
             .thenApply(GqlApiUtils::toMapSafe)
-            .thenApply(map -> {
-                System.out.println("map " + map);
-                try {
-                    map = (Map<String, Object>) map.get(indexName);
-                    map = (Map<String, Object>) map.get("settings");
-                    map = (Map<String, Object>) map.get("index");
-                    return map;
-                } catch (Exception e) {
-                    return null;
-                }
-            });
+            .thenApply(mapIndexData(indexName))
+            .thenApply(log(logger, "getIndex"));
     }
 }

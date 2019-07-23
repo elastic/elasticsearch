@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 public class GqlApiUtils {
     private static final Logger logger = LogManager.getLogger(GqlApiUtils.class);
@@ -119,17 +120,25 @@ public class GqlApiUtils {
         return promise;
     }
 
-    static public ActionListener futureToListener(CompletableFuture promise) {
-        return new ActionListener() {
+    static public <T> ActionListener<T> futureToListener(CompletableFuture<T> promise) {
+        return new ActionListener<T>() {
             @Override
+            @SuppressWarnings("unchecked")
             public void onResponse(Object o) {
-                promise.complete(o);
+                promise.complete((T) o);
             }
 
             @Override
             public void onFailure(Exception e) {
                 promise.completeExceptionally(e);
             }
+        };
+    }
+
+    static public <T> Function<T, T> log(Logger logger, String message) {
+        return res -> {
+            logger.info("{} [value ~> {}]", message, res);
+            return res;
         };
     }
 }

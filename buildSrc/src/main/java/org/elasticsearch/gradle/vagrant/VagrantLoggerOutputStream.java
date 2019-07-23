@@ -40,7 +40,7 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
     @Override
     protected void logLine(String line) {
         if (isStarted == false) {
-            progressLogger.started();
+            progressLogger.started("started");
             isStarted = true;
         }
         if (line.startsWith("\r\u001b")) {

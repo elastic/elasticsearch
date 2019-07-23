@@ -157,15 +157,21 @@ public class DiskThresholdMonitor {
             // Only unblock index if all nodes that contain shards of it are below the high disk watermark
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-                markIneligiblityForAutoRelease(routingNode, indicesNotToAutoRelease);
                 if (routingNode != null) { // this might happen if we haven't got the full cluster-state yet?!
                     for (ShardRouting routing : routingNode) {
-                        indicesToMarkReadOnly.add(routing.index().getName());
+                        String indexName = routing.index().getName();
+                        indicesToMarkReadOnly.add(indexName);
+                        indicesNotToAutoRelease.add(indexName);
                     }
                 }
             } else if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-                markIneligiblityForAutoRelease(routingNode, indicesNotToAutoRelease);
+                if (routingNode != null) {
+                    for (ShardRouting routing : routingNode) {
+                        String indexName = routing.index().getName();
+                        indicesNotToAutoRelease.add(indexName);
+                    }
+                }
                 if (lastRunTimeMillis.get() < currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                     reroute = true;
                     explanation = "high disk watermark exceeded on one or more nodes";
@@ -244,19 +250,15 @@ public class DiskThresholdMonitor {
                                                            Set<String> indicesToMarkIneligibleForAutoRelease) {
         for (RoutingNode routingNode : routingNodes) {
             if (usages.containsKey(routingNode.nodeId()) == false) {
-                markIneligiblityForAutoRelease(routingNode, indicesToMarkIneligibleForAutoRelease);
+                if (routingNode != null) {
+                    for (ShardRouting routing : routingNode) {
+                        String indexName = routing.index().getName();
+                        indicesToMarkIneligibleForAutoRelease.add(indexName);
+                    }
+                }
             }
         }
 
-    }
-
-    private void markIneligiblityForAutoRelease(RoutingNode routingNode, Set<String> indicesToMarkIneligibleForAutoRelease) {
-        if (routingNode != null) {
-            for (ShardRouting routing : routingNode) {
-                String indexName = routing.index().getName();
-                indicesToMarkIneligibleForAutoRelease.add(indexName);
-            }
-        }
     }
 
     private void setLastRunTimeMillis() {

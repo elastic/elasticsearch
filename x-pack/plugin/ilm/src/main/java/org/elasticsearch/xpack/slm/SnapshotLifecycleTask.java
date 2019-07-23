@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
-import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicySecurityClient;
+import org.elasticsearch.xpack.ilm.LifecyclePolicySecurityClient;
 
 import java.io.IOException;
 import java.time.Instant;

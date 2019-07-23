@@ -30,7 +30,7 @@ GET /_search
 [[prefix-query-top-level-params]]
 ==== Top-level parameters for `prefix`
 `<field>`::
-(Required, string) Field you wish to search.
+(Required, object) Field you wish to search.
 
 [[prefix-query-field-params]]
 ==== Parameters for `<field>`

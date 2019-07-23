@@ -11,6 +11,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+
 public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
 
     private final OptionSpec<String> credentialsFileOption;
@@ -23,22 +26,24 @@ public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
     }
 
     @Override
-    public void execute(Terminal terminal, OptionSet options) throws Exception {
-        super.execute(terminal, options);
+    protected void validate(OptionSet options) {
+        super.validate(options);
+
         String credentialsFile = credentialsFileOption.value(options);
         if (Strings.isNullOrEmpty(credentialsFile)) {
             throw new ElasticsearchException("credentials_file option is required for cleaning up GCS repository");
         }
+    }
 
-        GCSRepository repository = new GCSRepository(
+    @Override
+    protected AbstractRepository newRepository(Terminal terminal, OptionSet options) throws IOException, GeneralSecurityException {
+        return new GCSRepository(
                 terminal,
                 safetyGapMillisOption.value(options),
                 parallelismOption.value(options),
                 bucketOption.value(options),
                 basePathOption.value(options),
-                credentialsFile);
-
-        repository.cleanup();
+                credentialsFileOption.value(options));
     }
 
 }

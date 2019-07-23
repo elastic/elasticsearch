@@ -15,10 +15,10 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 
 public abstract class AbstractCleanupCommand extends Command {
-    protected final OptionSpec<String> bucketOption;
-    protected final OptionSpec<String> basePathOption;
     protected final OptionSpec<Long> safetyGapMillisOption;
     protected final OptionSpec<Integer> parallelismOption;
+    protected final OptionSpec<String> bucketOption;
+    protected final OptionSpec<String> basePathOption;
 
     public AbstractCleanupCommand(String description) {
         super(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
@@ -44,6 +44,15 @@ public abstract class AbstractCleanupCommand extends Command {
     // public fo testing
     @Override
     public void execute(Terminal terminal, OptionSet options) throws Exception {
+        validate(options);
+        AbstractRepository repository = newRepository(terminal, options);
+
+        repository.cleanup();
+    }
+
+    protected abstract AbstractRepository newRepository(Terminal terminal, OptionSet options) throws Exception;
+
+    protected void validate(OptionSet options) {
         String bucket = bucketOption.value(options);
         if (Strings.isNullOrEmpty(bucket)) {
             throw new ElasticsearchException("bucket option is required for cleaning up repository");

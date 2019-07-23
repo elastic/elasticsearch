@@ -276,6 +276,7 @@ public class RestoreService implements ClusterStateApplier {
                                 indexMdBuilder.settings(Settings.builder()
                                                                 .put(snapshotIndexMetaData.getSettings())
                                                                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                                MetaDataCreateIndexService.checkShardLimit(snapshotIndexMetaData.getSettings(), currentState);
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();

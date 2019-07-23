@@ -38,6 +38,7 @@ import org.elasticsearch.rest.*;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -140,5 +141,10 @@ public class GqlApiUtils {
             logger.info("{} [value ~> {}]", message, res);
             return res;
         };
+    }
+
+    static public String getSomeMapKey(Map<String, Object> map) {
+        Iterator<String> it = map.keySet().iterator();
+        return it.hasNext() ? it.next() : null;
     }
 }

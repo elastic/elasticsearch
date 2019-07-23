@@ -21,6 +21,7 @@ package org.elasticsearch.graphql.api;
 
 import static org.elasticsearch.graphql.api.GqlApiUtils.futureToListener;
 import static org.elasticsearch.graphql.api.GqlApiUtils.log;
+import static org.elasticsearch.graphql.api.GqlApiUtils.getSomeMapKey;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -59,8 +60,9 @@ public class GqlElasticsearchApi implements GqlApi {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> transformIndexData(String indexName, Map<String, Object> map) throws Exception {
-        Map<String, Object> data = (Map<String, Object>) map.get(indexName);
+    private static Map<String, Object> transformIndexData(Map<String, Object> obj) throws Exception {
+        String indexName = getSomeMapKey(obj);
+        Map<String, Object> data = (Map<String, Object>) obj.get(indexName);
         Map<String, Object> indexSettings = (Map<String, Object>) data.get("settings");
         indexSettings = (Map<String, Object>) indexSettings.get("index");
 
@@ -69,15 +71,13 @@ public class GqlElasticsearchApi implements GqlApi {
         return indexSettings;
     }
 
-    private static Function<Map<String, Object>, Map<String, Object>> mapIndexData(String indexName) {
-        return map -> {
-            try {
-                return transformIndexData(indexName, map);
-            } catch (Exception e) {
-                return null;
-            }
-        };
-    }
+    private static Function<Map<String, Object>, Map<String, Object>> mapIndexData = obj -> {
+        try {
+            return transformIndexData(obj);
+        } catch (Exception e) {
+            return null;
+        }
+    };
 
     @Override
     public CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception {
@@ -92,7 +92,7 @@ public class GqlElasticsearchApi implements GqlApi {
 
         return future
             .thenApply(GqlApiUtils::toMapSafe)
-            .thenApply(mapIndexData(indexName))
+            .thenApply(mapIndexData)
             .thenApply(log(logger, "getIndex"));
     }
 }

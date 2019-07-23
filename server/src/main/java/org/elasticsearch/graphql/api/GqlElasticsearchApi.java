@@ -55,8 +55,30 @@ public class GqlElasticsearchApi implements GqlApi {
     }
 
     @Override
-    public CompletableFuture<Map<String, Object>> getHello() throws Exception {
-        return executeAction(client, MainAction.INSTANCE, new MainRequest());
+    @SuppressWarnings("unchecked")
+    public CompletableFuture<Map<String, Object>> getInfo() throws Exception {
+        CompletableFuture<Map<String, Object>> future = executeAction(client, MainAction.INSTANCE, new MainRequest());
+
+        return future
+            .thenApply(obj -> {
+                obj.put("clusterName", obj.get("cluster_name"));
+                obj.put("clusterUuid", obj.get("cluster_uuid"));
+
+                Object maybeMap = obj.get("version");
+                if (maybeMap instanceof Map) {
+                    Map<String, Object> version = (Map<String, Object>) maybeMap;
+                    version.put("buildFlavor", version.get("build_flavor"));
+                    version.put("buildType", version.get("build_type"));
+                    version.put("buildHash", version.get("build_hash"));
+                    version.put("buildDate", version.get("build_date"));
+                    version.put("buildSnapshot", version.get("build_snapshot"));
+                    version.put("lucene", version.get("lucene_version"));
+                    version.put("minimumWireCompatibilityVersion", version.get("minimum_wire_compatibility_version"));
+                    version.put("minimumIndexCompatibilityVersion", version.get("minimum_index_compatibility_version"));
+                }
+
+                return obj;
+            });
     }
 
     @Override

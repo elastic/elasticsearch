@@ -57,7 +57,7 @@ public class GqlMockApi implements GqlApi {
 
     @Override
     @SuppressWarnings("unchecked")
-    public CompletableFuture<Map<String, Object>> getHello() throws Exception {
+    public CompletableFuture<Map<String, Object>> getInfo() throws Exception {
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
         builder
             .startObject()

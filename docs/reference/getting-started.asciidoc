@@ -30,29 +30,17 @@ trial of Elasticsearch Service] in the cloud.
 --
 
 [[getting-started-install]]
-== Installation
-
-[TIP]
-==============
-You can skip having to install Elasticsearch by using our
-https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
-on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
-https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
-Elasticsearch Service for free].
-==============
-
-NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
-from the JDK maintainers (GPLv2+CE). To use your own version of Java,
-see the <<jvm-version, JVM version requirements>>
-
-The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`].
-Platform dependent archives are available for Windows, Linux and macOS. In addition,
-`DEB` and `RPM` packages are available for Linux, and an `MSI` installation package
-is available for Windows. You can also use the Elastic Homebrew tap to <<brew,install
-using the brew package manager>> on macOS.
+== Get {es} up and running
+To take {es} for a test drive, you can create a one-click cloud deployment on
+the https://www.elastic.co/cloud/elasticsearch-service/signup[Elasticsearch
+Service], or set up a basic {es} cluster on your own
+<<run-elasticsearch-linux,Linux>>,
+<<run-elasticsearch-mac,macOS>>, or
+<<run-elasticsearch-win,Windows>> machine.
 
 [float]
-=== Installation example on Linux
+[[run-elasticsearch-linux]]
+=== Run {es} on Linux
 
 For simplicity, let's use the {ref}/targz.html[tar] file.
 
@@ -86,7 +74,8 @@ And now we are ready to start our node and single cluster:
 --------------------------------------------------
 
 [float]
-=== Installation example with MSI Windows Installer
+[[run-elasticsearch-win]]
+=== Run {es} on windows
 
 For Windows users, we recommend using the {ref}/windows.html[MSI Installer package]. The package contains a graphical user interface (GUI) that guides you through the installation process.
 
@@ -144,7 +133,7 @@ And now we are ready to start our node and single cluster:
 
 [float]
 [[successfully-running-node]]
-=== Successfully running node
+=== Verify that {es} is running
 
 If everything goes well with installation, you should see a bunch of messages that look like below:
 

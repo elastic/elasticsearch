@@ -43,36 +43,43 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
-        if (event.localNodeMaster()) {
-            final MetaData metaData = event.state().metaData();
-            final PersistentTasksCustomMetaData persistentTasksMetaData = metaData.custom(PersistentTasksCustomMetaData.TYPE);
-            if (persistentTasksMetaData != null) {
-                for (PersistentTasksCustomMetaData.PersistentTask<?> persistentTask : persistentTasksMetaData.tasks()) {
-                    if (ShardFollowTask.NAME.equals(persistentTask.getTaskName())) {
-                        ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
-                        Index followerIndex = shardFollowTask.getFollowShardId().getIndex();
-                        if (metaData.index(followerIndex) == null) {
-                            IndexNotFoundException e = new IndexNotFoundException(followerIndex);
-                            CompletionPersistentTaskAction.Request request =
-                                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), e);
-                            threadPool.generic().submit(() -> {
-                                client.execute(CompletionPersistentTaskAction.INSTANCE, request, new ActionListener<>() {
+        if (event.localNodeMaster() == false) {
+            return;
+        }
 
-                                    @Override
-                                    public void onResponse(PersistentTaskResponse persistentTaskResponse) {
-                                        logger.debug("task [{}] cleaned up", persistentTask.getId());
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        logger.warn("failed to clean up task [{}]", persistentTask.getId());
-                                    }
-                                });
-                            });
-                        }
-                    }
-                }
+        MetaData metaData = event.state().metaData();
+        PersistentTasksCustomMetaData persistentTasksMetaData = metaData.custom(PersistentTasksCustomMetaData.TYPE);
+        if (persistentTasksMetaData == null) {
+            return;
+        }
+        for (PersistentTasksCustomMetaData.PersistentTask<?> persistentTask : persistentTasksMetaData.tasks()) {
+            if (ShardFollowTask.NAME.equals(persistentTask.getTaskName()) == false) {
+                // this task is not a shard follow task
+                continue;
             }
+            ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
+            Index followerIndex = shardFollowTask.getFollowShardId().getIndex();
+            if (metaData.index(followerIndex) != null) {
+                // the index exists, do not clean this persistent task
+                continue;
+            }
+            IndexNotFoundException e = new IndexNotFoundException(followerIndex);
+            CompletionPersistentTaskAction.Request request =
+                new CompletionPersistentTaskAction.Request(persistentTask.getId(), persistentTask.getAllocationId(), e);
+            threadPool.generic().submit(() -> {
+                client.execute(CompletionPersistentTaskAction.INSTANCE, request, new ActionListener<>() {
+
+                    @Override
+                    public void onResponse(PersistentTaskResponse persistentTaskResponse) {
+                        logger.debug("task [{}] cleaned up", persistentTask.getId());
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("failed to clean up task [{}]", persistentTask.getId());
+                    }
+                });
+            });
         }
     }
 }

@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -215,12 +216,15 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void delete() {
+            public void delete(LongConsumer resultConsumer) {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
                     consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath))
-                        .forEach(a -> context.actions.add(new BlobStoreAction(Operation.DELETE, a.path)));
+                        .forEach(a -> {
+                            context.actions.add(new BlobStoreAction(Operation.DELETE, a.path));
+                            resultConsumer.accept(a.data.length);
+                        });
                 }
             }
 

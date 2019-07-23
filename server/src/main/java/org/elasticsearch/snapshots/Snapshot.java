@@ -19,8 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,9 +38,9 @@ public final class Snapshot implements Writeable {
     /**
      * Constructs a snapshot.
      */
-    public Snapshot(String repository, @Nullable SnapshotId snapshotId) {
+    public Snapshot(final String repository, final SnapshotId snapshotId) {
         this.repository = Objects.requireNonNull(repository);
-        this.snapshotId = snapshotId;
+        this.snapshotId = Objects.requireNonNull(snapshotId);
         this.hashCode = computeHashCode();
     }
 
@@ -51,11 +49,7 @@ public final class Snapshot implements Writeable {
      */
     public Snapshot(final StreamInput in) throws IOException {
         repository = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            snapshotId = in.readOptionalWriteable(SnapshotId::new);
-        } else {
-            snapshotId = new SnapshotId(in);
-        }
+        snapshotId = new SnapshotId(in);
         hashCode = computeHashCode();
     }
 
@@ -69,7 +63,6 @@ public final class Snapshot implements Writeable {
     /**
      * Gets the snapshot id for the snapshot.
      */
-    @Nullable
     public SnapshotId getSnapshotId() {
         return snapshotId;
     }
@@ -88,7 +81,7 @@ public final class Snapshot implements Writeable {
             return false;
         }
         Snapshot that = (Snapshot) o;
-        return repository.equals(that.repository) && Objects.equals(snapshotId, that.snapshotId);
+        return repository.equals(that.repository) && snapshotId.equals(that.snapshotId);
     }
 
     @Override
@@ -103,11 +96,7 @@ public final class Snapshot implements Writeable {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(repository);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(snapshotId);
-        } else {
-            snapshotId.writeTo(out);
-        }
+        snapshotId.writeTo(out);
     }
 
 }

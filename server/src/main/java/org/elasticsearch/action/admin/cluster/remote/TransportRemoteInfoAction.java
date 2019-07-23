@@ -28,8 +28,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
-
 import static java.util.stream.Collectors.toList;
 
 public final class TransportRemoteInfoAction extends HandledTransportAction<RemoteInfoRequest, RemoteInfoResponse> {
@@ -39,8 +37,7 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
     @Inject
     public TransportRemoteInfoAction(TransportService transportService, ActionFilters actionFilters,
                                      SearchTransportService searchTransportService) {
-        super(RemoteInfoAction.NAME, transportService, actionFilters,
-            (Supplier<RemoteInfoRequest>) RemoteInfoRequest::new);
+        super(RemoteInfoAction.NAME, transportService, actionFilters, RemoteInfoRequest::new);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 

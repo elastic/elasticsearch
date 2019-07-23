@@ -156,8 +156,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setId("reviewer-avg-rating") // <1>
             .setSource(sourceConfig) // <2>
             .setDest(destConfig) // <3>
-            .setPivotConfig(pivotConfig) // <4>
-            .setDescription("This is my test transform") // <5>
+            .setFrequency(TimeValue.timeValueSeconds(15)) // <4>
+            .setPivotConfig(pivotConfig) // <5>
+            .setDescription("This is my test transform") // <6>
             .build();
         // end::put-data-frame-transform-config
 
@@ -165,6 +166,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::put-data-frame-transform-request
             PutDataFrameTransformRequest request =
                     new PutDataFrameTransformRequest(transformConfig); // <1>
+            request.setDeferValidation(false); // <2>
             // end::put-data-frame-transform-request
 
             // tag::put-data-frame-transform-execute
@@ -373,6 +375,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::delete-data-frame-transform-request
             DeleteDataFrameTransformRequest request =
                     new DeleteDataFrameTransformRequest("mega-transform"); // <1>
+            request.setForce(false); // <2>
             // end::delete-data-frame-transform-request
 
             // tag::delete-data-frame-transform-execute

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -155,6 +156,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         return Arrays.asList(IngestTestPlugin.class,
             StoredScriptsIT.CustomScriptPlugin.class,
             MockRepository.Plugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
+            .build();
     }
 
     private Settings randomRepoSettings() {
@@ -1324,8 +1332,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete the last snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", lastSnapshot).get();
         logger.info("--> make sure that number of files is back to what it was when the first snapshot was made, " +
-                    "plus two because one backup index-N file should remain and incompatible-snapshots");
-        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 2));
+                    "plus one because one backup index-N file should remain");
+        assertThat(numberOfFiles(repo), equalTo(numberOfFiles[0] + 1));
     }
 
     public void testGetSnapshotsNoRepos() {
@@ -1340,7 +1348,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
     }
 
-    public void testGetSnapshotsMultipleRepos() {
+    public void testGetSnapshotsMultipleRepos() throws Exception {
         final Client client = client();
 
         List<String> snapshotList = new ArrayList<>();
@@ -1369,6 +1377,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             for (int snapshotIndex = 0; snapshotIndex < randomIntBetween(2, 5); snapshotIndex++) {
                 final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 snapshotList.add(snapshotName);
+                // Wait for at least 1ms to ensure that snapshots can be ordered by timestamp deterministically
+                for (final ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+                    final long startMillis = threadPool.absoluteTimeInMillis();
+                    assertBusy(() -> assertThat(threadPool.absoluteTimeInMillis(), greaterThan(startMillis)));
+                }
                 logger.info("--> create snapshot with index {} and name {} in repository {}", snapshotIndex, snapshotName, repoName);
                 CreateSnapshotResponse createSnapshotResponse = client.admin()
                         .cluster()
@@ -3501,6 +3514,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotStatusOnFailedIndex() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44671", Constants.WINDOWS);
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();

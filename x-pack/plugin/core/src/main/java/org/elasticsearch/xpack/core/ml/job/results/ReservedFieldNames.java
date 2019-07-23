@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.results;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
@@ -184,6 +185,10 @@ public final class ReservedFieldNames {
             TimingStats.MAX_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
             TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(),
+
+            DatafeedTimingStats.SEARCH_COUNT.getPreferredName(),
+            DatafeedTimingStats.BUCKET_COUNT.getPreferredName(),
+            DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
 
             GetResult._ID,
             GetResult._INDEX,

@@ -1,5 +1,5 @@
 [[indices-segments]]
-== Indices Segments
+=== Indices Segments
 
 Provide low level segments information that a Lucene index (shard level)
 is built with. Allows to be used to provide more information on the
@@ -119,7 +119,7 @@ compound::   Whether the segment is stored in a compound file. When true, this
 attributes:: Contains information about whether high compression was enabled
 
 [float]
-=== Verbose mode
+==== Verbose mode
 
 To add additional information that can be used for debugging, use the `verbose` flag.
 

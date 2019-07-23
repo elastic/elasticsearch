@@ -1,5 +1,5 @@
 [[cluster-stats]]
-== Cluster Stats
+=== Cluster Stats
 
 The Cluster Stats API allows to retrieve statistics from a cluster wide perspective.
 The API returns basic index metrics (shard numbers, store size, memory usage) and

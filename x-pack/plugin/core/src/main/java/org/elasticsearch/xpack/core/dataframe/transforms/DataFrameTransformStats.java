@@ -100,7 +100,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
     }
 
     public DataFrameTransformStats(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             this.id = in.readString();
             this.taskState = in.readEnum(DataFrameTransformTaskState.class);
             this.reason = in.readOptionalString();
@@ -145,7 +145,7 @@ public class DataFrameTransformStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeString(id);
             out.writeEnum(taskState);
             out.writeOptionalString(reason);

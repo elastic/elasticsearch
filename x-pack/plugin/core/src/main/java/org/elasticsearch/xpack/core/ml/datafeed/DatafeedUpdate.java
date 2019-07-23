@@ -110,9 +110,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
-        if (jobId != null) {
-            deprecationLogger.deprecated(DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
-        }
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -304,6 +301,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
         if (jobId != null) {
+            if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(jobId) == false) {
+                deprecationLogger.deprecated(DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
+            }
             builder.setJobId(jobId);
         }
         if (queryDelay != null) {

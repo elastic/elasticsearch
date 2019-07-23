@@ -478,6 +478,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
         execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
 
+        DatafeedUpdate datafeedUpdateWithUnchangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(jobId).build();
+        execute(new UpdateDatafeedRequest(datafeedUpdateWithUnchangedJobId),
+            machineLearningClient::updateDatafeed,
+            machineLearningClient::updateDatafeedAsync);
+
         DatafeedUpdate datafeedUpdateWithChangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(anotherJobId).build();
         WarningFailureException exception = expectThrows(
             WarningFailureException.class,

@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
 
+import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
 import static org.elasticsearch.xpack.sql.client.UriUtils.parseURI;
 import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
 
@@ -83,5 +84,45 @@ public class UriUtilsTests extends ESTestCase {
     public void testRemoveQueryNoQuery() throws Exception {
         assertEquals(URI.create("http://server:9100"),
                 removeQuery(URI.create("http://server:9100"), "http://server:9100", DEFAULT_URI));
+    }
+    
+    public void testAppendEmptySegmentToPath() throws Exception {
+        assertEquals(URI.create("http://server:9100"),
+                appendSegmentToPath(URI.create("http://server:9100"), ""));
+    }
+    
+    public void testAppendSlashSegmentToPath() throws Exception {
+        assertEquals(URI.create("http://server:9100"),
+                appendSegmentToPath(URI.create("http://server:9100"), "/"));
+    }
+    
+    public void testAppendSqlSegmentToPath() throws Exception {
+        assertEquals(URI.create("http://server:9100/_sql"),
+                appendSegmentToPath(URI.create("http://server:9100"), "/_sql"));
+    }
+    
+    public void testAppendSqlSegmentNoSlashToPath() throws Exception {
+        assertEquals(URI.create("http://server:9100/_sql"),
+                appendSegmentToPath(URI.create("http://server:9100"), "_sql"));
+    }
+    
+    public void testAppendSegmentToPath() throws Exception {
+        assertEquals(URI.create("http://server:9100/es_rest/_sql"),
+                appendSegmentToPath(URI.create("http://server:9100/es_rest"), "/_sql"));
+    }
+    
+    public void testAppendSegmentNoSlashToPath() throws Exception {
+        assertEquals(URI.create("http://server:9100/es_rest/_sql"),
+                appendSegmentToPath(URI.create("http://server:9100/es_rest"), "_sql"));
+    }
+    
+    public void testAppendSegmentTwoSlashesToPath() throws Exception {
+        assertEquals(URI.create("https://server:9100/es_rest/_sql"),
+                appendSegmentToPath(URI.create("https://server:9100/es_rest/"), "/_sql"));
+    }
+    
+    public void testAppendSegmentNoSchemaToPath() throws Exception {
+        assertEquals(URI.create("server:9100/es_rest/_sql"),
+                appendSegmentToPath(URI.create("server:9100/es_rest/"), "/_sql"));
     }
 }

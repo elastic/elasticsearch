@@ -76,4 +76,30 @@ public final class UriUtils {
             throw new IllegalArgumentException("Invalid connection configuration [" + connectionString + "]: " + e.getMessage(), e);
         }
     }
+
+    public static URI appendSegmentToPath(URI uri, String segment) {
+        if (segment == null || segment.isEmpty() || "/".equals(segment)) {
+            return uri;
+        }
+        
+        String path = uri.getPath();
+        String concatenatedPath = "";
+        String cleanSegment = segment.startsWith("/") ? segment.substring(1) : segment;
+        
+        if (path == null || path.isEmpty()) {
+            path = "/";
+        }
+
+        if (path.charAt(path.length() - 1) == '/') {
+            concatenatedPath = path + cleanSegment;
+        } else {
+            concatenatedPath = path + "/" + cleanSegment;
+        }
+        try {
+            return new URI(uri.getScheme(), uri.getUserInfo(), uri.getHost(), uri.getPort(), concatenatedPath,
+                    uri.getQuery(), uri.getFragment());
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Invalid segment [" + segment + "] for URI [" + uri + "]: " + e.getMessage(), e);
+        }
+    }
 }

@@ -1,5 +1,5 @@
 [[indices-open-close]]
-== Open / Close Index API
+=== Open / Close Index API
 
 The open and close index APIs allow to close an index, and later on
 opening it.
@@ -80,7 +80,7 @@ Closed indices consume a significant amount of disk-space which can cause proble
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.
 
 [float]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 Because opening or closing an index allocates its shards, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on

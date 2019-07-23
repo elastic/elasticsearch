@@ -1,5 +1,5 @@
 [[cluster-health]]
-== Cluster Health
+=== Cluster Health
 
 The cluster health API allows to get a very simple status on the health
 of the cluster. For example, on a quiet single node cluster with a single index
@@ -70,7 +70,7 @@ GET /_cluster/health?wait_for_status=yellow&timeout=50s
 
 [float]
 [[request-params]]
-=== Request Parameters
+==== Request Parameters
 
 The cluster health API accepts the following request parameters:
 

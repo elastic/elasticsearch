@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.OS
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -28,4 +30,6 @@ testClusters.integTest {
 integTest.runner {
   nonInputProperties.systemProperty 'tests.logfile',
     "${ -> testClusters.integTest.singleNode().getServerLog() }"
+  // https://github.com/elastic/elasticsearch/issues/44656
+  onlyIf { OS.WINDOWS.equals(OS.current()) == false }
 }

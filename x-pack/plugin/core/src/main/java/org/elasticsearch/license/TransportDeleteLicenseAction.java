@@ -34,7 +34,7 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
                                         LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteLicenseRequest::new);
+                DeleteLicenseRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 

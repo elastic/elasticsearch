@@ -1,5 +1,8 @@
 [[date]]
 === Date datatype
+++++
+<titleabbrev>Date</titleabbrev>
+++++
 
 JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
 

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,15 +52,12 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     private static final String FORECASTS_STATS = "forecasts_stats";
     private static final String STATE = "state";
     private static final String NODE = "node";
+    private static final String ASSIGNMENT_EXPLANATION = "assignment_explanation";
+    private static final String OPEN_TIME = "open_time";
     private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetJobsStatsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -266,13 +264,16 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                     builder.endObject();
                 }
                 if (assignmentExplanation != null) {
-                    builder.field("assignment_explanation", assignmentExplanation);
+                    builder.field(ASSIGNMENT_EXPLANATION, assignmentExplanation);
                 }
                 if (openTime != null) {
-                    builder.field("open_time", openTime.getStringRep());
+                    builder.field(OPEN_TIME, openTime.getStringRep());
                 }
                 if (timingStats != null) {
-                    builder.field(TIMING_STATS, timingStats);
+                    builder.field(
+                        TIMING_STATS,
+                        timingStats,
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
                 }
                 return builder;
             }

@@ -111,14 +111,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         }
     }
 
-    private ShardId shardId;
-    private String id;
-    private String type;
-    private long version;
-    private long seqNo;
-    private long primaryTerm;
+    private final ShardId shardId;
+    private final String id;
+    private final String type;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
     private boolean forcedRefresh;
-    protected Result result;
+    protected final Result result;
 
     public DocWriteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
         this.shardId = shardId;
@@ -131,7 +131,16 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     // needed for deserialization
-    protected DocWriteResponse() {
+    protected DocWriteResponse(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
+        type = in.readString();
+        id = in.readString();
+        version = in.readZLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
     }
 
     /**
@@ -257,19 +266,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardId = new ShardId(in);
-        type = in.readString();
-        id = in.readString();
-        version = in.readZLong();
-        seqNo = in.readZLong();
-        primaryTerm = in.readVLong();
-        forcedRefresh = in.readBoolean();
-        result = Result.readFrom(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
@@ -372,8 +368,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = UNASSIGNED_SEQ_NO;
-        protected Long primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        protected long seqNo = UNASSIGNED_SEQ_NO;
+        protected long primaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public ShardId getShardId() {
             return shardId;
@@ -415,11 +411,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             this.shardInfo = shardInfo;
         }
 
-        public void setSeqNo(Long seqNo) {
+        public void setSeqNo(long seqNo) {
             this.seqNo = seqNo;
         }
 
-        public void setPrimaryTerm(Long primaryTerm) {
+        public void setPrimaryTerm(long primaryTerm) {
             this.primaryTerm = primaryTerm;
         }
 

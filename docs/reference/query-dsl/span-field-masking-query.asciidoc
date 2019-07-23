@@ -1,5 +1,8 @@
 [[query-dsl-span-field-masking-query]]
-=== Span Field Masking Query
+=== Span field masking query
+++++
+<titleabbrev>Span field masking</titleabbrev>
+++++
 
 Wrapper to allow span queries to participate in composite single-field span queries by 'lying' about their search field. The span field masking query maps to Lucene's `SpanFieldMaskingQuery`
 

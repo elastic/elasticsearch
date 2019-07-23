@@ -1,5 +1,8 @@
 [[query-dsl-terms-set-query]]
-=== Terms Set Query
+=== Terms set query
+++++
+<titleabbrev>Terms set</titleabbrev>
+++++
 
 Returns documents that contain a minimum number of *exact* terms in a provided
 field.

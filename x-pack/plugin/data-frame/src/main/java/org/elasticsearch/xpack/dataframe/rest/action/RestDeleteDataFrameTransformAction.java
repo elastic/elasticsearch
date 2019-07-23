@@ -15,8 +15,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 
-import java.io.IOException;
-
 public class RestDeleteDataFrameTransformAction extends BaseRestHandler {
 
     public RestDeleteDataFrameTransformAction(Settings settings, RestController controller) {
@@ -25,13 +23,14 @@ public class RestDeleteDataFrameTransformAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         if (restRequest.hasContent()) {
             throw new IllegalArgumentException("delete data frame transforms requests can not have a request body");
         }
 
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
-        DeleteDataFrameTransformAction.Request request = new DeleteDataFrameTransformAction.Request(id);
+        boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
+        DeleteDataFrameTransformAction.Request request = new DeleteDataFrameTransformAction.Request(id, force);
 
         return channel -> client.execute(DeleteDataFrameTransformAction.INSTANCE, request,
                 new RestToXContentListener<>(channel));

@@ -1,5 +1,5 @@
 [[docs-multi-get]]
-== Multi Get API
+=== Multi Get API
 
 The Multi get API returns multiple documents based on an index, type,
 (optional) and id (and possibly routing). The response includes a `docs` array
@@ -84,7 +84,7 @@ GET /test/_doc/_mget
 
 [float]
 [[mget-source-filtering]]
-=== Source filtering
+==== Source filtering
 
 By default, the `_source` field will be returned for every document (if stored).
 Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
@@ -128,7 +128,7 @@ GET /_mget
 
 [float]
 [[mget-fields]]
-=== Fields
+==== Fields
 
 Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-stored-fields,stored_fields>> parameter of the Get API.
 For example:
@@ -179,7 +179,7 @@ GET /test/_doc/_mget?stored_fields=field1,field2
 
 [float]
 [[mget-routing]]
-=== Routing
+==== Routing
 
 You can also specify a routing value as a parameter:
 
@@ -209,11 +209,11 @@ document `test/_doc/1` will be fetched from the shard corresponding to routing k
 
 [float]
 [[mget-security]]
-=== Security
+==== Security
 
 See <<url-access-control>>.
 
 [float]
 [[multi-get-partial-responses]]
-=== Partial responses
+==== Partial responses
 To ensure fast responses, the multi get API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.

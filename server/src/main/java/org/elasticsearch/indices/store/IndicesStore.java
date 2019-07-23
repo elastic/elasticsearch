@@ -100,7 +100,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ShardActiveRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(ACTION_SHARD_EXISTS, ThreadPool.Names.SAME, ShardActiveRequest::new,
             new ShardActiveRequestHandler());
         this.deleteShardTimeout = INDICES_STORE_DELETE_SHARD_TIMEOUT.get(settings);
         // Doesn't make sense to delete shards on non-data nodes
@@ -397,7 +397,12 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         private String indexUUID;
         private ShardId shardId;
 
-        ShardActiveRequest() {
+        ShardActiveRequest(StreamInput in) throws IOException {
+            super(in);
+            clusterName = new ClusterName(in);
+            indexUUID = in.readString();
+            shardId = new ShardId(in);
+            timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
         }
 
         ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId, TimeValue timeout) {
@@ -405,15 +410,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             this.indexUUID = indexUUID;
             this.clusterName = clusterName;
             this.timeout = timeout;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            clusterName = new ClusterName(in);
-            indexUUID = in.readString();
-            shardId = new ShardId(in);
-            timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
         }
 
         @Override

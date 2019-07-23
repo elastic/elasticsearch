@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
@@ -41,6 +42,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,6 +97,23 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             final Version esVersion,
             final Version masterVersion) {
         return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        if (isMachineLearningTest() || isDataFrameTest()) {
+            ESRestTestCase.waitForPendingTasks(adminClient());
+        }
+    }
+
+    protected boolean isMachineLearningTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/ml/") || testName.contains("\\ml\\"));
+    }
+
+    protected boolean isDataFrameTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("/data-frames/") || testName.contains("\\data-frames\\"));
     }
 
     /**

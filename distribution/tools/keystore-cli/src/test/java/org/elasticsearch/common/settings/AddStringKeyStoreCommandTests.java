@@ -143,7 +143,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
         terminal.addSecretInput(password);
-        terminal.addSecretInput("secret value 1");
+        setInput("secret value 1");
         execute("-x", "foo");
         assertSecureString("foo", "secret value 1", password);
     }
@@ -152,7 +152,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
         terminal.addSecretInput(password);
-        terminal.addSecretInput("secret value 2");
+        setInput("secret value 2");
         execute("--stdin", "foo");
         assertSecureString("foo", "secret value 2", password);
     }

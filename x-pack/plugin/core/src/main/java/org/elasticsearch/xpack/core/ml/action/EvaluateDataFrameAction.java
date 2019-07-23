@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -29,18 +29,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class EvaluateDataFrameAction extends StreamableResponseActionType<EvaluateDataFrameAction.Response> {
+public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.Response> {
 
     public static final EvaluateDataFrameAction INSTANCE = new EvaluateDataFrameAction();
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/evaluate";
 
     private EvaluateDataFrameAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, EvaluateDataFrameAction.Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -79,6 +74,12 @@ public class EvaluateDataFrameAction extends StreamableResponseActionType<Evalua
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            indices = in.readStringArray();
+            evaluation = in.readNamedWriteable(Evaluation.class);
+        }
+
         public String[] getIndices() {
             return indices;
         }
@@ -102,13 +103,6 @@ public class EvaluateDataFrameAction extends StreamableResponseActionType<Evalua
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indices = in.readStringArray();
-            evaluation = in.readNamedWriteable(Evaluation.class);
         }
 
         @Override
@@ -155,19 +149,15 @@ public class EvaluateDataFrameAction extends StreamableResponseActionType<Evalua
         private String evaluationName;
         private List<EvaluationMetricResult> metrics;
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            this.evaluationName = in.readString();
+            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
         }
 
         public Response(String evaluationName, List<EvaluationMetricResult> metrics) {
             this.evaluationName = Objects.requireNonNull(evaluationName);
             this.metrics = Objects.requireNonNull(metrics);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.evaluationName = in.readString();
-            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
         }
 
         @Override

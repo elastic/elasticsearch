@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.utils.GeographyValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
@@ -38,10 +38,9 @@ public final class GeometryParser {
 
     private final GeoJson geoJsonParser;
     private final WellKnownText wellKnownTextParser;
-    private final GeometryValidator validator;
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
-        validator = new GeographyValidator(ignoreZValue);
+        GeometryValidator validator = new StandardValidator(ignoreZValue);
         geoJsonParser = new GeoJson(rightOrientation, coerce, validator);
         wellKnownTextParser = new WellKnownText(coerce, validator);
     }

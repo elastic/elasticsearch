@@ -47,8 +47,7 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();
-        SimulatePipelineResponse otherResponse = new SimulatePipelineResponse();
-        otherResponse.readFrom(streamInput);
+        SimulatePipelineResponse otherResponse = new SimulatePipelineResponse(streamInput);
 
         assertThat(otherResponse.getPipelineId(), equalTo(response.getPipelineId()));
         assertThat(otherResponse.getResults().size(), equalTo(response.getResults().size()));

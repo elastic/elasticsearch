@@ -74,8 +74,20 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
         this.certificateChain = certificateChain == null ? null : Collections.unmodifiableList(certificateChain);
     }
 
-    public DelegatePkiAuthenticationRequest(StreamInput in) throws IOException {
-        this.readFrom(in);
+    public DelegatePkiAuthenticationRequest(StreamInput input) throws IOException {
+        super(input);
+        try {
+            final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+            certificateChain = Collections.unmodifiableList(input.readList(in -> {
+                try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
+                    return (X509Certificate) certificateFactory.generateCertificate(bis);
+                } catch (CertificateException e) {
+                    throw new IOException(e);
+                }
+            }));
+        } catch (CertificateException e) {
+            throw new IOException(e);
+        }
     }
 
     @Override
@@ -93,23 +105,6 @@ public final class DelegatePkiAuthenticationRequest extends ActionRequest implem
 
     public List<X509Certificate> getCertificateChain() {
         return certificateChain;
-    }
-
-    @Override
-    public void readFrom(StreamInput input) throws IOException {
-        super.readFrom(input);
-        try {
-            final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-            certificateChain = input.readList(in -> {
-                try (ByteArrayInputStream bis = new ByteArrayInputStream(in.readByteArray())) {
-                    return (X509Certificate) certificateFactory.generateCertificate(bis);
-                } catch (CertificateException e) {
-                    throw new IOException(e);
-                }
-            });
-        } catch (CertificateException e) {
-            throw new IOException(e);
-        }
     }
 
     @Override

@@ -56,7 +56,9 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     }
 
     public DelegatePkiAuthenticationResponse(StreamInput input) throws IOException {
-        this.readFrom(input);
+        super(input);
+        accessToken = input.readString();
+        expiresIn = input.readTimeValue();
     }
 
     public String getAccessToken() {
@@ -71,13 +73,6 @@ public final class DelegatePkiAuthenticationResponse extends ActionResponse impl
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(accessToken);
         out.writeTimeValue(expiresIn);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        accessToken = in.readString();
-        expiresIn = in.readTimeValue();
     }
 
     @Override

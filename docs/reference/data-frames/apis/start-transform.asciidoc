@@ -30,16 +30,16 @@ have `view_index_metadata` privileges on the source index for the
 [[start-data-frame-transform-desc]]
 ==== {api-description-title}
 
-If the destination index does not exist when you start a {dataframe-transform},
-it's created for you. The field mappings are deduced based on the mappings in
-the source indices. If there are fields that use `scripted_metric` or
-`bucket_script` aggregations, they will have dynamic mappings. The
-`number_of_shards` is set to `1` and the `auto_expand_replicas` is set to `0-1`.
+When you start a {dataframe-transform}, it creates the destination index if it
+does not already exist. The `number_of_shards` is set to `1` and the
+`auto_expand_replicas` is set to `0-1`.
 
-Alternatively, you can create the destination index before you start the
-{dataframe-transform}. If a destination index or a relevant index template
-exists, fields that are created using `scripted_metric` or `bucket_script`
-aggregations can be overwritten. 
+The transform deduces the mapping definitions from the source indices. For
+scripted fields, it uses <<dynamic-mapping,dynamic mappings>>. If a field in the
+destination index is created by `scripted_metric` or `bucket_script`
+aggregations, the transform uses dynamic mappings unless a template exists or
+the destination index already exists. Mapping definitions in the destination
+index take precedence over dynamic mappings and templates.
 
 When the {dataframe-transform} starts, a series of validations occur to ensure
 its success. If you deferred validation when you created the

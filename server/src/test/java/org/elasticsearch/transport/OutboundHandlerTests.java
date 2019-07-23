@@ -192,7 +192,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 responseRef.set(response);
             }
         });
-        handler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, compress, isHandshake);
+        handler.sendResponse(version, channel, requestId, action, response, compress, isHandshake);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener  = channel.getListenerCaptor().get();
@@ -256,7 +256,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 responseRef.set(error);
             }
         });
-        handler.sendErrorResponse(version, Collections.emptySet(), channel, requestId, action, error);
+        handler.sendErrorResponse(version, channel, requestId, action, error);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener  = channel.getListenerCaptor().get();

@@ -90,7 +90,7 @@ public class InboundMessageTests extends ESTestCase {
         boolean compress = randomBoolean();
         threadContext.putHeader("header", "header_value");
         Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, features, message, version, requestId, isHandshake,
+        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, message, version, requestId, isHandshake,
             compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -126,7 +126,7 @@ public class InboundMessageTests extends ESTestCase {
         boolean compress = randomBoolean();
         threadContext.putHeader("header", "header_value");
         Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, features, exception, version, requestId,
+        OutboundMessage.Response request = new OutboundMessage.Response(threadContext, exception, version, requestId,
             isHandshake, compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -185,7 +185,7 @@ public class InboundMessageTests extends ESTestCase {
 
     public void testThrowOnNotCompressed() throws Exception {
         OutboundMessage.Response request = new OutboundMessage.Response(
-            threadContext, Collections.emptySet(), new Message(randomAlphaOfLength(10)), Version.CURRENT, randomLong(), false, false);
+            threadContext, new Message(randomAlphaOfLength(10)), Version.CURRENT, randomLong(), false, false);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
             reference = request.serialize(streamOutput);

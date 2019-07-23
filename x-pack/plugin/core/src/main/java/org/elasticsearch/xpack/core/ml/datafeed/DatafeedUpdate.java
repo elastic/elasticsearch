@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DatafeedUpdate.class));
-    private static final String DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE = "The ability to update datafeed's job_id is deprecated.";
+    private static final String DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE = "The ability to update a datafeed's job_id is deprecated.";
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
 

@@ -218,7 +218,7 @@ setup:
 
   - do:
       warnings:
-        - The ability to update datafeed's job_id is deprecated.
+        - The ability to update a datafeed's job_id is deprecated.
       ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >

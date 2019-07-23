@@ -27,7 +27,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -55,7 +55,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Status of a snapshot
  */
-public class SnapshotStatus implements ToXContentObject, Streamable {
+public class SnapshotStatus implements ToXContentObject, Writeable {
 
     private Snapshot snapshot;
 
@@ -71,6 +71,28 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
 
     @Nullable
     private Boolean includeGlobalState;
+
+    SnapshotStatus(StreamInput in) throws IOException {
+        snapshot = new Snapshot(in);
+        state = State.fromValue(in.readByte());
+        int size = in.readVInt();
+        List<SnapshotIndexShardStatus> builder = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            builder.add(new SnapshotIndexShardStatus(in));
+        }
+        shards = Collections.unmodifiableList(builder);
+        includeGlobalState = in.readOptionalBoolean();
+        final long startTime;
+        final long time;
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            startTime = in.readLong();
+            time = in.readLong();
+        } else {
+            startTime = 0L;
+            time = 0L;
+        }
+        updateShardStats(startTime, time);
+    }
 
     SnapshotStatus(Snapshot snapshot, State state, List<SnapshotIndexShardStatus> shards, Boolean includeGlobalState,
                    long startTime, long time) {
@@ -92,9 +114,6 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
         this.shardsStats = shardsStats;
         this.stats = stats;
         this.includeGlobalState = includeGlobalState;
-    }
-
-    SnapshotStatus() {
     }
 
     /**
@@ -160,29 +179,6 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        snapshot = new Snapshot(in);
-        state = State.fromValue(in.readByte());
-        int size = in.readVInt();
-        List<SnapshotIndexShardStatus> builder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            builder.add(SnapshotIndexShardStatus.readShardSnapshotStatus(in));
-        }
-        shards = Collections.unmodifiableList(builder);
-        includeGlobalState = in.readOptionalBoolean();
-        final long startTime;
-        final long time;
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            startTime = in.readLong();
-            time = in.readLong();
-        } else {
-            startTime = 0L;
-            time = 0L;
-        }
-        updateShardStats(startTime, time);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         snapshot.writeTo(out);
         out.writeByte(state.value());
@@ -195,18 +191,6 @@ public class SnapshotStatus implements ToXContentObject, Streamable {
             out.writeLong(stats.getStartTime());
             out.writeLong(stats.getTime());
         }
-    }
-
-    /**
-     * Reads snapshot status from stream input
-     *
-     * @param in stream input
-     * @return deserialized snapshot status
-     */
-    public static SnapshotStatus readSnapshotStatus(StreamInput in) throws IOException {
-        SnapshotStatus snapshotInfo = new SnapshotStatus();
-        snapshotInfo.readFrom(in);
-        return snapshotInfo;
     }
 
     @Override

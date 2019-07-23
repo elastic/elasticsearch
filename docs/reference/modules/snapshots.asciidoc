@@ -359,7 +359,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
   "include_global_state": false,
-  "_meta": {
+  "metadata": {
     "taken_by": "kimchy",
     "taken_because": "backup before upgrading"
   }
@@ -376,7 +376,7 @@ By setting `include_global_state` to false it's possible to prevent the cluster 
 the snapshot. By default, the entire snapshot will fail if one or more indices participating in the snapshot don't have
 all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
-The `_meta` field can be used to attach arbitrary metadata to the snapshot. This may be a record of who took the snapshot,
+The `metadata` field can be used to attach arbitrary metadata to the snapshot. This may be a record of who took the snapshot,
 why it was taken, or any other data that might be useful.
 
 Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating

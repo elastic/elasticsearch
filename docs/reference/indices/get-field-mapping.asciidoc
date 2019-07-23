@@ -1,5 +1,5 @@
 [[indices-get-field-mapping]]
-== Get Field Mapping
+=== Get Field Mapping
 
 The get field mapping API allows you to retrieve mapping definitions for one or more fields.
 This is useful when you do not need the complete type mapping returned by
@@ -59,7 +59,7 @@ For which the response is:
 // TESTRESPONSE
 
 [float]
-=== Multiple Indices and Fields
+==== Multiple Indices and Fields
 
 The get field mapping API can be used to get the mapping of multiple fields from more than one index
 with a single call. General usage of the API follows the
@@ -81,7 +81,7 @@ GET /_all/_mapping/field/*.id
 // TEST[s/^/PUT kimchy\nPUT book\n/]
 
 [float]
-=== Specifying fields
+==== Specifying fields
 
 The get mapping api allows you to specify a comma-separated list of fields.
 
@@ -168,7 +168,7 @@ returns:
 // TESTRESPONSE
 
 [float]
-=== Other options
+==== Other options
 
 [horizontal]
 `include_defaults`::

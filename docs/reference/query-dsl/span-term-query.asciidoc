@@ -1,5 +1,8 @@
 [[query-dsl-span-term-query]]
-=== Span Term Query
+=== Span term query
+++++
+<titleabbrev>Span term</titleabbrev>
+++++
 
 Matches spans containing a term. The span term query maps to Lucene
 `SpanTermQuery`. Here is an example:

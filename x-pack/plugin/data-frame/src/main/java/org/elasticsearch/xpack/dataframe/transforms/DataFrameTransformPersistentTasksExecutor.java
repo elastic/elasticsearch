@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -185,7 +185,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
-        ActionListener<DataFrameTransformStateAndStats> transformStatsActionListener = ActionListener.wrap(
+        ActionListener<DataFrameTransformStoredDoc> transformStatsActionListener = ActionListener.wrap(
             stateAndStats -> {
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
@@ -224,7 +224,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(
             fieldMappings -> {
                 indexerBuilder.setFieldMappings(fieldMappings);
-                transformsConfigManager.getTransformStats(transformId, transformStatsActionListener);
+                transformsConfigManager.getTransformStoredDoc(transformId, transformStatsActionListener);
             },
             error -> {
                 String msg = DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,

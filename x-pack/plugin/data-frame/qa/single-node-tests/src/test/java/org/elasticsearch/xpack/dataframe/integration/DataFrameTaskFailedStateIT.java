@@ -27,7 +27,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.oneOf;
 
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
@@ -61,8 +60,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
             "Bulk index experienced failures. See the logs of the node running the transform for details.";
         // Verify we have failed for the expected reason
-        assertThat(XContentMapValues.extractValue("state.reason", fullState),
-            equalTo(failureReason));
+        assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
         // verify that we cannot stop a failed transform
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDataFrameTransform(TRANSFORM_ID, false));
@@ -77,10 +75,9 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
         awaitState(TRANSFORM_ID, DataFrameTransformTaskState.STOPPED);
         fullState = getDataFrameState(TRANSFORM_ID);
-        assertThat(XContentMapValues.extractValue("state.reason", fullState),
-            is(nullValue()));
+        // Verify we have failed for the expected reason
+        assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
-
 
     public void testForceStartFailedTransform() throws Exception {
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
@@ -93,8 +90,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
             "Bulk index experienced failures. See the logs of the node running the transform for details.";
         // Verify we have failed for the expected reason
-        assertThat(XContentMapValues.extractValue("state.reason", fullState),
-            equalTo(failureReason));
+        assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
         // Verify that we cannot start the transform when the task is in a failed state
         ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(TRANSFORM_ID, false));
@@ -111,10 +107,9 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
         // Verify that we have started and that our reason is cleared
         fullState = getDataFrameState(TRANSFORM_ID);
-        assertThat(XContentMapValues.extractValue("state.reason", fullState), is(nullValue()));
-        assertThat(XContentMapValues.extractValue("state.task_state", fullState), equalTo("started"));
-        assertThat(XContentMapValues.extractValue("state.indexer_state", fullState), is(oneOf("started", "indexing")));
-        assertThat(XContentMapValues.extractValue("stats.index_failures", fullState), equalTo(1));
+        assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
+        assertThat(XContentMapValues.extractValue("task_state", fullState), equalTo("started"));
+        assertThat((int)XContentMapValues.extractValue("stats.index_failures", fullState), equalTo(1));
 
         stopDataFrameTransform(TRANSFORM_ID, true);
     }

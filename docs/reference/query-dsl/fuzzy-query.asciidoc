@@ -43,7 +43,7 @@ GET /_search
 [[fuzzy-query-top-level-params]]
 ==== Top-level parameters for `fuzzy`
 `<field>`::
-(Required, string) Field you wish to search.
+(Required, object) Field you wish to search.
 
 [[fuzzy-query-field-params]]
 ==== Parameters for `<field>`

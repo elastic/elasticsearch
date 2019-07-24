@@ -19,12 +19,18 @@ public class EsField {
     private final boolean aggregatable;
     private final Map<String, EsField> properties;
     private final String name;
+    private final boolean isAlias;
 
     public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
+        this(name, esDataType, properties, aggregatable, false);
+    }
+    
+    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable, boolean isAlias) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
         this.properties = properties;
+        this.isAlias = isAlias;
     }
 
     /**
@@ -55,6 +61,13 @@ public class EsField {
     @Nullable
     public Map<String, EsField> getProperties() {
         return properties;
+    }
+
+    /**
+     * This field is an alias to another field
+     */
+    public boolean isAlias() {
+        return isAlias;
     }
 
     /**
@@ -103,14 +116,14 @@ public class EsField {
             return false;
         }
         EsField field = (EsField) o;
-        return aggregatable == field.aggregatable && esDataType == field.esDataType
+        return aggregatable == field.aggregatable && isAlias == field.isAlias && esDataType == field.esDataType
                 && Objects.equals(name, field.name)
                 && Objects.equals(properties, field.properties);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(esDataType, aggregatable, properties, name);
+        return Objects.hash(esDataType, aggregatable, properties, name, isAlias);
     }
 
     public static final class Exact {

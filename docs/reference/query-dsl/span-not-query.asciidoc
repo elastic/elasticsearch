@@ -4,47 +4,79 @@
 <titleabbrev>Span not</titleabbrev>
 ++++
 
-Removes matches which overlap with another span query or which are
-within x tokens before (controlled by the parameter `pre`) or y tokens
-after (controlled by the parameter `post`) another SpanQuery. The span not
-query maps to Lucene `SpanNotQuery`. Here is an example:
+
+Returns documents matching an `include` <<span-queries,span query>> while
+removing overlapping matches from an `exclude` span query.
+
+
+[[span-not-query-ex-request]]
+==== Example request
+
+The following search returns documents matching `hoya`, excluding matches
+for `la hoya`.
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
         "span_not" : {
             "include" : {
-                "span_term" : { "field1" : "hoya" }
+                "span_term" : { "message" : { "value" : "hoya" } }
             },
             "exclude" : {
                 "span_near" : { 
                     "clauses" : [
-                        { "span_term" : { "field1" : "la" } },
-                        { "span_term" : { "field1" : "hoya" } }
+                        { "span_term" : { "message" : { "value" : "la" } } } ,
+                        { "span_term" : { "message" : { "value" : "hoya" } } }
                     ],
-                    "slop" : 0,
-                    "in_order" : true
+                    "in_order" : true,
+                    "slop" : 0
                 }
             }
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-The `include` and `exclude` clauses can be any span type query. The
-`include` clause is the span query whose matches are filtered, and the
-`exclude` clause is the span query whose matches must not overlap those
-returned.
 
-In the above example all documents with the term hoya are filtered except the ones that have 'la' preceding them.
+[[span-not-top-level-params]]
+==== Top-level parameters for `span_not`
+`include`::
+(Required, query object) Contains a <<span-queries,span query>>. Returned
+documents must match this query.
 
-Other top level options:
+`exclude`::
++
+--
+(Required, query object) Contains a <<span-queries,span query>> used to remove
+matching documents from the `include` query.
+--
 
-[horizontal]
-`pre`::     If set the amount of tokens before the include span can't have overlap with the exclude span. Defaults to 0.
-`post`::    If set the amount of tokens after the include span can't have overlap with the exclude span. Defaults to 0.
-`dist`::    If set the amount of tokens from within the include span can't have overlap with the exclude span. Equivalent
-            of setting both `pre` and `post`.
+`pre`::
++
+--
+(Optional, integer) Number of tokens **before** `include` query matches that can’t
+overlap with `exclude` query matches. Defaults to `0`.
+
+You cannot use the `pre` parameter with the `dist` parameter.
+--
+
+`post`::
++
+--
+(Optional, integer) Number of tokens **after** `include` query matches that can’t
+overlap with `exclude` query matches. Defaults to `0`.
+
+You cannot use the `post` parameter with the `dist` parameter.
+--
+
+`dist`::
++
+--
+(Optional, integer) Number of tokens **before and after** `include` query matches
+that can’t overlap with `exclude` query matches.
+
+You cannot use the `dist` parameter with the `pre` or `post` parameters.
+--

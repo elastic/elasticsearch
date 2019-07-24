@@ -4,14 +4,14 @@
 :response: AcknowledgedResponse
 --
 [id="{upid}-{api}"]
-=== Put Data Frame Transform API
+=== Put {dataframe-transform} API
 
-The Put Data Frame Transform API is used to create a new {dataframe-transform}.
+The put {dataframe-transform} API is used to create a new {dataframe-transform}.
 
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put Data Frame Request
+==== Put {dataframe-transform} request
 
 A +{request}+ requires the following argument:
 
@@ -26,10 +26,10 @@ with the privileges of the user creating it. Meaning, if they do not have privil
 such an error will not be visible until `_start` is called.
 
 [id="{upid}-{api}-config"]
-==== Data Frame Transform Configuration
+==== {dataframe-transform-cap} configuration
 
-The `DataFrameTransformConfig` object contains all the details about the {dataframe-transform}
-configuration and contains the following arguments:
+The `DataFrameTransformConfig` object contains all the details about the
+{dataframe-transform} configuration and contains the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

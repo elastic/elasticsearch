@@ -4,10 +4,10 @@
 :response: AcknowledgedResponse
 --
 [id="{upid}-{api}"]
-=== Delete Data Frame Transform API
+=== Delete {dataframe-transform} API
 
 [id="{upid}-{api}-request"]
-==== Delete Data Frame Transform Request
+==== Delete {dataframe-transform} request
 
 A +{request}+ object requires a non-null `id`.
 

@@ -8,7 +8,7 @@ test.
 ////
 
 [id="{upid}-{api}-sync"]
-==== Synchronous Execution
+==== Synchronous execution
 
 When executing a +{request}+ in the following manner, the client waits
 for the +{response}+ to be returned before continuing with code execution:
@@ -28,7 +28,7 @@ a generic `ElasticsearchException` and adds the original `ResponseException` as 
 suppressed exception to it.
 
 [id="{upid}-{api}-async"]
-==== Asynchronous Execution
+==== Asynchronous execution
 
 Executing a +{request}+ can also be done in an asynchronous fashion so that
 the client can return directly. Users need to specify how the response or

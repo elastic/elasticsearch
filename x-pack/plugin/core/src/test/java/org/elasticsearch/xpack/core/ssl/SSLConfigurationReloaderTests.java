@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -352,7 +353,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get().getMessage(), containsString("failed to initialize a KeyManagerFactory"));
+        assertThat(exceptionRef.get(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL KeyManagerFactory")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -450,7 +451,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get().getMessage(), containsString("failed to initialize a TrustManagerFactory"));
+        assertThat(exceptionRef.get(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL TrustManagerFactory")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 

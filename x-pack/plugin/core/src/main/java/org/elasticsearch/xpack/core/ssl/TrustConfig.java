@@ -42,6 +42,11 @@ abstract class TrustConfig {
      */
     abstract X509ExtendedTrustManager createTrustManager(Environment environment);
 
+    protected ElasticsearchException missingTrustConfigFile(String fileType, String path, IOException e) {
+        return new ElasticsearchException(
+            "failed to initialize SSL TrustManagerFactory - " + fileType + " file [{}] does not exist", e, path);
+    }
+
     abstract Collection<CertificateInfo> certificates(Environment environment) throws GeneralSecurityException, IOException;
 
     /**

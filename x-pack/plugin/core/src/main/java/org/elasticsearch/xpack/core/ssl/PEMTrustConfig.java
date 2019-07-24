@@ -13,7 +13,9 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -44,6 +46,8 @@ class PEMTrustConfig extends TrustConfig {
         try {
             Certificate[] certificates = CertParsingUtils.readCertificates(caPaths, environment);
             return CertParsingUtils.trustManager(certificates);
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            throw missingTrustConfigFile("certificate_authorities", e.getMessage(), e);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }

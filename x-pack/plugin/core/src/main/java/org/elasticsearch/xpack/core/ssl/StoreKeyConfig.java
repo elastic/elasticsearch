@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -72,8 +74,10 @@ class StoreKeyConfig extends KeyConfig {
             KeyStore ks = getStore(environment, keyStorePath, keyStoreType, keyStorePassword);
             checkKeyStore(ks);
             return CertParsingUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            throw missingKeyConfigFile("keystore", keyStorePath, e);
         } catch (IOException | CertificateException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
-            throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
+            throw new ElasticsearchException("failed to initialize SSL KeyManagerFactory", e);
         }
     }
 

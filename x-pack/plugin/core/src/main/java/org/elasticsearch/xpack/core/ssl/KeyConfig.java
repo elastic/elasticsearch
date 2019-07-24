@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -12,6 +13,7 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.util.Collection;
@@ -63,6 +65,11 @@ abstract class KeyConfig extends TrustConfig {
     };
 
     abstract X509ExtendedKeyManager createKeyManager(@Nullable Environment environment);
+
+    static ElasticsearchException missingKeyConfigFile(String fileType, String path, IOException e) {
+        return new ElasticsearchException(
+            "failed to initialize SSL KeyManagerFactory - " + fileType + " file [{}] does not exist", e, path);
+    }
 
     abstract List<PrivateKey> privateKeys(@Nullable Environment environment);
 

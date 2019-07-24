@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -46,7 +47,7 @@ public class StoreKeyConfigTests extends ESTestCase {
             KeyManagerFactory.getDefaultAlgorithm(), TrustManagerFactory.getDefaultAlgorithm());
         ElasticsearchException ee = expectThrows(ElasticsearchException.class, () ->
             keyConfigPkcs11.createKeyManager(TestEnvironment.newEnvironment(settings)));
-        assertThat(ee.getMessage(), containsString("failed to initialize a KeyManagerFactory"));
+        assertThat(ee, TestMatchers.throwableWithMessage(containsString("failed to initialize SSL KeyManagerFactory")));
         assertThat(ee.getCause().getMessage(), containsString("PKCS11 not found"));
     }
 

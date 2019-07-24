@@ -13,9 +13,10 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -55,7 +56,7 @@ class PEMKeyConfig extends KeyConfig {
     @Override
     X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
         try {
-            PrivateKey privateKey = readPrivateKey(CertParsingUtils.resolvePath(keyPath, environment), keyPassword);
+            PrivateKey privateKey = readPrivateKey(keyPath, keyPassword, environment);
             if (privateKey == null) {
                 throw new IllegalArgumentException("private key [" + keyPath + "] could not be loaded");
             }
@@ -68,7 +69,11 @@ class PEMKeyConfig extends KeyConfig {
     }
 
     private Certificate[] getCertificateChain(@Nullable Environment environment) throws CertificateException, IOException {
-        return CertParsingUtils.readCertificates(Collections.singletonList(certPath), environment);
+        try {
+            return CertParsingUtils.readCertificates(Collections.singletonList(certPath), environment);
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            throw missingKeyConfigFile("certificate", certPath, e);
+        }
     }
 
     @Override
@@ -87,14 +92,18 @@ class PEMKeyConfig extends KeyConfig {
     @Override
     List<PrivateKey> privateKeys(@Nullable Environment environment) {
         try {
-            return Collections.singletonList(readPrivateKey(CertParsingUtils.resolvePath(keyPath, environment), keyPassword));
+            return Collections.singletonList(readPrivateKey(keyPath, keyPassword, environment));
         } catch (IOException e) {
             throw new UncheckedIOException("failed to read key", e);
         }
     }
 
-    private static PrivateKey readPrivateKey(Path keyPath, SecureString keyPassword) throws IOException {
-        return PemUtils.readPrivateKey(keyPath, keyPassword::getChars);
+    private static PrivateKey readPrivateKey(String keyPath, SecureString keyPassword, Environment environment) throws IOException {
+        try {
+            return PemUtils.readPrivateKey(CertParsingUtils.resolvePath(keyPath, environment), keyPassword::getChars);
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            throw missingKeyConfigFile("key", keyPath, e);
+        }
     }
 
     @Override

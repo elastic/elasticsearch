@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -60,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -194,7 +196,8 @@ public class SSLServiceTests extends ESTestCase {
             sslService.createSSLEngine(configuration, null, -1);
             fail("expected an exception");
         } catch (ElasticsearchException e) {
-            assertThat(e.getMessage(), containsString("failed to initialize a KeyManagerFactory"));
+            assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+            assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL KeyManagerFactory")));
         }
     }
 
@@ -326,7 +329,8 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
-        assertThat(e.getMessage(), is("failed to initialize a TrustManagerFactory"));
+        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL TrustManagerFactory")));
     }
 
     public void testThatKeystorePasswordIsRequired() throws Exception {
@@ -336,7 +340,8 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
-        assertThat(e.getMessage(), is("failed to create trust manager"));
+        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e.getCause(), throwableWithMessage("failed to create trust manager"));
     }
 
     public void testCiphersAndInvalidCiphersWork() throws Exception {
@@ -369,9 +374,10 @@ public class SSLServiceTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .putList("xpack.security.transport.ssl.cipher_suites", new String[] { "foo", "bar" })
             .build();
-        IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> new SSLService(settings, env));
-        assertThat(e.getMessage(), is("none of the ciphers [foo, bar] are supported by this JVM"));
+        ElasticsearchException e =
+                expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
+        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e.getCause(), throwableWithMessage("none of the ciphers [foo, bar] are supported by this JVM"));
     }
 
     public void testThatSSLEngineHasCipherSuitesOrderSet() throws Exception {

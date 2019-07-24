@@ -174,17 +174,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     public void onNodeDisconnected(DiscoveryNode node) {
         if (connectionManager.size() < maxNumRemoteConnections) {
             // try to reconnect and fill up the slot of the disconnected node
-            connectHandler.connect(new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void aVoid) {
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            });
+            connectHandler.connect(ActionListener.wrap(
+                ignore -> logger.trace("successfully connected after disconnect of {}", node),
+                e -> logger.trace(() -> new ParameterizedMessage("failed to connect after disconnect of {}", node), e)));
         }
     }
 

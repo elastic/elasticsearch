@@ -54,7 +54,7 @@ Machine Learning::
 
 Mapping::
 * Prevent types deprecation warning for indices.exists requests {pull}43963[#43963] (issue: {issue}43905[#43905])
-* Add include_type_name in indices.exitst REST API spec {pull}43910[#43910] (issue: {issue}43905[#43905])
+* Add `include_type_name` in `indices.exists` REST API specification {pull}43910[#43910] (issue: {issue}43905[#43905])
 
 Network::
 * Reconnect remote cluster when seeds are changed {pull}43379[#43379] (issue: {issue}37799[#37799])

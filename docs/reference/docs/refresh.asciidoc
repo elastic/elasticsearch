@@ -1,5 +1,5 @@
 [[docs-refresh]]
-== `?refresh`
+=== `?refresh`
 
 The <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
 <<docs-bulk,Bulk>> APIs support setting `refresh` to control when changes made
@@ -30,7 +30,7 @@ Take no refresh related actions. The changes made by this request will be made
 visible at some point after the request returns.
 
 [float]
-=== Choosing which setting to use
+==== Choosing which setting to use
 
 Unless you have a good reason to wait for the change to become visible always
 use `refresh=false`, or, because that is the default, just leave the `refresh`
@@ -64,7 +64,7 @@ general, if you have a running system you don't wish to disturb then
 
 [float]
 [[refresh_wait_for-force-refresh]]
-=== `refresh=wait_for` Can Force a Refresh
+==== `refresh=wait_for` Can Force a Refresh
 
 If a `refresh=wait_for` request comes in when there are already
 `index.max_refresh_listeners` (defaults to 1000) requests waiting for a refresh
@@ -79,7 +79,7 @@ Bulk requests only take up one slot on each shard that they touch no matter how
 many times they modify the shard.
 
 [float]
-=== Examples
+==== Examples
 
 These will create a document and immediately refresh the index so it is visible:
 

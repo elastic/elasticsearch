@@ -124,7 +124,7 @@ specific index module:
     The maximum value of `from + size` for searches to this index. Defaults to
     `10000`. Search requests take heap memory and time proportional to
     `from + size` and this limits that memory. See
-    <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
+    <<request-body-search-scroll,Scroll>> or <<request-body-search-search-after,Search After>> for a more efficient alternative
     to raising this.
 
 `index.max_inner_result_window`::
@@ -205,6 +205,7 @@ specific index module:
     The maximum number of terms that can be used in Terms Query.
     Defaults to `65536`.
 
+[[index-max-regex-length]]
  `index.max_regex_length`::
 
     The maximum length of regex that can be used in Regexp Query.

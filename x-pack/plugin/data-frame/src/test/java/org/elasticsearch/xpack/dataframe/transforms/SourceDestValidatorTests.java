@@ -65,43 +65,47 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() {
         DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("dest", null));
-        SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver());
+        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false);
     }
 
     public void testCheck_GivenMissingConcreteSourceIndex() {
         DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig("missing"), new DestConfig("dest", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver()));
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Source index [missing] does not exist"));
+        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
     }
 
     public void testCheck_GivenMissingWildcardSourceIndex() {
         DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig("missing*"), new DestConfig("dest", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver()));
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Source index [missing*] does not exist"));
+        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
     }
 
     public void testCheck_GivenDestIndexSameAsSourceIndex() {
         DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver()));
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Destination index [source-1] is included in source expression [source-1]"));
+        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
     }
 
     public void testCheck_GivenDestIndexMatchesSourceIndex() {
         DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig("source-*"), new DestConfig(SOURCE_2, null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver()));
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Destination index [source-2] is included in source expression [source-*]"));
+        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
     }
 
     public void testCheck_GivenDestIndexMatchesOneOfSourceIndices() {
@@ -109,16 +113,23 @@ public class SourceDestValidatorTests extends ESTestCase {
             new DestConfig(SOURCE_2, null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver()));
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Destination index [source-2] is included in source expression [source-*]"));
+        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
     }
 
     public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() {
         DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("dest-alias", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver()));
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(),
+            equalTo("Destination index [dest-alias] should refer to a single index"));
+
+        e = expectThrows(ElasticsearchStatusException.class,
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(),
             equalTo("Destination index [dest-alias] should refer to a single index"));
@@ -128,10 +139,12 @@ public class SourceDestValidatorTests extends ESTestCase {
         DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1-alias", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> SourceDestValidator.check(config, CLUSTER_STATE, new IndexNameExpressionResolver()));
+            () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(),
             equalTo("Destination index [source-1] is included in source expression [source-1]"));
+
+        SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
     }
 
     private static DataFrameTransformConfig createDataFrameTransform(SourceConfig sourceConfig, DestConfig destConfig) {

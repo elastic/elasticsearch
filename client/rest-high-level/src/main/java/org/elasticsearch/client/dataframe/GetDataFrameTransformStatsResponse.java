@@ -21,7 +21,7 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -42,11 +42,11 @@ public class GetDataFrameTransformStatsResponse {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GetDataFrameTransformStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
             "get_data_frame_transform_stats_response", true,
-            args -> new GetDataFrameTransformStatsResponse((List<DataFrameTransformStateAndStats>) args[0],
+            args -> new GetDataFrameTransformStatsResponse((List<DataFrameTransformStats>) args[0],
                     (List<TaskOperationFailure>) args[1], (List<ElasticsearchException>) args[2]));
 
     static {
-        PARSER.declareObjectArray(constructorArg(), DataFrameTransformStateAndStats.PARSER::apply, TRANSFORMS);
+        PARSER.declareObjectArray(constructorArg(), DataFrameTransformStats.PARSER::apply, TRANSFORMS);
         // Discard the count field which is the size of the transforms array
         PARSER.declareInt((a, b) -> {}, COUNT);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p),
@@ -59,20 +59,20 @@ public class GetDataFrameTransformStatsResponse {
         return GetDataFrameTransformStatsResponse.PARSER.apply(parser, null);
     }
 
-    private final List<DataFrameTransformStateAndStats> transformsStateAndStats;
+    private final List<DataFrameTransformStats> transformsStats;
     private final List<TaskOperationFailure> taskFailures;
     private final List<ElasticsearchException> nodeFailures;
 
-    public GetDataFrameTransformStatsResponse(List<DataFrameTransformStateAndStats> transformsStateAndStats,
+    public GetDataFrameTransformStatsResponse(List<DataFrameTransformStats> transformsStats,
                                               @Nullable List<TaskOperationFailure> taskFailures,
                                               @Nullable List<? extends ElasticsearchException> nodeFailures) {
-        this.transformsStateAndStats = transformsStateAndStats;
+        this.transformsStats = transformsStats;
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(taskFailures);
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(nodeFailures);
     }
 
-    public List<DataFrameTransformStateAndStats> getTransformsStateAndStats() {
-        return transformsStateAndStats;
+    public List<DataFrameTransformStats> getTransformsStats() {
+        return transformsStats;
     }
 
     public List<ElasticsearchException> getNodeFailures() {
@@ -85,7 +85,7 @@ public class GetDataFrameTransformStatsResponse {
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformsStateAndStats, nodeFailures, taskFailures);
+        return Objects.hash(transformsStats, nodeFailures, taskFailures);
     }
 
     @Override
@@ -99,7 +99,7 @@ public class GetDataFrameTransformStatsResponse {
         }
 
         final GetDataFrameTransformStatsResponse that = (GetDataFrameTransformStatsResponse) other;
-        return Objects.equals(this.transformsStateAndStats, that.transformsStateAndStats)
+        return Objects.equals(this.transformsStats, that.transformsStats)
                 && Objects.equals(this.nodeFailures, that.nodeFailures)
                 && Objects.equals(this.taskFailures, that.taskFailures);
     }

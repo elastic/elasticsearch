@@ -35,6 +35,7 @@ import static java.util.Objects.requireNonNull;
  * Returns the list of tasks currently running on the nodes
  */
 public class GetTaskResponse extends ActionResponse implements ToXContentObject {
+
     private final TaskResult task;
 
     public GetTaskResponse(TaskResult task) {
@@ -44,11 +45,6 @@ public class GetTaskResponse extends ActionResponse implements ToXContentObject 
     public GetTaskResponse(StreamInput in) throws IOException {
         super(in);
         task = in.readOptionalWriteable(TaskResult::new);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

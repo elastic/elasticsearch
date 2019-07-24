@@ -30,6 +30,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -59,7 +60,10 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
             false,
             o -> new BucketScriptPipelineAggregationBuilder(name, (Map<String, String>) o[0], (Script) o[1]));
 
-        parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), BUCKETS_PATH_FIELD);
+        parser.declareField(ConstructingObjectParser.constructorArg()
+            , BucketScriptPipelineAggregationBuilder::extractBucketPath
+            , BUCKETS_PATH_FIELD
+            , ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
         parser.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> Script.parse(p), Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
 
@@ -110,6 +114,27 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         script.writeTo(out);
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
+    }
+
+    private static Map<String, String> extractBucketPath(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+       if (token == XContentParser.Token.VALUE_STRING) {
+           // input is a string, name of the path set to '_value'.
+           // This is a bit odd as there is not constructor for it
+           return Collections.singletonMap("_value", parser.text());
+       } else if (token == XContentParser.Token.START_ARRAY) {
+           // input is an array, name of the path set to '_value' + position
+           Map<String, String> bucketsPathsMap = new HashMap<>();
+           int i =0;
+           while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+               String path = parser.text();
+               bucketsPathsMap.put("_value" + i++, path);
+           }
+           return bucketsPathsMap;
+       } else  {
+           // input is an object, it should contain name / value pairs
+           return parser.mapStrings();
+       }
     }
 
     private static Map<String, String> convertToBucketsPathMap(String[] bucketsPaths) {

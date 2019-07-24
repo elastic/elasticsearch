@@ -6,6 +6,6 @@
 
 /**
  * Contains the action definitions for SLM. For the transport and rest action implementations, please see the {@code ilm} module's
- * {@code org.elasticsearch.xpack.snapshotlifecycle} package.
+ * {@code org.elasticsearch.xpack.slm} package.
  */
 package org.elasticsearch.xpack.core.snapshotlifecycle.action;

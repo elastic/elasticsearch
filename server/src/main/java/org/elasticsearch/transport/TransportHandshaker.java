@@ -188,11 +188,6 @@ final class TransportHandshaker {
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput streamOutput) throws IOException {
             super.writeTo(streamOutput);
             assert version != null;
@@ -213,13 +208,8 @@ final class TransportHandshaker {
         }
 
         private HandshakeResponse(StreamInput in) throws IOException {
-            super.readFrom(in);
+            super(in);
             responseVersion = Version.readVersion(in);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

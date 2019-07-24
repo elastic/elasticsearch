@@ -41,7 +41,8 @@ dependencyLicenses {
 }
 
 test {
-  jvmArgs '-XX:-OmitStackTraceInFastThrow'
+  // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
+  jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the

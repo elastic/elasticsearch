@@ -54,6 +54,7 @@ The default value is `true`, which returns an empty `data_frame_analytics` array
 when there are no matches and the subset of results when there are partial 
 matches. If this parameter is `false`, the request returns a `404` status code 
 when there are no matches or only partial matches.
+--
 
 `from`::
   (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The

@@ -38,8 +38,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SystemdPluginTests extends ESTestCase {
 
-    private Build.Type randomPackageBuildType = randomFrom(Build.Type.DEB, Build.Type.RPM);
-    private Build.Type randomNonPackageBuildType =
+    private final Build.Type randomPackageBuildType = randomFrom(Build.Type.DEB, Build.Type.RPM);
+    private final Build.Type randomNonPackageBuildType =
         randomValueOtherThanMany(t -> t == Build.Type.DEB || t == Build.Type.RPM, () -> randomFrom(Build.Type.values()));
 
     public void testIsEnabled() {

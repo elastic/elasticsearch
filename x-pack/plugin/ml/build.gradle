@@ -46,9 +46,6 @@ bundlePlugin {
     exclude 'platform/licenses/**'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-
 dependencies {
     compileOnly project(':modules:lang-painless:spi')
     compileOnly project(path: xpackModule('core'), configuration: 'default')

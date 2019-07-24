@@ -77,6 +77,23 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private Index concreteIndex;
 
+    public PutMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        type = in.readOptionalString();
+        source = in.readString();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readBoolean(); // updateAllTypes
+        }
+        concreteIndex = in.readOptionalWriteable(Index::new);
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
+    }
+
     public PutMappingRequest() {
     }
 
@@ -297,24 +314,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             return this;
         } catch (IOException e) {
             throw new UncheckedIOException("failed to convert source to json", e);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        type = in.readOptionalString();
-        source = in.readString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
-        concreteIndex = in.readOptionalWriteable(Index::new);
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
         }
     }
 

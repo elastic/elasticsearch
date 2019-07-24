@@ -49,34 +49,31 @@ public class MonitoringBulkDoc implements Writeable {
         this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    /**
-     * Read from a stream.
-     */
-    public static MonitoringBulkDoc readFrom(StreamInput in) throws IOException {
-        final MonitoredSystem system = MonitoredSystem.fromSystem(in.readOptionalString());
+    public MonitoringBulkDoc (StreamInput in) throws IOException {
+        this.system = MonitoredSystem.fromSystem(in.readOptionalString());
 
         if (in.getVersion().before(Version.V_6_0_0_rc1)) {
             in.readOptionalString(); // Monitoring version, removed in 6.0 rc1
             in.readOptionalString(); // Cluster UUID, removed in 6.0 rc1
         }
 
-        final long timestamp = in.readVLong();
+        this.timestamp = in.readVLong();
 
         if (in.getVersion().before(Version.V_6_0_0_rc1)) {
             in.readOptionalWriteable(MonitoringDoc.Node::new);// Source node, removed in 6.0 rc1
             MonitoringIndex.readFrom(in);// Monitoring index, removed in 6.0 rc1
         }
 
-        final String type = in.readOptionalString();
-        final String id = in.readOptionalString();
-        final BytesReference source = in.readBytesReference();
-        final XContentType xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
+        this.type = in.readOptionalString();
+        this.id = in.readOptionalString();
+        this.source = in.readBytesReference();
+        this.xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
 
         long interval = 0L;
         if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
             interval = in.readVLong();
         }
-        return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
+        this.intervalMillis = interval;
     }
 
     @Override

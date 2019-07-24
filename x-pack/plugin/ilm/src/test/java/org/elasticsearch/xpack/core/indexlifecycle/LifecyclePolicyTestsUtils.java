@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.xpack.indexlifecycle.LockableLifecycleType;
+import org.elasticsearch.xpack.ilm.LockableLifecycleType;
 
 import java.util.Map;
 

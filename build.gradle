@@ -29,16 +29,13 @@ import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
-    id 'com.gradle.build-scan' version '2.2.1'
+    id 'com.gradle.build-scan' version '2.3'
     id 'base'
     id 'elasticsearch.global-build-info'
 }
-if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
-    buildScan {
-        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
-        termsOfServiceAgree = 'yes'
-    }
-}
+
+apply plugin: 'nebula.info-scm'
+apply from: 'gradle/build-scan.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -49,7 +46,6 @@ allprojects {
 
 BuildPlugin.configureRepositories(project)
 
-apply plugin: 'nebula.info-scm'
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
   licenseCommit = scminfo.change ?: "master" // leniency for non git builds
@@ -110,6 +106,17 @@ subprojects {
  * *something* to test against. */
 BwcVersions versions = new BwcVersions(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
 
+task updateCIBwcVersions() {
+    doLast {
+        File yml = file(".ci/bwcVersions")
+        yml.text = ""
+        yml << "BWC_VERSION:\n"
+        versions.indexCompatible.each {
+            yml << "  - \"$it\"\n"
+        }
+    }
+}
+
 // build metadata from previous build, contains eg hashes for bwc builds
 String buildMetadataValue = System.getenv('BUILD_METADATA')
 if (buildMetadataValue == null) {
@@ -152,6 +159,12 @@ task verifyVersions {
                       .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
                       .collect { Version.fromString(it) }
       )
+    }
+    String ciYml = file(".ci/bwcVersions").text
+    bwcVersions.indexCompatible.each {
+        if (ciYml.contains("\"$it\"\n") == false) {
+            throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
+        }
     }
   }
 }

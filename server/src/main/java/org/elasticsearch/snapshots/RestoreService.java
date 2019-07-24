@@ -178,11 +178,6 @@ public class RestoreService implements ClusterStateApplier {
             Repository repository = repositoriesService.repository(repositoryName);
             final RepositoryData repositoryData = repository.getRepositoryData();
             final String snapshotName = request.snapshot();
-            final Optional<SnapshotId> incompatibleSnapshotId =
-                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
-            if (incompatibleSnapshotId.isPresent()) {
-                throw new SnapshotRestoreException(repositoryName, snapshotName, "cannot restore incompatible snapshot");
-            }
             final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                 .filter(s -> snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {
@@ -288,6 +283,7 @@ public class RestoreService implements ClusterStateApplier {
                                 indexMdBuilder.settings(Settings.builder()
                                                                 .put(snapshotIndexMetaData.getSettings())
                                                                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
+                                MetaDataCreateIndexService.checkShardLimit(snapshotIndexMetaData.getSettings(), currentState);
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();

@@ -2,7 +2,7 @@
 === Field context
 
 Use a Painless script to create a
-{ref}/search-request-script-fields.html[script field] to return
+{ref}/search-request-body.html#request-body-search-script-fields[script field] to return
 a customized value for each document in the results of a query.
 
 *Variables*

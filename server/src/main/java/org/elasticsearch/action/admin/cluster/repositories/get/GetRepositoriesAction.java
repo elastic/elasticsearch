@@ -19,23 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
 /**
  * Get repositories action
  */
-public class GetRepositoriesAction extends StreamableResponseActionType<GetRepositoriesResponse> {
+public class GetRepositoriesAction extends ActionType<GetRepositoriesResponse> {
 
     public static final GetRepositoriesAction INSTANCE = new GetRepositoriesAction();
     public static final String NAME = "cluster:admin/repository/get";
 
     private GetRepositoriesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetRepositoriesResponse newResponse() {
-        return new GetRepositoriesResponse();
+        super(NAME, GetRepositoriesResponse::new);
     }
 }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.io.IOException;
 
@@ -53,7 +54,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                                          Client client, PersistentTasksService persistentTasksService,
                                          NamedXContentRegistry xContentRegistry) {
         super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteDatafeedAction.Request::new);
+                DeleteDatafeedAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.persistentTasksService = persistentTasksService;
@@ -69,11 +70,6 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -143,10 +139,26 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             return;
         }
 
-        datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
-                listener::onFailure
-        ));
+        String datafeedId = request.getDatafeedId();
+
+        datafeedConfigProvider.getDatafeedConfig(
+            datafeedId,
+            ActionListener.wrap(
+                datafeedConfigBuilder -> {
+                    String jobId = datafeedConfigBuilder.build().getJobId();
+                    JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                    jobDataDeleter.deleteDatafeedTimingStats(
+                        ActionListener.wrap(
+                            unused1 -> {
+                                datafeedConfigProvider.deleteDatafeedConfig(
+                                    datafeedId,
+                                    ActionListener.wrap(
+                                        unused2 -> listener.onResponse(new AcknowledgedResponse(true)),
+                                        listener::onFailure));
+                            },
+                            listener::onFailure));
+                },
+                listener::onFailure));
     }
 
     @Override

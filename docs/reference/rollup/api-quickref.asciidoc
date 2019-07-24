@@ -17,12 +17,12 @@ Most rollup endpoints have the following base:
 [[rollup-api-jobs]]
 === /job/
 
-* {ref}/rollup-put-job.html[PUT /_rollup/job/<job_id+++>+++]: Create a job
-* {ref}/rollup-get-job.html[GET /_rollup/job]: List jobs
-* {ref}/rollup-get-job.html[GET /_rollup/job/<job_id+++>+++]: Get job details
-* {ref}/rollup-start-job.html[POST /_rollup/job/<job_id>/_start]: Start a job
-* {ref}/rollup-stop-job.html[POST /_rollup/job/<job_id>/_stop]: Stop a job
-* {ref}/rollup-delete-job.html[DELETE /_rollup/job/<job_id+++>+++]: Delete a job
+* {ref}/rollup-put-job.html[PUT /_rollup/job/<job_id+++>+++]: Create a {rollup-job}
+* {ref}/rollup-get-job.html[GET /_rollup/job]: List {rollup-jobs}
+* {ref}/rollup-get-job.html[GET /_rollup/job/<job_id+++>+++]: Get {rollup-job} details
+* {ref}/rollup-start-job.html[POST /_rollup/job/<job_id>/_start]: Start a {rollup-job}
+* {ref}/rollup-stop-job.html[POST /_rollup/job/<job_id>/_stop]: Stop a {rollup-job}
+* {ref}/rollup-delete-job.html[DELETE /_rollup/job/<job_id+++>+++]: Delete a {rollup-job}
 
 [float]
 [[rollup-api-data]]

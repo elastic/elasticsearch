@@ -115,7 +115,7 @@ public class FollowersChecker {
         transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, false, false, FollowerCheckRequest::new,
             (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel));
         transportService.registerRequestHandler(
-            NodesFaultDetection.PING_ACTION_NAME, NodesFaultDetection.PingRequest::new, Names.SAME, false, false,
+            NodesFaultDetection.PING_ACTION_NAME, Names.SAME, false, false, NodesFaultDetection.PingRequest::new,
             (request, channel, task) -> // TODO: check that we're a follower of the requesting node?
                 channel.sendResponse(new NodesFaultDetection.PingResponse()));
         transportService.addConnectionListener(new TransportConnectionListener() {
@@ -249,11 +249,9 @@ public class FollowersChecker {
     }
 
     private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
-        synchronized (mutex) {
-            FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
-            if (followerChecker != null && followerChecker.running()) {
-                followerChecker.failNode("disconnected");
-            }
+        FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
+        if (followerChecker != null) {
+            followerChecker.failNode("disconnected");
         }
     }
 

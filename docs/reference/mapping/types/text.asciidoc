@@ -1,5 +1,8 @@
 [[text]]
 === Text datatype
+++++
+<titleabbrev>Text</titleabbrev>
+++++
 
 A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an

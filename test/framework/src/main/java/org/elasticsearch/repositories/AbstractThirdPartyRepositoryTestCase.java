@@ -236,6 +236,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 final BlobStore blobStore = repo.blobStore();
                 blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo"))
                     .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
+                for (String prefix : Arrays.asList("snap-", "meta-")) {
+                    blobStore.blobContainer(BlobPath.cleanPath())
+                        .writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[0]), 0, false);
+                }
                 future.onResponse(null);
             }
         });
@@ -255,7 +259,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 final BlobStore blobStore = repo.blobStore();
                 future.onResponse(
                     blobStore.blobContainer(BlobPath.cleanPath().add("indices")).children().containsKey("foo")
-                        && blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo")).blobExists("bar")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo")), "bar")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(BlobPath.cleanPath()), "meta-foo.dat")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(BlobPath.cleanPath()), "snap-foo.dat")
                 );
             }
         });

@@ -80,8 +80,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    MetaDataIndexAliasesService indexAliasesService, Client client) {
-        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            RolloverRequest::new);
+        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,
+            indexNameExpressionResolver);
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.client = client;
@@ -92,11 +92,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected RolloverResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

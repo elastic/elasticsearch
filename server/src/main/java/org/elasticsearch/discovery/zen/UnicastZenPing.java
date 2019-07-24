@@ -101,8 +101,6 @@ public class UnicastZenPing implements ZenPing {
 
     private final AtomicInteger pingingRoundIdGenerator = new AtomicInteger();
 
-    private final CancellableThreads cancellableThreads = new CancellableThreads();
-
     private final Map<Integer, PingingRound> activePingingRounds = newConcurrentMap();
 
     // a list of temporal responses a node will return for a request (holds responses from other nodes)
@@ -149,13 +147,21 @@ public class UnicastZenPing implements ZenPing {
     }
 
     private SeedHostsProvider.HostsResolver createHostsResolver() {
-        return hosts -> SeedHostsResolver.resolveHostsLists(cancellableThreads, unicastZenPingExecutorService, logger, hosts,
-            transportService, resolveTimeout);
+        return hosts -> SeedHostsResolver.resolveHostsLists(
+            new CancellableThreads() {
+                public void execute(Interruptible interruptible) {
+                    try {
+                        interruptible.run();
+                    } catch (InterruptedException e) {
+                        throw new CancellableThreads.ExecutionCancelledException("interrupted by " + e);
+                    }
+                }
+            },
+            unicastZenPingExecutorService, logger, hosts, transportService, resolveTimeout);
     }
 
     @Override
     public void close() {
-        cancellableThreads.cancel("stopping UnicastZenPing");
         ThreadPool.terminate(unicastZenPingExecutorService, 10, TimeUnit.SECONDS);
         Releasables.close(activePingingRounds.values());
         closed = true;
@@ -528,11 +534,6 @@ public class UnicastZenPing implements ZenPing {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeInt(id);
@@ -566,13 +567,7 @@ public class UnicastZenPing implements ZenPing {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeInt(id);
             out.writeVInt(pingResponses.length);
             for (PingResponse pingResponse : pingResponses) {

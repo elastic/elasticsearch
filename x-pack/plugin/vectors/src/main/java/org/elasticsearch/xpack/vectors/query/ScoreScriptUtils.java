@@ -21,6 +21,52 @@ public class ScoreScriptUtils {
     //**************FUNCTIONS FOR DENSE VECTORS
 
     /**
+     * Calculate l1 norm - Manhattan distance
+     * between a query's dense vector and documents' dense vectors
+     *
+     * @param queryVector the query vector parsed as {@code List<Number>} from json
+     * @param dvs VectorScriptDocValues representing encoded documents' vectors
+    */
+    public static double l1norm(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
+        BytesRef value = dvs.getEncodedValue();
+        float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
+        if (queryVector.size() != docVector.length) {
+            throw new IllegalArgumentException("Can't calculate l1norm! The number of dimensions of the query vector [" +
+                queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
+        }
+        Iterator<Number> queryVectorIter = queryVector.iterator();
+        double l1norm = 0;
+        for (int dim = 0; dim < docVector.length; dim++){
+            l1norm += Math.abs(queryVectorIter.next().doubleValue() - docVector[dim]);
+        }
+        return l1norm;
+    }
+
+    /**
+     * Calculate l2 norm - Euclidean distance
+     * between a query's dense vector and documents' dense vectors
+     *
+     * @param queryVector the query vector parsed as {@code List<Number>} from json
+     * @param dvs VectorScriptDocValues representing encoded documents' vectors
+    */
+    public static double l2norm(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
+        BytesRef value = dvs.getEncodedValue();
+        float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
+        if (queryVector.size() != docVector.length) {
+            throw new IllegalArgumentException("Can't calculate l2norm! The number of dimensions of the query vector [" +
+                queryVector.size() + "] is different from the documents' vectors [" + docVector.length + "].");
+        }
+        Iterator<Number> queryVectorIter = queryVector.iterator();
+        double l2norm = 0;
+        for (int dim = 0; dim < docVector.length; dim++){
+            double diff = queryVectorIter.next().doubleValue() - docVector[dim];
+            l2norm += diff * diff;
+        }
+        return Math.sqrt(l2norm);
+    }
+
+
+    /**
      * Calculate a dot product between a query's dense vector and documents' dense vectors
      *
      * @param queryVector the query vector parsed as {@code List<Number>} from json
@@ -92,25 +138,17 @@ public class ScoreScriptUtils {
 
     //**************FUNCTIONS FOR SPARSE VECTORS
 
-    /**
-     * Calculate a dot product between a query's sparse vector and documents' sparse vectors
-     *
-     * DotProductSparse is implemented as a class to use
-     * painless script caching to prepare queryVector
-     * only once per script execution for all documents.
-     * A user will call `dotProductSparse(params.queryVector, doc['my_vector'])`
-     */
-    public static final class DotProductSparse {
+    public static class VectorSparseFunctions {
         final double[] queryValues;
         final int[] queryDims;
 
         // prepare queryVector once per script execution
         // queryVector represents a map of dimensions to values
-        public DotProductSparse(Map<String, Number> queryVector) {
+        public VectorSparseFunctions(Map<String, Number> queryVector) {
             //break vector into two arrays dims and values
             int n = queryVector.size();
-            queryDims = new int[n];
             queryValues = new double[n];
+            queryDims = new int[n];
             int i = 0;
             for (Map.Entry<String, Number> dimValue : queryVector.entrySet()) {
                 try {
@@ -123,6 +161,115 @@ public class ScoreScriptUtils {
             }
             // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
             sortSparseDimsDoubleValues(queryDims, queryValues, n);
+        }
+    }
+
+    /**
+     * Calculate l1 norm - Manhattan distance
+     * between a query's sparse vector and documents' sparse vectors
+     *
+     * L1NormSparse is implemented as a class to use
+     * painless script caching to prepare queryVector
+     * only once per script execution for all documents.
+     * A user will call `l1normSparse(params.queryVector, doc['my_vector'])`
+     */
+    public static final class L1NormSparse extends VectorSparseFunctions {
+        public L1NormSparse(Map<String, Number> queryVector) {
+            super(queryVector);
+        }
+
+        public double l1normSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
+            BytesRef value = dvs.getEncodedValue();
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(value);
+            int queryIndex = 0;
+            int docIndex = 0;
+            double l1norm = 0;
+            while (queryIndex < queryDims.length && docIndex < docDims.length) {
+                if (queryDims[queryIndex] == docDims[docIndex]) {
+                    l1norm += Math.abs(queryValues[queryIndex] - docValues[docIndex]);
+                    queryIndex++;
+                    docIndex++;
+                } else if (queryDims[queryIndex] > docDims[docIndex]) {
+                    l1norm += Math.abs(docValues[docIndex]); // 0 for missing query dim
+                    docIndex++;
+                } else {
+                    l1norm += Math.abs(queryValues[queryIndex]); // 0 for missing doc dim
+                    queryIndex++;
+                }
+            }
+            while (queryIndex < queryDims.length) {
+                l1norm += Math.abs(queryValues[queryIndex]); // 0 for missing doc dim
+                queryIndex++;
+            }
+            while (docIndex < docDims.length) {
+                l1norm += Math.abs(docValues[docIndex]); // 0 for missing query dim
+                docIndex++;
+            }
+            return l1norm;
+        }
+    }
+
+    /**
+     * Calculate l2 norm - Euclidean distance
+     * between a query's sparse vector and documents' sparse vectors
+     *
+     * L2NormSparse is implemented as a class to use
+     * painless script caching to prepare queryVector
+     * only once per script execution for all documents.
+     * A user will call `l2normSparse(params.queryVector, doc['my_vector'])`
+     */
+    public static final class L2NormSparse extends VectorSparseFunctions {
+        public L2NormSparse(Map<String, Number> queryVector) {
+           super(queryVector);
+        }
+
+        public double l2normSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
+            BytesRef value = dvs.getEncodedValue();
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(value);
+            int queryIndex = 0;
+            int docIndex = 0;
+            double l2norm = 0;
+            while (queryIndex < queryDims.length && docIndex < docDims.length) {
+                if (queryDims[queryIndex] == docDims[docIndex]) {
+                    double diff = queryValues[queryIndex] - docValues[docIndex];
+                    l2norm += diff * diff;
+                    queryIndex++;
+                    docIndex++;
+                } else if (queryDims[queryIndex] > docDims[docIndex]) {
+                    double diff = docValues[docIndex]; // 0 for missing query dim
+                    l2norm += diff * diff;
+                    docIndex++;
+                } else {
+                    double diff = queryValues[queryIndex]; // 0 for missing doc dim
+                    l2norm += diff * diff;
+                    queryIndex++;
+                }
+            }
+            while (queryIndex < queryDims.length) {
+                l2norm += queryValues[queryIndex] * queryValues[queryIndex]; // 0 for missing doc dims
+                queryIndex++;
+            }
+            while (docIndex < docDims.length) {
+                l2norm += docValues[docIndex]* docValues[docIndex]; // 0 for missing query dims
+                docIndex++;
+            }
+            return Math.sqrt(l2norm);
+        }
+    }
+
+    /**
+     * Calculate a dot product between a query's sparse vector and documents' sparse vectors
+     *
+     * DotProductSparse is implemented as a class to use
+     * painless script caching to prepare queryVector
+     * only once per script execution for all documents.
+     * A user will call `dotProductSparse(params.queryVector, doc['my_vector'])`
+     */
+    public static final class DotProductSparse extends VectorSparseFunctions {
+        public DotProductSparse(Map<String, Number> queryVector) {
+           super(queryVector);
         }
 
         public double dotProductSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
@@ -141,32 +288,16 @@ public class ScoreScriptUtils {
      * only once per script execution for all documents.
      * A user will call `cosineSimilaritySparse(params.queryVector, doc['my_vector'])`
      */
-    public static final class CosineSimilaritySparse {
-        final double[] queryValues;
-        final int[] queryDims;
+    public static final class CosineSimilaritySparse extends VectorSparseFunctions {
         final double queryVectorMagnitude;
 
-        // prepare queryVector once per script execution
         public CosineSimilaritySparse(Map<String, Number> queryVector) {
-            //break vector into two arrays dims and values
-            int n = queryVector.size();
-            queryValues = new double[n];
-            queryDims = new int[n];
+            super(queryVector);
             double dotProduct = 0;
-            int i = 0;
-            for (Map.Entry<String, Number> dimValue : queryVector.entrySet()) {
-                try {
-                    queryDims[i] = Integer.parseInt(dimValue.getKey());
-                } catch (final NumberFormatException e) {
-                    throw new IllegalArgumentException("Failed to parse a query vector dimension, it must be an integer!", e);
-                }
-                queryValues[i] = dimValue.getValue().doubleValue();
+            for (int i = 0; i< queryDims.length; i++) {
                 dotProduct +=  queryValues[i] *  queryValues[i];
-                i++;
             }
             this.queryVectorMagnitude = Math.sqrt(dotProduct);
-            // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
-            sortSparseDimsDoubleValues(queryDims, queryValues, n);
         }
 
         public double cosineSimilaritySparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {

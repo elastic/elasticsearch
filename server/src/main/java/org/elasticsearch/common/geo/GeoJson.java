@@ -228,8 +228,12 @@ public final class GeoJson {
 
     private static Geometry createGeometry(String type, List<Geometry> geometries, CoordinateNode coordinates, Boolean orientation,
                                            boolean defaultOrientation, boolean coerce, DistanceUnit.Distance radius) {
-
-        ShapeType shapeType = ShapeType.forName(type);
+        ShapeType shapeType;
+        if ("bbox".equalsIgnoreCase(type)) {
+            shapeType = ShapeType.ENVELOPE;
+        } else {
+            shapeType = ShapeType.forName(type);
+        }
         if (shapeType == ShapeType.GEOMETRYCOLLECTION) {
             if (geometries == null) {
                 throw new ElasticsearchParseException("geometries not included");
@@ -484,7 +488,7 @@ public final class GeoJson {
             return new MultiPoint(points);
         }
 
-        private double[][] asLineComponents(boolean orientation, boolean coerce) {
+        private double[][] asLineComponents(boolean orientation, boolean coerce, boolean close) {
             if (coordinate != null) {
                 throw new ElasticsearchException("expected a list of points but got a point");
             }
@@ -495,7 +499,7 @@ public final class GeoJson {
 
             boolean needsClosing;
             int resultSize;
-            if (coerce && children.get(0).asPoint().equals(children.get(children.size() - 1).asPoint()) == false) {
+            if (close && coerce && children.get(0).asPoint().equals(children.get(children.size() - 1).asPoint()) == false) {
                 needsClosing = true;
                 resultSize = children.size() + 1;
             } else {
@@ -531,12 +535,12 @@ public final class GeoJson {
         }
 
         public Line asLineString(boolean coerce) {
-            double[][] components = asLineComponents(true, coerce);
+            double[][] components = asLineComponents(true, coerce, false);
             return new Line(components[0], components[1], components[2]);
         }
 
         public LinearRing asLinearRing(boolean orientation, boolean coerce) {
-            double[][] components = asLineComponents(orientation, coerce);
+            double[][] components = asLineComponents(orientation, coerce, true);
             return new LinearRing(components[0], components[1], components[2]);
         }
 

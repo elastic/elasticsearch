@@ -239,12 +239,18 @@ public abstract class Publication {
             if (applyCommitRequest.isPresent()) {
                 sendApplyCommit();
             } else {
-                Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
-                    assert applyCommitRequest.isPresent() == false;
-                    applyCommitRequest = Optional.of(applyCommit);
-                    ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
-                    publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum).forEach(PublicationTarget::sendApplyCommit);
-                });
+                try {
+                    Publication.this.handlePublishResponse(discoveryNode, publishResponse).ifPresent(applyCommit -> {
+                        assert applyCommitRequest.isPresent() == false;
+                        applyCommitRequest = Optional.of(applyCommit);
+                        ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
+                        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum)
+                            .forEach(PublicationTarget::sendApplyCommit);
+                    });
+                } catch (Exception e) {
+                    setFailed(e);
+                    onPossibleCommitFailure();
+                }
             }
         }
 

@@ -37,6 +37,25 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         this("", true, Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap());
     }
 
+    public HasPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        completeMatch = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_6_0 )) {
+            cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
+        } else {
+            cluster = Collections.emptyMap();
+        }
+        index = readResourcePrivileges(in);
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
+        } else {
+            application = Collections.emptyMap();
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            username = in.readString();
+        }
+    }
+
     public HasPrivilegesResponse(String username, boolean completeMatch, Map<String, Boolean> cluster, Collection<ResourcePrivileges> index,
                                  Map<String, Collection<ResourcePrivileges>> application) {
         super();
@@ -100,21 +119,6 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         return Objects.hash(username, completeMatch, cluster, index, application);
     }
 
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        completeMatch = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_6_0 )) {
-            cluster = in.readMap(StreamInput::readString, StreamInput::readBoolean);
-        }
-        index = readResourcePrivileges(in);
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            username = in.readString();
-        }
-    }
-
     private static Set<ResourcePrivileges> readResourcePrivileges(StreamInput in) throws IOException {
         final int count = in.readVInt();
         final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.getResource()));
@@ -128,7 +132,6 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeBoolean(completeMatch);
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeMap(cluster, StreamOutput::writeString, StreamOutput::writeBoolean);

@@ -295,8 +295,8 @@ public class MlConfigMigrator {
                                                                             PersistentTasksCustomMetaData currentTasks,
                                                                             DiscoveryNodes nodes) {
 
-        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
-        Collection<PersistentTasksCustomMetaData.PersistentTask> unallocatedDatafeedsTasks =
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedJobTasks = MlTasks.unallocatedJobTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> unallocatedDatafeedsTasks =
                 MlTasks.unallocatedDatafeedTasks(currentTasks, nodes);
 
         if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
@@ -305,7 +305,7 @@ public class MlConfigMigrator {
 
         PersistentTasksCustomMetaData.Builder taskBuilder = PersistentTasksCustomMetaData.builder(currentTasks);
 
-        for (PersistentTasksCustomMetaData.PersistentTask jobTask : unallocatedJobTasks) {
+        for (PersistentTasksCustomMetaData.PersistentTask<?> jobTask : unallocatedJobTasks) {
             OpenJobAction.JobParams originalParams = (OpenJobAction.JobParams) jobTask.getParams();
             if (originalParams.getJob() == null) {
                 Job job = jobs.get(originalParams.getJobId());
@@ -326,7 +326,7 @@ public class MlConfigMigrator {
             }
         }
 
-        for (PersistentTasksCustomMetaData.PersistentTask datafeedTask : unallocatedDatafeedsTasks) {
+        for (PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask : unallocatedDatafeedsTasks) {
             StartDatafeedAction.DatafeedParams originalParams = (StartDatafeedAction.DatafeedParams) datafeedTask.getParams();
 
             if (originalParams.getJobId() == null) {

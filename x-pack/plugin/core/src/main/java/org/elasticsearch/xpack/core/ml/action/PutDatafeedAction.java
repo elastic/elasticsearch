@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -22,18 +22,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDatafeedAction extends StreamableResponseActionType<PutDatafeedAction.Response> {
+public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static final PutDatafeedAction INSTANCE = new PutDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";
 
     private PutDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -53,6 +48,11 @@ public class PutDatafeedAction extends StreamableResponseActionType<PutDatafeedA
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            datafeed = new DatafeedConfig(in);
+        }
+
         public DatafeedConfig getDatafeed() {
             return datafeed;
         }
@@ -60,12 +60,6 @@ public class PutDatafeedAction extends StreamableResponseActionType<PutDatafeedA
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            datafeed = new DatafeedConfig(in);
         }
 
         @Override
@@ -109,16 +103,8 @@ public class PutDatafeedAction extends StreamableResponseActionType<PutDatafeedA
             this.datafeed = datafeed;
         }
 
-        public Response() {
-        }
-
-        public DatafeedConfig getResponse() {
-            return datafeed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             if (in.getVersion().before(Version.V_6_3_0)) {
                 //the acknowledged flag was removed
                 in.readBoolean();
@@ -126,9 +112,12 @@ public class PutDatafeedAction extends StreamableResponseActionType<PutDatafeedA
             datafeed = new DatafeedConfig(in);
         }
 
+        public DatafeedConfig getResponse() {
+            return datafeed;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             if (out.getVersion().before(Version.V_6_3_0)) {
                 //the acknowledged flag is no longer supported
                 out.writeBoolean(true);

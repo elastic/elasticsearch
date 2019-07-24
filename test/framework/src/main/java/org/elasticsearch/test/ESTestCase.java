@@ -64,7 +64,6 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -187,14 +186,14 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // Allows distinguishing between parallel test processes
-    public static final int TEST_WORKER_VM;
+    public static final String TEST_WORKER_VM_ID;
 
-    protected static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
+    public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
+
+    public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
 
     static {
-        // org.gradle.test.worker starts counting at 1, but we want to start counting at 0 here
-        // in case system property is not defined (e.g. when running test from IDE), just use 0
-        TEST_WORKER_VM = RandomizedTest.systemPropertyAsInt(TEST_WORKER_SYS_PROPERTY, 1) - 1;
+        TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
@@ -1159,18 +1158,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
                                                         Writeable.Reader<T> reader, Version version) throws IOException {
         return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
-    }
-
-    /**
-     * Create a copy of an original {@link Streamable} object by running it through a {@link BytesStreamOutput} and
-     * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
-     * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
-     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
-     */
-    public static <T extends Streamable> T copyStreamable(T original, NamedWriteableRegistry namedWriteableRegistry,
-                                                          Supplier<T> supplier, Version version) throws IOException {
-        return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out),
-                Streamable.newWriteableReader(supplier), version);
     }
 
     protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,

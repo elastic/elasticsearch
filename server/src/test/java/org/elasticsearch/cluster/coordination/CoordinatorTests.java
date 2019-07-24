@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.io.IOException;
@@ -1207,6 +1208,61 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    public void testReconfiguresToExcludeMasterIneligibleNodesInVotingConfig() {
+        final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
+        cluster.stabilise();
 
+        final ClusterNode chosenNode = cluster.getAnyNode();
+
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds(),
+            hasItem(chosenNode.getId()));
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastAcceptedConfiguration().getNodeIds(),
+            hasItem(chosenNode.getId()));
+
+        final boolean chosenNodeIsLeader = chosenNode == cluster.getAnyLeader();
+        final long termBeforeRestart = cluster.getAnyNode().coordinator.getCurrentTerm();
+
+        logger.info("--> restarting [{}] as a master-ineligible node", chosenNode);
+
+        chosenNode.close();
+        cluster.clusterNodes.replaceAll(cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(),
+            Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build()) : cn);
+        cluster.stabilise();
+
+        if (chosenNodeIsLeader == false) {
+            assertThat("term did not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(termBeforeRestart));
+        }
+
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastCommittedConfiguration().getNodeIds(),
+            not(hasItem(chosenNode.getId())));
+        assertThat(cluster.getAnyLeader().getLastAppliedClusterState().getLastAcceptedConfiguration().getNodeIds(),
+            not(hasItem(chosenNode.getId())));
+    }
+
+    public void testDoesNotPerformElectionWhenRestartingFollower() {
+        final Cluster cluster = new Cluster(randomIntBetween(2, 5), false, Settings.EMPTY);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final long expectedTerm = leader.coordinator.getCurrentTerm();
+
+        if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).count() == 2) {
+            // in the 2-node case, auto-shrinking the voting configuration is required to reduce the voting configuration down to just the
+            // leader, otherwise restarting the other master-eligible node triggers an election
+            leader.submitSetAutoShrinkVotingConfiguration(true);
+            cluster.stabilise(2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY); // first delay for the setting update, second for the reconfiguration
+        }
+
+        for (final ClusterNode clusterNode : cluster.getAllNodesExcept(leader)) {
+            logger.info("--> restarting {}", clusterNode);
+            clusterNode.close();
+            cluster.clusterNodes.replaceAll(cn ->
+                cn == clusterNode ? cn.restartedNode(Function.identity(), Function.identity(), Settings.EMPTY) : cn);
+            cluster.stabilise();
+            assertThat("term should not change", cluster.getAnyNode().coordinator.getCurrentTerm(), is(expectedTerm));
+        }
+    }
 
 }

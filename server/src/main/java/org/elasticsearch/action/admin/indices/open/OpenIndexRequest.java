@@ -42,6 +42,15 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, false, true);
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
+    public OpenIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+            waitForActiveShards = ActiveShardCount.readFrom(in);
+        }
+    }
+
     public OpenIndexRequest() {
     }
 
@@ -134,16 +143,6 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
      */
     public OpenIndexRequest waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            waitForActiveShards = ActiveShardCount.readFrom(in);
-        }
     }
 
     @Override

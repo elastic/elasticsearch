@@ -6,21 +6,20 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.ActionType;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.utils.DataFrameStrings;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -34,32 +33,41 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
     public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/put";
 
+    private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
+    private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
+
     private PutDataFrameTransformAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
-
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         private final DataFrameTransformConfig config;
+        private final boolean deferValidation;
 
-        public Request(DataFrameTransformConfig config) {
+        public Request(DataFrameTransformConfig config, boolean deferValidation) {
             this.config = config;
+            this.deferValidation = deferValidation;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new DataFrameTransformConfig(in);
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+                this.deferValidation = in.readBoolean();
+            } else {
+                this.deferValidation = false;
+            }
         }
 
-        public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
-            return new Request(DataFrameTransformConfig.fromXContent(parser, id, false));
+        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
+            return new Request(DataFrameTransformConfig.fromXContent(parser, id, false), deferValidation);
         }
 
+        /**
+         * More complex validations with how {@link DataFrameTransformConfig#getDestination()} and
+         * {@link DataFrameTransformConfig#getSource()} relate are done in the transport handler.
+         */
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -93,27 +101,42 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
                     DataFrameMessages.getMessage(DataFrameMessages.ID_TOO_LONG, DataFrameStrings.ID_LENGTH_LIMIT),
                     validationException);
             }
-            return validationException;
-        }
+            TimeValue frequency = config.getFrequency();
+            if (frequency != null) {
+                if (frequency.compareTo(MIN_FREQUENCY) < 0) {
+                    validationException = addValidationError(
+                        "minimum permitted [" + DataFrameField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
+                        validationException);
+                } else if (frequency.compareTo(MAX_FREQUENCY) > 0) {
+                    validationException = addValidationError(
+                        "highest permitted [" + DataFrameField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
+                        validationException);
+                }
+            }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return this.config.toXContent(builder, params);
+            return validationException;
         }
 
         public DataFrameTransformConfig getConfig() {
             return config;
         }
 
+        public boolean isDeferValidation() {
+            return deferValidation;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+                out.writeBoolean(this.deferValidation);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config);
+            return Objects.hash(config, deferValidation);
         }
 
         @Override
@@ -125,7 +148,7 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config);
+            return Objects.equals(config, other.config) && this.deferValidation == other.deferValidation;
         }
     }
 

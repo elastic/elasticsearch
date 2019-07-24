@@ -93,7 +93,7 @@ public class MasterFaultDetection extends FaultDetection {
             pingRetryCount);
 
         transportService.registerRequestHandler(
-            MASTER_PING_ACTION_NAME, MasterPingRequest::new, ThreadPool.Names.SAME, false, false, new MasterPingRequestHandler());
+            MASTER_PING_ACTION_NAME, ThreadPool.Names.SAME, false, false, MasterPingRequest::new, new MasterPingRequestHandler());
     }
 
     public DiscoveryNode masterNode() {
@@ -406,21 +406,17 @@ public class MasterFaultDetection extends FaultDetection {
         private DiscoveryNode masterNode;
         private ClusterName clusterName;
 
-        public MasterPingRequest() {
+        public MasterPingRequest(StreamInput in) throws IOException {
+            super(in);
+            sourceNode = new DiscoveryNode(in);
+            masterNode = new DiscoveryNode(in);
+            clusterName = new ClusterName(in);
         }
 
         public MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
             this.sourceNode = sourceNode;
             this.masterNode = masterNode;
             this.clusterName = clusterName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            sourceNode = new DiscoveryNode(in);
-            masterNode = new DiscoveryNode(in);
-            clusterName = new ClusterName(in);
         }
 
         @Override
@@ -440,5 +436,8 @@ public class MasterFaultDetection extends FaultDetection {
         public MasterPingResponseResponse(StreamInput in) throws IOException {
             super(in);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

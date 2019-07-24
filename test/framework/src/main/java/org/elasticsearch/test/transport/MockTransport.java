@@ -81,7 +81,7 @@ public class MockTransport implements Transport, LifecycleComponent {
                                                    @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this),
             settings, this);
-        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
+        connectionManager.setDefaultNodeConnectedBehavior(cm -> Collections.emptySet());
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
@@ -184,10 +184,6 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-    }
-
-    protected boolean nodeConnected(DiscoveryNode discoveryNode) {
-        return true;
     }
 
     @Override

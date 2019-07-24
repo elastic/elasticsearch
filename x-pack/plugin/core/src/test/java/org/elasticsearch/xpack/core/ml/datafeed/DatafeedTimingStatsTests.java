@@ -125,9 +125,9 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
         assertThat(stats.getAvgSearchTimePerBucketMs(), equalTo(30.0));
     }
 
-    public void testSetBucketCount() {
+    public void testIncrementBucketCount() {
         DatafeedTimingStats stats = new DatafeedTimingStats(JOB_ID, 5, 10, 100.0);
-        stats.setBucketCount(20);
+        stats.incrementBucketCount(10);
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getSearchCount(), equalTo(5L));
         assertThat(stats.getBucketCount(), equalTo(20L));
@@ -141,7 +141,7 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
         assertThat(stats.getTotalSearchTimeMs(), equalTo(100.0));
         assertThat(stats.getAvgSearchTimePerBucketMs(), equalTo(10.0));
 
-        stats.setBucketCount(20);
+        stats.incrementBucketCount(10);
         assertThat(stats.getBucketCount(), equalTo(20L));
         assertThat(stats.getTotalSearchTimeMs(), equalTo(100.0));
         assertThat(stats.getAvgSearchTimePerBucketMs(), equalTo(5.0));
@@ -151,7 +151,7 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
         assertThat(stats.getTotalSearchTimeMs(), equalTo(300.0));
         assertThat(stats.getAvgSearchTimePerBucketMs(), equalTo(15.0));
 
-        stats.setBucketCount(25);
+        stats.incrementBucketCount(5);
         assertThat(stats.getBucketCount(), equalTo(25L));
         assertThat(stats.getTotalSearchTimeMs(), equalTo(300.0));
         assertThat(stats.getAvgSearchTimePerBucketMs(), equalTo(12.0));

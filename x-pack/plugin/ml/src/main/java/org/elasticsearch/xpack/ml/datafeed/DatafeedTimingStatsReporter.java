@@ -57,7 +57,7 @@ public class DatafeedTimingStatsReporter {
         if (dataCounts == null) {
             return;
         }
-        currentTimingStats.setBucketCount(dataCounts.getBucketCount());
+        currentTimingStats.incrementBucketCount(dataCounts.getBucketCount());
         flushIfDifferSignificantly();
     }
 

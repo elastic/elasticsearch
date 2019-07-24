@@ -94,28 +94,29 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     }
 
     public void testReportDataCounts() {
-        DataCounts dataCounts = new DataCounts(JOB_ID);
-        dataCounts.incrementBucketCount(20);
         DatafeedTimingStatsReporter timingStatsReporter =
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(JOB_ID, 3, dataCounts.getBucketCount(), 10000.0), jobResultsPersister);
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(JOB_ID, 3, 20, 10000.0), jobResultsPersister);
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 3, 20, 10000.0)));
 
-        dataCounts.incrementBucketCount(1);
-        timingStatsReporter.reportDataCounts(dataCounts);
+        timingStatsReporter.reportDataCounts(createDataCountsWithBucketCount(1));
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 3, 21, 10000.0)));
 
-        dataCounts.incrementBucketCount(1);
-        timingStatsReporter.reportDataCounts(dataCounts);
+        timingStatsReporter.reportDataCounts(createDataCountsWithBucketCount(1));
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 3, 22, 10000.0)));
 
-        dataCounts.incrementBucketCount(1);
-        timingStatsReporter.reportDataCounts(dataCounts);
+        timingStatsReporter.reportDataCounts(createDataCountsWithBucketCount(1));
         assertThat(timingStatsReporter.getCurrentTimingStats(), equalTo(new DatafeedTimingStats(JOB_ID, 3, 23, 10000.0)));
 
         InOrder inOrder = inOrder(jobResultsPersister);
         inOrder.verify(jobResultsPersister).persistDatafeedTimingStats(
             new DatafeedTimingStats(JOB_ID, 3, 23, 10000.0), RefreshPolicy.IMMEDIATE);
         verifyNoMoreInteractions(jobResultsPersister);
+    }
+
+    private static DataCounts createDataCountsWithBucketCount(long bucketCount) {
+        DataCounts dataCounts = new DataCounts(JOB_ID);
+        dataCounts.incrementBucketCount(bucketCount);
+        return dataCounts;
     }
 
     public void testTimingStatsDifferSignificantly() {

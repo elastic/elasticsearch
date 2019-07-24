@@ -12,7 +12,7 @@ Machine Learning::
 * Introduce a setting for the process connect timeout {pull}43234[#43234]
 
 Ranking::
-* Fix parameter value for calling data.advanceExact {pull}44205[#44205]
+* Fix parameter value for calling `data.advanceExact` {pull}44205[#44205]
 
 Snapshot/Restore::
 * Add SAS Token Authentication Support to Azure Repo Plugin {pull}42982[#42982] (issue: {issue}42117[#42117])

@@ -47,7 +47,9 @@ public class GqlDocumentSchema {
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .type(newObject()
             .name("Document")
-            .description("A document stored in Elasticsearch index.")
+            .description(String.join("\n" , ""
+                    , "`Document` represents a a JSON document stored in Elasticsearch."
+            ))
             .field(newFieldDefinition()
                 .name("_")
                 .description("Fetch all `Document` data.")
@@ -87,7 +89,7 @@ public class GqlDocumentSchema {
             .build())
         .queryField(newFieldDefinition()
             .name("document")
-            .description("Fetch a single document.")
+            .description("Fetches document using document get API based on its id.")
             .type(typeRef("Document"))
             .argument(newArgument()
                 .name("index")

@@ -1123,10 +1123,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testAllocateEmptyPrimaryResetGlobalCheckpoint() throws Exception {
+    public void testAllocateEmptyPrimaryResetsGlobalCheckpoint() throws Exception {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
-        final Settings nodeSettings = internalCluster().dataPathSettings(randomFrom(dataNodes));
+        final Settings randomNodeDataPathSettings = internalCluster().dataPathSettings(randomFrom(dataNodes));
         final String indexName = "test";
         assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)
@@ -1141,7 +1141,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String nodeWithoutData = internalCluster().startDataOnlyNode();
         assertAcked(client().admin().cluster().prepareReroute()
             .add(new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeWithoutData, true)).get());
-        internalCluster().startDataOnlyNode(nodeSettings);
+        internalCluster().startDataOnlyNode(randomNodeDataPathSettings);
         ensureGreen();
         for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()) {
             assertThat(shardStats.getSeqNoStats().getMaxSeqNo(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));

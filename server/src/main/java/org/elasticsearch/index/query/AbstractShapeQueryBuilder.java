@@ -29,9 +29,19 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.GeometryIO;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
+import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -39,8 +49,19 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geo.geometry.Circle;
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.GeometryCollection;
+import org.elasticsearch.geo.geometry.GeometryVisitor;
+import org.elasticsearch.geo.geometry.LinearRing;
+import org.elasticsearch.geo.geometry.MultiLine;
+import org.elasticsearch.geo.geometry.MultiPoint;
+import org.elasticsearch.geo.geometry.MultiPolygon;
+import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,12 +98,12 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     protected static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     protected final String fieldName;
-    protected final Supplier<ShapeBuilder> supplier;
+    protected final Supplier<Geometry> supplier;
 
     protected final String indexedShapeId;
     protected final String indexedShapeType;
 
-    protected ShapeBuilder shape;
+    protected Geometry shape;
     protected String indexedShapeIndex = DEFAULT_SHAPE_INDEX_NAME;
     protected String indexedShapePath = DEFAULT_SHAPE_FIELD_NAME;
     protected String indexedShapeRouting;
@@ -99,8 +120,23 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      *            Name of the field that will be queried
      * @param shape
      *            Shape used in the Query
+     * @deprecated use {@link #AbstractShapeQueryBuilder(String, Geometry)} instead
      */
+    @Deprecated
     protected AbstractShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
+        this(fieldName, shape == null ? null : shape.buildGeometry(), null, null);
+    }
+
+    /**
+     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * field name using the given Shape
+     *
+     * @param fieldName
+     *            Name of the field that will be queried
+     * @param shape
+     *            Shape used in the Query
+     */
+    public AbstractShapeQueryBuilder(String fieldName, Geometry shape) {
         this(fieldName, shape, null, null);
     }
 
@@ -114,7 +150,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      *            ID of the indexed Shape that will be used in the Query
      */
     protected AbstractShapeQueryBuilder(String fieldName, String indexedShapeId) {
-        this(fieldName, (ShapeBuilder) null, indexedShapeId, null);
+        this(fieldName, (Geometry) null, indexedShapeId, null);
     }
 
     /**
@@ -132,10 +168,10 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      */
     @Deprecated
     protected AbstractShapeQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
-        this(fieldName, (ShapeBuilder) null, indexedShapeId, indexedShapeType);
+        this(fieldName, (Geometry) null, indexedShapeId, indexedShapeType);
     }
 
-    protected AbstractShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, @Nullable String indexedShapeType) {
+    protected AbstractShapeQueryBuilder(String fieldName, Geometry shape, String indexedShapeId, @Nullable String indexedShapeType) {
         if (fieldName == null) {
             throw new IllegalArgumentException("fieldName is required");
         }
@@ -149,8 +185,8 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
         this.supplier = null;
     }
 
-    protected AbstractShapeQueryBuilder(String fieldName, Supplier<ShapeBuilder> supplier, String indexedShapeId,
-            @Nullable String indexedShapeType) {
+    protected AbstractShapeQueryBuilder(String fieldName, Supplier<Geometry> supplier, String indexedShapeId,
+                                        @Nullable String indexedShapeType) {
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;
@@ -165,7 +201,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
         super(in);
         fieldName = in.readString();
         if (in.readBoolean()) {
-            shape = in.readNamedWriteable(ShapeBuilder.class);
+            shape = GeometryIO.readGeometry(in);
             indexedShapeId = null;
             indexedShapeType = null;
         } else {
@@ -190,7 +226,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
         boolean hasShape = shape != null;
         out.writeBoolean(hasShape);
         if (hasShape) {
-            out.writeNamedWriteable(shape);
+            GeometryIO.writeGeometry(out, shape);
         } else {
             out.writeOptionalString(indexedShapeId);
             out.writeOptionalString(indexedShapeType);
@@ -212,21 +248,21 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     /**
      * Sets the shapeBuilder for the query shape.
      *
-     * @param shapeBuilder the shapeBuilder
+     * @param geometry the geometry
      * @return this
      */
-    public QB shape(ShapeBuilder shapeBuilder) {
-        if (shapeBuilder == null) {
-            throw new IllegalArgumentException("No ShapeBuilder defined");
+    public QB shape(Geometry geometry) {
+        if (geometry == null) {
+            throw new IllegalArgumentException("No geometry defined");
         }
-        this.shape = shapeBuilder;
+        this.shape = geometry;
         return (QB)this;
     }
 
     /**
      * @return the shape used in the Query
      */
-    public ShapeBuilder shape() {
+    public Geometry shape() {
         return shape;
     }
 
@@ -348,15 +384,15 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     /** list of content types this shape query is compatible with */
     protected abstract List validContentTypes();
     /** builds the appropriate lucene shape query */
-    protected abstract Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType, ShapeBuilder shapeToQuery);
+    protected abstract Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType);
     /** returns expected content type for this query */
     protected abstract String queryFieldType();
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
     /** creates a new ShapeQueryBuilder from the provided field name and shape builder */
-    protected abstract AbstractShapeQueryBuilder<QB> newShapeQueryBuilder(String fieldName, ShapeBuilder shape);
+    protected abstract AbstractShapeQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Geometry shape);
     /** creates a new ShapeQueryBuilder from the provided field name, supplier, indexed shape id, and indexed shape type */
-    protected abstract AbstractShapeQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Supplier<ShapeBuilder> shapeSupplier,
+    protected abstract AbstractShapeQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
                                                                           String indexedShapeId, String indexedShapeType);
 
     /** returns true if the provided field type is valid for this query */
@@ -369,7 +405,6 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
         if (shape == null || supplier != null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
-        final ShapeBuilder shapeToQuery = shape;
         final MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
@@ -379,10 +414,10 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
             }
         } else if (fieldType.typeName().equals(BaseGeoShapeFieldMapper.CONTENT_TYPE) == false) {
             throw new QueryShardException(context,
-                    "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
         }
 
-        return buildShapeQuery(context, fieldType, shapeToQuery);
+        return buildShapeQuery(context, fieldType);
     }
 
     /**
@@ -394,7 +429,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      *            Name or path of the field in the Shape Document where the
      *            Shape itself is located
      */
-    private void fetch(Client client, GetRequest getRequest, String path, ActionListener<ShapeBuilder> listener) {
+    private void fetch(Client client, GetRequest getRequest, String path, ActionListener<Geometry> listener) {
         getRequest.preference("_local");
         client.get(getRequest, new ActionListener<GetResponse>(){
 
@@ -415,15 +450,15 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
 
                     // It is safe to use EMPTY here because this never uses namedObject
                     try (XContentParser parser = XContentHelper
-                            .createParser(NamedXContentRegistry.EMPTY,
-                                    LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
+                        .createParser(NamedXContentRegistry.EMPTY,
+                            LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
                         XContentParser.Token currentToken;
                         while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (currentToken == XContentParser.Token.FIELD_NAME) {
                                 if (pathElements[currentPathSlot].equals(parser.currentName())) {
                                     parser.nextToken();
                                     if (++currentPathSlot == pathElements.length) {
-                                        listener.onResponse(ShapeParser.parse(parser));
+                                        listener.onResponse(new GeometryParser(true, true, true).parse(parser));
                                         return;
                                     }
                                 } else {
@@ -444,7 +479,89 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
                 listener.onFailure(e);
             }
         });
+    }
 
+    public static ShapeBuilder<?, ?, ?> geometryToShapeBuilder(Geometry geometry) {
+        ShapeBuilder<?, ?, ?> shapeBuilder = geometry.visit(new GeometryVisitor<>() {
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(Circle circle) {
+                throw new UnsupportedOperationException("circle is not supported");
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(GeometryCollection<?> collection) {
+                GeometryCollectionBuilder shapes = new GeometryCollectionBuilder();
+                for (Geometry geometry : collection) {
+                    shapes.shape(geometry.visit(this));
+                }
+                return shapes;
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(org.elasticsearch.geo.geometry.Line line) {
+                List<Coordinate> coordinates = new ArrayList<>();
+                for (int i = 0; i < line.length(); i++) {
+                    coordinates.add(new Coordinate(line.getLon(i), line.getLat(i), line.getAlt(i)));
+                }
+                return new LineStringBuilder(coordinates);
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(LinearRing ring) {
+                throw new UnsupportedOperationException("circle is not supported");
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(MultiLine multiLine) {
+                MultiLineStringBuilder lines = new MultiLineStringBuilder();
+                for (int i = 0; i < multiLine.size(); i++) {
+                    lines.linestring((LineStringBuilder) visit(multiLine.get(i)));
+                }
+                return lines;
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(MultiPoint multiPoint) {
+                List<Coordinate> coordinates = new ArrayList<>();
+                for (int i = 0; i < multiPoint.size(); i++) {
+                    Point p = multiPoint.get(i);
+                    coordinates.add(new Coordinate(p.getLon(), p.getLat(), p.getAlt()));
+                }
+                return new MultiPointBuilder(coordinates);
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(MultiPolygon multiPolygon) {
+                MultiPolygonBuilder polygons = new MultiPolygonBuilder();
+                for (int i = 0; i < multiPolygon.size(); i++) {
+                    polygons.polygon((PolygonBuilder) visit(multiPolygon.get(i)));
+                }
+                return polygons;
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(Point point) {
+                return new PointBuilder(point.getLon(), point.getLat());
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(org.elasticsearch.geo.geometry.Polygon polygon) {
+                PolygonBuilder polygonBuilder =
+                    new PolygonBuilder((LineStringBuilder) visit((org.elasticsearch.geo.geometry.Line) polygon.getPolygon()),
+                        ShapeBuilder.Orientation.RIGHT, false);
+                for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                    polygonBuilder.hole((LineStringBuilder) visit((org.elasticsearch.geo.geometry.Line) polygon.getHole(i)));
+                }
+                return polygonBuilder;
+            }
+
+            @Override
+            public ShapeBuilder<?, ?, ?> visit(Rectangle rectangle) {
+                return new EnvelopeBuilder(new Coordinate(rectangle.getMinLon(), rectangle.getMaxLat()),
+                    new Coordinate(rectangle.getMaxLon(), rectangle.getMinLat()));
+            }
+        });
+        return shapeBuilder;
     }
 
     @Override
@@ -455,10 +572,10 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
 
         if (shape != null) {
             builder.field(SHAPE_FIELD.getPreferredName());
-            shape.toXContent(builder, params);
+            GeoJson.toXContent(shape, builder, params);
         } else {
             builder.startObject(INDEXED_SHAPE_FIELD.getPreferredName())
-                    .field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId);
+                .field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId);
             if (indexedShapeType != null) {
                 builder.field(SHAPE_TYPE_FIELD.getPreferredName(), indexedShapeType);
             }
@@ -490,21 +607,21 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     @Override
     protected boolean doEquals(AbstractShapeQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
-                && Objects.equals(indexedShapeId, other.indexedShapeId)
-                && Objects.equals(indexedShapeIndex, other.indexedShapeIndex)
-                && Objects.equals(indexedShapePath, other.indexedShapePath)
-                && Objects.equals(indexedShapeType, other.indexedShapeType)
-                && Objects.equals(indexedShapeRouting, other.indexedShapeRouting)
-                && Objects.equals(relation, other.relation)
-                && Objects.equals(shape, other.shape)
-                && Objects.equals(supplier, other.supplier)
-                && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
+            && Objects.equals(indexedShapeId, other.indexedShapeId)
+            && Objects.equals(indexedShapeIndex, other.indexedShapeIndex)
+            && Objects.equals(indexedShapePath, other.indexedShapePath)
+            && Objects.equals(indexedShapeType, other.indexedShapeType)
+            && Objects.equals(indexedShapeRouting, other.indexedShapeRouting)
+            && Objects.equals(relation, other.relation)
+            && Objects.equals(shape, other.shape)
+            && Objects.equals(supplier, other.supplier)
+            && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
         return Objects.hash(fieldName, indexedShapeId, indexedShapeIndex,
-                indexedShapePath, indexedShapeType, indexedShapeRouting, relation, shape, ignoreUnmapped, supplier);
+            indexedShapePath, indexedShapeType, indexedShapeRouting, relation, shape, ignoreUnmapped, supplier);
     }
 
     @Override
@@ -512,7 +629,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
         if (supplier != null) {
             return supplier.get() == null ? this : newShapeQueryBuilder(this.fieldName, supplier.get()).relation(relation);
         } else if (this.shape == null) {
-            SetOnce<ShapeBuilder> supplier = new SetOnce<>();
+            SetOnce<Geometry> supplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction((client, listener) -> {
                 GetRequest getRequest;
                 if (indexedShapeType == null) {
@@ -551,7 +668,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     }
 
     public static ParsedShapeQueryParams parsedParamsFromXContent(XContentParser parser, ParsedShapeQueryParams params)
-            throws IOException {
+        throws IOException {
         String fieldName = null;
         XContentParser.Token token;
         String currentFieldName = null;

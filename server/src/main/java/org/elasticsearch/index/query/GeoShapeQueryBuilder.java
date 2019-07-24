@@ -26,6 +26,7 @@ import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.GeometryIndexer;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -87,11 +90,27 @@ public class GeoShapeQueryBuilder extends AbstractShapeQueryBuilder<GeoShapeQuer
      * @param shape
      *            Shape used in the Query
      */
+    public GeoShapeQueryBuilder(String fieldName, Geometry shape) {
+        super(fieldName, shape);
+    }
+
+    /**
+     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * field name using the given Shape
+     *
+     * @param fieldName
+     *            Name of the field that will be queried
+     * @param shape
+     *            Shape used in the Query
+     *
+     * @deprecated use {@link #GeoShapeQueryBuilder(String, Geometry)} instead
+     */
+    @Deprecated
     public GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
         super(fieldName, shape);
     }
 
-    public GeoShapeQueryBuilder(String fieldName, Supplier<ShapeBuilder> shapeSupplier, String indexedShapeId,
+    public GeoShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier, String indexedShapeId,
                                 @Nullable String indexedShapeType) {
         super(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
     }
@@ -155,7 +174,7 @@ public class GeoShapeQueryBuilder extends AbstractShapeQueryBuilder<GeoShapeQuer
     public GeoShapeQueryBuilder strategy(SpatialStrategy strategy) {
         if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
             throw new IllegalArgumentException("strategy [" + strategy.getStrategyName() + "] only supports relation ["
-            + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+                + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
         }
         this.strategy = strategy;
         return this;
@@ -185,18 +204,18 @@ public class GeoShapeQueryBuilder extends AbstractShapeQueryBuilder<GeoShapeQuer
     }
 
     @Override
-    protected GeoShapeQueryBuilder newShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
+    protected GeoShapeQueryBuilder newShapeQueryBuilder(String fieldName, Geometry shape) {
         return new GeoShapeQueryBuilder(fieldName, shape);
     }
 
     @Override
-    protected GeoShapeQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<ShapeBuilder> shapeSupplier,
+    protected GeoShapeQueryBuilder newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
                                                         String indexedShapeId, String indexedShapeType) {
         return new GeoShapeQueryBuilder(fieldName, shapeSupplier, indexedShapeId, indexedShapeType);
     }
 
     @Override
-    public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType, ShapeBuilder shapeToQuery) {
+    public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
         final BaseGeoShapeFieldMapper.BaseGeoShapeFieldType ft = (BaseGeoShapeFieldMapper.BaseGeoShapeFieldType) fieldType;
         Query query;
         if (strategy != null || ft instanceof LegacyGeoShapeFieldMapper.GeoShapeFieldType) {
@@ -212,45 +231,62 @@ public class GeoShapeQueryBuilder extends AbstractShapeQueryBuilder<GeoShapeQuer
                 // in this case, execute disjoint as exists && !intersects
                 BooleanQuery.Builder bool = new BooleanQuery.Builder();
                 Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
-                Query intersects = prefixTreeStrategy.makeQuery(getArgs(shapeToQuery, ShapeRelation.INTERSECTS));
+                Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
                 bool.add(exists, BooleanClause.Occur.MUST);
                 bool.add(intersects, BooleanClause.Occur.MUST_NOT);
                 query = new ConstantScoreQuery(bool.build());
             } else {
-                query = new ConstantScoreQuery(prefixTreeStrategy.makeQuery(getArgs(shapeToQuery, relation)));
+                query = new ConstantScoreQuery(prefixTreeStrategy.makeQuery(getArgs(shape, relation)));
             }
         } else {
-            query = new ConstantScoreQuery(getVectorQuery(context, shapeToQuery));
+            query = new ConstantScoreQuery(getVectorQuery(context, shape));
         }
         return query;
     }
 
-    public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
+    public static SpatialArgs getArgs(Geometry shape, ShapeRelation relation) {
         switch (relation) {
             case DISJOINT:
-                return new SpatialArgs(SpatialOperation.IsDisjointTo, shape.buildS4J());
+                return new SpatialArgs(SpatialOperation.IsDisjointTo, buildS4J(shape));
             case INTERSECTS:
-                return new SpatialArgs(SpatialOperation.Intersects, shape.buildS4J());
+                return new SpatialArgs(SpatialOperation.Intersects, buildS4J(shape));
             case WITHIN:
-                return new SpatialArgs(SpatialOperation.IsWithin, shape.buildS4J());
+                return new SpatialArgs(SpatialOperation.IsWithin, buildS4J(shape));
             case CONTAINS:
-                return new SpatialArgs(SpatialOperation.Contains, shape.buildS4J());
+                return new SpatialArgs(SpatialOperation.Contains, buildS4J(shape));
             default:
                 throw new IllegalArgumentException("invalid relation [" + relation + "]");
         }
     }
 
-    protected Query getVectorQuery(QueryShardContext context, ShapeBuilder queryShapeBuilder) {
+    /**
+     * Builds JTS shape from a geometry
+     *
+     * This method is needed to handle legacy indices and will be removed when we no longer need to build JTS shapes
+     */
+    private static Shape buildS4J(Geometry geometry) {
+        return geometryToShapeBuilder(geometry).buildS4J();
+    }
+
+    private Query getVectorQuery(QueryShardContext context, Geometry queryShape) {
         // CONTAINS queries are not yet supported by VECTOR strategy
         if (relation == ShapeRelation.CONTAINS) {
             throw new QueryShardException(context,
                 ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]");
         }
         // wrap geoQuery as a ConstantScoreQuery
-        return getVectorQueryFromShape(context, queryShapeBuilder.buildGeometry());
+        return getVectorQueryFromShape(context, queryShape);
     }
 
     protected Query getVectorQueryFromShape(QueryShardContext context, Geometry queryShape) {
+        // TODO: Move this to QueryShardContext
+        GeometryIndexer geometryIndexer = new GeometryIndexer(true);
+
+        Geometry processedShape = geometryIndexer.prepareForIndexing(queryShape);
+
+        if (processedShape == null) {
+            return new MatchNoDocsQuery();
+        }
         return queryShape.visit(new ShapeVisitor(context));
     }
 

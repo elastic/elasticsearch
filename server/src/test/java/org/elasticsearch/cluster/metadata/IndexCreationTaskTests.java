@@ -236,10 +236,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testRequestStateOpen() throws Exception {
-        when(request.state()).thenReturn(IndexMetaData.State.OPEN);
-
         executeTask();
-
         verify(allocationService, times(1)).reroute(anyObject(), anyObject());
     }
 

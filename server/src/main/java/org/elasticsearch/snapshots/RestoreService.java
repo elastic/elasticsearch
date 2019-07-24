@@ -268,8 +268,7 @@ public class RestoreService implements ClusterStateApplier {
                                 MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
                                 createIndexService.validateIndexSettings(renamedIndexName,
                                                                         snapshotIndexMetaData.getSettings(),
-                                                                        currentState,
-                                                                        false);
+                                    false);
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData)
                                                                                     .state(IndexMetaData.State.OPEN)
                                                                                     .index(renamedIndexName);

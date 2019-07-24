@@ -1,6 +1,6 @@
 {
   "cluster.state": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-state.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-state.html",
     "stability" : "stable",
     "methods": ["GET"],
     "url": {

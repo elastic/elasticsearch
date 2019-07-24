@@ -78,6 +78,9 @@ public final class UriUtils {
     }
 
     public static URI appendSegmentToPath(URI uri, String segment) {
+        if (uri == null) {
+            throw new IllegalArgumentException("URI must not be null");
+        }
         if (segment == null || segment.isEmpty() || "/".equals(segment)) {
             return uri;
         }

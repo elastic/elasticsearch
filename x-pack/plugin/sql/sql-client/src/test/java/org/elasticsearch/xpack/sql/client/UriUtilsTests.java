@@ -91,6 +91,23 @@ public class UriUtilsTests extends ESTestCase {
                 appendSegmentToPath(URI.create("http://server:9100"), ""));
     }
     
+    public void testAppendNullSegmentToPath() throws Exception {
+        assertEquals(URI.create("http://server:9100"),
+                appendSegmentToPath(URI.create("http://server:9100"), null));
+    }
+    
+    public void testAppendSegmentToNullPath() throws Exception {
+        assertEquals(
+                "URI must not be null",
+                expectThrows(IllegalArgumentException.class, () -> appendSegmentToPath(null, "/_sql")).getMessage()
+        );
+    }
+    
+    public void testAppendSegmentToEmptyPath() throws Exception {
+        assertEquals(URI.create("/_sql"),
+                appendSegmentToPath(URI.create(""), "/_sql"));
+    }
+    
     public void testAppendSlashSegmentToPath() throws Exception {
         assertEquals(URI.create("http://server:9100"),
                 appendSegmentToPath(URI.create("http://server:9100"), "/"));

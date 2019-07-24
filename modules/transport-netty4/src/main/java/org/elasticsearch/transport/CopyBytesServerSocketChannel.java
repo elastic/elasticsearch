@@ -29,7 +29,7 @@ import java.util.List;
 
 /**
  * This class is adapted from {@link NioServerSocketChannel} class in the Netty project. It overrides the
- * channel read messages behavior to ensure that a {@link @CopyBytesSocketChannel} socket channel is created.
+ * channel read messages behavior to ensure that a {@link CopyBytesSocketChannel} socket channel is created.
  */
 public class CopyBytesServerSocketChannel extends NioServerSocketChannel {
 

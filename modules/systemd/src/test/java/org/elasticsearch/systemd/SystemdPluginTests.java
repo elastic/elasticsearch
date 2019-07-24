@@ -19,6 +19,7 @@
 
 package org.elasticsearch.systemd;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.OptionalMatchers;
@@ -37,23 +38,27 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SystemdPluginTests extends ESTestCase {
 
+    private Build.Type randomPackageBuildType = randomFrom(Build.Type.DEB, Build.Type.RPM);
+    private Build.Type randomNonPackageBuildType =
+        randomValueOtherThanMany(t -> t == Build.Type.DEB || t == Build.Type.RPM, () -> randomFrom(Build.Type.values()));
+
     public void testIsEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, true, Boolean.TRUE.toString());
+        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.TRUE.toString());
         assertTrue(plugin.isEnabled());
     }
 
-    public void testIsNotLinux() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, false, Boolean.TRUE.toString());
+    public void testIsNotPackageDistribution() {
+        final SystemdPlugin plugin = new SystemdPlugin(false, randomNonPackageBuildType, Boolean.TRUE.toString());
         assertFalse(plugin.isEnabled());
     }
 
     public void testIsImplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, true, null);
+        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, null);
         assertFalse(plugin.isEnabled());
     }
 
     public void testIsExplicitlyNotEnabled() {
-        final SystemdPlugin plugin = new SystemdPlugin(false, true, Boolean.FALSE.toString());
+        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.FALSE.toString());
         assertFalse(plugin.isEnabled());
     }
 
@@ -62,7 +67,7 @@ public class SystemdPluginTests extends ESTestCase {
             s -> Boolean.TRUE.toString().equals(s) || Boolean.FALSE.toString().equals(s),
             () -> randomAlphaOfLength(4));
         final RuntimeException e = expectThrows(RuntimeException.class,
-            () -> new SystemdPlugin(false, true, esSDNotify));
+            () -> new SystemdPlugin(false, randomPackageBuildType, esSDNotify));
         assertThat(e, hasToString(containsString("ES_SD_NOTIFY set to unexpected value [" + esSDNotify + "]")));
     }
 
@@ -137,7 +142,7 @@ public class SystemdPluginTests extends ESTestCase {
         final AtomicBoolean invoked = new AtomicBoolean();
         final AtomicInteger invokedUnsetEnvironment = new AtomicInteger();
         final AtomicReference<String> invokedState = new AtomicReference<>();
-        final SystemdPlugin plugin = new SystemdPlugin(false, true, esSDNotify) {
+        final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, esSDNotify) {
 
             @Override
             int sd_notify(final int unset_environment, final String state) {

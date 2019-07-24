@@ -40,7 +40,7 @@ Engine::
 Features/ILM::
 * Fix swapped variables in error message {pull}44300[#44300]
 * Account for node versions during allocation in ILM shrink {pull}43300[#43300] (issue: {issue}41879[#41879])
-* Narrow period of Shrink action in which ILM prevents stopping {pull}43254[#43254] (issue: {issue}43253[#43253])
+* Narrow period of shrink action in which ILM prevents stopping {pull}43254[#43254] (issue: {issue}43253[#43253])
 
 Features/Indices APIs::
 * Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])

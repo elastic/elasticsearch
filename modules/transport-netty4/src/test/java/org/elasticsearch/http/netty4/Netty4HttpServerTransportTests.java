@@ -239,7 +239,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, new Netty4PluginConfig(settings), networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, new Netty4PluginConfig(settings), networkService,
+            bigArrays, threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 

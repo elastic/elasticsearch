@@ -85,26 +85,25 @@ public class TransportGetDataFrameTransformsStatsAction extends
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
-            transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
-                task.getState().getIndexerState(), task.getState().getPosition(), task.getProgress(),
-                ActionListener.wrap(checkpointStats -> listener.onResponse(new Response(
-                        Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                            task.getState().getTaskState(),
-                            task.getState().getReason(),
-                            null,
-                            task.getStats(),
-                            checkpointStats)),
-                        1L)),
-                    e -> listener.onResponse(new Response(
-                        Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                            task.getState().getTaskState(),
-                            task.getState().getReason(),
-                            null,
-                            task.getStats(),
-                            DataFrameTransformCheckpointingInfo.EMPTY)),
-                        1L,
-                        Collections.emptyList(),
-                        Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))))
+            task.getCheckpointingInfo(ActionListener.wrap(
+                checkpointStats -> listener.onResponse(new Response(
+                    Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
+                        task.getState().getTaskState(),
+                        task.getState().getReason(),
+                        null,
+                        task.getStats(),
+                        checkpointStats)),
+                    1L)),
+                e -> listener.onResponse(new Response(
+                    Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
+                        task.getState().getTaskState(),
+                        task.getState().getReason(),
+                        null,
+                        task.getStats(),
+                        DataFrameTransformCheckpointingInfo.EMPTY)),
+                    1L,
+                    Collections.emptyList(),
+                    Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))))
                 ));
         } else {
             listener.onResponse(new Response(Collections.emptyList(), 0L));
@@ -214,9 +213,12 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     private void populateSingleStoppedTransformStat(DataFrameTransformStoredDoc transform,
                                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
-        transformsCheckpointService.getCheckpointStats(transform.getId(), transform.getTransformState().getCheckpoint(),
-            transform.getTransformState().getCheckpoint() + 1, transform.getTransformState().getIndexerState(),
-            transform.getTransformState().getPosition(), transform.getTransformState().getProgress(),
+        transformsCheckpointService.getCheckpointStats(
+            transform.getId(),
+            transform.getTransformState().getCheckpoint(),
+            transform.getTransformState().getIndexerState(),
+            transform.getTransformState().getPosition(),
+            transform.getTransformState().getProgress(),
             ActionListener.wrap(
                 listener::onResponse,
                 e -> {

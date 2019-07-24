@@ -113,6 +113,10 @@ can specify the following email account attributes:
   The user name for SMTP. Required.
 
   `smtp.password` (<<cluster-update-settings,Dynamic>>);;
+  deprecated[6.6.0] The password for the specified SMTP user.
+  Use `smtp.secure_password` instead.
+
+  `smtp.secure_password` (<<secure-settings,Secure>>);;
   The password for the specified SMTP user.
 
   `smtp.starttls.enable` (<<cluster-update-settings,Dynamic>>);;

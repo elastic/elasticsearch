@@ -22,6 +22,7 @@ package org.elasticsearch.graphql.gql.schema;
 import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.gql.GqlBuilder;
 
+import java.util.Map;
 import java.util.function.Function;
 
 import static graphql.Scalars.*;
@@ -42,6 +43,7 @@ public class GqlIndexInfoSchema {
      * - Adds `IndexInfo` GrapqhQL type.
      * - Adds `Query.indices: [IndexInfo]` resolver.
      */
+    @SuppressWarnings("unchecked")
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .type(newObject()
             .name("IndexInfo")
@@ -55,7 +57,7 @@ public class GqlIndexInfoSchema {
                 .description("Database index status.")
                 .type(nonNull(GraphQLString)))
             .field(newFieldDefinition()
-                .name("index")
+                .name("name")
                 .description("Index name.")
                 .type(nonNull(GraphQLString)))
             .field(newFieldDefinition()
@@ -86,10 +88,17 @@ public class GqlIndexInfoSchema {
                 .name("priStoreSize")
                 .description("...")
                 .type(nonNull(GraphQLString)))
+            .field(newFieldDefinition()
+                .name("index")
+                .type(typeRef("Index")))
             .build())
         .queryField(newFieldDefinition()
-            .name("indices")
+            .name("indexInfo")
             .description("List all Elasticsearch indices.")
             .type(nonNull(list(nonNull(typeRef("IndexInfo"))))))
-        .fetcher("Query", "indexInfo", environment -> api.getIndices());
+        .fetcher("Query", "indexInfo", environment -> api.getIndices())
+        .fetcher("IndexInfo", "index", environment -> {
+            String indexName = (String) ((Map<String, Object>) environment.getSource()).get("name");
+            return api.getIndex(indexName);
+        });
 }

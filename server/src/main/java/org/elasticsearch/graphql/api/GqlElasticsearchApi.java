@@ -78,13 +78,25 @@ public class GqlElasticsearchApi implements GqlApi {
                 }
 
                 return obj;
-            });
+            })
+            .thenApply(log(logger, "getInfo"));
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public CompletableFuture<List<Object>> getIndices() throws Exception {
-        return executeRestHandler(client, RestIndicesAction.INSTANCE, GET, "/_cat/indices?format=json");
+        CompletableFuture<List<Object>> future = executeRestHandler(client, RestIndicesAction.INSTANCE, GET, "/_cat/indices?format=json");
+
+        return future
+            .thenApply(list -> {
+                for (Object obj : list) {
+                    Map<String, Object> map = (Map<String, Object>) obj;
+                    map.put("name", map.get("index"));
+                    map.remove("index");
+                }
+                return list;
+            })
+            .thenApply(log(logger, "getInfo"));
     }
 
     @SuppressWarnings("unchecked")
@@ -131,6 +143,7 @@ public class GqlElasticsearchApi implements GqlApi {
                     "created": "8000099"
                 }
          */
+        indexSettings.put("name", indexName);
         indexSettings.put("numberOfShards", indexSettings.get("number_of_shards"));
         indexSettings.remove("number_of_shards");
         indexSettings.put("autoExpandReplicas", indexSettings.get("auto_expand_replicas"));

@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-open-job]]
-=== Open jobs API
+=== Open {anomaly-jobs} API
 ++++
 <titleabbrev>Open jobs</titleabbrev>
 ++++
 
-Opens one or more jobs.
+Opens one or more {anomaly-jobs}.
 
 [[ml-open-job-request]]
 ==== {api-request-title}
@@ -23,8 +23,9 @@ Opens one or more jobs.
 [[ml-open-job-desc]]
 ==== {api-description-title}
 
-A job must be opened in order for it to be ready to receive and analyze data.
-A job can be opened and closed multiple times throughout its lifecycle.
+An {anomaly-job} must be opened in order for it to be ready to receive and
+analyze data. It can be opened and closed multiple times throughout its
+lifecycle.
 
 When you open a new job, it starts with an empty model.
 
@@ -36,7 +37,7 @@ data is received.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job
+  (Required, string) Identifier for the {anomaly-job}.
 
 [[ml-open-job-request-body]]
 ==== {api-request-body-title}

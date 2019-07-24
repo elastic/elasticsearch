@@ -564,7 +564,7 @@ include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
-== Data Frame Transform APIs
+== {dataframe-transform-cap} APIs
 
 :upid: {mainid}-dataframe
 :doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java

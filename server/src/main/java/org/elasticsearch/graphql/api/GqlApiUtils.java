@@ -104,9 +104,9 @@ public class GqlApiUtils {
 
     @SuppressWarnings("unchecked")
     static public <T> CompletableFuture<T> executeRestHandler(NodeClient client,
-                                                                     BaseRestHandler handler,
-                                                                     RestRequest.Method method,
-                                                                     String uri) throws Exception {
+                                                              BaseRestHandler handler,
+                                                              RestRequest.Method method,
+                                                              String uri) throws Exception {
         logger.info("executeRestHandler {} {} {}", handler.getName(), method, uri);
         CompletableFuture<T> promise = new CompletableFuture<T>();
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
@@ -136,7 +136,7 @@ public class GqlApiUtils {
         };
     }
 
-    static public <T> Function<T, T> log(Logger logger, String message) {
+    static public <T> Function<T, T> logResult(Logger logger, String message) {
         return res -> {
             logger.info("{} [value ~> {}]", message, res);
             return res;

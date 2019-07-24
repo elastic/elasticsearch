@@ -32,10 +32,10 @@ import org.elasticsearch.graphql.gql.schema.*;
 
 public class GqlServer {
     private static final Logger logger = LogManager.getLogger(GqlServer.class);
-    GqlApi api;
-    GqlBuilder builder;
-    GraphQLSchema schema;
-    GraphQL graphql;
+    private GqlApi api;
+    private GqlBuilder builder;
+    private GraphQLSchema schema;
+    private GraphQL graphql;
 
     public GqlServer(GqlApi api) {
         logger.info("Creating GraphQL server.");
@@ -55,7 +55,16 @@ public class GqlServer {
         graphql = GraphQL.newGraphQL(schema).build();
     }
 
-    public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, Object ctx) {
+    /**
+     * Execute GraphQL query and return serializable result in plain Java JSON-like Map-Lists.
+     *
+     * @param query GraphQL query ot execute.
+     * @param operationName Optional name of the query.
+     * @param variables Optional variables to provide to query executer in JSON-like Map-List format.
+     * @param ctx {@link GraphQLContext} that can contain any optional data relevant for current request.
+     * @return JSON-like Map-Lists ready for serialization to JSON sending back response to user.
+     */
+    public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, GraphQLContext ctx) {
         logger.trace("GraphQL executeToSpecification {}", query);
         ExecutionResult result = graphql.execute(
             ExecutionInput.newExecutionInput(query)

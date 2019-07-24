@@ -23,6 +23,7 @@ import graphql.scalars.ExtendedScalars;
 import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.gql.GqlBuilder;
 
+import java.util.Map;
 import java.util.function.Function;
 
 import static graphql.Scalars.*;
@@ -42,8 +43,10 @@ public class GqlIndexSchema {
 
     /**
      * - Adds `Index` GrapqhQL type.
-     * - Adds `Query.index(name): Index` resolver.
+     * - Adds `Query.index(name: ID!): Index` resolver.
+     * - Adds `Index.document(documentId: ID!): Document` resolver.
      */
+    @SuppressWarnings("unchecked")
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .type(newObject()
             .name("Index")
@@ -100,6 +103,14 @@ public class GqlIndexSchema {
                 .name("mappings")
                 .description("Index schema mappings.")
                 .type(nonNull(ExtendedScalars.Json)))
+            .field(newFieldDefinition()
+                .name("document")
+                .description("Fetch a document from this index.")
+                .type(typeRef("Document"))
+                .argument(newArgument()
+                    .name("id")
+                    .description("Document ID.")
+                    .type(nonNull(GraphQLID))))
             .build())
         .queryField(newFieldDefinition()
             .name("index")
@@ -113,5 +124,10 @@ public class GqlIndexSchema {
             String name = environment.getArgument("name");
             return api.getIndex(name);
         })
-        .fetcher("Index", "_", environment -> environment.getSource());
+        .fetcher("Index", "_", environment -> environment.getSource())
+        .fetcher("Index", "document", environment -> {
+            String indexName = ((Map<String, String>) environment.getSource()).get("name");
+            String documentId = environment.getArgument("id");
+            return api.getDocument(indexName, documentId);
+        });
 }

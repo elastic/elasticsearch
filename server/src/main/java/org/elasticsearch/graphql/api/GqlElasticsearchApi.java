@@ -19,7 +19,7 @@
 
 package org.elasticsearch.graphql.api;
 
-import static org.elasticsearch.graphql.api.GqlApiUtils.log;
+import static org.elasticsearch.graphql.api.GqlApiUtils.logResult;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,27 +46,27 @@ public class GqlElasticsearchApi implements GqlApi {
     public CompletableFuture<Map<String, Object>> getInfo() throws Exception {
         logger.info("getInfo");
         return ResolverGetInfo.exec(client)
-            .thenApply(log(logger, "getInfo"));
+            .thenApply(logResult(logger, "getInfo"));
     }
 
     @Override
     public CompletableFuture<List<Object>> getIndexInfos() throws Exception {
         logger.info("getIndexInfos");
         return ResolverGetIndexInfos.exec(client)
-            .thenApply(log(logger, "getIndexInfos"));
+            .thenApply(logResult(logger, "getIndexInfos"));
     }
 
     @Override
     public CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception {
         logger.info("getIndex [indexName = {}]", indexName);
         return ResolverGetIndex.exec(client, indexName)
-            .thenApply(log(logger, "getIndex"));
+            .thenApply(logResult(logger, "getIndex"));
     }
 
     @Override
     public CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception {
         logger.info("getDocument [indexName = {}, documentId]", indexName, documentId);
         return ResolverGetDocument.exec(client, indexName, documentId)
-            .thenApply(log(logger, "getDocument"));
+            .thenApply(logResult(logger, "getDocument"));
     }
 }

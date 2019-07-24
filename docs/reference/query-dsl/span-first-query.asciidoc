@@ -4,10 +4,10 @@
 <titleabbrev>Span first</titleabbrev>
 ++++
 
-Wraps another <<span-queries,span query>>, whose returned documents must contain
+Wraps another <<span-queries,span query>> whose returned documents must contain
 matches within the first `N` positions of the field.
 
-You can use the `span_first` query to match spans near the beginning of a field.
+You can use the `span_first` query to find spans near the beginning of a field.
 
 [[span-first-query-ex-request]]
 ==== Example request

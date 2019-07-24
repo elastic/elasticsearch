@@ -81,7 +81,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.mapper.GeoShapeFieldMapper.toLucenePolygon;
 
 /**
- * {@link QueryBuilder} that builds a GeoShape Query
+ * Derived {@link AbstractGeometryQueryBuilder} that builds a lat, lon GeoShape Query
  */
 public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";

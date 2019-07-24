@@ -52,7 +52,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * {@link QueryBuilder} that builds a GeoShape Query
+ * Base {@link QueryBuilder} that builds a Geometry Query
  */
 public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 

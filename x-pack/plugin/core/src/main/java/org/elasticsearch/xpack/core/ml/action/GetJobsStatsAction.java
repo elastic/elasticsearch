@@ -273,7 +273,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                     builder.field(
                         TIMING_STATS,
                         timingStats,
-                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
+                        new MapParams(Map.of(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true",
+                                             ToXContentParams.FOR_INTERNAL_STORAGE, "false")));
                 }
                 return builder;
             }

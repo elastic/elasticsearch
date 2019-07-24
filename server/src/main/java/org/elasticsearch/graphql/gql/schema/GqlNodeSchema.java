@@ -23,8 +23,6 @@ import graphql.scalars.ExtendedScalars;
 import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.gql.GqlBuilder;
 
-import java.util.HashMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static graphql.Scalars.*;
@@ -70,8 +68,8 @@ public class GqlNodeSchema {
                 .type(nonNull(GraphQLID))
                 .description("ID or name of the node.")))
         .fetcher("Query", "node", environment -> {
-            String documentId = environment.getArgument("id");
-            return CompletableFuture.completedFuture(new HashMap());
+            String nodeIdOrName = environment.getArgument("id");
+            return api.getNode(nodeIdOrName);
         })
         .fetcher("Node", "_", environment -> environment.getSource());
 }

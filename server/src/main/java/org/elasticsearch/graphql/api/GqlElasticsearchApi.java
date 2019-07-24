@@ -25,10 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 
-import org.elasticsearch.graphql.api.resolver.ResolverGetDocument;
-import org.elasticsearch.graphql.api.resolver.ResolverGetIndex;
-import org.elasticsearch.graphql.api.resolver.ResolverGetIndexInfos;
-import org.elasticsearch.graphql.api.resolver.ResolverGetInfo;
+import org.elasticsearch.graphql.api.resolver.*;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -68,5 +65,13 @@ public class GqlElasticsearchApi implements GqlApi {
         logger.info("getDocument [indexName = {}, documentId]", indexName, documentId);
         return ResolverGetDocument.exec(client, indexName, documentId)
             .thenApply(logResult(logger, "getDocument"));
+    }
+
+
+    @Override
+    public CompletableFuture<Map<String, Object>> getNode(String nodeIdOrName) throws Exception {
+        logger.info("getNode [nodeIdOrName = {}]", nodeIdOrName);
+        return ResolverGetNode.exec(client, nodeIdOrName)
+            .thenApply(logResult(logger, "getNode"));
     }
 }

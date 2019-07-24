@@ -51,8 +51,15 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     private Boolean closed = false;
     private Object lastPopped = null;
     public Boolean forceCamelCase = false;
+    private Boolean canStartNewObjectForFragment = true;
+    private Boolean objectForFragmentWasStarted = false;
+    private Boolean objectForFragmentWasEnded = false;
 
     public Object getResult() throws Exception {
+        if ((stack.size() > 0) && objectForFragmentWasStarted && !objectForFragmentWasEnded) {
+            objectForFragmentWasEnded = true;
+            writeEndObject();
+        }
         if (stack.size() > 0) {
             throw new Exception("JavaUtilXContentGenerator has unfinished objects or arrays on stack.");
         }
@@ -128,12 +135,12 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     private Map<String, Object> targetMap() throws IOException {
         // System.out.println("targetMap");
         if (stack.size() < 1) {
-            throw new IOException("No insertion target on stack.");
+            throw new IOException("No insertion targetMap on stack.");
         }
         Object map = stack.get(stack.size() - 1);
         if (!(map instanceof Map<?,?>)) {
             throw new IOException("Need to create writeStartObject() to add fields to.");
-        }
+        } 
         return (Map<String, Object>) map;
     }
 
@@ -141,7 +148,7 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
     private List<Object> targetList() throws IOException {
         // System.out.println("targetList");
         if (stack.size() < 1) {
-            throw new IOException("No insertion target on stack.");
+            throw new IOException("No insertion targetList on stack.");
         }
         Object list = stack.get(stack.size() - 1);
         if (!(list instanceof List<?>)) {
@@ -177,6 +184,11 @@ public class JavaUtilXContentGenerator implements XContentGenerator {
 
     public void writeFieldName(String name) throws IOException {
         // System.out.println("writeFieldName " + name);
+        if ((stack.size() < 1) && (canStartNewObjectForFragment)) {
+            canStartNewObjectForFragment = false;
+            objectForFragmentWasStarted = true;
+            writeStartObject();
+        }
         if (!(target() instanceof Map)) {
             throw new IOException("Need to create writeStartObject() to add fields to.");
         }

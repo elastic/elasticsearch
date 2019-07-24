@@ -24,8 +24,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public interface GqlApi {
-    public CompletableFuture<Map<String, Object>> getInfo() throws Exception;
-    public CompletableFuture<List<Object>> getIndexInfos() throws Exception;
-    public CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception;
-    public CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception;
+    CompletableFuture<Map<String, Object>> getInfo() throws Exception;
+    CompletableFuture<List<Object>> getIndexInfos() throws Exception;
+    CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception;
+    CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception;
+    CompletableFuture<Map<String, Object>> getNode(String nodeIdOrName) throws Exception;
 }

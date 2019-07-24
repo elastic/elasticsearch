@@ -39,7 +39,6 @@ import org.elasticsearch.rest.*;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -60,14 +59,14 @@ public class GqlApiUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static public Map<String, Object> toMap(ToXContentObject response) throws Exception {
+    static public Map<String, Object> toMap(ToXContent response) throws Exception {
         XContentBuilder builder = createJavaUtilBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return (Map) getJavaUtilBuilderResult(builder);
     }
 
-    static public Map<String, Object> toMapSafe(ToXContentObject response) {
-        logger.trace("toMapSafe {}", response);
+    static public Map<String, Object> toMapSafe(ToXContent response) {
+//        logger.info("toMapSafe {}", response);
         try {
             return toMap(response);
         } catch (Exception e) {

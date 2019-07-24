@@ -122,4 +122,9 @@ public class GqlMockApi implements GqlApi {
     public CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception {
         return CompletableFuture.completedFuture(new HashMap<>());
     }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> getNode(String nodeIdOrName) throws Exception {
+        return CompletableFuture.completedFuture(new HashMap<>());
+    }
 }

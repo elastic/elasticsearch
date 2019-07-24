@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Netty4PluginConfig;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
@@ -30,7 +31,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
         Settings settings1 = Settings.builder()
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true).build();
-        return new SecurityNetty4ServerTransport(settings1, version, threadPool,
+        return new SecurityNetty4ServerTransport(settings1, new Netty4PluginConfig(settings1), version, threadPool,
             networkService, PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 

@@ -61,6 +61,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Netty4PluginConfig;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -287,6 +288,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
     private final SetOnce<NioGroupFactory> groupFactory = new SetOnce<>();
+    private final SetOnce<Netty4PluginConfig> pluginConfig = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
@@ -862,6 +864,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 SecurityField.NAME4,
                 () -> new SecurityNetty4ServerTransport(
                         settings,
+                        getNettyPluginConfig(settings),
                         Version.CURRENT,
                         threadPool,
                         networkService,
@@ -1016,5 +1019,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             groupFactory.set(new NioGroupFactory(settings, logger));
             return groupFactory.get();
          }
+    }
+
+    private synchronized Netty4PluginConfig getNettyPluginConfig(Settings settings) {
+        Netty4PluginConfig pluginConfig = this.pluginConfig.get();
+        if (pluginConfig != null) {
+            assert pluginConfig.getSettings().equals(settings) : "Different settings than originally provided";
+            return pluginConfig;
+        } else {
+            this.pluginConfig.set(new Netty4PluginConfig(settings));
+            return this.pluginConfig.get();
+        }
     }
 }

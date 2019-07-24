@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -46,6 +47,10 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
+    public static final Setting<Boolean> NETTY_DISABLE_DIRECT_POOL =
+        Setting.boolSetting("netty.disable_direct_pool", true, Setting.Property.NodeScope);
+
+    private final SetOnce<Netty4PluginConfig> pluginConfig = new SetOnce<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -57,7 +62,8 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_SIZE,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MIN,
             Netty4Transport.NETTY_RECEIVE_PREDICTOR_MAX,
-            Netty4Transport.NETTY_BOSS_COUNT
+            Netty4Transport.NETTY_BOSS_COUNT,
+            NETTY_DISABLE_DIRECT_POOL
         );
     }
 
@@ -75,8 +81,9 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService));
+        Netty4PluginConfig pluginConfig = getNettyPluginConfig(settings);
+        return Collections.singletonMap(NETTY_TRANSPORT_NAME, () -> new Netty4Transport(settings, pluginConfig, Version.CURRENT,
+            threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService));
     }
 
     @Override
@@ -86,7 +93,19 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
+        Netty4PluginConfig nettyPlugingConfig = getNettyPluginConfig(settings);
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
+    }
+
+    private synchronized Netty4PluginConfig getNettyPluginConfig(Settings settings) {
+        Netty4PluginConfig pluginConfig = this.pluginConfig.get();
+        if (pluginConfig != null) {
+            assert pluginConfig.getSettings().equals(settings) : "Different settings than originally provided";
+            return pluginConfig;
+        } else {
+            this.pluginConfig.set(new Netty4PluginConfig(settings));
+            return this.pluginConfig.get();
+        }
     }
 }

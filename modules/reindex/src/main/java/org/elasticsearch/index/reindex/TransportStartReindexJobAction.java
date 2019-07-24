@@ -69,8 +69,6 @@ public class TransportStartReindexJobAction
         super(StartReindexJobAction.NAME, transportService, clusterService, threadPool, actionFilters, StartReindexJobAction.Request::new,
             indexNameExpressionResolver);
         this.persistentTasksService = persistentTasksService;
-
-        // TODO: Need reindex origin probably.
         this.taskClient = new OriginSettingClient(client, REINDEX_ORIGIN);
     }
 

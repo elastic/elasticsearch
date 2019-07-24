@@ -4,24 +4,44 @@
 <titleabbrev>Span first</titleabbrev>
 ++++
 
-Matches spans near the beginning of a field. The span first query maps
-to Lucene `SpanFirstQuery`. Here is an example:
+Wraps another <<span-queries,span query>>, whose returned documents must contain
+matches within the first `N` positions of the field.
+
+You can use the `span_first` query to match spans near the beginning of a field.
+
+[[span-first-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
         "span_first" : {
             "match" : {
-                "span_term" : { "user" : "kimchy" }
+                "span_term" : { 
+                    "user" : "kimchy"
+                }
             },
             "end" : 3
         }
     }
 }    
---------------------------------------------------
+----
 // CONSOLE
 
-The `match` clause can be any other span type query. The `end` controls
-the maximum end position permitted in a match.
+[[span-first-top-level-params]]
+==== Top-level parameters for `span_first`
+
+`match`::
+(Required, query object) Contains a <<span-queries,span query>>.
+
+`end`::
++
+--
+(Required, integer) Maximum end position for matching spans. This position must
+be a positive integer.
+
+Returned documents must contain matches within the first `N` positions of the
+field, with `N` being the value of this parameter.
+--

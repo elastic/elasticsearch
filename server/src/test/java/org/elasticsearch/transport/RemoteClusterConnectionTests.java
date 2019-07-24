@@ -114,13 +114,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44339", System.getProperty("os.name").contains("Win"));
-    }
-
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
         return startTransport(id, knownNodes, version, threadPool);
     }

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTaskCleaner;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
@@ -191,6 +192,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             ccrLicenseChecker,
             restoreSourceService,
             new CcrRepositoryManager(settings, clusterService, (NodeClient) client),
+            new ShardFollowTaskCleaner(clusterService, threadPool, client),
             new AutoFollowCoordinator(
                 settings,
                 client,

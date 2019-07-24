@@ -40,9 +40,6 @@ public class BatsOverVagrantTask extends VagrantCommandTask {
 
     @Override
     protected OutputStream createLoggerOutputStream() {
-        return new TapLoggerOutputStream(
-                command: commandLine.join(' '),
-                factory: getProgressLoggerFactory(),
-                logger: logger)
+        return new TapLoggerOutputStream(logger, getProgressLoggerFactory().newOperation(boxName).setDescription(boxName));
     }
 }

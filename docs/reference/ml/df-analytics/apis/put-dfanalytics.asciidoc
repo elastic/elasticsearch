@@ -67,12 +67,22 @@ and mappings.
   example, all the numeric fields for {oldetection}.
   
 `dest`::
-  (Required, object) The destination configuration, consisting of `index` and optionally 
-  `results_field` (`ml` by default). See <<dfanalytics-dest-resources>>.
+  (Required, object) The destination configuration, consisting of `index` and 
+  optionally `results_field` (`ml` by default). See 
+  <<ml-dfanalytics-properties,{dfanalytics} properties>>.
+  
+`model_memory_limit`::
+  (Optional, string) The approximate maximum amount of memory resources that are 
+  permitted for analytical processing. The default value for {dfanalytics-jobs} 
+  is `1gb`. If your `elasticsearch.yml` file contains an 
+  `xpack.ml.max_model_memory_limit` setting, an error occurs when you try to 
+  create {dfanalytics-jobs} that have `model_memory_limit` values greater than 
+  that setting. For more information, see <<ml-settings>>.
   
 `source`::
-  (Required, object) The source configuration, consisting of `index` and optionally a 
-  `query`. See <<dfanalytics-source-resources>>. 
+  (Required, object) The source configuration, consisting of `index` and 
+  optionally a `query`. See 
+  <<ml-dfanalytics-properties,{dfanalytics} properties>>. 
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}

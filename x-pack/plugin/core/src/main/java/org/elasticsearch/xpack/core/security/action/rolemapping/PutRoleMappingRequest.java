@@ -42,6 +42,19 @@ public class PutRoleMappingRequest extends ActionRequest
     private Map<String, Object> metadata = Collections.emptyMap();
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public PutRoleMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        this.name = in.readString();
+        this.enabled = in.readBoolean();
+        this.roles = in.readStringList();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            this.roleTemplates = in.readList(TemplateRoleName::new);
+        }
+        this.rules = ExpressionParser.readExpression(in);
+        this.metadata = in.readMap();
+        this.refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public PutRoleMappingRequest() {
     }
 
@@ -132,26 +145,12 @@ public class PutRoleMappingRequest extends ActionRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.name = in.readString();
-        this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.roleTemplates = in.readList(TemplateRoleName::new);
-        }
-        this.rules = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
-        this.refreshPolicy = RefreshPolicy.readFrom(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(rules, out);

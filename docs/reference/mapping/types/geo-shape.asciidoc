@@ -1,5 +1,8 @@
 [[geo-shape]]
-=== Geo-Shape datatype
+=== Geo-shape datatype
+++++
+<titleabbrev>Geo-shape</titleabbrev>
+++++
 
 The `geo_shape` datatype facilitates the indexing of and searching
 with arbitrary geo shapes such as rectangles and polygons. It should be
@@ -108,6 +111,8 @@ geo-points containing any more than latitude and longitude (two dimensions) valu
 and reject the whole document.
 | `true`
 
+|`coerce` |If `true` unclosed linear rings in polygons will be automatically closed.
+| `false`
 
 |=======================================================================
 
@@ -323,6 +328,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
@@ -357,6 +363,7 @@ The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [float]
+[[polygon]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
@@ -473,6 +480,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[multipoint]]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
 
 The following is an example of a list of geojson points:
@@ -503,6 +511,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[multilinestring]]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
 
 The following is an example of a list of geojson linestrings:
@@ -535,6 +544,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[multipolygon]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 The following is an example of a list of geojson polygons (second polygon contains a hole):
@@ -567,6 +577,7 @@ POST /example/_doc
 // CONSOLE
 
 [float]
+[[geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 The following is an example of a collection of geojson geometry objects:
@@ -609,7 +620,7 @@ POST /example/_doc
 
 Elasticsearch supports an `envelope` type, which consists of coordinates
 for upper left and lower right points of the shape to represent a
-bounding rectangle in the format [[minLon, maxLat],[maxLon, minLat]]:
+bounding rectangle in the format `[[minLon, maxLat], [maxLon, minLat]]`:
 
 [source,js]
 --------------------------------------------------

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.transport.action.get;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
+import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -30,12 +30,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-// added due to https://github.com/elastic/x-pack-elasticsearch/issues/3854
-@TestLogging("org.elasticsearch.action.search:DEBUG")
 public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testGet() throws Exception {
-        PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
+        PutWatchResponse putResponse = new PutWatchRequestBuilder(client(), "_name").setSource(watchBuilder()
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
                 .condition(InternalAlwaysCondition.INSTANCE)
@@ -45,7 +43,7 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(putResponse, notNullValue());
         assertThat(putResponse.isCreated(), is(true));
 
-        GetWatchResponse getResponse = watcherClient().getWatch(new GetWatchRequest("_name")).get();
+        GetWatchResponse getResponse = new GetWatchRequestBuilder(client(), "_name").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.getId(), is("_name"));
@@ -73,7 +71,7 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
             } catch (IndexNotFoundException e) {}
         }
 
-        GetWatchResponse getResponse = watcherClient().getWatch(new GetWatchRequest("_name")).get();
+        GetWatchResponse getResponse = new GetWatchRequestBuilder(client(), "_name").get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getId(), is("_name"));
         assertThat(getResponse.isFound(), is(false));

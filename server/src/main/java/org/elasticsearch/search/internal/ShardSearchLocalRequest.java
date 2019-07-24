@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Shard level search request that gets created and consumed on the local node.
@@ -61,7 +63,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private final int numberOfShards;
     private final SearchType searchType;
     private final Scroll scroll;
-    private final String[] types;
     private final float indexBoost;
     private final Boolean requestCache;
     private final long nowInMillis;
@@ -74,7 +75,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     public ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards, AliasFilter aliasFilter,
                                    float indexBoost, long nowInMillis, @Nullable String clusterAlias, String[] indexRoutings) {
-        this(shardId, numberOfShards, searchRequest.searchType(), searchRequest.source(), searchRequest.types(),
+        this(shardId, numberOfShards, searchRequest.searchType(), searchRequest.source(),
             searchRequest.requestCache(), aliasFilter, indexBoost, searchRequest.allowPartialSearchResults(), indexRoutings,
             searchRequest.preference(), searchRequest.scroll(), nowInMillis, clusterAlias);
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
@@ -82,11 +83,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         assert searchRequest.allowPartialSearchResults() != null;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
-        this(shardId, -1, null, null, types, null, aliasFilter, 1.0f, false, Strings.EMPTY_ARRAY, null, null, nowInMillis, null);
+    public ShardSearchLocalRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
+        this(shardId, -1, null, null, null, aliasFilter, 1.0f, false, Strings.EMPTY_ARRAY, null, null, nowInMillis, null);
     }
 
-    private ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
+    private ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source,
                                     Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults,
                                     String[] indexRoutings, String preference, Scroll scroll, long nowInMillis,
                                     @Nullable String clusterAlias) {
@@ -94,7 +95,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
-        this.types = types;
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
@@ -107,12 +107,19 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     ShardSearchLocalRequest(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            // types no longer relevant so ignore
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
+            }
+        }
         aliasFilter = new AliasFilter(in);
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
@@ -131,7 +138,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // types not supported so send an empty array to previous versions
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);
         if (asKey == false) {
@@ -149,11 +159,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     @Override
     public ShardId shardId() {
         return shardId;
-    }
-
-    @Override
-    public String[] types() {
-        return types;
     }
 
     @Override

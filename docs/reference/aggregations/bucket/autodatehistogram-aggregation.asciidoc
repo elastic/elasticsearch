@@ -89,7 +89,7 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-=== Intervals
+==== Intervals
 
 The interval of the returned buckets is selected based on the data collected by the 
 aggregation so that the number of buckets returned is less than or equal to the number 
@@ -257,6 +257,39 @@ DST shift happens.
 Like with the normal <<search-aggregations-bucket-datehistogram-aggregation, `date_histogram`>>, both document level 
 scripts and value level scripts are supported. This aggregation does not however, support the `min_doc_count`, 
 `extended_bounds` and `order` parameters.  
+
+==== Minimum Interval parameter
+
+The `minimum_interval` allows the caller to specify the minimum rounding interval that should be used.
+This can make the collection process more efficient, as the aggregation will not attempt to round at
+any interval lower than `minimum_interval`.
+
+The accepted units for `minimum_interval` are:
+
+* year
+* month
+* day
+* hour
+* minute
+* second
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs" : {
+        "sale_date" : {
+             "auto_date_histogram" : {
+                 "field" : "date",
+                 "buckets": 10,
+                 "minimum_interval": "minute"
+             }
+         }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
 
 ==== Missing value
 

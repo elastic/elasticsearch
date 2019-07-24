@@ -163,8 +163,7 @@ public class IndexRequestTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         indexRequest.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        IndexRequest serialized = new IndexRequest();
-        serialized.readFrom(in);
+        IndexRequest serialized = new IndexRequest(in);
         assertEquals(XContentType.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
     }
@@ -173,14 +172,14 @@ public class IndexRequestTests extends ESTestCase {
     public void testSerializationOfEmptyRequestWorks() throws IOException {
         IndexRequest request = new IndexRequest("index");
         assertNull(request.getContentType());
+        assertEquals("index", request.index());
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
-
             try (StreamInput in = out.bytes().streamInput()) {
-                IndexRequest serialized = new IndexRequest();
-                serialized.readFrom(in);
-                assertNull(request.getContentType());
-                assertEquals("index", request.index());
+                IndexRequest serialized = new IndexRequest(in);
+                assertNull(serialized.getContentType());
+                assertEquals("index", serialized.index());
             }
         }
     }

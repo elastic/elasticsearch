@@ -430,7 +430,7 @@ fi
     local java_home=$JAVA_HOME
 
     # create a JAVA_HOME with a space
-    local java=$(which java)
+    local java="$SYSTEM_JAVA_HOME"/bin/java
     local temp=`mktemp -d --suffix="java home"`
     mkdir -p "$temp/bin"
     ln -s "$java" "$temp/bin/java"

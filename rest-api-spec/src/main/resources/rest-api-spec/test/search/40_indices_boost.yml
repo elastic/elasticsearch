@@ -37,7 +37,6 @@ setup:
 ---
 "Indices boost using object":
   - skip:
-      reason: deprecation was added in 5.2.0
       features: "warnings"
 
   - do:

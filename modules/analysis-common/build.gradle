@@ -26,7 +26,3 @@ esplugin {
 dependencies {
     compileOnly project(':modules:lang-painless')
 }
-
-integTestCluster {
-    module project(':modules:lang-painless')
-}

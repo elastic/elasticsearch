@@ -28,6 +28,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -144,11 +145,13 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final DiscoveryNode rNode = getFakeDiscoNode(targetShard.routingEntry().currentNodeId());
         targetShard.markAsRecovering("test-peer-recovery", new RecoveryState(targetShard.routingEntry(), rNode, pNode));
         final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null);
+        final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
             mdFiles.stream().map(StoreFileMetaData::name).collect(Collectors.toList()),
             mdFiles.stream().map(StoreFileMetaData::length).collect(Collectors.toList()),
-            Collections.emptyList(), Collections.emptyList(), 0
+            Collections.emptyList(), Collections.emptyList(), 0, receiveFileInfoFuture
         );
+        receiveFileInfoFuture.actionGet();
         List<RecoveryFileChunkRequest> requests = new ArrayList<>();
         for (StoreFileMetaData md : mdFiles) {
             try (IndexInput in = sourceShard.store().directory().openInput(md.name(), IOContext.READONCE)) {
@@ -189,7 +192,10 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         for (Thread sender : senders) {
             sender.join();
         }
-        recoveryTarget.cleanFiles(0, sourceSnapshot);
+        PlainActionFuture<Void> cleanFilesFuture = new PlainActionFuture<>();
+        recoveryTarget.cleanFiles(0, Long.parseLong(sourceSnapshot.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+            sourceSnapshot, cleanFilesFuture);
+        cleanFilesFuture.actionGet();
         recoveryTarget.decRef();
         Store.MetadataSnapshot targetSnapshot = targetShard.snapshotStoreMetadata();
         Store.RecoveryDiff diff = sourceSnapshot.recoveryDiff(targetSnapshot);

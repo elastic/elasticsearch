@@ -38,6 +38,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
@@ -47,12 +48,28 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
-import static org.elasticsearch.xpack.core.ml.datafeed.QueryProviderTests.createRandomValidQueryProvider;
+import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpdate> {
+
+    @AwaitsFix(bugUrl = "Tests need to be updated to use calendar/fixed interval explicitly")
+    public void testIntervalWarnings() {
+        /*
+        Placeholder test for visibility.  Datafeeds use calendar and fixed intervals through the deprecated
+        methods.  The randomized creation + final superclass tests made it impossible to add warning assertions,
+        so warnings have been disabled on this test.
+
+        When fixed, `enableWarningsCheck()` should be removed.
+         */
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
 
     @Override
     protected DatafeedUpdate createTestInstance() {
@@ -60,12 +77,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     }
 
     public static DatafeedUpdate createRandomized(String datafeedId) {
-        return createRandomized(datafeedId, null);
+        return createRandomized(datafeedId, null, true);
     }
 
-    public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed) {
+    public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed, boolean canSetJobId) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(datafeedId);
-        if (randomBoolean() && datafeed == null) {
+        if (randomBoolean() && datafeed == null && canSetJobId) {
             builder.setJobId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
@@ -119,13 +136,13 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
@@ -259,9 +276,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 withoutAggs.setAggProvider(null);
                 datafeed = withoutAggs.build();
             }
-            DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed);
+            DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed, true);
             while (update.isNoop(datafeed)) {
-                update = createRandomized(datafeed.getId(), datafeed);
+                update = createRandomized(datafeed.getId(), datafeed, true);
             }
 
             DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());
@@ -301,14 +318,14 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                     .filter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
         DatafeedUpdate datafeedUpdate = datafeedUpdateBuilder.build();
 
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             datafeedUpdate.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(Version.CURRENT);
                 DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
                 assertEquals(datafeedUpdate, streamedDatafeedUpdate);
 

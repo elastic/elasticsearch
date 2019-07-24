@@ -7,8 +7,8 @@ your {es} cluster. Connections are secured using Transport Layer Security
 (TLS/SSL).
 
 WARNING: Clusters that do not have encryption enabled send all data in plain text
-including passwords and will not be able to install a license that enables
-{security-features}.
+including passwords. If the {es} {security-features} are enabled, unless you
+have a trial license, you must configure SSL/TLS for internode-communication.
 
 To enable encryption, you need to perform the following steps on each node in
 the cluster:
@@ -31,17 +31,12 @@ information, see <<security-settings>>.
 For more information about encrypting communications across the Elastic Stack,
 see {stack-ov}/encrypting-communications.html[Encrypting Communications].
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/node-certificates.asciidoc
 include::node-certificates.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/tls-transport.asciidoc
 include::tls-transport.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/tls-http.asciidoc
 include::tls-http.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/tls-ad.asciidoc
 include::tls-ad.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/tls-ldap.asciidoc
 include::tls-ldap.asciidoc[]

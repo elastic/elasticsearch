@@ -30,7 +30,7 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
         }
 
         return new CompositeAggregationCursor(new byte[randomInt(256)], extractors, randomBitSet(extractorsSize),
-                randomIntBetween(10, 1024), randomAlphaOfLength(5));
+                randomIntBetween(10, 1024), randomBoolean(), randomAlphaOfLength(5));
     }
 
     static BucketExtractor randomBucketExtractor() {
@@ -46,6 +46,7 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
         return new CompositeAggregationCursor(instance.next(), instance.extractors(),
                 randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
                 randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
+                !instance.includeFrozen(),
                 instance.indices());
     }
 

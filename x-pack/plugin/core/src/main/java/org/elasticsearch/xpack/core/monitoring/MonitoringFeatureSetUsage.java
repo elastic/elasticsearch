@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.monitoring;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,9 +26,7 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
     public MonitoringFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         exporters = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            collectionEnabled = in.readOptionalBoolean();
-        }
+        collectionEnabled = in.readOptionalBoolean();
     }
 
     public MonitoringFeatureSetUsage(boolean available, boolean enabled,
@@ -47,9 +44,7 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeMap(exporters);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalBoolean(collectionEnabled);
-        }
+        out.writeOptionalBoolean(collectionEnabled);
     }
 
     @Override

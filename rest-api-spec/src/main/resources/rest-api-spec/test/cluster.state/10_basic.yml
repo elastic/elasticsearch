@@ -7,9 +7,6 @@
 
 ---
 "get cluster state returns cluster_uuid at the top level":
-  - skip:
-      version:  " - 6.3.99"
-      reason:   "cluster state including cluster_uuid at the top level is new in v6.4.0 and higher"
 
   - do:
       cluster.state:

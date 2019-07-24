@@ -33,10 +33,12 @@ A `bucket_sort` aggregation looks like this in isolation:
 <1> Here, `sort_field_1` is the bucket path to the variable to be used as the primary sort and its order
 is ascending.
 
+[[bucket-sort-params]]
 .`bucket_sort` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
-|`sort` |The list of fields to sort on. See <<search-request-sort,`sort`>> for more details. |Optional |
+|`sort` |The list of fields to sort on. See <<request-body-search-sort,`sort`>> for more details. |Optional |
 |`from` |Buckets in positions prior to the set value will be truncated. |Optional | `0`
 |`size` |The number of buckets to return. Defaults to all buckets of the parent aggregation. |Optional |
 |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
@@ -54,7 +56,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "total_sales": {
@@ -142,7 +144,7 @@ POST /sales/_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "bucket_truncate": {

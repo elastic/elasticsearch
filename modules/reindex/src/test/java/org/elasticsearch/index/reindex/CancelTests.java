@@ -37,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -60,7 +59,6 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of AsyncBulkByScrollActionTests which have more precise control to
  * simulate failures but does not exercise important portion of the stack like transport and task management.
  */
-@TestLogging("org.elasticsearch.index.reindex:DEBUG,org.elasticsearch.action.bulk:DEBUG")
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
@@ -216,7 +214,7 @@ public class CancelTests extends ReindexTestCase {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
             refresh("dest");
-            assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
+            assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
         }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }
 
@@ -251,7 +249,7 @@ public class CancelTests extends ReindexTestCase {
                 (response, total, modified) -> {
                     assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     refresh("dest");
-                    assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
+                    assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
                 },
                 equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }

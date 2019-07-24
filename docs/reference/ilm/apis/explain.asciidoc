@@ -98,12 +98,13 @@ that the index is managed and in the `new` phase:
       "managed": true, <1>
       "policy": "my_policy", <2>
       "lifecycle_date_millis": 1538475653281, <3>
+      "age": "15s", <4>
       "phase": "new",
-      "phase_time_millis": 1538475653317, <4>
+      "phase_time_millis": 1538475653317, <5>
       "action": "complete",
-      "action_time_millis": 1538475653317, <5>
+      "action_time_millis": 1538475653317, <6>
       "step": "complete",
-      "step_time_millis": 1538475653317 <6>
+      "step_time_millis": 1538475653317 <7>
     }
   }
 }
@@ -114,9 +115,10 @@ that the index is managed and in the `new` phase:
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index
 <3> The timestamp used for the `min_age`
-<4> When the index entered the current phase
-<5> When the index entered the current action
-<6> When the index entered the current step
+<4> The age of the index (used for calculating when to enter the next phase)
+<5> When the index entered the current phase
+<6> When the index entered the current action
+<7> When the index entered the current step
 
 Once the policy is running on the index, the response includes a
 `phase_execution` object that shows the definition of the current phase.
@@ -133,6 +135,7 @@ phase completes.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "25.14s",
       "phase": "hot",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -181,6 +184,7 @@ information for the step that's being performed on the index.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "4.12m",
       "phase": "warm",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -227,7 +231,7 @@ information for the step that's being performed on the index.
 <1> Status of the step that's in progress.
 
 If the index is in the ERROR step, something went wrong while executing a
-step in the policy and and you will need to take action for the index to proceed
+step in the policy and you will need to take action for the index to proceed
 to the next step. To help you diagnose the problem, the explain response shows
 the step that failed and the step info provides information about the error.
 
@@ -241,6 +245,7 @@ the step that failed and the step info provides information about the error.
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "50.1d",
       "phase": "hot",
       "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",

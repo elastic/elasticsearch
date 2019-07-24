@@ -7,8 +7,8 @@
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
 * Between minor versions
-* From 5.6 to 6.7
-* From 6.7 to {version}
+* From 5.6 to 6.8
+* From 6.8 to {version}
 
 {es} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
@@ -37,7 +37,6 @@ deprecation warnings are logged when the log level is set to `WARN`.
 to your code and configuration for {version}.
 . If you use custom plugins, make sure compatible versions are available.
 . Test upgrades in a dev environment before upgrading your production cluster.
-before upgrading.
 . <<modules-snapshots,Back up your data!>> You must have a snapshot of your
 data to roll back to an earlier version.
 

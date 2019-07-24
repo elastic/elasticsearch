@@ -1,8 +1,6 @@
 ---
 "two levels fields collapsing":
-    - skip:
-        version: " - 6.99.99"
-        reason: using multiple field collapsing from 7.0 on
+
     - do:
         indices.create:
           index: addresses

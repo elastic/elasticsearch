@@ -24,8 +24,9 @@ import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeometryIndexer;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
@@ -91,12 +92,17 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
+    private final GeometryParser geometryParser;
+    private final GeometryIndexer geometryIndexer;
+
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                Explicit<Boolean> ignoreZValue, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
+        geometryParser = new GeometryParser(orientation() == ShapeBuilder.Orientation.RIGHT, coerce().value(), ignoreZValue.value());
+        geometryIndexer = new GeometryIndexer(true);
     }
 
     @Override
@@ -108,13 +114,14 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     @Override
     public void parse(ParseContext context) throws IOException {
         try {
+
             Object shape = context.parseExternalValue(Object.class);
             if (shape == null) {
-                ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
-                if (shapeBuilder == null) {
+                Geometry geometry = geometryParser.parse(context.parser());
+                if (geometry == null) {
                     return;
                 }
-                shape = shapeBuilder.buildGeometry();
+                shape = geometryIndexer.prepareForIndexing(geometry);
             }
             indexShape(context, shape);
         } catch (Exception e) {
@@ -134,7 +141,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
-    private class LuceneGeometryIndexer implements GeometryVisitor<Void> {
+    private class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
         private ParseContext context;
 
         private LuceneGeometryIndexer(ParseContext context) {

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -84,20 +84,15 @@ public final class TransportPutFollowAction
     }
 
     @Override
-    protected PutFollowAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected PutFollowAction.Response read(StreamInput in) throws IOException {
         return new PutFollowAction.Response(in);
     }
 
     @Override
     protected void masterOperation(
-            final PutFollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) {
+        Task task, final PutFollowAction.Request request,
+        final ClusterState state,
+        final ActionListener<PutFollowAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -147,19 +142,10 @@ public final class TransportPutFollowAction
             }
 
             @Override
-            protected void doRun() throws Exception {
-                restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
-
-                    @Override
-                    public void onResponse(RestoreService.RestoreCompletionResponse response) {
-                        afterRestoreStarted(clientWithHeaders, request, listener, response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+            protected void doRun() {
+                restoreService.restoreSnapshot(restoreRequest,
+                    ActionListener.delegateFailure(listener,
+                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)));
             }
         });
     }
@@ -186,28 +172,20 @@ public final class TransportPutFollowAction
             listener = originalListener;
         }
 
-        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, new ActionListener<RestoreSnapshotResponse>() {
-            @Override
-            public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
+        RestoreClusterStateListener.createAndRegisterListener(clusterService, response,
+            ActionListener.delegateFailure(listener, (delegatedListener, restoreSnapshotResponse) -> {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
                     // restore.
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(clientWithHeaders, request, listener);
+                    initiateFollowing(clientWithHeaders, request, delegatedListener);
                 } else {
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            }));
     }
 
     private void initiateFollowing(

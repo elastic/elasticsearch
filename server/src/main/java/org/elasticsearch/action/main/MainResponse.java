@@ -42,7 +42,15 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
 
-    MainResponse() {
+    MainResponse() {}
+
+    MainResponse(StreamInput in) throws IOException {
+        super(in);
+        nodeName = in.readString();
+        version = Version.readVersion(in);
+        clusterName = new ClusterName(in);
+        clusterUuid = in.readString();
+        build = Build.readBuild(in);
     }
 
     public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
@@ -76,22 +84,11 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeString(nodeName);
         Version.writeVersion(version, out);
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodeName = in.readString();
-        version = Version.readVersion(in);
-        clusterName = new ClusterName(in);
-        clusterUuid = in.readString();
-        build = Build.readBuild(in);
     }
 
     @Override
@@ -129,8 +126,12 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             final String buildType = (String) value.get("build_type");
             response.build =
                     new Build(
-                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor),
-                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
+                            /*
+                             * Be lenient when reading on the wire, the enumeration values from other versions might be different than what
+                             * we know.
+                             */
+                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor, false),
+                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType, false),
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
                             (boolean) value.get("build_snapshot"),

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,8 +37,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     private Set<RoleDescriptor.ApplicationResourcePrivileges> application;
     private Set<String> runAs;
 
-    public GetUserPrivilegesResponse() {
-        this(Collections.emptySet(), Collections.emptySet(), Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
+    public GetUserPrivilegesResponse(StreamInput in) throws IOException {
+        super(in);
+        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
+        index = Collections.unmodifiableSet(in.readSet(Indices::new));
+        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
+        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public GetUserPrivilegesResponse(Set<String> cluster, Set<ConditionalClusterPrivilege> conditionalCluster,
@@ -73,18 +77,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         return runAs;
     }
 
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        conditionalCluster = Collections.unmodifiableSet(in.readSet(ConditionalClusterPrivileges.READER));
-        index = Collections.unmodifiableSet(in.readSet(Indices::new));
-        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
-        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeCollection(cluster, StreamOutput::writeString);
         out.writeCollection(conditionalCluster, ConditionalClusterPrivileges.WRITER);
         out.writeCollection(index);
@@ -145,11 +139,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
             }));
             queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                this.allowRestrictedIndices = in.readBoolean();
-            } else {
-                this.allowRestrictedIndices = false;
-            }
+            this.allowRestrictedIndices = in.readBoolean();
         }
 
         public Set<String> getIndices() {
@@ -254,9 +244,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
                 output.writeOptionalStringArray(fields.getExcludedFields());
             });
             out.writeCollection(queries, StreamOutput::writeBytesReference);
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeBoolean(allowRestrictedIndices);
-            }
+            out.writeBoolean(allowRestrictedIndices);
         }
     }
 }

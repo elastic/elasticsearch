@@ -24,9 +24,7 @@
 
 ---
 "Flush stats":
-  - skip:
-      version: " - 6.2.99"
-      reason: periodic flush stats is introduced in 6.3.0
+
   - do:
       indices.create:
         index: test
@@ -56,8 +54,8 @@
 ---
 "Flush parameters validation":
   - skip:
-      version: " - 7.9.99"
-      reason: flush parameters validation is introduced in 8.0
+      version: " - 7.1.99"
+      reason: flush parameters validation is introduced in 7.2.0
   - do:
       indices.create:
         index: test

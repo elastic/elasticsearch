@@ -292,9 +292,6 @@ setup:
 
 ---
 "Skip duplicates should work":
-  - skip:
-      version: " - 6.0.99"
-      reason: skip_duplicates was added in 6.1
 
   - do:
       index:

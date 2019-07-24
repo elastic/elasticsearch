@@ -27,7 +27,7 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 forbiddenApisMain {
@@ -44,7 +44,7 @@ forbiddenApisTest {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:core
+// TODO: Not anymore. Now in :libs:elasticsearch-core
 jarHell.enabled=false
 
 // TODO: should we have licenses for our test deps?
@@ -53,4 +53,4 @@ dependenciesInfo.enabled = false
 
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false
-unitTest.enabled = false
+test.enabled = false

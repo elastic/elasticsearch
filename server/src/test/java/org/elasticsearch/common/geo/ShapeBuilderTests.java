@@ -759,4 +759,22 @@ public class ShapeBuilderTests extends ESTestCase {
 
         assertEquals(expected, pb.toString());
     }
+
+    public void testInvalidSelfCrossingPolygon() {
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(0, 0)
+            .coordinate(0, 2)
+            .coordinate(1, 1.9)
+            .coordinate(0.5, 1.8)
+            .coordinate(1.5, 1.8)
+            .coordinate(1, 1.9)
+            .coordinate(2, 2)
+            .coordinate(2, 0)
+            .coordinate(0, 0)
+        );
+        Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
+        assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
+        assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+    }
 }

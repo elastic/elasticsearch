@@ -22,10 +22,12 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
@@ -193,6 +195,12 @@ public class FunctionScoreQuery extends Query {
 
     public CombineFunction getCombineFunction() {
         return combineFunction;
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        // Highlighters must visit the child query to extract terms
+        subQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
     }
 
     @Override

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -27,16 +28,19 @@ import java.util.Set;
 
 public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
+    // array of illegal characters, see {@link AggregatorFactories#VALID_AGG_NAME}
+    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = {'[', ']', '>'};
+
     public static GroupConfig randomGroupConfig() {
         Map<String, Object> source = new LinkedHashMap<>();
-        Map<String, SingleGroupSource<?>> groups = new LinkedHashMap<>();
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
         // ensure that the unlikely does not happen: 2 group_by's share the same name
         Set<String> names = new HashSet<>();
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource<?> groupBy;
+                SingleGroupSource groupBy;
                 Type type = randomFrom(SingleGroupSource.Type.values());
                 switch (type) {
                 case TERMS:
@@ -88,7 +92,35 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         }
     }
 
-    private static Map<String, Object> getSource(SingleGroupSource<?> groupSource) {
+    public void testInvalidGroupByNames() throws IOException {
+
+        String invalidName = randomAlphaOfLengthBetween(0, 5)
+                + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0, ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)]
+                + randomAlphaOfLengthBetween(0, 5);
+
+        XContentBuilder source = JsonXContent.contentBuilder()
+                .startObject()
+                    .startObject(invalidName)
+                        .startObject("terms")
+                            .field("field", "user")
+                        .endObject()
+                    .endObject()
+                .endObject();
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(source)) {
+            GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
+            assertFalse(groupConfig.isValid());
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(source)) {
+            Exception e = expectThrows(ParsingException.class, () -> GroupConfig.fromXContent(parser, false));
+            assertTrue(e.getMessage().startsWith("Invalid group name"));
+        }
+    }
+
+    private static Map<String, Object> getSource(SingleGroupSource groupSource) {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = groupSource.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             return XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();

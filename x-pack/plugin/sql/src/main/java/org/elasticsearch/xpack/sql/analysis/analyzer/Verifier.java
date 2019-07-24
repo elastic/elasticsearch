@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -65,6 +63,7 @@ import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.LOCAL;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.ORDERBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.WHERE;
+import static org.elasticsearch.xpack.sql.type.DataType.GEO_SHAPE;
 
 /**
  * The verifier has the role of checking the analyzed tree for failures and build a list of failures following this check.
@@ -133,7 +132,6 @@ public final class Verifier {
 
         // start bottom-up
         plan.forEachUp(p -> {
-
             if (p.analyzed()) {
                 return;
             }
@@ -228,9 +226,6 @@ public final class Verifier {
 
                 Set<Failure> localFailures = new LinkedHashSet<>();
 
-                validateInExpression(p, localFailures);
-                validateConditional(p, localFailures);
-
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures);
                 checkFilterOnGrouping(p, localFailures);
@@ -241,6 +236,7 @@ public final class Verifier {
 
                 checkForScoreInsideFunctions(p, localFailures);
                 checkNestedUsedInGroupByOrHaving(p, localFailures);
+                checkForGeoFunctionsOnDocValues(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -298,7 +294,8 @@ public final class Verifier {
         return checkGroupByInexactField(p, localFailures)
                 && checkGroupByAgg(p, localFailures, resolvedFunctions)
                 && checkGroupByOrder(p, localFailures, groupingFailures)
-                && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
+                && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions)
+                && checkGroupByTime(p, localFailures);
     }
 
     // check whether an orderBy failed or if it occurs on a non-key
@@ -473,10 +470,26 @@ public final class Verifier {
             a.groupings().forEach(e -> e.forEachUp(c -> {
                 EsField.Exact exact = c.getExactInfo();
                 if (exact.hasExact() == false) {
-                    localFailures.add(fail(c, "Field of data type [" + c.dataType().typeName + "] cannot be used for grouping; " +
-                        exact.errorMsg()));
+                    localFailures.add(fail(c, "Field [" + c.sourceText()  + "] of data type [" + c.dataType().typeName + "] " +
+                        "cannot be used for grouping; " + exact.errorMsg()));
                 }
             }, FieldAttribute.class));
+        }
+        return true;
+    }
+
+    private static boolean checkGroupByTime(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Aggregate) {
+            Aggregate a = (Aggregate) p;
+
+            // TIME data type is not allowed for grouping key
+            // https://github.com/elastic/elasticsearch/issues/40639
+            a.groupings().forEach(f -> {
+                if (f.dataType().isTimeBased()) {
+                    localFailures.add(fail(f, "Function [" + f.sourceText()  + "] with data type [" + f.dataType().typeName +
+                        "] " + "cannot be used for grouping"));
+                }
+            });
         }
         return true;
     }
@@ -708,51 +721,32 @@ public final class Verifier {
         }
     }
 
-    private static void validateInExpression(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachExpressions(e ->
-            e.forEachUp((In in) -> {
-                    DataType dt = in.value().dataType();
-                    for (Expression value : in.list()) {
-                        if (areTypesCompatible(dt, value.dataType()) == false) {
-                            localFailures.add(fail(value, "expected data type [{}], value provided is of type [{}]",
-                                dt.typeName, value.dataType().typeName));
-                            return;
-                        }
-                    }
-                },
-                In.class));
-    }
+    /**
+     * Makes sure that geo shapes do not appear in filter, aggregation and sorting contexts
+     */
+    private static void checkForGeoFunctionsOnDocValues(LogicalPlan p, Set<Failure> localFailures) {
 
-    private static void validateConditional(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachExpressions(e ->
-            e.forEachUp((ConditionalFunction cf) -> {
-                    DataType dt = DataType.NULL;
+        p.forEachDown(f -> {
+            f.condition().forEachUp(fa -> {
+                if (fa.field().getDataType() == GEO_SHAPE) {
+                    localFailures.add(fail(fa, "geo shapes cannot be used for filtering"));
+                }
+            }, FieldAttribute.class);
+        }, Filter.class);
 
-                    for (Expression child : cf.children()) {
-                        if (dt == DataType.NULL) {
-                            if (Expressions.isNull(child) == false) {
-                                dt = child.dataType();
-                            }
-                        } else {
-                            if (areTypesCompatible(dt, child.dataType()) == false) {
-                                localFailures.add(fail(child, "expected data type [{}], value provided is of type [{}]",
-                                    dt.typeName, child.dataType().typeName));
-                                return;
-                            }
-                        }
-                    }
-                },
-                ConditionalFunction.class));
-    }
+        // geo shape fields shouldn't be used in aggregates or having (yet)
+        p.forEachDown(a -> a.groupings().forEach(agg -> agg.forEachUp(fa -> {
+            if (fa.field().getDataType() == GEO_SHAPE) {
+                localFailures.add(fail(fa, "geo shapes cannot be used in grouping"));
+            }
+        }, FieldAttribute.class)), Aggregate.class);
 
-    private static boolean areTypesCompatible(DataType left, DataType right) {
-        if (left == right) {
-            return true;
-        } else {
-            return
-                (left == DataType.NULL || right == DataType.NULL) ||
-                (left.isString() && right.isString()) ||
-                (left.isNumeric() && right.isNumeric());
-        }
+
+        // geo shape fields shouldn't be used in order by clauses
+        p.forEachDown(o -> o.order().forEach(agg -> agg.forEachUp(fa -> {
+            if (fa.field().getDataType() == GEO_SHAPE) {
+                localFailures.add(fail(fa, "geo shapes cannot be used for sorting"));
+            }
+        }, FieldAttribute.class)), OrderBy.class);
     }
 }

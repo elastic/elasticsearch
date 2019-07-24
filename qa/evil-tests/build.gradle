@@ -23,6 +23,7 @@
  * threads, etc.
  */
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
@@ -31,7 +32,7 @@ dependencies {
 
 // TODO: give each evil test its own fresh JVM for more isolation.
 
-unitTest {
+test {
   systemProperty 'tests.security.manager', 'false'
 }
 

@@ -3,15 +3,17 @@
 [[info-api]]
 == Info API
 
-The info API provides general information about the installed {xpack} features.
+Provides general information about the installed {xpack} features.
 
-[float]
-=== Request
+[discrete]
+[[info-api-request]]
+=== {api-request-title}
 
 `GET /_xpack`
 
-[float]
-=== Description
+[discrete]
+[[info-api-desc]]
+=== {api-description-title}
 
 The information provided by this API includes:
 
@@ -20,24 +22,22 @@ The information provided by this API includes:
 * Features Information - The features that are currently enabled and available
   under the current license.
 
-[float]
-=== Path Parameters
+[discrete]
+[[info-api-path-params]]
+=== {api-path-parms-title}
 
 `categories`::
-  (list) A comma-separated list of the information categories to include in the
-  response. For example, `build,license,features`.
+  (Optional, list) A comma-separated list of the information categories to
+  include in the response. For example, `build,license,features`.
 
 `human`::
-  (boolean) Defines whether additional human-readable information is included in
-  the response. In particular, it adds descriptions and a tag line. The
-  default value is `true`.
+  (Optional, boolean) Defines whether additional human-readable information is
+  included in the response. In particular, it adds descriptions and a tag line.
+  The default value is `true`.
 
-//=== Query Parameters
-
-//=== Authorization
-
-[float]
-=== Examples
+[discrete]
+[[info-api--example]]
+=== {api-examples-title}
 
 The following example queries the info API:
 
@@ -64,61 +64,66 @@ Example response:
    },
    "features" : {
       "ccr" : {
-        "description" : "Cross Cluster Replication",
         "available" : true,
         "enabled" : true
       },
       "data_frame" : {
-          "description" : "Data Frame for the Elastic Stack",
           "available" : true,
           "enabled" : true
       },
+      "flattened" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "frozen_indices" : {
+         "available" : true,
+         "enabled" : true
+      },
       "graph" : {
-         "description" : "Graph Data Exploration for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "ilm" : {
-         "description" : "Index lifecycle management for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "logstash" : {
-         "description" : "Logstash management component for X-Pack",
          "available" : true,
          "enabled" : true
       },
       "ml" : {
-         "description" : "Machine Learning for the Elastic Stack",
          "available" : true,
-         "enabled" : true,
-         "native_code_info" : {
-           "version" : "7.0.0-alpha1-SNAPSHOT",
-           "build_hash" : "99a07c016d5a73"
-        }
+         "enabled" : true
       },
       "monitoring" : {
-         "description" : "Monitoring for the Elastic Stack",
          "available" : true,
          "enabled" : true
       },
       "rollup": {
-        "description": "Time series pre-aggregation and rollup",
          "available": true,
          "enabled": true
       },
       "security" : {
-         "description" : "Security for the Elastic Stack",
          "available" : true,
          "enabled" : false
       },
+      "spatial" : {
+         "available" : true,
+         "enabled" : true
+      },
       "sql" : {
-         "description" : "SQL access to Elasticsearch",
+         "available" : true,
+         "enabled" : true
+      },
+      "vectors" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "voting_only" : {
          "available" : true,
          "enabled" : true
       },
       "watcher" : {
-         "description" : "Alerting, Notification and Automation for the Elastic Stack",
          "available" : true,
          "enabled" : true
       }

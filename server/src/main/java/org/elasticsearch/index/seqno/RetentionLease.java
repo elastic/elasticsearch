@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -37,7 +37,7 @@ import java.util.Objects;
  * otherwise merge away operations that have been soft deleted). Each retention lease contains a unique identifier, the retaining sequence
  * number, the timestamp of when the lease was created or renewed, and the source of the retention lease (e.g., "ccr").
  */
-public final class RetentionLease implements ToXContent, Writeable {
+public final class RetentionLease implements ToXContentObject, Writeable {
 
     private final String id;
 

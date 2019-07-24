@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -385,8 +385,7 @@ public class MetaDataCreateIndexService {
                     indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                    final int numberOfShards = getNumberOfShards(indexSettingsBuilder);
-                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, numberOfShards));
+                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
@@ -438,6 +437,13 @@ public class MetaDataCreateIndexService {
                             indexScopedSettings);
                 }
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
+
+                /*
+                 * We can not check the shard limit until we have applied templates, otherwise we do not know the actual number of shards
+                 * that will be used to create this index.
+                 */
+                checkShardLimit(actualIndexSettings, currentState);
+
                 tmpImdBuilder.settings(actualIndexSettings);
 
                 if (recoverFromIndex != null) {
@@ -588,19 +594,8 @@ public class MetaDataCreateIndexService {
             }
         }
 
-        static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
-            // TODO: this logic can be removed when the current major version is 8
-            // TODO: https://github.com/elastic/elasticsearch/issues/38556
-            // assert Version.CURRENT.major == 7;
-            final int numberOfShards;
-            final Version indexVersionCreated =
-                    Version.fromId(Integer.parseInt(indexSettingsBuilder.get(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey())));
-            if (indexVersionCreated.before(Version.V_7_0_0)) {
-                numberOfShards = 5;
-            } else {
-                numberOfShards = 1;
-            }
-            return numberOfShards;
+        protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+            MetaDataCreateIndexService.checkShardLimit(settings, clusterState);
         }
 
         @Override
@@ -623,9 +618,6 @@ public class MetaDataCreateIndexService {
                                       final boolean forbidPrivateIndexSettings) throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
-        Optional<String> shardAllocation = checkShardLimit(settings, clusterState);
-        shardAllocation.ifPresent(validationErrors::add);
-
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
@@ -636,15 +628,21 @@ public class MetaDataCreateIndexService {
     /**
      * Checks whether an index can be created without going over the cluster shard limit.
      *
-     * @param settings The settings of the index to be created.
-     * @param clusterState The current cluster state.
-     * @return If present, an error message to be used to reject index creation. If empty, a signal that this operation may be carried out.
+     * @param settings     the settings of the index to be created
+     * @param clusterState the current cluster state
+     * @throws ValidationException if creating this index would put the cluster over the cluster shard limit
      */
-    static Optional<String> checkShardLimit(Settings settings, ClusterState clusterState) {
-        int shardsToCreate = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings)
-            * (1 + IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+    public static void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+        final int numberOfShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
+        final int numberOfReplicas = IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings);
+        final int shardsToCreate = numberOfShards * (1 + numberOfReplicas);
 
-        return IndicesService.checkShardLimit(shardsToCreate, clusterState);
+        final Optional<String> shardLimit = IndicesService.checkShardLimit(shardsToCreate, clusterState);
+        if (shardLimit.isPresent()) {
+            final ValidationException e = new ValidationException();
+            e.addValidationError(shardLimit.get());
+            throw e;
+        }
     }
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
@@ -714,13 +712,6 @@ public class MetaDataCreateIndexService {
                                    Settings targetIndexSettings) {
         IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
         IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
-        if (sourceMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            // ensure we have a single type since this would make the splitting code considerably more complex
-            // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
-            // since in 5.x we don't have a setting to artificially set the number of routing shards
-            throw new IllegalStateException("source index created version is too old to apply a split operation");
-        }
-
     }
 
     static IndexMetaData validateResize(ClusterState state, String sourceIndex,
@@ -762,19 +753,22 @@ public class MetaDataCreateIndexService {
             final ResizeType type,
             final boolean copySettings,
             final IndexScopedSettings indexScopedSettings) {
+
+        // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
+        // once we are allocated.
+        final String initialRecoveryIdFilter = IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id";
+
         final IndexMetaData sourceMetaData = currentState.metaData().index(resizeSourceIndex.getName());
         if (type == ResizeType.SHRINK) {
             final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, resizeSourceIndex.getName(),
                 mappingKeys, resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder
-                // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
-                // once we are allocated.
-                .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
-                    Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
+                .put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
                 // we only try once and then give up with a shrink index
                 .put("index.allocation.max_retries", 1);
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+            indexSettingsBuilder.putNull(initialRecoveryIdFilter);
         } else {
             throw new IllegalStateException("unknown resize type is " + type);
         }

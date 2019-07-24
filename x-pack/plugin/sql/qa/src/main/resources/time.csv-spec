@@ -1,0 +1,104 @@
+//
+// TIME
+//
+// All tests are run with UTC timezone
+// TODO: https://github.com/elastic/elasticsearch/issues/40779
+
+timeExtractTimeParts
+SELECT
+SECOND(CAST(birth_date AS TIME)) d,
+MINUTE(CAST(birth_date AS TIME)) m,
+HOUR(CAST(birth_date AS TIME)) h
+FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+ d:i     | m:i      | h:i
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+;
+
+timeAsFilter
+SELECT birth_date, last_name FROM "test_emp" WHERE birth_date::TIME = CAST('00:00:00' AS TIME) ORDER BY emp_no LIMIT 5;
+
+ birth_date:ts        | last_name:s
+1953-09-02 00:00:00Z  | Facello
+1964-06-02 00:00:00Z  | Simmel
+1959-12-03 00:00:00Z  | Bamford
+1954-05-01 00:00:00Z  | Koblick
+1955-01-21 00:00:00Z  | Maliniak
+;
+
+timeAsFilter_NoMatch
+SELECT count(*) FROM "test_emp" WHERE birth_date::TIME = CAST('12:34:56.789' AS TIME);
+
+ count(*):l
+0
+;
+
+timeAsOrderBy
+SELECT last_name FROM "test_emp" ORDER BY birth_date::TIME, emp_no LIMIT 5;
+
+last_name:s
+Meriste
+Lenart
+Stamatiou
+Tzvieli
+Casley
+;
+
+timeAndFunctionAsGroupingKey
+SELECT HOUR(CAST(birth_date AS TIME)) AS m, CAST(SUM(emp_no) AS INT) s FROM test_emp GROUP BY m ORDER BY m LIMIT 5;
+
+ m:i      | s:i
+null      |100445
+0         |904605
+;
+
+timeAsHavingFilter
+SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME + INTERVAL 10 MINUTES) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) = CAST('00:00:00.000' AS TIME) ORDER BY gender;
+
+minute:i    | gender:s
+10          | null
+10          | F
+10          | M
+;
+
+timeAsHavingFilterNoMatch
+SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) > CAST('00:00:00.000' AS TIME);
+
+minute:i    | gender:s
+;
+
+timeAndInterval
+SELECT HOUR(CAST('10:11:12.345' AS TIME) + INTERVAL '20' HOURS) AS h, SECOND(INTERVAL '40' SECONDS + CAST('10:11:12.345' AS TIME)) AS m;
+
+h:i       | m:i
+6         | 52
+;
+
+orderByCurrentTime
+SELECT first_name FROM test_emp ORDER BY CURRENT_TIME(), first_name LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+;
+
+// Awaits Fix https://github.com/elastic/elasticsearch/issues/40639
+groupByCurrentTime-Ignore
+SELECT MAX(salary) FROM test_emp GROUP BY CURRENT_TIME;
+
+  MAX(salary)
+---------------
+74999
+;

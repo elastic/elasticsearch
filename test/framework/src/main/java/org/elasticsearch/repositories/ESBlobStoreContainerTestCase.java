@@ -33,6 +33,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
@@ -133,6 +134,23 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
             // blob deleted, so should raise again
             expectThrows(NoSuchFileException.class, () -> container.deleteBlob(blobName));
+        }
+    }
+
+    public void testDeleteBlobs() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final List<String> blobNames = Arrays.asList("foobar", "barfoo");
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
+            byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            final BytesArray bytesArray = new BytesArray(data);
+            for (String blobName : blobNames) {
+                writeBlob(container, blobName, bytesArray, randomBoolean());
+            }
+            assertEquals(container.listBlobs().size(), 2);
+            container.deleteBlobsIgnoringIfNotExists(blobNames);
+            assertTrue(container.listBlobs().isEmpty());
+            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
         }
     }
 

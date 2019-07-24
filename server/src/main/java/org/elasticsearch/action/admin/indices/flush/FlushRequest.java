@@ -52,6 +52,12 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
         super(indices);
     }
 
+    public FlushRequest(StreamInput in) throws IOException {
+        super(in);
+        force = in.readBoolean();
+        waitIfOngoing = in.readBoolean();
+    }
+
     /**
      * Returns {@code true} iff a flush should block
      * if a another flush operation is already running. Otherwise {@code false}
@@ -99,13 +105,6 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
         super.writeTo(out);
         out.writeBoolean(force);
         out.writeBoolean(waitIfOngoing);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        force = in.readBoolean();
-        waitIfOngoing = in.readBoolean();
     }
 
     @Override

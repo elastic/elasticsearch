@@ -1,5 +1,5 @@
 [[indices-create-index]]
-== Create Index
+=== Create Index
 
 The Create Index API is used to manually create an index in Elasticsearch.  All documents in Elasticsearch
 are stored inside of one index or another.
@@ -12,7 +12,7 @@ PUT twitter
 --------------------------------------------------
 // CONSOLE
 
-This create an index named `twitter` with all default setting.
+This creates an index named `twitter` with all default setting.
 
 [NOTE]
 .Index name limitations
@@ -30,7 +30,7 @@ There are several limitations to what you can name your index.  The complete lis
 
 [float]
 [[create-index-settings]]
-=== Index Settings
+==== Index Settings
 
 Each index created can have specific settings
 associated with it, defined in the body:
@@ -76,7 +76,7 @@ that can be set when creating an index, please check the
 
 [float]
 [[mappings]]
-=== Mappings
+==== Mappings
 
 The create index API allows for providing a mapping definition:
 
@@ -102,7 +102,7 @@ include_type_name is set. For more details, please see <<removal-of-types>>.
 
 [float]
 [[create-index-aliases]]
-=== Aliases
+==== Aliases
 
 The create index API allows also to provide a set of <<indices-aliases,aliases>>:
 
@@ -125,7 +125,7 @@ PUT test
 
 [float]
 [[create-index-wait-for-active-shards]]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 By default, index creation will only return a response to the client when the primary copies of
 each shard have been started, or the request times out. The index creation response will indicate

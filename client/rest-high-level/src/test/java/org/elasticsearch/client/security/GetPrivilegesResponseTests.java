@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -139,7 +140,7 @@ public class GetPrivilegesResponseTests extends ESTestCase {
     private static GetPrivilegesResponse mutateTestItem(GetPrivilegesResponse original) {
         if (randomBoolean()) {
             Set<ApplicationPrivilege> originalPrivileges = original.getPrivileges();
-            List<ApplicationPrivilege> privileges = new ArrayList<>();
+            Set<ApplicationPrivilege> privileges = new HashSet<>();
             privileges.addAll(originalPrivileges);
             privileges.add(new ApplicationPrivilege("testapp", "all", Arrays.asList("action:login", "data:read/*", "manage:*"), null));
             return new GetPrivilegesResponse(privileges);

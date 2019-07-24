@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -118,11 +119,15 @@ public class Retry {
 
         @Override
         public void onFailure(Exception e) {
-            try {
-                listener.onFailure(e);
-            } finally {
-                if (retryCancellable != null) {
-                    retryCancellable.cancel();
+            if (e instanceof RemoteTransportException && ((RemoteTransportException) e).status() == RETRY_STATUS && backoff.hasNext()) {
+                retry(currentBulkRequest);
+            } else {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    if (retryCancellable != null) {
+                        retryCancellable.cancel();
+                    }
                 }
             }
         }

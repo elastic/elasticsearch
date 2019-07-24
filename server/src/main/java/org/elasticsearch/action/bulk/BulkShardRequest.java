@@ -33,7 +33,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     private BulkItemRequest[] items;
 
-    public BulkShardRequest() {
+    public BulkShardRequest(StreamInput in) throws IOException {
+        super(in);
+        items = new BulkItemRequest[in.readVInt()];
+        for (int i = 0; i < items.length; i++) {
+            if (in.readBoolean()) {
+                items[i] = new BulkItemRequest(in);
+            }
+        }
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -60,7 +67,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 indices.add(item.index());
             }
         }
-        return indices.toArray(new String[indices.size()]);
+        return indices.toArray(new String[0]);
     }
 
     @Override
@@ -73,17 +80,6 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 item.writeTo(out);
             } else {
                 out.writeBoolean(false);
-            }
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        items = new BulkItemRequest[in.readVInt()];
-        for (int i = 0; i < items.length; i++) {
-            if (in.readBoolean()) {
-                items[i] = BulkItemRequest.readBulkItem(in);
             }
         }
     }
@@ -114,7 +110,12 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     @Override
     public String getDescription() {
-        return "requests[" + items.length + "], index[" + index + "]";
+        final StringBuilder stringBuilder = new StringBuilder().append("requests[").append(items.length).append("], index").append(shardId);
+        final RefreshPolicy refreshPolicy = getRefreshPolicy();
+        if (refreshPolicy == RefreshPolicy.IMMEDIATE || refreshPolicy == RefreshPolicy.WAIT_UNTIL) {
+            stringBuilder.append(", refresh[").append(refreshPolicy).append(']');
+        }
+        return stringBuilder.toString();
     }
 
     @Override

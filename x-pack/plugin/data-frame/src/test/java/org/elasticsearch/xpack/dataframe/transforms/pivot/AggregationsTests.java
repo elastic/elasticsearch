@@ -15,9 +15,43 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("double", Aggregations.resolveTargetMapping("avg", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("avg", "double"));
 
+        // cardinality
+        assertEquals("long", Aggregations.resolveTargetMapping("cardinality", "int"));
+        assertEquals("long", Aggregations.resolveTargetMapping("cardinality", "double"));
+
+        // value_count
+        assertEquals("long", Aggregations.resolveTargetMapping("value_count", "int"));
+        assertEquals("long", Aggregations.resolveTargetMapping("value_count", "double"));
+
         // max
         assertEquals("int", Aggregations.resolveTargetMapping("max", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("max", "double"));
         assertEquals("half_float", Aggregations.resolveTargetMapping("max", "half_float"));
+
+        // min
+        assertEquals("int", Aggregations.resolveTargetMapping("min", "int"));
+        assertEquals("double", Aggregations.resolveTargetMapping("min", "double"));
+        assertEquals("half_float", Aggregations.resolveTargetMapping("min", "half_float"));
+
+        // sum
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", "double"));
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", "half_float"));
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", null));
+
+        // geo_centroid
+        assertEquals("geo_point", Aggregations.resolveTargetMapping("geo_centroid", "geo_point"));
+        assertEquals("geo_point", Aggregations.resolveTargetMapping("geo_centroid", null));
+
+        // scripted_metric
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", "int"));
+
+        // bucket_script
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", "int"));
+
+        // weighted_avg
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("weighted_avg", "double"));
     }
 }

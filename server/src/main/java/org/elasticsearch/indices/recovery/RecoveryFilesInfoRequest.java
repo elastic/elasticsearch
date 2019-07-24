@@ -40,33 +40,10 @@ public class RecoveryFilesInfoRequest extends TransportRequest {
 
     int totalTranslogOps;
 
-    public RecoveryFilesInfoRequest() {
-    }
-
-    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,
-                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, int totalTranslogOps) {
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
-        this.phase1FileNames = phase1FileNames;
-        this.phase1FileSizes = phase1FileSizes;
-        this.phase1ExistingFileNames = phase1ExistingFileNames;
-        this.phase1ExistingFileSizes = phase1ExistingFileSizes;
-        this.totalTranslogOps = totalTranslogOps;
-    }
-
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public RecoveryFilesInfoRequest(StreamInput in) throws IOException {
+        super(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         int size = in.readVInt();
         phase1FileNames = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -91,6 +68,25 @@ public class RecoveryFilesInfoRequest extends TransportRequest {
             phase1ExistingFileSizes.add(in.readVLong());
         }
         totalTranslogOps = in.readVInt();
+    }
+
+    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,
+                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, int totalTranslogOps) {
+        this.recoveryId = recoveryId;
+        this.shardId = shardId;
+        this.phase1FileNames = phase1FileNames;
+        this.phase1FileSizes = phase1FileSizes;
+        this.phase1ExistingFileNames = phase1ExistingFileNames;
+        this.phase1ExistingFileSizes = phase1ExistingFileSizes;
+        this.totalTranslogOps = totalTranslogOps;
+    }
+
+    public long recoveryId() {
+        return this.recoveryId;
+    }
+
+    public ShardId shardId() {
+        return shardId;
     }
 
     @Override

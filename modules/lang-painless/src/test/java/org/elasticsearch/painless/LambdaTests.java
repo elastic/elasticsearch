@@ -112,7 +112,7 @@ public class LambdaTests extends ScriptTestCase {
 
     public void testTwoLambdas() {
         assertEquals("testingcdefg", exec(
-                "org.elasticsearch.painless.FeatureTest test = new org.elasticsearch.painless.FeatureTest(2,3);" +
+                "org.elasticsearch.painless.FeatureTestObject test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
                 "return test.twoFunctionsOfX(x -> 'testing'.concat(x), y -> 'abcdefg'.substring(y))"));
     }
 

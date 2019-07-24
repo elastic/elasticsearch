@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -21,22 +21,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class RetryAction extends Action<RetryAction.Response> {
+public class RetryAction extends ActionType<RetryAction.Response> {
     public static final RetryAction INSTANCE = new RetryAction();
     public static final String NAME = "indices:admin/ilm/retry";
 
     protected RetryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, RetryAction.Response::new);
     }
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(boolean acknowledged) {
@@ -50,6 +46,12 @@ public class RetryAction extends Action<RetryAction.Response> {
 
         public Request(String... indices) {
             this.indices = indices;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.indices = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         public Request() {
@@ -79,13 +81,6 @@ public class RetryAction extends Action<RetryAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.indices = in.readStringArray();
-            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override

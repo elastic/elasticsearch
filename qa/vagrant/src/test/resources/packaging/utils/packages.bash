@@ -47,7 +47,6 @@ export_elasticsearch_paths() {
     export ESCONFIG="/etc/elasticsearch"
     export ESDATA="/var/lib/elasticsearch"
     export ESLOG="/var/log/elasticsearch"
-    export ESPIDDIR="/var/run/elasticsearch"
     export ESENVFILE=$(env_file)
     export PACKAGE_NAME=${PACKAGE_NAME:-"elasticsearch-oss"}
 }
@@ -132,7 +131,6 @@ verify_package_installation() {
     assert_file "$ESLOG" d elasticsearch elasticsearch 2750
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
-    assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
     assert_file "$ESHOME/README.textile" f root root 644
 

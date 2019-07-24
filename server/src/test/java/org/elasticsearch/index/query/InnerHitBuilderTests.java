@@ -67,7 +67,7 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -146,7 +146,7 @@ public class InnerHitBuilderTests extends ESTestCase {
     }
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
-        innerHits.setName(randomAlphaOfLengthBetween(1, 16));
+        innerHits.setName(randomAlphaOfLengthBetween(5, 16));
         innerHits.setFrom(randomIntBetween(0, 32));
         innerHits.setSize(randomIntBetween(0, 32));
         innerHits.setExplain(randomBoolean());

@@ -22,12 +22,10 @@ package org.elasticsearch.client.security.user;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * A user to be utilized with security APIs.
@@ -36,7 +34,7 @@ import java.util.Set;
 public final class User {
 
     private final String username;
-    private final Set<String> roles;
+    private final List<String> roles;
     private final Map<String, Object> metadata;
     @Nullable private final String fullName;
     @Nullable private final String email;
@@ -50,13 +48,12 @@ public final class User {
      * @param fullName the full name of the user that may be used for display purposes
      * @param email the email address of the user
      */
-    public User(String username, Collection<String> roles, Map<String, Object> metadata, @Nullable String fullName,
+    public User(String username, List<String> roles, Map<String, Object> metadata, @Nullable String fullName,
             @Nullable String email) {
-        this.username = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
-        this.roles = Collections.unmodifiableSet(new HashSet<>(
-                Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
-        this.metadata = Collections
-                .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
+        this.username = Objects.requireNonNull(username, "`username` is required, cannot be null");
+        this.roles = List.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty list instead."));
+        this.metadata = Collections.unmodifiableMap(
+                Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
         this.fullName = fullName;
         this.email = email;
     }
@@ -67,7 +64,7 @@ public final class User {
      * @param username the username, also known as the principal, unique for in the scope of a realm
      * @param roles the roles that this user is assigned
      */
-    public User(String username, Collection<String> roles) {
+    public User(String username, List<String> roles) {
         this(username, roles, Collections.emptyMap(), null, null);
     }
 
@@ -84,7 +81,7 @@ public final class User {
      *          identified by their unique names and each represents as
      *          set of permissions. Can never be {@code null}.
      */
-    public Set<String> getRoles() {
+    public List<String> getRoles() {
         return this.roles;
     }
 

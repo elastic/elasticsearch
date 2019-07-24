@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,7 +37,8 @@ import java.util.Map;
 
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
-    public NodesInfoResponse() {
+    public NodesInfoResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public NodesInfoResponse(ClusterName clusterName, List<NodeInfo> nodes, List<FailedNodeException> failures) {
@@ -46,12 +47,12 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
     @Override
     protected List<NodeInfo> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeInfo::readNodeInfo);
+        return in.readList(NodeInfo::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
@@ -74,8 +75,8 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
 
             builder.startArray("roles");
-            for (DiscoveryNode.Role role : nodeInfo.getNode().getRoles()) {
-                builder.value(role.getRoleName());
+            for (DiscoveryNodeRole role : nodeInfo.getNode().getRoles()) {
+                builder.value(role.roleName());
             }
             builder.endArray();
 

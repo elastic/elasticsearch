@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -114,4 +115,23 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertThat(result.resultingState.metaData().index("test").getMappingVersion(), equalTo(previousVersion));
     }
 
+    public void testMappingUpdateAccepts_docAsType() throws Exception {
+        final IndexService indexService = createIndex("test",
+                client().admin().indices().prepareCreate("test").addMapping("my_type"));
+        final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest()
+                .type(MapperService.SINGLE_MAPPING_NAME);
+        request.indices(new Index[] {indexService.index()});
+        request.source("{ \"properties\": { \"foo\": { \"type\": \"keyword\" } }}");
+        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+                mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(result.executionResults.size(), equalTo(1));
+        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        MappingMetaData mappingMetaData = result.resultingState.metaData().index("test").mapping();
+        assertEquals("my_type", mappingMetaData.type());
+        assertEquals(Collections.singletonMap("properties",
+                Collections.singletonMap("foo",
+                        Collections.singletonMap("type", "keyword"))), mappingMetaData.sourceAsMap());
+    }
 }

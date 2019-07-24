@@ -33,8 +33,15 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
-import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asMillisSinceEpoch;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTimestamp;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
@@ -251,17 +258,20 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
             // TIMESTAMP. Should we consider the VARCHAR conversion as a later enhancement?
-            if (EsType.DATETIME == type) {
+            if (DATETIME == type) {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
                 if (val == null) {
                     return null;
                 }
-                return asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
+                return asDateTimeField(val, JdbcDateUtils::dateTimeAsMillisSinceEpoch, Function.identity());
             }
-            if (EsType.DATE == type) {
-                return asMillisSinceEpoch(val.toString());
+            if (DATE == type) {
+                return dateTimeAsMillisSinceEpoch(val.toString());
+            }
+            if (TIME == type) {
+                return timeAsMillisSinceEpoch(val.toString());
             }
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
@@ -277,10 +287,15 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
+        EsType type = columnType(columnIndex);
+        if (type == TIME) {
+            return new Date(0L);
+        }
+
         try {
+
             return JdbcDateUtils.asDate(val.toString());
         } catch (Exception e) {
-            EsType type = columnType(columnIndex);
             throw new SQLException(
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
         }
@@ -294,11 +309,14 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         EsType type = columnType(columnIndex);
-        if (type == EsType.DATE) {
+        if (type == DATE) {
             return new Time(0L);
         }
 
         try {
+            if (type == TIME) {
+                return timeAsTime(val.toString());
+            }
             return JdbcDateUtils.asTime(val.toString());
         } catch (Exception e) {
             throw new SQLException(
@@ -313,13 +331,16 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
+        EsType type = columnType(columnIndex);
         try {
             if (val instanceof Number) {
-                return JdbcDateUtils.asTimestamp(((Number) val).longValue());
+                return asTimestamp(((Number) val).longValue());
             }
-            return JdbcDateUtils.asTimestamp(val.toString());
+            if (type == TIME) {
+                return timeAsTimestamp(val.toString());
+            }
+            return asTimestamp(val.toString());
         } catch (Exception e) {
-            EsType type = columnType(columnIndex);
             throw new SQLException(
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), e);
         }
@@ -342,7 +363,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
         EsType type = columnType(columnIndex);
-        if (type == EsType.DATE) {
+        if (type == DATE) {
             return new Time(0L);
         }
         return TypeConverter.convertTime(dateTimeAsMillis(columnIndex), safeCalendar(cal));
@@ -1203,6 +1224,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "%s:row %d", getClass().getSimpleName(), rowNumber);
+        return format(Locale.ROOT, "%s:row %d:cursor size %d:%s", getClass().getSimpleName(), rowNumber, cursor.batchSize(),
+                cursor.columns());
     }
 }

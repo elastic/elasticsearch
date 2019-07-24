@@ -1,5 +1,5 @@
 [[cluster-stats]]
-== Cluster Stats
+=== Cluster Stats
 
 The Cluster Stats API allows to retrieve statistics from a cluster wide perspective.
 The API returns basic index metrics (shard numbers, store size, memory usage) and
@@ -109,7 +109,8 @@ Will return, for example:
          "data": 1,
          "coordinating_only": 0,
          "master": 1,
-         "ingest": 1
+         "ingest": 1,
+         "voting_only": 0
       },
       "versions": [
          "{version}"
@@ -155,10 +156,12 @@ Will return, for example:
          "max_uptime_in_millis": 13737,
          "versions": [
             {
-               "version": "1.8.0_74",
-               "vm_name": "Java HotSpot(TM) 64-Bit Server VM",
-               "vm_version": "25.74-b02",
+               "version": "12",
+               "vm_name": "OpenJDK 64-Bit Server VM",
+               "vm_version": "12+33",
                "vm_vendor": "Oracle Corporation",
+               "bundled_jdk": true,
+               "using_bundled_jdk": true,
                "count": 1
             }
          ],
@@ -193,21 +196,33 @@ Will return, for example:
       },
       "discovery_types": {
         ...
-      }
+      },
+      "packaging_types": [
+        {
+          ...
+        }
+      ]
    }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
 // TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
+// TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
+// TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
+// TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 // These replacements do a few things:
 // 1. Ignore the contents of the `plugins` object because we don't know all of
 //    the plugins that will be in it. And because we figure folks don't need to
 //    see an exhaustive list anyway.
-// 2. Similarly, ignore the contents of `network_types` and `discovery_types`.
-// 3. All of the numbers and strings on the right hand side of *every* field in
+// 2. Similarly, ignore the contents of `network_types`, `discovery_types`, and
+//    `packaging_types`.
+// 3. Ignore the contents of the (nodes) count object, as what's shown here
+//    depends on the license. Voting-only nodes are e.g. only shown when this
+//    test runs with a basic license.
+// 4. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
 

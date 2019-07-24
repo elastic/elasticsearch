@@ -1,8 +1,8 @@
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.RestIntegTestTask
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -29,17 +29,17 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.505'
+  'aws': '1.11.562'
 ]
 
 dependencies {
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "com.amazonaws:jmespath-java:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
@@ -65,17 +65,18 @@ bundlePlugin {
   }
 }
 
-task testRepositoryCreds(type: RandomizedTestingTask) {
+task testRepositoryCreds(type: Test) {
   include '**/RepositoryCredentialsTests.class'
   include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
 check.dependsOn(testRepositoryCreds)
 
-unitTest {
+test {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
   exclude '**/S3BlobStoreRepositoryTests.class'
+  exclude '**/S3RepositoryThirdPartyTests.class'
 }
 
 boolean useFixture = false
@@ -99,6 +100,8 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
+
+boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(project.rootProject.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
@@ -135,6 +138,14 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
 
+task thirdPartyTest(type: Test) {
+  include '**/S3RepositoryThirdPartyTests.class'
+  systemProperty 'test.s3.account', s3PermanentAccessKey
+  systemProperty 'test.s3.key', s3PermanentSecretKey
+  systemProperty 'test.s3.bucket', s3PermanentBucket
+  systemProperty 'test.s3.base', s3PermanentBasePath
+}
+
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
   task writeDockerFile {
@@ -152,6 +163,24 @@ if (useFixture) {
     dependsOn(writeDockerFile)
   }
 
+  def minioAddress = {
+    int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+    assert minioPort > 0
+    'http://127.0.0.1:' + minioPort
+  }
+
+  normalization {
+    runtimeClasspath {
+      // ignore generated address file for the purposes of build avoidance
+      ignore 's3Fixture.address'
+    }
+  }
+
+  thirdPartyTest {
+    dependsOn tasks.bundlePlugin, tasks.postProcessFixture
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
+  }
+
   task integTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
@@ -165,16 +194,11 @@ if (useFixture) {
     }
   }
   check.dependsOn(integTestMinio)
-  BuildPlugin.requireDocker(tasks.integTestMinio)
 
   testClusters.integTestMinio {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-    setting 's3.client.integration_test_permanent.endpoint', {
-      int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
-      assert minioPort > 0
-      return 'http://127.0.0.1:' + minioPort
-    }
+    setting 's3.client.integration_test_permanent.endpoint', minioAddress, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
   }
 
@@ -192,6 +216,8 @@ if (useFixture) {
   }
 }
 
+check.dependsOn(thirdPartyTest)
+
 File parentFixtures = new File(project.buildDir, "fixtures")
 File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')
 
@@ -205,7 +231,8 @@ task s3FixtureProperties {
       "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
       "s3Fixture.temporary_session_token": s3TemporarySessionToken,
       "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
-      "s3Fixture.ecs_bucket_name"        : s3ECSBucket
+      "s3Fixture.ecs_bucket_name"        : s3ECSBucket,
+      "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
   ]
 
   doLast {
@@ -233,7 +260,8 @@ processTestResources {
           'ec2_bucket': s3EC2Bucket,
           'ec2_base_path': s3EC2BasePath,
           'ecs_bucket': s3ECSBucket,
-          'ecs_base_path': s3ECSBasePath
+          'ecs_base_path': s3ECSBasePath,
+          'disable_chunked_encoding': s3DisableChunkedEncoding,
   ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
@@ -252,12 +280,12 @@ testClusters.integTest {
   keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
   if (useFixture) {
-    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }
-    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
+    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
@@ -279,9 +307,9 @@ if (useFixture) {
   check.dependsOn(integTestECS)
 
   testClusters.integTestECS {
-    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }, IGNORE_VALUE
     plugin file(tasks.bundlePlugin.archiveFile)
-    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }
+    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }, IGNORE_VALUE
   }
 }
 
@@ -300,114 +328,17 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency 
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
 
-// jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
-if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.ignoreJarHellWithJDK (
-    'javax.xml.bind.Binder',
-    'javax.xml.bind.ContextFinder$1',
-    'javax.xml.bind.ContextFinder',
-    'javax.xml.bind.DataBindingException',
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.DatatypeConverterImpl$CalendarFormatter',
-    'javax.xml.bind.DatatypeConverterImpl',
-    'javax.xml.bind.DatatypeConverterInterface',
-    'javax.xml.bind.Element',
-    'javax.xml.bind.GetPropertyAction',
-    'javax.xml.bind.JAXB$Cache',
-    'javax.xml.bind.JAXB',
-    'javax.xml.bind.JAXBContext',
-    'javax.xml.bind.JAXBElement$GlobalScope',
-    'javax.xml.bind.JAXBElement',
-    'javax.xml.bind.JAXBException',
-    'javax.xml.bind.JAXBIntrospector',
-    'javax.xml.bind.JAXBPermission',
-    'javax.xml.bind.MarshalException',
-    'javax.xml.bind.Marshaller$Listener',
-    'javax.xml.bind.Marshaller',
-    'javax.xml.bind.Messages',
-    'javax.xml.bind.NotIdentifiableEvent',
-    'javax.xml.bind.ParseConversionEvent',
-    'javax.xml.bind.PrintConversionEvent',
-    'javax.xml.bind.PropertyException',
-    'javax.xml.bind.SchemaOutputResolver',
-    'javax.xml.bind.TypeConstraintException',
-    'javax.xml.bind.UnmarshalException',
-    'javax.xml.bind.Unmarshaller$Listener',
-    'javax.xml.bind.Unmarshaller',
-    'javax.xml.bind.UnmarshallerHandler',
-    'javax.xml.bind.ValidationEvent',
-    'javax.xml.bind.ValidationEventHandler',
-    'javax.xml.bind.ValidationEventLocator',
-    'javax.xml.bind.ValidationException',
-    'javax.xml.bind.Validator',
-    'javax.xml.bind.WhiteSpaceProcessor',
-    'javax.xml.bind.annotation.DomHandler',
-    'javax.xml.bind.annotation.W3CDomHandler',
-    'javax.xml.bind.annotation.XmlAccessOrder',
-    'javax.xml.bind.annotation.XmlAccessType',
-    'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType',
-    'javax.xml.bind.annotation.XmlAnyAttribute',
-    'javax.xml.bind.annotation.XmlAnyElement',
-    'javax.xml.bind.annotation.XmlAttachmentRef',
-    'javax.xml.bind.annotation.XmlAttribute',
-    'javax.xml.bind.annotation.XmlElement$DEFAULT',
-    'javax.xml.bind.annotation.XmlElement',
-    'javax.xml.bind.annotation.XmlElementDecl$GLOBAL',
-    'javax.xml.bind.annotation.XmlElementDecl',
-    'javax.xml.bind.annotation.XmlElementRef$DEFAULT',
-    'javax.xml.bind.annotation.XmlElementRef',
-    'javax.xml.bind.annotation.XmlElementRefs',
-    'javax.xml.bind.annotation.XmlElementWrapper',
-    'javax.xml.bind.annotation.XmlElements',
-    'javax.xml.bind.annotation.XmlEnum',
-    'javax.xml.bind.annotation.XmlEnumValue',
-    'javax.xml.bind.annotation.XmlID',
-    'javax.xml.bind.annotation.XmlIDREF',
-    'javax.xml.bind.annotation.XmlInlineBinaryData',
-    'javax.xml.bind.annotation.XmlList',
-    'javax.xml.bind.annotation.XmlMimeType',
-    'javax.xml.bind.annotation.XmlMixed',
-    'javax.xml.bind.annotation.XmlNs',
-    'javax.xml.bind.annotation.XmlNsForm',
-    'javax.xml.bind.annotation.XmlRegistry',
-    'javax.xml.bind.annotation.XmlRootElement',
-    'javax.xml.bind.annotation.XmlSchema',
-    'javax.xml.bind.annotation.XmlSchemaType$DEFAULT',
-    'javax.xml.bind.annotation.XmlSchemaType',
-    'javax.xml.bind.annotation.XmlSchemaTypes',
-    'javax.xml.bind.annotation.XmlSeeAlso',
-    'javax.xml.bind.annotation.XmlTransient',
-    'javax.xml.bind.annotation.XmlType$DEFAULT',
-    'javax.xml.bind.annotation.XmlType',
-    'javax.xml.bind.annotation.XmlValue',
-    'javax.xml.bind.annotation.adapters.CollapsedStringAdapter',
-    'javax.xml.bind.annotation.adapters.HexBinaryAdapter',
-    'javax.xml.bind.annotation.adapters.NormalizedStringAdapter',
-    'javax.xml.bind.annotation.adapters.XmlAdapter',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
-    'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
-    'javax.xml.bind.attachment.AttachmentMarshaller',
-    'javax.xml.bind.attachment.AttachmentUnmarshaller',
-    'javax.xml.bind.helpers.AbstractMarshallerImpl',
-    'javax.xml.bind.helpers.AbstractUnmarshallerImpl',
-    'javax.xml.bind.helpers.DefaultValidationEventHandler',
-    'javax.xml.bind.helpers.Messages',
-    'javax.xml.bind.helpers.NotIdentifiableEventImpl',
-    'javax.xml.bind.helpers.ParseConversionEventImpl',
-    'javax.xml.bind.helpers.PrintConversionEventImpl',
-    'javax.xml.bind.helpers.ValidationEventImpl',
-    'javax.xml.bind.helpers.ValidationEventLocatorImpl',
-    'javax.xml.bind.util.JAXBResult',
-    'javax.xml.bind.util.JAXBSource$1',
-    'javax.xml.bind.util.JAXBSource',
-    'javax.xml.bind.util.Messages',
-    'javax.xml.bind.util.ValidationEventCollector'
-  )
-} else {
-  thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
-}
+thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
+

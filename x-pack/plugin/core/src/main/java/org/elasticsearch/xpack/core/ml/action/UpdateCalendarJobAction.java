@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,17 +18,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> {
+public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Response> {
     public static final UpdateCalendarJobAction INSTANCE = new UpdateCalendarJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/jobs/update";
 
     private UpdateCalendarJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutCalendarAction.Response newResponse() {
-        return new PutCalendarAction.Response();
+        super(NAME, PutCalendarAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -38,6 +33,13 @@ public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> 
         private String jobIdsToRemoveExpression;
 
         public Request() {
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendarId = in.readString();
+            jobIdsToAddExpression = in.readOptionalString();
+            jobIdsToRemoveExpression = in.readOptionalString();
         }
 
         /**
@@ -65,14 +67,6 @@ public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendarId = in.readString();
-            jobIdsToAddExpression = in.readOptionalString();
-            jobIdsToRemoveExpression = in.readOptionalString();
         }
 
         @Override

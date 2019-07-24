@@ -88,8 +88,9 @@ A JSON service account file looks like this:
 ----
 // NOTCONSOLE
 
-To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must add a setting name of the form `gcs.client.NAME.credentials_file`, where `NAME`
-is the name of the client configuration for the repository. The implicit client
+To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must
+add a `file` setting with the name `gcs.client.NAME.credentials_file` using the `add-file` subcommand.
+ `NAME` is the name of the client configuration for the repository. The implicit client
 name is `default`, but a different client name can be specified in the
 repository settings with the `client` key. 
 
@@ -151,7 +152,7 @@ Some settings are sensitive and must be stored in the
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add-file gcs.client.default.credentials_file
+bin/elasticsearch-keystore add-file gcs.client.default.credentials_file /path/service-account.json
 ----
 
 The following are the available client settings. Those that must be stored in the keystore
@@ -232,7 +233,7 @@ The following settings are supported:
 
     Big files can be broken down into chunks during snapshotting if needed.
     The chunk size can be specified in bytes or by using size value notation,
-    i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
+    e.g. , `10m` or `5k`. Defaults to `100m`, which is the maximum permitted.
 
 `compress`::
 
@@ -244,7 +245,8 @@ include::repository-shared-settings.asciidoc[]
 
 `application_name`::
 
-    deprecated[7.0.0, This setting is now defined in the <<repository-gcs-client, client settings>>]
+    deprecated:[6.3.0, "This setting is now defined in the <<repository-gcs-client, client settings>>."]
+    Name used by the client when it uses the Google Cloud Storage service.
 
 [[repository-gcs-bucket-permission]]
 ===== Recommended Bucket Permission

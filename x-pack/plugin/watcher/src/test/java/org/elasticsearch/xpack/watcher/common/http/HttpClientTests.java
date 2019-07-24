@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import com.sun.net.httpserver.HttpsServer;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -28,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -44,9 +47,12 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -190,6 +196,7 @@ public class HttpClientTests extends ESTestCase {
             Settings settings2 = Settings.builder()
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
+                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
                 .setSecureSettings(secureSettings)
                 .build();
 
@@ -218,6 +225,7 @@ public class HttpClientTests extends ESTestCase {
             Settings settings2 = Settings.builder()
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
+                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
                 .setSecureSettings(secureSettings)
                 .build();
 
@@ -234,6 +242,7 @@ public class HttpClientTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
+            .putList("xpack.http.ssl.supported_protocols", getProtocols())
             .setSecureSettings(secureSettings)
             .build();
 
@@ -370,6 +379,7 @@ public class HttpClientTests extends ESTestCase {
         Settings serverSettings = Settings.builder()
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
+            .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
             .setSecureSettings(serverSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(serverSettings, environment);
@@ -379,11 +389,12 @@ public class HttpClientTests extends ESTestCase {
             proxyServer.start();
 
             Settings settings = Settings.builder()
-                    .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
-                    .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
-                    .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
+                .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
+                .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
                 .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
-                    .build();
+                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .build();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)
@@ -736,5 +747,23 @@ public class HttpClientTests extends ESTestCase {
 
     private String getWebserverUri() {
         return String.format(Locale.ROOT, "http://%s:%s", webServer.getHostName(), webServer.getPort());
+    }
+
+    /**
+     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
+     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
+     */
+    private static List<String> getProtocols() {
+        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
+            return List.of("TLSv1.2");
+        } else {
+            JavaVersion full =
+                AccessController.doPrivileged(
+                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
+                return List.of("TLSv1.2");
+            }
+        }
+        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

@@ -14,17 +14,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +38,7 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCase<DeprecationInfoAction.Response> {
+public class DeprecationInfoActionResponseTests extends AbstractWireSerializingTestCase<DeprecationInfoAction.Response> {
 
     @Override
     protected DeprecationInfoAction.Response createTestInstance() {
@@ -58,8 +58,8 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
     }
 
     @Override
-    protected DeprecationInfoAction.Response createBlankInstance() {
-        return new DeprecationInfoAction.Response();
+    protected Writeable.Reader<DeprecationInfoAction.Response> instanceReader() {
+        return DeprecationInfoAction.Response::new;
     }
 
     public void testFrom() throws IOException {
@@ -86,18 +86,10 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         boolean indexIssueFound = randomBoolean();
         boolean mlIssueFound = randomBoolean();
         DeprecationIssue foundIssue = DeprecationIssueTests.createTestInstance();
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (s) -> clusterIssueFound ? foundIssue : null
-            ));
-        List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (idx) -> indexIssueFound ? foundIssue : null
-            ));
+        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
+        List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks = List.of((idx) -> indexIssueFound ? foundIssue : null);
         List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> mlSettingsChecks =
-                Collections.unmodifiableList(Arrays.asList(
-                        (idx, unused) -> mlIssueFound ? foundIssue : null
-                ));
+                List.of((idx, unused) -> mlIssueFound ? foundIssue : null);
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),

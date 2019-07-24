@@ -222,17 +222,11 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.readFrom(in);
-            docWriteRequest = indexRequest;
+            docWriteRequest = new IndexRequest(in);
         } else if (type == 1) {
-            DeleteRequest deleteRequest = new DeleteRequest();
-            deleteRequest.readFrom(in);
-            docWriteRequest = deleteRequest;
+            docWriteRequest = new DeleteRequest(in);
         } else if (type == 2) {
-            UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.readFrom(in);
-            docWriteRequest = updateRequest;
+            docWriteRequest = new UpdateRequest(in);
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }

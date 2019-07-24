@@ -54,14 +54,14 @@ public class Packages {
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
 
-    public static void assertInstalled(Distribution distribution) {
+    public static void assertInstalled(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
         assertThat(status.exitCode, is(0));
 
         Platforms.onDPKG(() -> assertFalse(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find()));
     }
 
-    public static void assertRemoved(Distribution distribution) {
+    public static void assertRemoved(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
 
         Platforms.onRPM(() -> assertThat(status.exitCode, is(1)));
@@ -133,7 +133,7 @@ public class Packages {
         }
     }
 
-    public static void remove(Distribution distribution) {
+    public static void remove(Distribution distribution) throws Exception {
         final Shell sh = new Shell();
 
         Platforms.onRPM(() -> {
@@ -172,8 +172,6 @@ public class Packages {
             es.plugins,
             es.modules
         ).forEach(dir -> assertThat(dir, file(Directory, "root", "root", p755)));
-
-        assertThat(es.pidDir, file(Directory, "elasticsearch", "elasticsearch", p755));
 
         Stream.of(
             es.data,
@@ -246,7 +244,6 @@ public class Packages {
             "elasticsearch-certgen",
             "elasticsearch-certutil",
             "elasticsearch-croneval",
-            "elasticsearch-migrate",
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",

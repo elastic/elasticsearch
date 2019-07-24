@@ -3,10 +3,6 @@
 
 ---
 "annotated highlighter on annotated text":
-  - skip:
-      version: " - 6.4.99"
-      reason: Annotated text type introduced in 6.5.0
-
   - do:
       indices.create:
         index: annotated
@@ -45,10 +41,6 @@
 
 ---
 "issue 39395 thread safety issue -requires multiple calls to reveal":
-  - skip:
-      version: " - 6.4.99"
-      reason: Annotated text type introduced in 6.5.0
-
   - do:
       indices.create:
         index: annotated

@@ -39,15 +39,22 @@ package org.elasticsearch.common.component;
  * }
  * </pre>
  * <p>
+ * NOTE: The Lifecycle class is thread-safe. It is also possible to prevent concurrent state transitions
+ * by locking on the Lifecycle object itself. This is typically useful when chaining multiple transitions.
+ * <p>
  * Note, closed is only allowed to be called when stopped, so make sure to stop the component first.
- * Here is how the logic can be applied:
+ * Here is how the logic can be applied. A lock of the {@code lifecycleState} object is taken so that
+ * another thread cannot move the state from {@code STOPPED} to {@code STARTED} before it has moved to
+ * {@code CLOSED}.
  * <pre>
  * public void close() {
- *  if (lifecycleState.started()) {
- *      stop();
- *  }
- *  if (!lifecycleState.moveToClosed()) {
- *      return;
+ *  synchronized (lifecycleState) {
+ *      if (lifecycleState.started()) {
+ *          stop();
+ *      }
+ *      if (!lifecycleState.moveToClosed()) {
+ *          return;
+ *      }
  *  }
  *  // perform close logic here
  * }
@@ -116,7 +123,7 @@ public class Lifecycle {
     }
 
 
-    public boolean moveToStarted() throws IllegalStateException {
+    public synchronized boolean moveToStarted() throws IllegalStateException {
         State localState = this.state;
         if (localState == State.INITIALIZED || localState == State.STOPPED) {
             state = State.STARTED;
@@ -145,7 +152,7 @@ public class Lifecycle {
         throw new IllegalStateException("Can't move to stopped with unknown state");
     }
 
-    public boolean moveToStopped() throws IllegalStateException {
+    public synchronized boolean moveToStopped() throws IllegalStateException {
         State localState = state;
         if (localState == State.STARTED) {
             state = State.STOPPED;
@@ -171,7 +178,7 @@ public class Lifecycle {
         return true;
     }
 
-    public boolean moveToClosed() throws IllegalStateException {
+    public synchronized boolean moveToClosed() throws IllegalStateException {
         State localState = state;
         if (localState == State.CLOSED) {
             return false;

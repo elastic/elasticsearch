@@ -23,11 +23,15 @@ import java.util.Locale;
 
 import static java.util.stream.Collectors.toList;
 
-public abstract class StringUtils {
+public final class StringUtils {
+
+    private StringUtils() {}
 
     public static final String EMPTY = "";
     public static final String NEW_LINE = "\n";
     public static final String SQL_WILDCARD = "%";
+
+    private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 
     //CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {
@@ -84,10 +88,6 @@ public abstract class StringUtils {
             }
         }
         return sb.toString();
-    }
-
-    public static String nullAsEmpty(String string) {
-        return string == null ? EMPTY : string;
     }
 
     // % -> .*
@@ -239,6 +239,34 @@ public abstract class StringUtils {
         return wildcard.toString();
     }
 
+    public static String likeToUnescaped(String pattern, char escape) {
+        StringBuilder wildcard = new StringBuilder(pattern.length());
+
+        boolean escaped = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char curr = pattern.charAt(i);
+
+            if (escaped == false && curr == escape && escape != 0) {
+                escaped = true;
+            } else {
+                if (escaped == true && (curr == '%' || curr == '_' || curr == escape)) {
+                    wildcard.append(curr);
+                } else {
+                    if (escaped) {
+                        wildcard.append(escape);
+                    }
+                    wildcard.append(curr);
+                }
+                escaped = false;
+            }
+        }
+        // corner-case when the escape char is the last char
+        if (escaped == true) {
+            wildcard.append(escape);
+        }
+        return wildcard.toString();
+    }
+
     public static String toString(SearchSourceBuilder source) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true)) {
             source.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -295,6 +323,18 @@ public abstract class StringUtils {
                 // parsing fails, go through
             }
             throw new SqlIllegalArgumentException("Cannot parse number [{}]", string);
+        }
+    }
+
+    public static String ordinal(int i) {
+        switch (i % 100) {
+            case 11:
+            case 12:
+            case 13:
+                return i + "th";
+            default:
+                return i + INTEGER_ORDINALS[i % 10];
+
         }
     }
 }

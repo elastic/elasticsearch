@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -91,8 +91,8 @@ public class ShardStateActionTests extends ESTestCase {
 
     private static class TestShardStateAction extends ShardStateAction {
         TestShardStateAction(ClusterService clusterService, TransportService transportService,
-                             AllocationService allocationService, RoutingService routingService) {
-            super(clusterService, transportService, allocationService, routingService, THREAD_POOL);
+                             AllocationService allocationService, RerouteService rerouteService) {
+            super(clusterService, transportService, allocationService, rerouteService, THREAD_POOL);
         }
 
         private Runnable onBeforeWaitForNewMasterAndRetry;
@@ -519,11 +519,7 @@ public class ShardStateActionTests extends ESTestCase {
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
-            if (version.onOrAfter(Version.V_6_7_0)) {
-                assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
-            } else {
-                assertThat(deserialized.primaryTerm, equalTo(0L));
-            }
+            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
         }
     }

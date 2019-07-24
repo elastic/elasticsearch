@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
@@ -101,40 +103,64 @@ public class SysColumns extends Command {
         String cluster = session.indexResolver().clusterName();
 
         // bail-out early if the catalog is present but differs
-        if (Strings.hasText(catalog) && !cluster.equals(catalog)) {
+        if (Strings.hasText(catalog) && cluster.equals(catalog) == false) {
             listener.onResponse(Rows.empty(output));
             return;
         }
 
+        // save original index name (as the pattern can contain special chars)
+        String indexName = index != null ? index :
+            (pattern != null ? StringUtils.likeToUnescaped(pattern.pattern(), pattern.escape()) : "");
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
+        boolean includeFrozen = session.configuration().includeFrozen();
 
-        session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
-            List<List<?>> rows = new ArrayList<>();
-            for (EsIndex esIndex : esIndices) {
-                fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
-            }
+        // special case for '%' (translated to *)
+        if ("*".equals(idx)) {
+            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, ActionListener.wrap(esIndices -> {
+                List<List<?>> rows = new ArrayList<>();
+                for (EsIndex esIndex : esIndices) {
+                    fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
+                }
 
-            listener.onResponse(Rows.of(output, rows));
-        }, listener::onFailure));
+                listener.onResponse(Rows.of(output, rows));
+            }, listener::onFailure));
+        }
+        // otherwise use a merged mapping
+        else {
+            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, ActionListener.wrap(r -> {
+                List<List<?>> rows = new ArrayList<>();
+                // populate the data only when a target is found
+                if (r.isValid() == true) {
+                    EsIndex esIndex = r.get();
+                    fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
+                }
+
+                listener.onResponse(Rows.of(output, rows));
+            }, listener::onFailure));
+        }
     }
 
     static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
             Pattern columnMatcher, Mode mode) {
-        int pos = 0;
+        fillInRows(clusterName, indexName, mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode);
+    }
+
+    private static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
+            Pattern columnMatcher, Counter position, Mode mode) {
         boolean isOdbcClient = mode == Mode.ODBC;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            pos++; // JDBC is 1-based so we start with 1 here
+            position.addAndGet(1); // JDBC is 1-based so we start with 1 here
 
             String name = entry.getKey();
             name = prefix != null ? prefix + "." + name : name;
             EsField field = entry.getValue();
             DataType type = field.getDataType();
             
-            // skip the nested, object and unsupported types for JDBC and ODBC
-            if (type.isPrimitive() || false == Mode.isDriver(mode)) {
+            // skip the nested, object and unsupported types
+            if (type.isPrimitive()) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(asList(clusterName,
                             // schema is not supported
@@ -162,7 +188,7 @@ public class SysColumns extends Command {
                             // char octet length
                             type.isString() || type == DataType.BINARY ? type.size : null,
                             // position
-                            pos,
+                            (int) position.get(),
                             "YES",
                             null,
                             null,
@@ -173,8 +199,9 @@ public class SysColumns extends Command {
                             ));
                 }
             }
-            if (field.getProperties() != null) {
-                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, mode);
+            // skip nested fields
+            if (field.getProperties() != null && type != DataType.NESTED) {
+                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, position, mode);
             }
         }
     }

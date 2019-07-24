@@ -26,14 +26,37 @@ public final class DataFrameField {
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField FREQUENCY = new ParseField("frequency");
     public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
+    public static final ParseField FIELD = new ParseField("field");
+    public static final ParseField SYNC = new ParseField("sync");
+    public static final ParseField TIME_BASED_SYNC = new ParseField("time");
+    public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
+
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+    /**
+     * Fields for checkpointing
+     */
+    // the timestamp of the checkpoint, mandatory
+    public static final ParseField CHECKPOINT = new ParseField("checkpoint");
+    public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
+    public static final ParseField POSITION = new ParseField("position");
+    public static final ParseField CHECKPOINT_PROGRESS = new ParseField("checkpoint_progress");
+    public static final ParseField TIMESTAMP_MILLIS = new ParseField("timestamp_millis");
+    public static final ParseField TIMESTAMP = new ParseField("timestamp");
+    // checkpoint for for time based sync
+    // TODO: consider a lower bound for usecases where you want to transform on a window of a stream
+    public static final ParseField TIME_UPPER_BOUND_MILLIS = new ParseField("time_upper_bound_millis");
+    public static final ParseField TIME_UPPER_BOUND = new ParseField("time_upper_bound");
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
     public static final String REST_BASE_PATH = "/_data_frame/";
     public static final String REST_BASE_PATH_TRANSFORMS = REST_BASE_PATH + "transforms/";
     public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
-    public static final String DATA_FRAME_TRANSFORM_AUDIT_ID_FIELD = "transform_id";
+    public static final String TRANSFORM_ID = "transform_id";
 
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";

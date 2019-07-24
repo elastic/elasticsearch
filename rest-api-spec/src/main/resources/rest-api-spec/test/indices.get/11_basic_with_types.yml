@@ -44,9 +44,7 @@ setup:
 
 ---
 "Test include_type_name":
-  - skip:
-      version: " - 6.6.99"
-      reason: the include_type_name parameter is not supported before 6.7
+
 
   - do:
       indices.get:
@@ -66,9 +64,6 @@ setup:
 
 ---
 "Test include_type_name dafaults to false":
-  - skip:
-      version: " - 6.99.99"
-      reason: the include_type_name parameter default is different on 6.x and 7.0, so only test this on 7.0 clusters
 
   - do:
       indices.get:

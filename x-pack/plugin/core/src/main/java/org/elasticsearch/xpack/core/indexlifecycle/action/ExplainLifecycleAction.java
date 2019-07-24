@@ -6,20 +6,15 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
 
-public class ExplainLifecycleAction extends Action<ExplainLifecycleResponse> {
+public class ExplainLifecycleAction extends ActionType<ExplainLifecycleResponse> {
     public static final ExplainLifecycleAction INSTANCE = new ExplainLifecycleAction();
     public static final String NAME = "indices:admin/ilm/explain";
 
     protected ExplainLifecycleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ExplainLifecycleResponse newResponse() {
-        return new ExplainLifecycleResponse();
+        super(NAME, ExplainLifecycleResponse::new);
     }
 
 }

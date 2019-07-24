@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -32,11 +31,11 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectionManager;
@@ -82,7 +81,7 @@ public class MockTransport implements Transport, LifecycleComponent {
                                                    @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this),
             settings, this);
-        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
+        connectionManager.setDefaultNodeConnectedBehavior(cm -> Collections.emptySet());
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
             connectionManager);
@@ -164,9 +163,8 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         listener.onResponse(createConnection(node));
-        return () -> {};
     }
 
     public Connection createConnection(DiscoveryNode node) {
@@ -188,10 +186,6 @@ public class MockTransport implements Transport, LifecycleComponent {
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
     }
 
-    protected boolean nodeConnected(DiscoveryNode discoveryNode) {
-        return true;
-    }
-
     @Override
     public TransportStats getStats() {
         throw new UnsupportedOperationException();
@@ -208,7 +202,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
+    public TransportAddress[] addressesFromString(String address) {
         return new TransportAddress[0];
     }
 
@@ -238,7 +232,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public List<String> getLocalAddresses() {
+    public List<String> getDefaultSeedAddresses() {
         return Collections.emptyList();
     }
 
@@ -248,7 +242,7 @@ public class MockTransport implements Transport, LifecycleComponent {
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
         }
     }
 

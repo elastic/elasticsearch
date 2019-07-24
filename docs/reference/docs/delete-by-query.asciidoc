@@ -1,5 +1,5 @@
 [[docs-delete-by-query]]
-== Delete By Query API
+=== Delete By Query API
 
 The simplest usage of `_delete_by_query` just performs a deletion on every
 document that matches a query. Here is the API:
@@ -138,7 +138,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 
 
 [float]
-=== URL Parameters
+==== URL Parameters
 
 In addition to the standard parameters like `pretty`, the delete by query API
 also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
@@ -187,7 +187,7 @@ cause Elasticsearch to create many requests and then wait for a while before
 starting the next set. This is "bursty" instead of "smooth". The default is `-1`.
 
 [float]
-=== Response body
+==== Response body
 
 //////////////////////////
 
@@ -294,7 +294,7 @@ version conflicts.
 
 [float]
 [[docs-delete-by-query-task-api]]
-=== Works with the Task API
+==== Works with the Task API
 
 You can fetch the status of any running delete by query requests with the
 <<tasks,Task API>>:
@@ -371,7 +371,7 @@ you to delete that document.
 
 [float]
 [[docs-delete-by-query-cancel-task-api]]
-=== Works with the Cancel Task API
+==== Works with the Cancel Task API
 
 Any delete by query can be canceled using the <<tasks,task cancel API>>:
 
@@ -390,7 +390,7 @@ has been cancelled and terminates itself.
 
 [float]
 [[docs-delete-by-query-rethrottle]]
-=== Rethrottling
+==== Rethrottling
 
 The value of `requests_per_second` can be changed on a running delete by query
 using the `_rethrottle` API:
@@ -412,7 +412,7 @@ timeouts.
 
 [float]
 [[docs-delete-by-query-slice]]
-=== Slicing
+==== Slicing
 
 Delete by query supports <<sliced-scroll, sliced scroll>> to parallelize the deleting process.
 This parallelization can improve efficiency and provide a convenient way to
@@ -420,7 +420,7 @@ break the request down into smaller parts.
 
 [float]
 [[docs-delete-by-query-manual-slice]]
-==== Manual slicing
+===== Manual slicing
 
 Slice a delete by query manually by providing a slice id and total number of
 slices to each request:
@@ -495,7 +495,7 @@ Which results in a sensible `total` like this one:
 
 [float]
 [[docs-delete-by-query-automatic-slice]]
-==== Automatic slicing
+===== Automatic slicing
 
 You can also let delete-by-query automatically parallelize using
 <<sliced-scroll, sliced scroll>> to slice on `_id`. Use `slices` to specify the number of
@@ -571,17 +571,17 @@ sub-request proportionally.
 * Due to the nature of `slices` each sub-request won't get a perfectly even
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
-* Parameters like `requests_per_second` and `size` on a request with `slices`
-are distributed proportionally to each sub-request. Combine that with the point
-above about distribution being uneven and you should conclude that the using
-`size` with `slices` might not result in exactly `size` documents being
-deleted.
+* Parameters like `requests_per_second` and `max_docs` on a request with
+slices` are distributed proportionally to each sub-request. Combine that with
+the point above about distribution being uneven and you should conclude that
+using `max_docs` with `slices` might not result in exactly `max_docs` documents
+being deleted.
 * Each sub-request gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 
 [float]
 [[docs-delete-by-query-picking-slices]]
-===== Picking the number of slices
+====== Picking the number of slices
 
 If slicing automatically, setting `slices` to `auto` will choose a reasonable
 number for most indices. If you're slicing manually or otherwise tuning

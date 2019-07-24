@@ -17,9 +17,12 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.time.Clock;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -136,6 +139,10 @@ public class SchedulerEngine {
         }
     }
 
+    public Set<String> scheduledJobIds() {
+        return Collections.unmodifiableSet(new HashSet<>(schedules.keySet()));
+    }
+
     public void add(Job job) {
         ActiveSchedule schedule = new ActiveSchedule(job.getId(), job.getSchedule(), clock.millis());
         schedules.compute(schedule.name, (name, previousSchedule) -> {
@@ -197,7 +204,7 @@ public class SchedulerEngine {
             } catch (final Throwable t) {
                 /*
                  * Allowing the throwable to escape here will lead to be it being caught in FutureTask#run and set as the outcome of this
-                 * task; however, we never inspect the the outcomes of these scheduled tasks and so allowing the throwable to escape
+                 * task; however, we never inspect the outcomes of these scheduled tasks and so allowing the throwable to escape
                  * unhandled here could lead to us losing fatal errors. Instead, we rely on ExceptionsHelper#maybeDieOnAnotherThread to
                  * appropriately dispatch any error to the uncaught exception handler. We should never see an exception here as these do
                  * not escape from SchedulerEngine#notifyListeners.

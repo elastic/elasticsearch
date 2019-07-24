@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
@@ -18,22 +18,18 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response> {
+public class DeleteLifecycleAction extends ActionType<DeleteLifecycleAction.Response> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
     public static final String NAME = "cluster:admin/ilm/delete";
 
     protected DeleteLifecycleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, DeleteLifecycleAction.Response::new);
     }
 
     public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(boolean acknowledged) {
@@ -51,6 +47,11 @@ public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response
             this.policyName = policyName;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            policyName = in.readString();
+        }
+
         public Request() {
         }
 
@@ -61,12 +62,6 @@ public class DeleteLifecycleAction extends Action<DeleteLifecycleAction.Response
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            policyName = in.readString();
         }
 
         @Override

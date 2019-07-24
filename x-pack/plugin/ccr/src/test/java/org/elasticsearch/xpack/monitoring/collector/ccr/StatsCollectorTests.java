@@ -15,9 +15,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.client.CcrClient;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -33,6 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -127,7 +127,7 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         whenClusterStateWithUUID(clusterUuid);
 
         final MonitoringDoc.Node node = randomMonitoringNode(random());
-        final CcrClient client = mock(CcrClient.class);
+        final Client client = mock(Client.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final List<FollowStatsAction.StatsResponse> statuses = mockStatuses();
 
@@ -142,7 +142,7 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         final ActionFuture<CcrStatsAction.Response> future = (ActionFuture<CcrStatsAction.Response>) mock(ActionFuture.class);
         final CcrStatsAction.Response response = new CcrStatsAction.Response(autoFollowStats, statsResponse);
 
-        when(client.stats(any())).thenReturn(future);
+        when(client.execute(eq(CcrStatsAction.INSTANCE), any(CcrStatsAction.Request.class))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
         final StatsCollector collector = new StatsCollector(settings, clusterService, licenseState, client, threadContext);

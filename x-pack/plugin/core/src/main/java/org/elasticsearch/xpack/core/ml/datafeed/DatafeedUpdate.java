@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -22,7 +24,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 
 import java.io.IOException;
@@ -42,6 +46,9 @@ import java.util.stream.Collectors;
  */
 public class DatafeedUpdate implements Writeable, ToXContentObject {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DatafeedUpdate.class));
+    private static final String DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE = "The ability to update a datafeed's job_id is deprecated.";
+
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
 
     static {
@@ -53,7 +60,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 TimeValue.parseTimeValue(val, DatafeedConfig.QUERY_DELAY.getPreferredName())), DatafeedConfig.QUERY_DELAY);
         PARSER.declareString((builder, val) -> builder.setFrequency(
                 TimeValue.parseTimeValue(val, DatafeedConfig.FREQUENCY.getPreferredName())), DatafeedConfig.FREQUENCY);
-        PARSER.declareObject(Builder::setQuery, (p, c) -> QueryProvider.fromXContent(p, false), DatafeedConfig.QUERY);
+        PARSER.declareObject(Builder::setQuery, (p, c) -> QueryProvider.fromXContent(p, false, Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT),
+            DatafeedConfig.QUERY);
         PARSER.declareObject(Builder::setAggregationsSafe,
             (p, c) -> AggProvider.fromXContent(p, false),
             DatafeedConfig.AGGREGATIONS);
@@ -102,6 +110,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = scrollSize;
         this.chunkingConfig = chunkingConfig;
         this.delayedDataCheckConfig = delayedDataCheckConfig;
+        if (jobId != null) {
+            deprecationLogger.deprecated(DEPRECATION_MESSAGE_ON_JOB_ID_UPDATE);
+        }
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -134,11 +145,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        } else {
-            delayedDataCheckConfig = null;
-        }
+        delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
     }
 
     /**
@@ -181,9 +188,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalWriteable(delayedDataCheckConfig);
-        }
+        out.writeOptionalWriteable(delayedDataCheckConfig);
     }
 
     @Override
@@ -381,7 +386,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
                 && (indices == null || Objects.equals(indices, datafeed.getIndices()))
                 && (queryProvider == null || Objects.equals(queryProvider.getQuery(), datafeed.getQuery()))
-                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
+                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getScrollSize()))
                 && (aggProvider == null || Objects.equals(aggProvider.getAggs(), datafeed.getAggregations()))
                 && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
                 && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))
@@ -423,57 +428,69 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.delayedDataCheckConfig = config.delayedDataCheckConfig;
         }
 
-        public void setId(String datafeedId) {
+        public Builder setId(String datafeedId) {
             id = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
+            return this;
         }
 
-        public void setJobId(String jobId) {
+        public Builder setJobId(String jobId) {
             this.jobId = jobId;
+            return this;
         }
 
-        public void setIndices(List<String> indices) {
+        public Builder setIndices(List<String> indices) {
             this.indices = indices;
+            return this;
         }
 
-        public void setQueryDelay(TimeValue queryDelay) {
+        public Builder setQueryDelay(TimeValue queryDelay) {
             this.queryDelay = queryDelay;
+            return this;
         }
 
-        public void setFrequency(TimeValue frequency) {
+        public Builder setFrequency(TimeValue frequency) {
             this.frequency = frequency;
+            return this;
         }
 
-        public void setQuery(QueryProvider queryProvider) {
+        public Builder setQuery(QueryProvider queryProvider) {
             this.queryProvider = queryProvider;
+            return this;
         }
 
-        private void setAggregationsSafe(AggProvider aggProvider) {
+        private Builder setAggregationsSafe(AggProvider aggProvider) {
             if (this.aggProvider != null) {
                 throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
             }
             setAggregations(aggProvider);
+            return this;
         }
 
-        public void setAggregations(AggProvider aggProvider) {
+        public Builder setAggregations(AggProvider aggProvider) {
             this.aggProvider = aggProvider;
+            return this;
         }
 
-        public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
+        public Builder setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
             List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>(scriptFields);
             sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;
+            return this;
         }
 
-        public void setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
+        public Builder setDelayedDataCheckConfig(DelayedDataCheckConfig delayedDataCheckConfig) {
             this.delayedDataCheckConfig = delayedDataCheckConfig;
+            return this;
         }
 
-        public void setScrollSize(int scrollSize) {
+        public Builder setScrollSize(int scrollSize) {
             this.scrollSize = scrollSize;
+            return this;
         }
 
-        public void setChunkingConfig(ChunkingConfig chunkingConfig) {
+        public Builder setChunkingConfig(ChunkingConfig chunkingConfig) {
             this.chunkingConfig = chunkingConfig;
+            return this;
         }
 
         public DatafeedUpdate build() {

@@ -1,41 +1,42 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
     testCompile project(':x-pack:plugin:ccr:qa:')
 }
 
-task leaderClusterTest(type: RestIntegTestTask) {
+task 'leader-cluster'(type: RestIntegTestTask) {
     mustRunAfter(precommit)
+    runner {
+        systemProperty 'tests.target_cluster', 'leader'
+    }
+}
+testClusters.'leader-cluster' {
+    testDistribution = 'DEFAULT'
 }
 
-leaderClusterTestCluster {
-    numNodes = 1
-    clusterName = 'leader-cluster'
+task 'follow-cluster'(type: RestIntegTestTask) {
+    dependsOn 'leader-cluster'
+    useCluster testClusters.'leader-cluster'
+    runner {
+        systemProperty 'tests.target_cluster', 'follow'
+        nonInputProperties.systemProperty 'tests.leader_host',
+                { "${testClusters.'follow-cluster'.getAllHttpSocketURI().get(0)}" }
+    }
 }
-
-leaderClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'leader'
-}
-
-task followClusterTest(type: RestIntegTestTask) {}
-
-followClusterTestCluster {
-    dependsOn leaderClusterTestRunner
-    numNodes = 1
-    clusterName = 'follow-cluster'
+testClusters.'follow-cluster' {
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
+    setting 'cluster.remote.leader_cluster.seeds',
+            { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
 }
 
-followClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'follow'
-    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    finalizedBy 'leaderClusterTestCluster#stop'
-}
-
-check.dependsOn followClusterTest
-unitTest.enabled = false
+check.dependsOn "follow-cluster"
+test.enabled = false

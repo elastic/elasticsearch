@@ -1,4 +1,4 @@
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import org.elasticsearch.gradle.OS
 
 evaluationDependsOn(xpackModule('core'))
 
@@ -15,34 +15,34 @@ archivesBaseName = 'x-pack-ccr'
 
 integTest.enabled = false
 
-compileJava.options.compilerArgs << "-Xlint:-try"
-compileTestJava.options.compilerArgs << "-Xlint:-try"
-
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = [ "**/CloseFollowerIndexIT.class" ]
 
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: RandomizedTestingTask,
-        group: JavaBasePlugin.VERIFICATION_GROUP,
-        description: 'Java fantasy integration tests',
-        dependsOn: unitTest.dependsOn) {
-    include '**/*IT.class'
-    exclude noSecurityManagerITClasses
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-check.dependsOn internalClusterTest
-internalClusterTest.mustRunAfter test
+task internalClusterTestNoSecurityManager(type: Test) {
+    description = 'Java fantasy integration tests with no security manager'
 
-task internalClusterTestNoSecurityManager(type: RandomizedTestingTask,
-        group: JavaBasePlugin.VERIFICATION_GROUP,
-        description: 'Java fantasy integration tests with no security manager',
-        dependsOn: unitTest.dependsOn) {
     include noSecurityManagerITClasses
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
     systemProperty 'tests.security.manager', 'false'
+    // Disable tests on windows https://github.com/elastic/elasticsearch/issues/44610
+    onlyIf { OS.WINDOWS.equals(OS.current()) == false }
 }
-internalClusterTest.dependsOn internalClusterTestNoSecurityManager
+
+// Instead we create a separate task to run the
+// tests based on ESIntegTestCase
+task internalClusterTest(type: Test) {
+    description = 'Java fantasy integration tests'
+    dependsOn internalClusterTestNoSecurityManager
+    mustRunAfter test
+
+    include '**/*IT.class'
+    exclude noSecurityManagerITClasses
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+    // Disable tests on windows https://github.com/elastic/elasticsearch/issues/44610
+    onlyIf { OS.WINDOWS.equals(OS.current()) == false }
+}
+
+check.dependsOn internalClusterTest
 
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {
@@ -54,19 +54,18 @@ gradle.projectsEvaluated {
 }
 
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compileOnly project(":server")
 
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses {
     ignoreSha 'x-pack-core'
-}
-
-run {
-    plugin xpackModule('core')
 }
 
 testingConventions.naming {

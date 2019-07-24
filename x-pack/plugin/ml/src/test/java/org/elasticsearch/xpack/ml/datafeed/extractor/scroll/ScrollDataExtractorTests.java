@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -28,8 +29,11 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -71,6 +75,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private int scrollSize;
     private long initScrollStartTime;
     private ActionFuture<ClearScrollResponse> clearScrollFuture;
+    private DatafeedTimingStatsReporter timingStatsReporter;
 
     private class TestDataExtractor extends ScrollDataExtractor {
 
@@ -81,7 +86,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         }
 
         TestDataExtractor(ScrollDataExtractorContext context) {
-            super(client, context);
+            super(client, context, timingStatsReporter);
         }
 
         @Override
@@ -121,6 +126,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -140,6 +146,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         clearScrollFuture = mock(ActionFuture.class);
         capturedClearScrollRequests = ArgumentCaptor.forClass(ClearScrollRequest.class);
         when(client.execute(same(ClearScrollAction.INSTANCE), capturedClearScrollRequests.capture())).thenReturn(clearScrollFuture);
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(JobResultsPersister.class));
     }
 
     public void testSinglePageExtraction() throws IOException {
@@ -296,6 +303,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createErrorResponse());
         assertThat(extractor.hasNext(), is(true));
         expectThrows(IOException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        assertThat(capturedClearScrollIds.size(), equalTo(1));
     }
 
     public void testExtractionGivenInitSearchResponseHasShardFailures() throws IOException {
@@ -305,6 +315,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(IOException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        // We should clear the scroll context twice: once for the first search when we retry
+        // and once after the retry where we'll have an exception
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() throws IOException {
@@ -341,6 +356,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
         expectThrows(IOException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testResetScollUsesLastResultTimestamp() throws IOException {
@@ -397,6 +415,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testSearchPhaseExecutionExceptionOnInitScroll() throws IOException {
@@ -408,7 +429,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         expectThrows(IOException.class, extractor::next);
 
         List<String> capturedClearScrollIds = getCapturedClearScrollIds();
-        assertThat(capturedClearScrollIds.isEmpty(), is(true));
+        // We should clear the scroll context twice: once for the first search when we retry
+        // and once after the retry where we'll have an exception
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testDomainSplitScriptField() throws IOException {
@@ -490,12 +513,14 @@ public class ScrollDataExtractorTests extends ESTestCase {
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]),
             new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         return searchResponse;
     }
 
     private SearchResponse createErrorResponse() {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR);
+        when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         return searchResponse;
     }
 
@@ -505,6 +530,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         when(searchResponse.getShardFailures()).thenReturn(
                 new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed"))});
         when(searchResponse.getFailedShards()).thenReturn(1);
+        when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         return searchResponse;
     }
 

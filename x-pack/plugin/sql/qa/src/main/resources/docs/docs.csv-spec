@@ -93,11 +93,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
-library        |BASE TABLE 
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS          
+library        |BASE TABLE     |INDEX    
 
 // end::showTables
 ;
@@ -106,9 +106,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX    
 
 // end::showTablesLikeExact
 ;
@@ -117,10 +117,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS             
 
 // end::showTablesLikeWildcard
 ;
@@ -130,9 +130,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX     
 
 // end::showTablesLikeOneChar
 ;
@@ -141,20 +141,20 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX        
 
 // end::showTablesLikeMixed
 ;
 
 showTablesLikeEscape
-schema::name:s|type:s
+schema::name:s|type:s|kind:s
 // tag::showTablesLikeEscape
 SHOW TABLES LIKE 'emp!%' ESCAPE '!';
 
-     name      |     type      
----------------+---------------
+     name      |     type      |     kind      
+---------------+---------------+---------------
 
 // end::showTablesLikeEscape
 ;
@@ -164,13 +164,32 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS  
 
 // end::showTablesEsMultiIndex
 ;
+
+
+//
+// include FROZEN
+//
+showTablesIncludeFrozen
+// tag::showTablesIncludeFrozen
+SHOW TABLES INCLUDE FROZEN;
+
+     name      |     type      |     kind      
+---------------+---------------+---------------
+archive        |BASE TABLE     |FROZEN INDEX
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS          
+library        |BASE TABLE     |INDEX    
+
+// end::showTablesIncludeFrozen
+;
+
 
 ///////////////////////////////
 //
@@ -182,7 +201,7 @@ showFunctions
 // tag::showFunctions
 SHOW FUNCTIONS;
 
-      name       |     type      
+      name       |     type
 -----------------+---------------
 AVG              |AGGREGATE      
 COUNT            |AGGREGATE
@@ -202,16 +221,20 @@ STDDEV_POP       |AGGREGATE
 SUM_OF_SQUARES   |AGGREGATE      
 VAR_POP          |AGGREGATE      
 HISTOGRAM        |GROUPING
+CASE             |CONDITIONAL
 COALESCE         |CONDITIONAL
 GREATEST         |CONDITIONAL
 IFNULL           |CONDITIONAL
+IIF              |CONDITIONAL
 ISNULL           |CONDITIONAL
 LEAST            |CONDITIONAL
 NULLIF           |CONDITIONAL
 NVL              |CONDITIONAL
 CURDATE          |SCALAR
 CURRENT_DATE     |SCALAR
+CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
+CURTIME          |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
 DAYOFMONTH       |SCALAR         
@@ -302,13 +325,21 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 SUBSTRING        |SCALAR         
-UCASE            |SCALAR         
+UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
 DATABASE         |SCALAR
 USER             |SCALAR
+ST_ASTEXT        |SCALAR
+ST_ASWKT         |SCALAR
+ST_DISTANCE      |SCALAR
+ST_GEOMETRYTYPE  |SCALAR
+ST_GEOMFROMTEXT  |SCALAR
+ST_WKTTOSQL      |SCALAR
+ST_X             |SCALAR
+ST_Y             |SCALAR
+ST_Z             |SCALAR
 SCORE            |SCORE
-
 // end::showFunctions
 ;
 
@@ -459,6 +490,17 @@ SELECT * FROM "emp" LIMIT 1;
 // end::fromTableQuoted
 ;
 
+fromTableIncludeFrozen
+// tag::fromTableIncludeFrozen
+SELECT * FROM FROZEN archive LIMIT 1;
+
+     author      |        name        |  page_count   |    release_date    
+-----------------+--------------------+---------------+--------------------
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
+
+// end::fromTableIncludeFrozen
+;
+
 fromTableQuoted
 // tag::fromTablePatternQuoted
 SELECT emp_no FROM "e*p" LIMIT 1;
@@ -601,8 +643,8 @@ M              |57
 ;
 
 groupByAndAggExpression
-// tag::groupByAndAggExpression
 schema::g:s|salary:i
+// tag::groupByAndAggExpression
 SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
@@ -959,12 +1001,13 @@ Frank Herbert  |God Emperor of Dune|7.0029488
 
 optionalParamsForMatch
 // tag::optionalParamsForMatch
-SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=or;cutoff_frequency=0.2');
+SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=OR;fuzziness=AUTO:1,5;minimum_should_match=1')
+ORDER BY SCORE() DESC LIMIT 2;
 
      author      |                name                |    SCORE()
 -----------------+------------------------------------+---------------
-Peter F. Hamilton|Pandora's Star                      |3.0997515
 Douglas Adams    |The Hitchhiker's Guide to the Galaxy|3.1756816
+Peter F. Hamilton|Pandora's Star                      |3.0997515
 
 // end::optionalParamsForMatch
 ;
@@ -1985,9 +2028,80 @@ SELECT TRUNCATE(-345.153, 1) AS trimmed;
 
 ///////////////////////////////
 //
-// Null handling
+// Conditional
 //
 ///////////////////////////////
+
+case
+schema::case:s
+// tag::case
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 <= 3 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+search
+// end::case
+;
+
+caseReturnNull
+schema::case:s
+// tag::caseReturnNull
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+null
+// end::caseReturnNull
+;
+
+caseWithElse
+schema::case:s
+// tag::caseWithElse
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithElse
+;
+
+caseWithOperand
+schema::case:s
+// tag::caseWithOperand
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 5 THEN 'elasticsearch'
+       END AS "case";
+
+    case
+---------------
+elasticsearch
+// end::caseWithOperand
+;
+
+caseWithOperandAndElse
+schema::case:s
+// tag::caseWithOperandAndElse
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 3 THEN 'elasticsearch'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithOperandAndElse
+;
 
 coalesceReturnNonNull
 // tag::coalesceReturnNonNull
@@ -2018,6 +2132,29 @@ SELECT IFNULL('elastic', null) AS "ifnull";
 ---------------
 elastic
 // end::ifNullReturnFirst
+;
+
+
+iifWithDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithDefaultValue
+SELECT IIF(1 < 2, 'TRUE', 'FALSE') AS result1, IIF(1 > 2, 'TRUE', 'FALSE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |FALSE
+// end::iifWithDefaultValue
+;
+
+iifWithoutDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithoutDefaultValue
+SELECT IIF(1 < 2, 'TRUE') AS result1, IIF(1 > 2 , 'TRUE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |null
+// end::iifWithoutDefaultValue
 ;
 
 
@@ -2359,18 +2496,28 @@ SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('19
 
 
 currentDate-Ignore
-// tag::curDate
-SELECT CURRENT_TIMESTAMP AS result;
+// tag::currentDate
+SELECT CURRENT_DATE AS result;
 
          result
 ------------------------
 2018-12-12
-// end::curDate
+// end::currentDate
 ;
 
 currentDateFunction-Ignore
+// tag::currentDateFunction
+SELECT CURRENT_DATE() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::currentDateFunction
+;
+
+curDateFunction-Ignore
 // tag::curDateFunction
-SELECT CURRENT_TIMESTAMP() AS result;
+SELECT CURDATE() AS result;
 
          result
 ------------------------
@@ -2390,17 +2537,74 @@ SELECT TODAY() AS result;
 
 filterToday
 // tag::filterToday
-SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 25 YEARS ORDER BY first_name ASC LIMIT 5;
+SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 35 YEARS ORDER BY first_name ASC LIMIT 5;
 
  first_name
 ------------
-Kazuhito
-Kenroku
-Lillian
-Mayumi
-Mingsen
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
 // end::filterToday
 ;
+
+
+currentTime-Ignore
+// tag::currentTime
+SELECT CURRENT_TIME AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTime
+;
+
+currentTimeFunction-Ignore
+// tag::currentTimeFunction
+SELECT CURRENT_TIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTimeFunction
+;
+
+curTimeFunction-Ignore
+// tag::curTimeFunction
+SELECT CURTIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::curTimeFunction
+;
+
+currentTimeFunctionPrecision-Ignore
+// tag::currentTimeFunctionPrecision
+SELECT CURRENT_TIME(1) AS result;
+
+         result
+------------------------
+12:31:27.2Z
+// end::currentTimeFunctionPrecision
+;
+
+
+filterCurrentTime-Ignore
+// tag::filterCurrentTime
+SELECT first_name FROM emp WHERE CAST(hire_date AS TIME) > CURRENT_TIME() - INTERVAL 20 MINUTES ORDER BY first_name ASC LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+// end::filterCurrentTime
+;
+
 
 currentTimestamp-Ignore
 // tag::curTs
@@ -2485,3 +2689,25 @@ SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_n
  Anoosh        |Peyn
  Arumugam      |Ossenbruggen
 ;
+
+simpleLikeOperator
+// tag::simpleLike
+SELECT author, name FROM library WHERE name LIKE 'Dune%';
+
+    author     |     name
+---------------+---------------
+Frank Herbert  |Dune
+Frank Herbert  |Dune Messiah
+// end::simpleLike
+;
+
+simpleRLikeOperator
+// tag::simpleRLike
+SELECT author, name FROM library WHERE name RLIKE 'Child.* Dune';
+
+    author     |      name
+---------------+----------------
+Frank Herbert  |Children of Dune
+// end::simpleRLike
+;
+

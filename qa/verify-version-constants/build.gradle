@@ -52,7 +52,7 @@ for (Version version : bwcVersions.indexCompatible) {
     bwcTest.dependsOn(versionBwcTest)
 }
 
-unitTest.enabled = false
+test.enabled = false
 
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {

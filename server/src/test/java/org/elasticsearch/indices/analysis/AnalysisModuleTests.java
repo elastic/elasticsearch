@@ -131,25 +131,13 @@ public class AnalysisModuleTests extends ESTestCase {
         testSimpleConfiguration(settings);
     }
 
-    public void testAnalyzerAliasNotAllowedPost5x() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.analyzer.foobar.type", "standard")
-            .put("index.analysis.analyzer.foobar.alias","foobaz")
-            // analyzer aliases were removed in v5.0.0 alpha6
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, null))
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
-        AnalysisRegistry registry = getNewRegistry(settings);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(registry, settings));
-        assertEquals("setting [index.analysis.analyzer.foobar.alias] is not supported", e.getMessage());
-    }
-
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
+        Version version = VersionUtils.randomVersion(random());
         Settings settings2 = Settings.builder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_0_0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
                 .build();
         AnalysisRegistry newRegistry = getNewRegistry(settings2);
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
@@ -162,9 +150,9 @@ public class AnalysisModuleTests extends ESTestCase {
 
         // analysis service has the expected version
         assertThat(indexAnalyzers.get("standard").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertEquals(Version.V_6_0_0.luceneVersion,
+        assertEquals(version.luceneVersion,
                 indexAnalyzers.get("standard").analyzer().getVersion());
-        assertEquals(Version.V_6_0_0.luceneVersion,
+        assertEquals(version.luceneVersion,
                 indexAnalyzers.get("stop").analyzer().getVersion());
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
@@ -276,8 +264,8 @@ public class AnalysisModuleTests extends ESTestCase {
             @Override
             public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
                 // Need mock keyword tokenizer here, because alpha / beta versions are broken up by the dash.
-                return singletonMap("keyword", (indexSettings, environment, name, settings) ->
-                    () -> new MockTokenizer(MockTokenizer.KEYWORD, false));
+                return singletonMap("keyword", (indexSettings, environment, name, settings)
+                    -> TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
             }
         })).getAnalysisRegistry();
 

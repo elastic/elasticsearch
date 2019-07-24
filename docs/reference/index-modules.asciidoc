@@ -36,7 +36,7 @@ specific index module:
 
 `index.number_of_shards`::
 
-    The number of primary shards that an index should have.  Defaults to 5.
+    The number of primary shards that an index should have.  Defaults to 1.
     This setting can only be set at index creation time.  It cannot be
     changed on a closed index. Note: the number of shards are limited to `1024` per
     index. This limitation is a safety limit to prevent accidental creation of indices
@@ -45,26 +45,17 @@ specific index module:
     part of the cluster.
 
 `index.shard.check_on_startup`::
-+
---
+
 Whether or not shards should be checked for corruption before opening. When
-corruption is detected, it will prevent the shard from being opened. Accepts:
-
-`false`::
-
-    (default) Don't check for corruption when opening a shard.
-
-`checksum`::
-
-    Check for physical corruption.
-
-`true`::
-
-    Check for both physical and logical corruption. This is much more
-    expensive in terms of CPU and memory usage.
-
-WARNING: Expert only. Checking shards may take a lot of time on large indices.
---
+corruption is detected, it will prevent the shard from being opened.
+Accepts:
+`false`::: (default) Don't check for corruption when opening a shard.
+`checksum`::: Check for physical corruption.
+`true`::: Check for both physical and logical corruption. This is much more
+expensive in terms of CPU and memory usage.
++
+WARNING: Expert only. Checking shards may take a lot of time on large
+indices.
 
 [[index-codec]] `index.codec`::
 
@@ -82,6 +73,11 @@ WARNING: Expert only. Checking shards may take a lot of time on large indices.
     Defaults to 1 and can only be set at index creation time. This value must be less
     than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
     See <<routing-index-partition>> for more details about how this setting is used.
+
+[[load-fixed-bitset-filters-eagerly]] `index.load_fixed_bitset_filters_eagerly`::
+
+    Indicates whether <<query-filter-context, cached filters>> are pre-loaded for
+    nested queries. Possible values are `true` (default) and `false`.
 
 [float]
 [[dynamic-index-settings]]
@@ -128,7 +124,7 @@ specific index module:
     The maximum value of `from + size` for searches to this index. Defaults to
     `10000`. Search requests take heap memory and time proportional to
     `from + size` and this limits that memory. See
-    <<search-request-scroll,Scroll>> or <<search-request-search-after,Search After>> for a more efficient alternative
+    <<request-body-search-scroll,Scroll>> or <<request-body-search-search-after,Search After>> for a more efficient alternative
     to raising this.
 
 `index.max_inner_result_window`::
@@ -179,8 +175,8 @@ specific index module:
 
 `index.blocks.write`::
 
-    Set to `true` to disable data write operations against the index. Unlike `read_only`, 
-    this setting does not affect metadata. For instance, you can close an index with a `write` 
+    Set to `true` to disable data write operations against the index. Unlike `read_only`,
+    this setting does not affect metadata. For instance, you can close an index with a `write`
     block, but not an index with a `read_only` block.
 
 `index.blocks.metadata`::
@@ -203,6 +199,7 @@ specific index module:
      This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
      Defaults to `1000000`.
 
+[[index-max-terms-count]]
  `index.max_terms_count`::
 
     The maximum number of terms that can be used in Terms Query.
@@ -280,6 +277,13 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
+[float]
+[[x-pack-index-settings]]
+=== [xpack]#{xpack} index settings#
+
+<<ilm-settings,{ilm-cap}>>::
+
+    Specify the lifecycle policy and rollover alias for an index.
 --
 
 include::index-modules/analysis.asciidoc[]

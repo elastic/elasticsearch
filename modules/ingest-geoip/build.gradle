@@ -41,9 +41,6 @@ task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
 
 project.bundlePlugin.dependsOn(copyDefaultGeoIp2DatabaseFiles)
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked,-serial"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
 bundlePlugin {
   from("${project.buildDir}/ingest-geoip") {
     into '/'

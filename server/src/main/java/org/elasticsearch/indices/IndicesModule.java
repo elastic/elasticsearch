@@ -55,13 +55,11 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
@@ -110,7 +108,7 @@ public class IndicesModule extends AbstractModule {
         );
     }
 
-    private Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
 
         // builtin mappers
@@ -168,7 +166,7 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(builtInMetadataMappers);
     }
 
-    private static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
         int i = 0;
@@ -243,8 +241,6 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
-        bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
-        bind(GlobalCheckpointSyncAction.class).asEagerSingleton();
         bind(TransportResyncReplicationAction.class).asEagerSingleton();
         bind(PrimaryReplicaSyncer.class).asEagerSingleton();
     }

@@ -47,11 +47,11 @@ public abstract class IndexerJobStats {
     private final long indexFailures;
     private final long searchFailures;
 
-    public IndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+    public IndexerJobStats(long numPages, long numInputDocuments, long numOutputDocuments, long numInvocations,
                            long indexTime, long searchTime, long indexTotal, long searchTotal, long indexFailures, long searchFailures) {
         this.numPages = numPages;
         this.numInputDocuments = numInputDocuments;
-        this.numOuputDocuments = numOuputDocuments;
+        this.numOuputDocuments = numOutputDocuments;
         this.numInvocations = numInvocations;
         this.indexTime = indexTime;
         this.indexTotal = indexTotal;

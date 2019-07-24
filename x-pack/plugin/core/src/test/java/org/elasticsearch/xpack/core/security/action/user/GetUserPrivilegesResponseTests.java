@@ -48,10 +48,10 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse();
+
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        copy.readFrom(in);
+        final GetUserPrivilegesResponse copy = new GetUserPrivilegesResponse(in);
 
         assertThat(copy.getClusterPrivileges(), equalTo(original.getClusterPrivileges()));
         assertThat(copy.getConditionalClusterPrivileges(), equalTo(original.getConditionalClusterPrivileges()));

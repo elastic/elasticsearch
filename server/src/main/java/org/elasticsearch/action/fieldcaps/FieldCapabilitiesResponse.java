@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -42,31 +45,53 @@ import java.util.stream.Collectors;
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
+    private static final ParseField INDICES_FIELD = new ParseField("indices");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
 
-    private Map<String, Map<String, FieldCapabilities>> responseMap;
-    private List<FieldCapabilitiesIndexResponse> indexResponses;
+    private final String[] indices;
+    private final Map<String, Map<String, FieldCapabilities>> responseMap;
+    private final List<FieldCapabilitiesIndexResponse> indexResponses;
 
-    FieldCapabilitiesResponse(Map<String, Map<String, FieldCapabilities>> responseMap) {
-        this(responseMap, Collections.emptyList());
+    FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap) {
+        this(indices, responseMap, Collections.emptyList());
     }
 
     FieldCapabilitiesResponse(List<FieldCapabilitiesIndexResponse> indexResponses) {
-        this(Collections.emptyMap(), indexResponses);
+        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses);
     }
 
-    private FieldCapabilitiesResponse(Map<String, Map<String, FieldCapabilities>> responseMap,
+    private FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap,
                                       List<FieldCapabilitiesIndexResponse> indexResponses) {
         this.responseMap = Objects.requireNonNull(responseMap);
         this.indexResponses = Objects.requireNonNull(indexResponses);
+        this.indices = indices;
+    }
+
+    public FieldCapabilitiesResponse(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            indices = in.readStringArray();
+        } else {
+            indices = Strings.EMPTY_ARRAY;
+        }
+        this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
+        indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
     }
 
     /**
      * Used for serialization
      */
     FieldCapabilitiesResponse() {
-        this(Collections.emptyMap(), Collections.emptyList());
+        this(Strings.EMPTY_ARRAY, Collections.emptyMap(), Collections.emptyList());
     }
+
+    /**
+     * Get the concrete list of indices that were requested.
+     */
+    public String[] getIndices() {
+        return indices;
+    }
+
 
     /**
      * Get the field capabilities map.
@@ -91,35 +116,33 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         return responseMap.get(field);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.responseMap =
-            in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
-        indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
-    }
-
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
         return in.readMap(StreamInput::readString, FieldCapabilities::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            out.writeStringArray(indices);
+        }
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
         out.writeList(indexResponses);
     }
 
-    private static void writeField(StreamOutput out,
-                           Map<String, FieldCapabilities> map) throws IOException {
+    private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
         out.writeMap(map, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-            .field(FIELDS_FIELD.getPreferredName(), responseMap)
-            .endObject();
+        if (indexResponses.size() > 0) {
+            throw new IllegalStateException("cannot serialize non-merged response");
+        }
+        builder.startObject();
+        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
+        builder.endObject();
+        return builder;
     }
 
     public static FieldCapabilitiesResponse fromXContent(XContentParser parser) throws IOException {
@@ -129,11 +152,14 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER =
         new ConstructingObjectParser<>("field_capabilities_response", true,
-            a -> new FieldCapabilitiesResponse(
-                ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[0]).stream()
-                    .collect(Collectors.toMap(Tuple::v1, Tuple::v2))));
+            a -> {
+                List<String> indices = a[0] == null ? Collections.emptyList() : (List<String>) a[0];
+                return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new),
+                    ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+            });
 
     static {
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), INDICES_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
             Map<String, FieldCapabilities> typeToCapabilities = parseTypeToCapabilities(p, n);
             return new Tuple<>(n, typeToCapabilities);
@@ -158,14 +184,21 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
-
-        return responseMap.equals(that.responseMap);
+        return Arrays.equals(indices, that.indices) &&
+            Objects.equals(responseMap, that.responseMap) &&
+            Objects.equals(indexResponses, that.indexResponses);
     }
 
     @Override
     public int hashCode() {
-        return responseMap.hashCode();
+        int result = Objects.hash(responseMap, indexResponses);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

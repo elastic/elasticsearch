@@ -1,11 +1,16 @@
+[role="xpack"]
+[testenv="basic"]
 [[sparse-vector]]
 === Sparse vector datatype
+++++
+<titleabbrev>Sparse vector</titleabbrev>
+++++
 
 experimental[]
 
 A `sparse_vector` field stores sparse vectors of float values.
 The maximum number of dimensions that can be in a vector should
-not exceed 500. The number of dimensions can be
+not exceed 1024. The number of dimensions can be
 different across documents. A `sparse_vector` field is
 a single-valued field.
 

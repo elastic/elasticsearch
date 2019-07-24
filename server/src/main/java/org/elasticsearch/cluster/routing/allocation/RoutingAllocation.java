@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * The {@link RoutingAllocation} keep the state of the current allocation
@@ -215,7 +214,7 @@ public class RoutingAllocation {
         if (ignore == null) {
             return emptySet();
         }
-        return unmodifiableSet(new HashSet<>(ignore));
+        return Set.copyOf(ignore);
     }
 
     /**

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -42,6 +41,22 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private String[] runAs = Strings.EMPTY_ARRAY;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
+
+    public PutRoleRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+        clusterPrivileges = in.readStringArray();
+        int indicesSize = in.readVInt();
+        indicesPrivileges = new ArrayList<>(indicesSize);
+        for (int i = 0; i < indicesSize; i++) {
+            indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
+        }
+        applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
+        conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
+        runAs = in.readStringArray();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        metadata = in.readMap();
+    }
 
     public PutRoleRequest() {
     }
@@ -159,25 +174,6 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
-        clusterPrivileges = in.readStringArray();
-        int indicesSize = in.readVInt();
-        indicesPrivileges = new ArrayList<>(indicesSize);
-        for (int i = 0; i < indicesSize; i++) {
-            indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
-            conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
-        }
-        runAs = in.readStringArray();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        metadata = in.readMap();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
@@ -186,10 +182,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
             index.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeList(applicationPrivileges);
-            ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
-        }
+        out.writeList(applicationPrivileges);
+        ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeMap(metadata);

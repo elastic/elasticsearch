@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
+import static org.elasticsearch.geo.utils.Geohash.addNeighborsAtLevel;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;
@@ -273,7 +273,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("ezs42e");
-        addNeighbors("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
+        addNeighborsAtLevel("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             assertThat(internalQueryContext.context, isIn(locations));
             assertThat(internalQueryContext.boost, equalTo(1));
@@ -292,7 +292,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         assertThat(internalQueryContexts.size(), equalTo(1 + 8));
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
-        addNeighbors("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
+        addNeighborsAtLevel("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             assertThat(internalQueryContext.context, isIn(locations));
             assertThat(internalQueryContext.boost, equalTo(1));
@@ -316,11 +316,11 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> locations = new ArrayList<>();
         locations.add("wh0n94");
         locations.add("w");
-        addNeighbors("w", 1, locations);
+        addNeighborsAtLevel("w", 1, locations);
         locations.add("wh");
-        addNeighbors("wh", 2, locations);
+        addNeighborsAtLevel("wh", 2, locations);
         locations.add("wh0");
-        addNeighbors("wh0", 3, locations);
+        addNeighborsAtLevel("wh0", 3, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             assertThat(internalQueryContext.context, isIn(locations));
             assertThat(internalQueryContext.boost, equalTo(10));
@@ -354,15 +354,15 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
-        addNeighbors("w", 1, firstLocations);
+        addNeighborsAtLevel("w", 1, firstLocations);
         firstLocations.add("wh");
-        addNeighbors("wh", 2, firstLocations);
+        addNeighborsAtLevel("wh", 2, firstLocations);
         firstLocations.add("wh0");
-        addNeighbors("wh0", 3, firstLocations);
+        addNeighborsAtLevel("wh0", 3, firstLocations);
         Collection<String> secondLocations = new ArrayList<>();
         secondLocations.add("w5cx04");
         secondLocations.add("w5cx0");
-        addNeighbors("w5cx0", 5, secondLocations);
+        addNeighborsAtLevel("w5cx0", 5, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             if (firstLocations.contains(internalQueryContext.context)) {
                 assertThat(internalQueryContext.boost, equalTo(10));
@@ -397,12 +397,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Collection<String> firstLocations = new ArrayList<>();
         firstLocations.add("wh0n94");
         firstLocations.add("w");
-        addNeighbors("w", 1, firstLocations);
+        addNeighborsAtLevel("w", 1, firstLocations);
         firstLocations.add("wh");
-        addNeighbors("wh", 2, firstLocations);
+        addNeighborsAtLevel("wh", 2, firstLocations);
         Collection<String> secondLocations = new ArrayList<>();
         secondLocations.add("w5cx04");
-        addNeighbors("w5cx04", 6, secondLocations);
+        addNeighborsAtLevel("w5cx04", 6, secondLocations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
             if (firstLocations.contains(internalQueryContext.context)) {
                 assertThat(internalQueryContext.boost, equalTo(10));

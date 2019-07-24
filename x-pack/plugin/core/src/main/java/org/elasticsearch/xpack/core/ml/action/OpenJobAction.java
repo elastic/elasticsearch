@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -34,18 +34,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class OpenJobAction extends Action<AcknowledgedResponse> {
+public class OpenJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final OpenJobAction INSTANCE = new OpenJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/open";
 
     private OpenJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -73,7 +68,8 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
+            jobParams = new JobParams(in);
         }
 
         public Request() {
@@ -86,12 +82,6 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobParams = new JobParams(in);
         }
 
         @Override
@@ -170,9 +160,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         public JobParams(StreamInput in) throws IOException {
             jobId = in.readString();
             timeout = TimeValue.timeValueMillis(in.readVLong());
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                job = in.readOptionalWriteable(Job::new);
-            }
+            job = in.readOptionalWriteable(Job::new);
         }
 
         public String getJobId() {
@@ -209,9 +197,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(jobId);
             out.writeVLong(timeout.millis());
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeOptionalWriteable(job);
-            }
+            out.writeOptionalWriteable(job);
         }
 
         @Override

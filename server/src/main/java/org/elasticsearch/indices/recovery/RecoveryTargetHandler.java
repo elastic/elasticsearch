@@ -26,7 +26,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
-import java.io.IOException;
 import java.util.List;
 
 public interface RecoveryTargetHandler {
@@ -65,6 +64,11 @@ public interface RecoveryTargetHandler {
      *                                            the primary shard when capturing these operations. This value is at least as high as the
      *                                            max_seq_no_of_updates on the primary was when any of these ops were processed on it.
      * @param retentionLeases                     the retention leases on the primary
+     * @param mappingVersionOnPrimary             the mapping version which is at least as up to date as the mapping version that the
+     *                                            primary used to index translog {@code operations} in this request.
+     *                                            If the mapping version on the replica is not older this version, we should not retry on
+     *                                            {@link org.elasticsearch.index.mapper.MapperException}; otherwise we should wait for a
+     *                                            new mapping then retry.
      * @param listener                            a listener which will be notified with the local checkpoint on the target
      *                                            after these operations are successfully indexed on the target.
      */
@@ -74,6 +78,7 @@ public interface RecoveryTargetHandler {
             long maxSeenAutoIdTimestampOnPrimary,
             long maxSeqNoOfUpdatesOrDeletesOnPrimary,
             RetentionLeases retentionLeases,
+            long mappingVersionOnPrimary,
             ActionListener<Long> listener);
 
     /**
@@ -83,15 +88,18 @@ public interface RecoveryTargetHandler {
                          List<Long> phase1FileSizes,
                          List<String> phase1ExistingFileNames,
                          List<Long> phase1ExistingFileSizes,
-                         int totalTranslogOps);
+                         int totalTranslogOps,
+                         ActionListener<Void> listener);
 
     /**
      * After all source files has been sent over, this command is sent to the target so it can clean any local
      * files that are not part of the source store
+     *
      * @param totalTranslogOps an update number of translog operations that will be replayed later on
-     * @param sourceMetaData meta data of the source store
+     * @param globalCheckpoint the global checkpoint on the primary
+     * @param sourceMetaData   meta data of the source store
      */
-    void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
+    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData, ActionListener<Void> listener);
 
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,

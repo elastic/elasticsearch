@@ -18,6 +18,12 @@
  */
 package org.elasticsearch.bwcompat;
 
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESIntegTestCase;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryStream;
@@ -25,13 +31,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -69,8 +68,8 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
             }
             throw new IllegalStateException(builder.toString());
         }
-        Path src = list[0].resolve(NodeEnvironment.NODES_FOLDER);
-        Path dest = dataDir.resolve(NodeEnvironment.NODES_FOLDER);
+        Path src = list[0].resolve("nodes");
+        Path dest = dataDir.resolve("nodes");
         assertTrue(Files.exists(src));
         Files.move(src, dest);
         assertFalse(Files.exists(src));
@@ -85,7 +84,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         String indexName = "unsupported-2.4.5";
 
         logger.info("Checking static index {}", indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getBwcIndicesPath().resolve(indexName + ".zip"));
+        Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
         assertThat(expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings))
             .getCause().getCause().getMessage(), containsString("Format version is not supported"));
     }

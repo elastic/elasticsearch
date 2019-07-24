@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -94,10 +95,19 @@ public class RepositoriesService implements ClusterStateApplier {
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         final RepositoryMetaData newRepositoryMetaData = new RepositoryMetaData(request.name(), request.type(), request.settings());
+        validate(request.name());
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
-            registrationListener = new VerifyingRegisterRepositoryListener(request.name(), listener);
+            registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
+                if (clusterStateUpdateResponse.isAcknowledged()) {
+                    // The response was acknowledged - all nodes should know about the new repository, let's verify them
+                    verifyRepository(request.name(), ActionListener.delegateFailure(delegatedListener,
+                        (innerDelegatedListener, discoveryNodes) -> innerDelegatedListener.onResponse(clusterStateUpdateResponse)));
+                } else {
+                    delegatedListener.onResponse(clusterStateUpdateResponse);
+                }
+            });
         } else {
             registrationListener = listener;
         }
@@ -111,7 +121,7 @@ public class RepositoriesService implements ClusterStateApplier {
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
+            new AckedClusterStateUpdateTask<>(request, registrationListener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -178,7 +188,7 @@ public class RepositoriesService implements ClusterStateApplier {
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("delete_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -229,27 +239,18 @@ public class RepositoriesService implements ClusterStateApplier {
                     final String verificationToken = repository.startVerification();
                     if (verificationToken != null) {
                         try {
-                            verifyAction.verify(repositoryName, verificationToken, new ActionListener<List<DiscoveryNode>>() {
-                                @Override
-                                public void onResponse(List<DiscoveryNode> verifyResponse) {
-                                    threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                                        try {
-                                            repository.endVerification(verificationToken);
-                                        } catch (Exception e) {
-                                            logger.warn(() -> new ParameterizedMessage(
-                                                "[{}] failed to finish repository verification", repositoryName), e);
-                                            listener.onFailure(e);
-                                            return;
-                                        }
-                                        listener.onResponse(verifyResponse);
-                                    });
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    listener.onFailure(e);
-                                }
-                            });
+                            verifyAction.verify(repositoryName, verificationToken, ActionListener.delegateFailure(listener,
+                                (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                    try {
+                                        repository.endVerification(verificationToken);
+                                    } catch (Exception e) {
+                                        logger.warn(() -> new ParameterizedMessage(
+                                            "[{}] failed to finish repository verification", repositoryName), e);
+                                        delegatedListener.onFailure(e);
+                                        return;
+                                    }
+                                    delegatedListener.onResponse(verifyResponse);
+                                })));
                         } catch (Exception e) {
                             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                 try {
@@ -419,46 +420,23 @@ public class RepositoriesService implements ClusterStateApplier {
         }
     }
 
-    private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
-        if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {
-            throw new IllegalStateException("trying to modify or unregister repository that is currently used ");
+    private static void validate(final String repositoryName) {
+        if (Strings.hasLength(repositoryName) == false) {
+            throw new RepositoryException(repositoryName, "cannot be empty");
+        }
+        if (repositoryName.contains("#")) {
+            throw new RepositoryException(repositoryName, "must not contain '#'");
+        }
+        if (Strings.validFileName(repositoryName) == false) {
+            throw new RepositoryException(repositoryName,
+                "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
     }
 
-    private class VerifyingRegisterRepositoryListener implements ActionListener<ClusterStateUpdateResponse> {
 
-        private final String name;
-
-        private final ActionListener<ClusterStateUpdateResponse> listener;
-
-        VerifyingRegisterRepositoryListener(String name, final ActionListener<ClusterStateUpdateResponse> listener) {
-            this.name = name;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(final ClusterStateUpdateResponse clusterStateUpdateResponse) {
-            if (clusterStateUpdateResponse.isAcknowledged()) {
-                // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                verifyRepository(name, new ActionListener<List<DiscoveryNode>>() {
-                    @Override
-                    public void onResponse(List<DiscoveryNode> verifyResponse) {
-                        listener.onResponse(clusterStateUpdateResponse);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            } else {
-                listener.onResponse(clusterStateUpdateResponse);
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
+    private void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
+        if (SnapshotsService.isRepositoryInUse(clusterState, repository) || RestoreService.isRepositoryInUse(clusterState, repository)) {
+            throw new IllegalStateException("trying to modify or unregister repository that is currently used ");
         }
     }
 }

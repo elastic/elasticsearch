@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST,
-                              numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+                              numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private final List<String> clusterAlertBlacklist =
@@ -608,7 +608,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertBusy(() -> assertThat(clusterService().state().version(), not(ClusterState.UNKNOWN_VERSION)));
 
         try (HttpExporter exporter = createHttpExporter(settings)) {
-            final CountDownLatch awaitResponseAndClose = new CountDownLatch(2);
+            final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
 
             exporter.openBulk(ActionListener.wrap(exportBulk -> {
                 final HttpExportBulk bulk = (HttpExportBulk)exportBulk;
@@ -620,9 +620,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     e -> fail(e.getMessage())
                 );
 
-                bulk.doAdd(docs);
-                bulk.doFlush(listener);
-                bulk.doClose(listener); // reusing the same listener, which is why we expect countDown x2
+                bulk.add(docs);
+                bulk.flush(listener);
             }, e -> fail("Failed to create HttpExportBulk")));
 
             // block until the bulk responds
@@ -636,7 +635,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         long intervalMillis = randomNonNegativeLong();
         MonitoringDoc.Node sourceNode = MonitoringTestUtils.randomMonitoringNode(random());
 
-        return new IndexRecoveryMonitoringDoc(clusterUUID, timestamp, intervalMillis, sourceNode, new RecoveryResponse());
+        return new IndexRecoveryMonitoringDoc(clusterUUID, timestamp, intervalMillis, sourceNode,
+            new RecoveryResponse(0, 0, 0, null, null));
     }
 
     private List<MonitoringDoc> newRandomMonitoringDocs(int nb) {

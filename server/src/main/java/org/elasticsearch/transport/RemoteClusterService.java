@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -70,15 +69,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
 
-    static {
-        // remove search.remote.* settings in 8.0.0
-        // TODO
-        // assert Version.CURRENT.major < 8;
-    }
-
-    public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
-            Setting.intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);
-
     /**
      * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
      * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
@@ -86,16 +76,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting(
                     "cluster.remote.connections_per_cluster",
-                    SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER, // the default needs to three when fallback is removed
+                    3,
                     1,
                     Setting.Property.NodeScope);
-
-    public static final Setting<TimeValue> SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING =
-            Setting.positiveTimeSetting(
-                    "search.remote.initial_connect_timeout",
-                    TimeValue.timeValueSeconds(30),
-                    Setting.Property.NodeScope,
-                    Setting.Property.Deprecated);
 
     /**
      * The initial connect timeout for remote cluster connections
@@ -103,27 +86,17 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting<TimeValue> REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING =
             Setting.positiveTimeSetting(
                     "cluster.remote.initial_connect_timeout",
-                    SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING, // the default needs to be thirty seconds when fallback is removed
                     TimeValue.timeValueSeconds(30),
                     Setting.Property.NodeScope);
-
-    public static final Setting<String> SEARCH_REMOTE_NODE_ATTRIBUTE =
-            Setting.simpleString("search.remote.node.attr", Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     /**
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
      * For instance a node can be configured with {@code node.attr.gateway: true} in order to be eligible as a gateway node between
-     * clusters. In that case {@code search.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
+     * clusters. In that case {@code cluster.remote.node.attr: gateway} can be used to filter out other nodes in the remote cluster.
      * The value of the setting is expected to be a boolean, {@code true} for nodes that can become gateways, {@code false} otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE =
-            Setting.simpleString(
-                    "cluster.remote.node.attr",
-                    SEARCH_REMOTE_NODE_ATTRIBUTE, // no default is needed when fallback is removed, use simple string which gives empty
-                    Setting.Property.NodeScope);
-
-    public static final Setting<Boolean> SEARCH_ENABLE_REMOTE_CLUSTERS =
-            Setting.boolSetting("search.remote.connect", true, Setting.Property.NodeScope, Setting.Property.Deprecated);
+            Setting.simpleString("cluster.remote.node.attr", Setting.Property.NodeScope);
 
     /**
      * If <code>true</code> connecting to remote clusters is supported on this node. If <code>false</code> this node will not establish
@@ -133,29 +106,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS =
             Setting.boolSetting(
                     "cluster.remote.connect",
-                    SEARCH_ENABLE_REMOTE_CLUSTERS, // the default needs to be true when fallback is removed
+                    true,
                     Setting.Property.NodeScope);
-
-    public static final Setting.AffixSetting<Boolean> SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE =
-            Setting.affixKeySetting(
-                    "search.remote.",
-                    "skip_unavailable",
-                    key -> boolSetting(key, false, Setting.Property.Deprecated, Setting.Property.Dynamic, Setting.Property.NodeScope),
-                    REMOTE_CLUSTERS_SEEDS);
-
-    public static final SettingUpgrader<Boolean> SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER = new SettingUpgrader<Boolean>() {
-
-        @Override
-        public Setting<Boolean> getSetting() {
-            return SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE;
-        }
-
-        @Override
-        public String getKey(final String key) {
-            return key.replaceFirst("^search", "cluster");
-        }
-
-    };
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
             Setting.affixKeySetting(
@@ -163,10 +115,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     "skip_unavailable",
                     key -> boolSetting(
                             key,
-                            // the default needs to be false when fallback is removed
-                            "_na_".equals(key)
-                                    ? SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSettingForNamespace(key)
-                                    : SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE.getConcreteSetting(key.replaceAll("^cluster", "search")),
+                            false,
                             Setting.Property.Dynamic,
                             Setting.Property.NodeScope),
                     REMOTE_CLUSTERS_SEEDS);
@@ -234,7 +183,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
                         getNodePredicate(settings), proxyAddress, connectionProfile);
                     remoteClusters.put(clusterAlias, remote);
-                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)) {
+                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)
+                        || seedsChanged(remote.getSeedNodes(), seedList)) {
                     // New ConnectionProfile. Must tear down existing connection
                     try {
                         IOUtils.close(remote);
@@ -288,10 +238,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.get(remoteCluster).isNodeConnected(node);
     }
 
-    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, Predicate<String> indexExists) {
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
         Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
         if (isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices, indexExists);
+            final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
             if (groupedIndices.isEmpty()) {
                 //search on _all in the local cluster if neither local indices nor remote indices were specified
                 originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
@@ -367,7 +317,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public void listenForUpdates(ClusterSettings clusterSettings) {
         super.listenForUpdates(clusterSettings);
         clusterSettings.addAffixUpdateConsumer(REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
-        clusterSettings.addAffixUpdateConsumer(SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE, this::updateSkipUnavailable, (alias, value) -> {});
     }
 
     private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
@@ -471,6 +420,16 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+    }
+
+    private boolean seedsChanged(final List<Tuple<String, Supplier<DiscoveryNode>>> oldSeedNodes,
+                                 final List<Tuple<String, Supplier<DiscoveryNode>>> newSeedNodes) {
+        if (oldSeedNodes.size() != newSeedNodes.size()) {
+            return true;
+        }
+        Set<String> oldSeeds = oldSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
+        Set<String> newSeeds = newSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
+        return oldSeeds.equals(newSeeds) == false;
     }
 
     /**

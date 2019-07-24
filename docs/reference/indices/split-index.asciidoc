@@ -1,5 +1,5 @@
 [[indices-split-index]]
-== Split Index
+=== Split Index
 
 The split index API allows you to split an existing index into a new index,
 where each original primary shard is split into two or more primary shards in
@@ -23,7 +23,7 @@ shards in the original index.  The default is designed to allow you to split
 by factors of 2 up to a maximum of 1024 shards.  However, the original number
 of primary shards must taken into account.  For instance, an index created
 with 5 primary shards could be split into 10, 20, 40, 80, 160, 320, or a
-maximum of 740 shards (with a single split action or multiple split actions).
+maximum of 640 shards (with a single split action or multiple split actions).
 
 If the original index contains one primary shard (or a multi-shard index has
 been <<indices-shrink-index,shrunk>> down to a single primary shard), then the
@@ -32,7 +32,7 @@ properties of the default number of routing shards will then apply to the
 newly split index.
 
 [float]
-=== How does splitting work?
+==== How does splitting work?
 
 Splitting works as follows:
 
@@ -50,7 +50,8 @@ Splitting works as follows:
   had just been re-opened.
 
 [float]
-=== Why doesn't Elasticsearch support incremental resharding?
+[[incremental-resharding]]
+==== Why doesn't Elasticsearch support incremental resharding?
 
 Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
 feature that is supported by many key-value stores. Adding a new shard and
@@ -80,7 +81,7 @@ old and new indices have respectively +M+ and +N+ shards, this has no overhead
 compared to searching an index that would have +M+N+ shards.
 
 [float]
-=== Preparing an index for splitting
+==== Preparing an index for splitting
 
 Create a new index:
 
@@ -92,7 +93,7 @@ PUT my_source_index
     "index.number_of_shards" : 1
   }
 }
--------------------------------------------------
+--------------------------------------------------
 // CONSOLE
 
 In order to split an index, the index must be marked as read-only,
@@ -116,7 +117,7 @@ PUT /my_source_index/_settings
     changes like deleting the index.
 
 [float]
-=== Splitting an index
+==== Splitting an index
 
 To split `my_source_index` into a new index called `my_target_index`, issue
 the following request:
@@ -178,7 +179,7 @@ POST my_source_index/_split/my_target_index
 NOTE: Mappings may not be specified in the `_split` request.
 
 [float]
-=== Monitoring the split process
+==== Monitoring the split process
 
 The split process can be monitored with the <<cat-recovery,`_cat recovery`
 API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
@@ -197,7 +198,7 @@ become `active`. At that  point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 [float]
-=== Wait For Active Shards
+==== Wait For Active Shards
 
 Because the split operation creates a new index to split the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting

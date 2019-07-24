@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -24,9 +26,9 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
@@ -38,6 +40,8 @@ import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
@@ -85,6 +89,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.TopHitsAgg;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
@@ -291,7 +296,7 @@ final class QueryTranslator {
                                 if (h.dataType() == DATE) {
                                     intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
                                 }
-                                // TODO: set timezone
+
                                 if (field instanceof FieldAttribute) {
                                     key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
                                 } else if (field instanceof Function) {
@@ -470,7 +475,6 @@ final class QueryTranslator {
             af.nodeString());
     }
 
-    // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
     @SuppressWarnings("rawtypes")
     static class Likes extends ExpressionTranslator<RegexMatch> {
@@ -478,34 +482,23 @@ final class QueryTranslator {
         @Override
         protected QueryTranslation asQuery(RegexMatch e, boolean onAggs) {
             Query q = null;
-            boolean inexact = true;
-            String target = null;
+            String targetFieldName = null;
 
             if (e.field() instanceof FieldAttribute) {
-                target = nameOf(((FieldAttribute) e.field()).exactAttribute());
+                targetFieldName = nameOf(((FieldAttribute) e.field()).exactAttribute());
             } else {
-                throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for LIKE",
+                throw new SqlIllegalArgumentException("Scalar function [{}] not allowed (yet) as argument for " + e.functionName(),
                         Expressions.name(e.field()));
             }
 
             if (e instanceof Like) {
                 LikePattern p = ((Like) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), p.asLuceneWildcard(), target);
-                }
-                else {
-                    q = new WildcardQuery(e.source(), nameOf(e.field()), p.asLuceneWildcard());
-                }
+                q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
             }
 
             if (e instanceof RLike) {
                 String pattern = ((RLike) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), "/" + pattern + "/", target);
-                }
-                else {
-                    q = new RegexQuery(e.source(), nameOf(e.field()), pattern);
-                }
+                q = new RegexQuery(e.source(), targetFieldName, pattern);
             }
 
             return q != null ? new QueryTranslation(wrapIfNested(q, e.field())) : null;
@@ -668,6 +661,24 @@ final class QueryTranslator {
             Object value = valueOf(bc.right());
             String format = dateFormat(bc.left());
 
+            // Possible geo optimization
+            if (bc.left() instanceof StDistance && value instanceof Number) {
+                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                    // Special case for ST_Distance translatable into geo_distance query
+                    StDistance stDistance = (StDistance) bc.left();
+                    if (stDistance.left() instanceof FieldAttribute && stDistance.right().foldable()) {
+                        Object geoShape = valueOf(stDistance.right());
+                        if (geoShape instanceof GeoShape) {
+                            Geometry geometry = ((GeoShape) geoShape).toGeometry();
+                            if (geometry instanceof Point) {
+                                String field = nameOf(stDistance.left());
+                                return new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
+                                    ((Point) geometry).getLat(), ((Point) geometry).getLon());
+                            }
+                        }
+                    }
+                }
+            }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format);
             }
@@ -966,6 +977,9 @@ final class QueryTranslator {
 
         protected static Query handleQuery(ScalarFunction sf, Expression field, Supplier<Query> query) {
             Query q = query.get();
+            if (field instanceof StDistance && q instanceof GeoDistanceQuery) {
+                return wrapIfNested(q, ((StDistance) field).left());
+            }
             if (field instanceof FieldAttribute) {
                 return wrapIfNested(q, field);
             }

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -19,7 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,20 +41,20 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequestBuilder;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
@@ -64,7 +65,6 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
-import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -95,7 +95,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
-@ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 3)
+@ClusterScope(scope = SUITE, numClientNodes = 0, maxNumDataNodes = 3)
 public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase {
 
     public static final String WATCHER_LANG = Script.DEFAULT_SCRIPT_LANG;
@@ -114,15 +114,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // watcher settings that should work despite randomization
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put("client.transport.sniff", false)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
-                .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
                 .build();
     }
 
@@ -148,11 +139,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginTypes();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     protected List<Class<? extends Plugin>> pluginTypes() {
@@ -184,7 +170,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     public void _setup() throws Exception {
         if (timeWarped()) {
             timeWarp = new TimeWarp(internalCluster().getInstances(ScheduleTriggerEngineMock.class),
-                    (ClockMock)getInstanceFromMaster(Clock.class));
+                    (ClockMock)getInstanceFromMaster(ClockHolder.class).clock);
         }
 
         if (internalCluster().size() > 0) {
@@ -292,7 +278,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);
-        boolean watchesIsAlias = client().admin().indices().prepareAliasesExist(originalIndexOrAlias).get().isExists();
+        boolean watchesIsAlias = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get().getAliases().isEmpty() == false;
         if (watchesIsAlias) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
@@ -339,10 +325,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected WatchParser watchParser() {
         return getInstanceFromMaster(WatchParser.class);
-    }
-
-    protected WatcherClient watcherClient() {
-        return randomBoolean() ? new XPackClient(client()).watcher() : new WatcherClient(client());
     }
 
     private IndexNameExpressionResolver indexNameExpressionResolver() {
@@ -489,7 +471,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected void startWatcher() throws Exception {
         assertBusy(() -> {
-            WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
+            WatcherStatsResponse watcherStatsResponse = new WatcherStatsRequestBuilder(client()).get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));
             List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes().stream()
                     .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
@@ -510,7 +492,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             boolean isAllStateStopped = states.stream().allMatch(w -> w == WatcherState.STOPPED);
             if (isAllStateStopped) {
-                assertAcked(watcherClient().prepareWatchService().start().get());
+                assertAcked(new WatcherServiceRequestBuilder(client()).start().get());
                 throw new AssertionError("all nodes are stopped, restarting");
             }
 
@@ -533,7 +515,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected void stopWatcher() throws Exception {
         assertBusy(() -> {
-            WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
+            WatcherStatsResponse watcherStatsResponse = new WatcherStatsRequestBuilder(client()).get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));
             List<Tuple<String, WatcherState>> currentStatesFromStatsRequest = watcherStatsResponse.getNodes().stream()
                     .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
@@ -544,7 +526,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             boolean isAllStateStarted = states.stream().allMatch(w -> w == WatcherState.STARTED);
             if (isAllStateStarted) {
-                assertAcked(watcherClient().prepareWatchService().stop().get());
+                assertAcked(new WatcherServiceRequestBuilder(client()).stop().get());
                 throw new AssertionError("all nodes are started, stopping");
             }
 
@@ -580,6 +562,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected static class TimeWarp {
+        private static final Logger logger = LogManager.getLogger(TimeWarp.class);
 
         private final List<ScheduleTriggerEngineMock> schedulers;
         private final ClockMock clock;
@@ -598,9 +581,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         public void trigger(String watchId, int times, TimeValue timeValue) {
-            boolean isTriggered = schedulers.stream().anyMatch(scheduler -> scheduler.trigger(watchId, times, timeValue));
-            String msg = String.format(Locale.ROOT, "could not find watch [%s] to trigger", watchId);
-            assertThat(msg, isTriggered, is(true));
+            long triggeredCount = schedulers.stream()
+                .filter(scheduler -> scheduler.trigger(watchId, times, timeValue))
+                .count();
+            String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+            if (triggeredCount > 1) {
+                logger.warn(msg);
+            }
+            assertThat(msg, triggeredCount, greaterThanOrEqualTo(1L));
         }
     }
 
@@ -631,13 +619,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         @Override
         public synchronized void applyToNode(String node, InternalTestCluster cluster) {
             if (frozen) {
-                ((ClockMock)cluster.getInstance(Clock.class, node)).freeze();
+                ((ClockMock)cluster.getInstance(ClockHolder.class, node).clock).freeze();
             }
         }
 
         @Override
         public void removeFromNode(String node, InternalTestCluster cluster) {
-            ((ClockMock)cluster.getInstance(Clock.class, node)).unfreeze();
+            ((ClockMock)cluster.getInstance(ClockHolder.class, node).clock).unfreeze();
         }
 
         @Override

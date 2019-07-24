@@ -563,7 +563,7 @@ template for all indexes that hold data that needs pre-index processing.
 [[conditionals-with-regex]]
 === Conditionals with the Regular Expressions
 The `if` conditional is implemented as a Painless script, which requires
-{painless}//painless-examples.html#modules-scripting-painless-regex[explicit support for regular expressions].
+{painless}//painless-regexes.html[explicit support for regular expressions].
 
 `script.painless.regex.enabled: true` must be set in `elasticsearch.yml` to use regular
 expressions in the `if` condition.
@@ -864,6 +864,7 @@ include::processors/foreach.asciidoc[]
 include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
+include::processors/html_strip.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]

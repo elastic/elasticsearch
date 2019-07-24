@@ -21,10 +21,8 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -37,10 +35,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,6 +57,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         ReplicationResponse> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
+    public static ActionType<ReplicationResponse> TYPE = new ActionType<>(ACTION_NAME, ReplicationResponse::new);
 
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
@@ -93,42 +90,17 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                 ThreadPool.Names.MANAGEMENT);
     }
 
-    /**
-     * Background sync the specified retention leases for the specified shard.
-     *
-     * @param shardId         the shard to sync
-     * @param retentionLeases the retention leases to sync
-     */
-    public void backgroundSync(
-            final ShardId shardId,
-            final RetentionLeases retentionLeases) {
-        Objects.requireNonNull(shardId);
-        Objects.requireNonNull(retentionLeases);
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
-            execute(
-                    new Request(shardId, retentionLeases),
-                    ActionListener.wrap(
-                            r -> {},
-                            e -> {
-                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
-                                }
-                            }));
-        }
-    }
-
     @Override
-    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
             final Request request,
-            final IndexShard primary) throws WriteStateException {
-        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(primary);
-        primary.persistRetentionLeases();
-        return new PrimaryResult<>(request, new ReplicationResponse());
+            final IndexShard primary, ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(primary);
+            primary.persistRetentionLeases();
+            return new PrimaryResult<>(request, new ReplicationResponse());
+        });
     }
 
     @Override
@@ -148,20 +120,15 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             return retentionLeases;
         }
 
-        public Request() {
-
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            retentionLeases = new RetentionLeases(in);
         }
 
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
             waitForActiveShards(ActiveShardCount.NONE);
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            retentionLeases = new RetentionLeases(in);
         }
 
         @Override
@@ -172,7 +139,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
         @Override
         public String toString() {
-            return "Request{" +
+            return "RetentionLeaseBackgroundSyncAction.Request{" +
                     "retentionLeases=" + retentionLeases +
                     ", shardId=" + shardId +
                     ", timeout=" + timeout +
@@ -184,8 +151,8 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
 }

@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -80,21 +81,6 @@ public abstract class Plugin implements Closeable {
      */
     protected Optional<String> getFeature() {
         return Optional.empty();
-    }
-
-    /**
-     * Node level guice modules.
-     */
-    public Collection<Module> createGuiceModules() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Node level services that will be automatically started/stopped/closed. This classes must be constructed
-     * by injection with guice.
-     */
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        return Collections.emptyList();
     }
 
     /**
@@ -235,6 +221,10 @@ public abstract class Plugin implements Closeable {
      * configurations like OS settings or 3rd party resources.
      */
     public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
+
+    public Set<DiscoveryNodeRole> getRoles() {
+        return Set.of();
+    }
 
     /**
      * Close the resources opened by this plugin.

@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 
@@ -31,11 +30,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -60,80 +57,18 @@ public class PutRoleRequestTests extends ESTestCase {
 
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_7_0, Version.CURRENT);
+            final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
             logger.info("Serializing with version {}", version);
             out.setVersion(version);
         }
         original.writeTo(out);
 
-        final PutRoleRequest copy = new PutRoleRequest();
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
         in.setVersion(out.getVersion());
-        copy.readFrom(in);
+        final PutRoleRequest copy = new PutRoleRequest(in);
 
         assertThat(copy.roleDescriptor(), equalTo(original.roleDescriptor()));
-    }
-
-    public void testSerializationBetweenV64AndV66() throws IOException {
-        final PutRoleRequest original = buildRandomRequest();
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.V_6_6_0);
-        out.setVersion(version);
-        original.writeTo(out);
-
-        final PutRoleRequest copy = new PutRoleRequest();
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
-        StreamInput in = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), registry);
-        in.setVersion(version);
-        copy.readFrom(in);
-
-        assertThat(copy.name(), equalTo(original.name()));
-        assertThat(copy.cluster(), equalTo(original.cluster()));
-        assertIndicesSerializedRestricted(copy.indices(), original.indices());
-        assertThat(copy.runAs(), equalTo(original.runAs()));
-        assertThat(copy.metadata(), equalTo(original.metadata()));
-        assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));
-
-        assertThat(copy.applicationPrivileges(), equalTo(original.applicationPrivileges()));
-        assertThat(copy.conditionalClusterPrivileges(), equalTo(original.conditionalClusterPrivileges()));
-    }
-
-    public void testSerializationV60AndV32() throws IOException {
-        final PutRoleRequest original = buildRandomRequest();
-
-        final BytesStreamOutput out = new BytesStreamOutput();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_2);
-        out.setVersion(version);
-        original.writeTo(out);
-
-        final PutRoleRequest copy = new PutRoleRequest();
-        final StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
-        copy.readFrom(in);
-
-        assertThat(copy.name(), equalTo(original.name()));
-        assertThat(copy.cluster(), equalTo(original.cluster()));
-        assertIndicesSerializedRestricted(copy.indices(), original.indices());
-        assertThat(copy.runAs(), equalTo(original.runAs()));
-        assertThat(copy.metadata(), equalTo(original.metadata()));
-        assertThat(copy.getRefreshPolicy(), equalTo(original.getRefreshPolicy()));
-
-        assertThat(copy.applicationPrivileges(), iterableWithSize(0));
-        assertThat(copy.conditionalClusterPrivileges(), arrayWithSize(0));
-    }
-
-    private void assertIndicesSerializedRestricted(RoleDescriptor.IndicesPrivileges[] copy, RoleDescriptor.IndicesPrivileges[] original) {
-        assertThat(copy.length, equalTo(original.length));
-        for (int i = 0; i < copy.length; i++) {
-            assertThat(copy[i].allowRestrictedIndices(), equalTo(false));
-            assertThat(copy[i].getIndices(), equalTo(original[i].getIndices()));
-            assertThat(copy[i].getPrivileges(), equalTo(original[i].getPrivileges()));
-            assertThat(copy[i].getDeniedFields(), equalTo(original[i].getDeniedFields()));
-            assertThat(copy[i].getGrantedFields(), equalTo(original[i].getGrantedFields()));
-            assertThat(copy[i].getQuery(), equalTo(original[i].getQuery()));
-        }
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {

@@ -1,3 +1,5 @@
+import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,29 +23,30 @@ apply plugin: 'elasticsearch.docs-test'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'reference/ml/transforms.asciidoc',
-        'reference/ml/apis/delete-calendar-event.asciidoc',
-        'reference/ml/apis/get-bucket.asciidoc',
-        'reference/ml/apis/get-category.asciidoc',
-        'reference/ml/apis/get-influencer.asciidoc',
-        'reference/ml/apis/get-job-stats.asciidoc',
-        'reference/ml/apis/get-overall-buckets.asciidoc',
-        'reference/ml/apis/get-record.asciidoc',
-        'reference/ml/apis/get-snapshot.asciidoc',
-        'reference/ml/apis/post-data.asciidoc',
-        'reference/ml/apis/revert-snapshot.asciidoc',
-        'reference/ml/apis/update-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/transforms.asciidoc',
+        'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+        'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+        'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+        'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
 ]
 
-integTestCluster {
-  if ("default".equals(integTestCluster.distribution)) {
+testClusters.integTest {
+  if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
-    extraConfigFile it, "src/test/cluster/config/$it"
+    extraConfigFile it, file("src/test/cluster/config/$it")
   }
   configFile 'analysis/example_word_list.txt'
   configFile 'analysis/hyphenation_patterns.xml'
@@ -52,13 +55,10 @@ integTestCluster {
   configFile 'userdict_ja.txt'
   configFile 'userdict_ko.txt'
   configFile 'KeywordTokenizer.rbbi'
-  extraConfigFile 'hunspell/en_US/en_US.aff', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
-  extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
+  extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
+  extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-
-  // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
-  systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
 // build the cluster with all plugins
@@ -68,10 +68,12 @@ project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { 
   if (subproj.path.startsWith(':plugins:repository-')) {
     return
   }
+  // FIXME
   subproj.afterEvaluate { // need to wait until the project has been configured
-    integTestCluster {
-      plugin subproj.path
+    testClusters.integTest {
+      plugin file(subproj.bundlePlugin.archiveFile)
     }
+    tasks.integTest.dependsOn subproj.bundlePlugin
   }
 }
 
@@ -617,7 +619,7 @@ buildRestTests.setups['sensor_rollup_job'] = '''
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
-                    "interval": "1h",
+                    "fixed_interval": "1h",
                     "delay": "7d"
                   },
                   "terms": {
@@ -686,7 +688,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
-                    "interval": "1h",
+                    "fixed_interval": "1h",
                     "delay": "7d"
                   },
                   "terms": {
@@ -803,7 +805,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
                     date_histogram:
                       delay: "7d"
                       field: "timestamp"
-                      interval: "60m"
+                      fixed_interval: "60m"
                       time_zone: "UTC"
                     terms:
                       fields:
@@ -1136,3 +1138,61 @@ buildRestTests.setups['seats'] = '''
             {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
             {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
+buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+'''
+buildRestTests.setups['setup_logdata'] = '''
+  - do:
+        indices.create:
+          index: logdata
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: logdata
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+'''
+buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+  - do:
+      ml.put_data_frame_analytics:
+        id: "loganalytics"
+        body:  >
+          {
+            "source": { 
+              "index": "logdata"
+              },
+            "dest": {
+              "index": "logdata_out"
+              },
+            "analysis": {
+              "outlier_detection": {}
+            }
+          }
+'''
+// Used by snapshot lifecycle management docs
+buildRestTests.setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+'''

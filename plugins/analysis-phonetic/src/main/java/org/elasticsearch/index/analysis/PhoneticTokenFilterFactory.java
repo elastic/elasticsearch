@@ -36,7 +36,6 @@ import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -148,13 +147,6 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter() {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        }
-        else {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter [" + name()
-                + "] will not be usable to parse synonyms after v7.0");
-            return this;
-        }
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 }

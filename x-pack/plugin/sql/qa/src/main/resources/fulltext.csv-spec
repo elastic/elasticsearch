@@ -31,7 +31,7 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', '
 ;
 
 matchWithFuzziness
-SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=6');
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=2');
 
   first_name:s  |   SCORE():f
 ----------------+---------------
@@ -57,7 +57,7 @@ Shir            |McClurg          |8.210788
 ;
 
 multiMatchWithFuzziness
-SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=5;operator=or') ORDER BY first_name;
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=2;operator=or') ORDER BY first_name;
 
   first_name:s  |   last_name:s   |    SCORE():f
 ----------------+-----------------+---------------
@@ -68,7 +68,7 @@ Uri             |Lenart           |4.105394
 ;
 
 queryWithFuzziness
-SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=5;default_field=first_name');
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=2;default_field=first_name');
 
   first_name:s  |    SCORE():f
 ----------------+---------------
@@ -92,14 +92,14 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_nam
 ;
 
 matchQueryWithOptions
-SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true;cutoff_frequency=2;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
 
    emp_no:i    | first_name:s  |   gender:s    |  last_name:s
 10076          |Erez           |F              |Ritzmann
 ;
 
 matchQueryWithOptionsInMultipleCommaSeparatedStrings
-SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true;cutoff_frequency=2','fuzzy_rewrite=scoring_boolean;minimum_should_match=1','operator=AND', 'max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez', 'lenient=true','fuzzy_rewrite=scoring_boolean;minimum_should_match=1','operator=AND', 'max_expansions=30;prefix_length=1;analyzer=english;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
 
    emp_no:i    | first_name:s  |   gender:s    |  last_name:s
 10076          |Erez           |F              |Ritzmann
@@ -113,14 +113,14 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_na
 ;
 
 multiMatchQueryAllOptions
-SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true;cutoff_frequency=2;tie_breaker=0.1;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true;tie_breaker=0.1;fuzzy_rewrite=scoring_boolean;minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
 
    emp_no:i    | first_name:s  |   gender:s    |  last_name:s
 10095          |Hilari         |M              |Morton
 ;
 
 multiMatchQueryWithInMultipleCommaSeparatedStrings
-SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true', 'cutoff_frequency=2','tie_breaker=0.1;fuzzy_rewrite=scoring_boolean','minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
+SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH('first_name,last_name', 'Morton', 'slop=1;lenient=true', 'tie_breaker=0.1;fuzzy_rewrite=scoring_boolean','minimum_should_match=1;operator=AND;max_expansions=30;prefix_length=1;analyzer=english;type=best_fields;auto_generate_synonyms_phrase_query=true;fuzzy_transpositions=true');
 
    emp_no:i    | first_name:s  |   gender:s    |  last_name:s
 10095          |Hilari         |M              |Morton

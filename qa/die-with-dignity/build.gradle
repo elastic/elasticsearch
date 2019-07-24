@@ -17,6 +17,7 @@
  * under the License.
  */
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -24,14 +25,17 @@ esplugin {
     classname 'org.elasticsearch.DieWithDignityPlugin'
 }
 
-integTestRunner {
+integTest.runner {
     systemProperty 'tests.security.manager', 'false'
     systemProperty 'tests.system_call_filter', 'false'
-    systemProperty 'pidfile', "${-> integTest.getNodes().get(0).pidFile}"
-    systemProperty 'log', "${-> integTest.getNodes().get(0).homeDir}/logs/${-> integTest.getNodes().get(0).clusterName}_server.json"
+    nonInputProperties.systemProperty 'log', "${-> testClusters.integTest.singleNode().getServerLog()}"
     systemProperty 'runtime.java.home', "${project.runtimeJavaHome}"
 }
 
-unitTest.enabled = false
+testClusters.integTest {
+    systemProperty "die.with.dignity.test", "whatever"
+}
+
+test.enabled = false
 
 check.dependsOn integTest

@@ -4,45 +4,60 @@
 <titleabbrev>Span multi-term</titleabbrev>
 ++++
 
-The `span_multi` query allows you to wrap a `multi term query` (one of wildcard,
-fuzzy, prefix, range or regexp query) as a `span query`, so
-it can be nested. Example:
+Wraps one of the following query types as a <<span-queries,span query>>:
+
+* <<query-dsl-fuzzy-query, `fuzzy`>>
+* <<query-dsl-prefix-query, `prefix`>>
+* <<query-dsl-regexp-query, `regexp`>>
+* <<query-dsl-wildcard-query, `wildcard`>>
+
+[[span-multi-term-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
         "span_multi":{
             "match":{
-                "prefix" : { "user" :  { "value" : "ki" } }
+                "prefix" : { 
+                    "message" : { 
+                        "value" : "ki" 
+                    } 
+                }
             }
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-A boost can also be associated with the query:
+[[span-multi-top-level-params]]
+==== Top-level parameters for `span_multi`
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "span_multi":{
-            "match":{
-                "prefix" : { "user" :  { "value" : "ki", "boost" : 1.08 } }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+`match`::
++
+--
+(Required, query object) Contains a <<query-dsl-fuzzy-query, `fuzzy`>>,
+<<query-dsl-prefix-query, `prefix`>>, <<query-dsl-regexp-query, `regexp`>>, or
+<<query-dsl-wildcard-query, `wildcard`>> query. Returned documents must match
+this query.
 
-WARNING: `span_multi` queries will hit too many clauses failure if the number of terms that match the query exceeds the
-boolean query limit (defaults to 1024).To avoid an unbounded expansion you can set the <<query-dsl-multi-term-rewrite,
-rewrite method>> of the multi term query to `top_terms_*` rewrite. Or, if you use `span_multi` on `prefix` query only,
-you can activate the <<index-prefixes,`index_prefixes`>> field option of the `text` field instead. This will
-rewrite any prefix query on the field to a single term query that matches the indexed prefix.
+[WARNING]
+======
+The `span_multi` query returns an error if the number of matching terms exceeds
+the
+<<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
+limit, which defaults to `1024`. To avoid this, set the
+<<query-dsl-multi-term-rewrite, `rewrite` parameter>> of the wrapped query to
+`top_terms_N`.
+
+If the `span_multi` query wraps a `prefix` query, you can use the
+<<index-prefixes,`index_prefixes`>> parameter for <<text,`text`>> fields
+instead. The `index_prefixes` parameter rewrites the `prefix` query to a single
+`term` query that matches the indexed prefix.
+======
+--
+
 

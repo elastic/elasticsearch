@@ -171,6 +171,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -1407,7 +1408,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryState.getTranslog().totalLocal(recoveredOps); // adjust the total local to reflect the actual count
                     return recoveredOps;
                 };
-                innerOpenEngineAndTranslog();
+                innerOpenEngineAndTranslog(() -> globalCheckpoint);
                 getEngine().recoverFromTranslog(translogRecoveryRunner, globalCheckpoint);
                 logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
             } finally {
@@ -1533,6 +1534,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return opsRecovered;
     }
 
+    private void loadGlobalCheckpointToReplicationTracker() throws IOException {
+        // we have to set it before we open an engine and recover from the translog because
+        // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+        // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+    }
+
     /**
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
@@ -1548,7 +1558,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return runTranslogRecovery(engine, snapshot, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
                 translogRecoveryStats::incrementRecoveredOperations);
         };
-        innerOpenEngineAndTranslog();
+        loadGlobalCheckpointToReplicationTracker();
+        innerOpenEngineAndTranslog(replicationTracker);
         getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
@@ -1559,25 +1570,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void openEngineAndSkipTranslogRecovery() throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "unexpected recovery stage [" + recoveryState.getStage() + "]";
-        innerOpenEngineAndTranslog();
+        loadGlobalCheckpointToReplicationTracker();
+        innerOpenEngineAndTranslog(replicationTracker);
         getEngine().skipTranslogRecovery();
     }
 
-    private void innerOpenEngineAndTranslog() throws IOException {
+    private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier) throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
-        final EngineConfig config = newEngineConfig();
+        final EngineConfig config = newEngineConfig(globalCheckpointSupplier);
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
-        // we have to set it before we open an engine and recover from the translog because
-        // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
-        // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         updateRetentionLeasesOnReplica(loadRetentionLeases());
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
@@ -2646,7 +2652,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mapperService.resolveDocumentType(type));
     }
 
-    private EngineConfig newEngineConfig() {
+    private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
         Sort indexSort = indexSortSupplier.get();
         return new EngineConfig(shardId, shardRouting.allocationId().getId(),
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
@@ -2656,7 +2662,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
                 Collections.singletonList(refreshListeners),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-                indexSort, circuitBreakerService, replicationTracker, replicationTracker::getRetentionLeases,
+                indexSort, circuitBreakerService, globalCheckpointSupplier, replicationTracker::getRetentionLeases,
                 () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
     }
 
@@ -3293,7 +3299,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we must create both new read-only engine and new read-write engine under mutex to ensure snapshotStoreMetadata,
             // acquireXXXCommit and close works.
             final Engine readOnlyEngine =
-                new ReadOnlyEngine(newEngineConfig(), seqNoStats, translogStats, false, Function.identity()) {
+                new ReadOnlyEngine(newEngineConfig(replicationTracker), seqNoStats, translogStats, false, Function.identity()) {
                     @Override
                     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
                         synchronized (mutex) {
@@ -3322,7 +3328,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
-            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig()));
+            newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
         final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(

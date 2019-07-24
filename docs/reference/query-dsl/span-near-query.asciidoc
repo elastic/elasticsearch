@@ -4,30 +4,47 @@
 <titleabbrev>Span near</titleabbrev>
 ++++
 
-Matches spans which are near one another. One can specify _slop_, the
-maximum number of intervening unmatched positions, as well as whether
-matches are required to be in-order. The span near query maps to Lucene
-`SpanNearQuery`. Here is an example:
+Wraps one or more <<span-queries,span queries>>, called query clauses or
+clauses. You can set a maximum number of positions between matching spans. You
+also can require these matches to be in a specific order. 
+
+You can use the `span_near` query to find documents containing matching spans
+near each other.
+
+[[span-near-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
         "span_near" : {
             "clauses" : [
-                { "span_term" : { "field" : "value1" } },
-                { "span_term" : { "field" : "value2" } },
-                { "span_term" : { "field" : "value3" } }
+                { "span_term" : { "message" : { "value" : "value1" } } },
+                { "span_term" : { "message" : { "value" : "value2" } } },
+                { "span_term" : { "message" : { "value" : "value3" } } }
             ],
-            "slop" : 12,
-            "in_order" : false
+            "in_order" : false,
+            "slop" : 12
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-The `clauses` element is a list of one or more other span type queries
-and the `slop` controls the maximum number of intervening unmatched
-positions permitted.
+
+[[span-near-top-level-params]]
+==== Top-level parameters for `span_near`
+`clauses`::
+(Required, array of query objects) Array of one or more other
+<<span-queries,span query>> clauses. Returned documents must match all of these
+queries.
+
+`in_order`::
+(Optional, boolean) Indicates whether matches must occur in the same order as
+query clauses in the `clauses` parameter. Defaults to `true`.
+
+`slop`::
+(Optional, integer) Maximum number of positions between matching spans.
+Defaults to `0`.

@@ -69,7 +69,7 @@ Search::
 
 Security::
 * Do not swallow I/O exception getting authentication {pull}44398[#44398] (issues: {issue}44172[#44172], {issue}44397[#44397])
-* SecurityIndexSearcherWrapper doesn't always carry over caches and similarity {pull}43436[#43436]
+* `SecurityIndexSearcherWrapper` doesn't always carry over caches and similarity {pull}43436[#43436]
 
 [[release-notes-6.8.1]]
 == {es} version 6.8.1

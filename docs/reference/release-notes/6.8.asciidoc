@@ -27,7 +27,7 @@ Allocation::
 * Do not copy initial recovery filter during an index split {pull}44053[#44053] (issue: {issue}43955[#43955])
 
 Analysis::
-* Fix varying responses for <index>/_analyze request {pull}44342[#44342] (issues: {issue}44078[#44078], {issue}44284[#44284])
+* Fix varying responses for `<index>/_analyze` request {pull}44342[#44342] (issues: {issue}44078[#44078], {issue}44284[#44284])
 
 CCR::
 * Skip update if leader and follower settings identical {pull}44535[#44535] (issue: {issue}44521[#44521])

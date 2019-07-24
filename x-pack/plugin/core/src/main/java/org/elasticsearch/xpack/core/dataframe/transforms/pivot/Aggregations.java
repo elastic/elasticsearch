@@ -6,9 +6,9 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation.Bucket;
 
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -103,8 +103,9 @@ public final class Aggregations {
         return agg.getTargetMapping().equals(SOURCE) ? sourceType : agg.getTargetMapping();
     }
 
-    public static Map<String, String> getSpecialAggregations(Map<String, Object> source) {
+    public static Tuple<Map<String, String>, Map<String, Object>> seperateSpecialAggregations(Map<String, Object> source) {
         Map<String, String> specialAggregations = new LinkedHashMap<>();
+        Map<String, Object> normalAggregations = new LinkedHashMap<>();
 
         for (Entry<String, Object> entry : source.entrySet()) {
             String field = entry.getKey();
@@ -114,58 +115,22 @@ public final class Aggregations {
                 if (aggregations.size() == 1) {
                     Entry<String, Object> agg = aggregations.entrySet().iterator().next();
 
-                    // skip over unknowns, by design do not validate
+                    // if unknown add it to the normal aggregations, by design do not validate but let the calling parser fail
                     if (isSupportedByDataframe(agg.getKey()) == false) {
+                        normalAggregations.put(field, aggregations);
                         continue;
                     }
 
                     AggregationType aggType = AggregationType.valueOf(agg.getKey().toUpperCase(Locale.ROOT));
                     if (aggType.isSpecialAggregation()) {
                         specialAggregations.put(field, agg.getKey());
+                    } else {
+                        normalAggregations.put(field, aggregations);
                     }
                 }
             }
         }
-
-        return specialAggregations.isEmpty() ? null : specialAggregations;
-    }
-
-    public static Map<String, Object> filterSpecialAggregations(Map<String, Object> source) {
-        Set<String> fieldsToRemove = new HashSet<>();
-
-        for (Entry<String, Object> entry : source.entrySet()) {
-            String field = entry.getKey();
-            if (entry.getValue() instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> aggregations = (Map<String, Object>) entry.getValue();
-                if (aggregations.size() == 1) {
-                    Entry<String, Object> agg = aggregations.entrySet().iterator().next();
-                    // skip over unknowns, by design do not validate
-                    if (isSupportedByDataframe(agg.getKey()) == false) {
-                        continue;
-                    }
-
-                    AggregationType aggType = AggregationType.valueOf(agg.getKey().toUpperCase(Locale.ROOT));
-                    if (aggType.isSpecialAggregation()) {
-                        // mark field to be removed
-                        fieldsToRemove.add(field);
-                    }
-                }
-            }
-        }
-
-        if (fieldsToRemove.size() > 0) {
-            Map<String, Object> copyWithoutSpecialFields = new LinkedHashMap<>();
-            for (Entry<String, Object> entry:source.entrySet()) {
-                if (fieldsToRemove.contains(entry.getKey()) == false) {
-                    copyWithoutSpecialFields.put(entry.getKey(), entry.getValue());
-                }
-            }
-
-            return copyWithoutSpecialFields;
-        }
-
-        return source;
+        return new Tuple<>(specialAggregations.isEmpty() ? null : specialAggregations, normalAggregations);
     }
 
     public static Long extractCount(Bucket bucket) {

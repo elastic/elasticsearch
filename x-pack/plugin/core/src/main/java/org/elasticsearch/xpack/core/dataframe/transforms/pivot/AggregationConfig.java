@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -112,13 +113,14 @@ public class AggregationConfig implements Writeable, ToXContentObject {
                 throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
             }
         } else {
-            Map<String, Object> aggregationSource = Aggregations.filterSpecialAggregations(source);
-            if (aggregationSource.isEmpty() == false) {
-                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(aggregationSource);
-                        XContentParser sourceParser = XContentType.JSON.xContent().createParser(
-                                registry,
-                                LoggingDeprecationHandler.INSTANCE,
-                                BytesReference.bytes(xContentBuilder).streamInput())) {
+            Tuple<Map<String, String>, Map<String, Object>> specialAggsAndNormalAggs = Aggregations.seperateSpecialAggregations(source);
+
+            if (specialAggsAndNormalAggs.v2().isEmpty() == false) {
+                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(specialAggsAndNormalAggs.v2());
+                     XContentParser sourceParser = XContentType.JSON.xContent().createParser(
+                             registry,
+                             LoggingDeprecationHandler.INSTANCE,
+                             BytesReference.bytes(xContentBuilder).streamInput())) {
                     sourceParser.nextToken();
                     aggregations = AggregatorFactories.parseAggregators(sourceParser);
                 } catch (Exception e) {
@@ -129,8 +131,9 @@ public class AggregationConfig implements Writeable, ToXContentObject {
                     }
                 }
             }
+            return new AggregationConfig(source, aggregations, specialAggsAndNormalAggs.v1());
         }
-        return new AggregationConfig(source, aggregations, Aggregations.getSpecialAggregations(source));
+        return new AggregationConfig(source, aggregations, null);
     }
 
     @Override

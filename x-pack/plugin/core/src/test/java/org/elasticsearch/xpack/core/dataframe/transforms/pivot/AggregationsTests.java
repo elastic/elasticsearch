@@ -4,11 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.transforms.pivot;
+package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.Aggregations;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -69,8 +70,10 @@ public class AggregationsTests extends ESTestCase {
                             asMap()
                     ));
 
-        Map<String, Object> output = Aggregations.filterSpecialAggregations(input);
-        assertEquals(0, output.size());
+        Tuple<Map<String, String>, Map<String, Object>> output = Aggregations.seperateSpecialAggregations(input);
+        assertEquals(0, output.v2().size());
+        assertEquals(1, output.v1().size());
+        assertEquals(Collections.singletonMap("bucket_count", "count"), output.v1());
 
         input = asMap(
                 "bucket_count",
@@ -83,8 +86,9 @@ public class AggregationsTests extends ESTestCase {
                               "price")
                     ));
 
-        output = Aggregations.filterSpecialAggregations(input);
-        assertEquals(1, output.size());
+        output = Aggregations.seperateSpecialAggregations(input);
+        assertEquals(1, output.v2().size());
+        assertEquals(1, output.v1().size());
 
         input = asMap(
                 "max_price",
@@ -102,9 +106,9 @@ public class AggregationsTests extends ESTestCase {
                               "price")
                     ));
 
-        output = Aggregations.filterSpecialAggregations(input);
-        assertEquals(2, output.size());
-
+        output = Aggregations.seperateSpecialAggregations(input);
+        assertEquals(2, output.v2().size());
+        assertEquals(1, output.v1().size());
     }
 
     static Map<String, Object> asMap(Object... fields) {

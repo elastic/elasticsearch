@@ -16,13 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
-/*
- * Limited security policy for scripts.
- * This is what is needed for basic functionality to work.
- */
-grant {
-  // needed IndyInterface selectMethod (setCallSiteTarget)
-  // TODO: clean this up / only give it to engines that really must have it
-  permission java.lang.RuntimePermission "getClassLoader";
-};
+
+esplugin {
+    description 'Integrates Elasticsearch with systemd'
+    classname 'org.elasticsearch.systemd.SystemdPlugin'
+}
+
+integTest.enabled = false

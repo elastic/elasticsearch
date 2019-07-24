@@ -155,7 +155,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         
         // because "coerce" is true, a "123.456" floating point number STRING should be converted to 123.456 as number
         // and converted to 123.5 for "scaled_float" type
-        expected.put("rows", singletonList(singletonList(isScaledFloat ? 123.5 : 123.456)));
+        expected.put("rows", singletonList(singletonList(isScaledFloat ? 123.5 : Double.valueOf(floatingPointNumber))));
         assertResponse(expected, runSql("SELECT " + fieldType + "_field FROM test"));
     }
 

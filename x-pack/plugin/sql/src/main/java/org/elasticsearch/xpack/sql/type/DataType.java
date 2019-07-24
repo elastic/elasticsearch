@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
@@ -303,5 +304,12 @@ public enum DataType {
 
     public String format() {
         return isDateOrTimeBased() ? DateUtils.DATE_PARSE_FORMAT : null;
+    }
+    
+    /**
+     * Returns the appropriate NumberType enum corresponding to this es type
+     */
+    public NumberType numberType() {
+        return NumberType.valueOf(esType.toUpperCase(Locale.ROOT));
     }
 }

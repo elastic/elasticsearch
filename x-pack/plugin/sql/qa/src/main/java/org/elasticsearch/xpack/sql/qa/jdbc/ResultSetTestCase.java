@@ -259,9 +259,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_float"));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotByte), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotByte)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Byte.class));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotByte), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotByte)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_keyword"));
             assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Byte]", randomString),
@@ -382,9 +382,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_float"));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotShort), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotShort)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Short.class));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotShort), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotShort)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getShort("test_keyword"));
             assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Short]", randomString),
@@ -497,9 +497,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_float"));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotInt), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotInt)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Integer.class));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotInt), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotInt)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_keyword"));
             assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Integer]", randomString),
@@ -599,9 +599,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_float"));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotLong), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_float", Long.class));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", floatNotLong), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
             
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_keyword"));
             assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [KEYWORD] to [Long]", randomString),

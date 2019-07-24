@@ -15,7 +15,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
@@ -27,7 +26,6 @@ import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -210,15 +208,17 @@ public class FieldHitExtractor implements HitExtractor {
                 if (dataType == DataType.DOUBLE || dataType == DataType.FLOAT || dataType == DataType.HALF_FLOAT) {
                     Number result = null;
                     try {
-                        result = NumberType.DOUBLE.parse(values, true);
+                        result = dataType.numberType().parse(values, true);
                     } catch(IllegalArgumentException iae) {
                         return null;
                     }
-                    return result;
+                    // docvalue_fields is always returning a Double value even if the underlying floating point data type is not Double
+                    // even if we don't extract from docvalue_fields anymore, the behavior should be consistent
+                    return result.doubleValue();
                 } else {
                     Number result = null;
                     try {
-                        result = NumberType.valueOf(dataType.esType.toUpperCase(Locale.ROOT)).parse(values, true);
+                        result = dataType.numberType().parse(values, true);
                     } catch(IllegalArgumentException iae) {
                         return null;
                     }

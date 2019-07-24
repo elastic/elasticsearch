@@ -16,36 +16,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.ValidationException;
 
-import java.util.Objects;
+import java.util.Optional;
 
 /**
- * Request for the _freeze index API
+ * A request to close an index.
  */
-public final class FreezeIndexRequest extends TimedRequest {
+public class CloseIndexRequest extends TimedRequest implements Validatable {
 
-    private final String[] indices;
-    private IndicesOptions indicesOptions;
-    private ActiveShardCount waitForActiveShards;
+    private String[] indices;
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     /**
-     * Creates a new freeze index request
-     * @param indices the index to freeze
+     * Creates a new close index request
+     *
+     * @param indices the indices to close
      */
-    public FreezeIndexRequest(String... indices) {
-        this.indices = Objects.requireNonNull(indices);
+    public CloseIndexRequest(String... indices) {
+        this.indices = indices;
     }
 
     /**
-     * Returns the indices to freeze
+     * Returns the indices to close
      */
-    public String[] getIndices() {
+    public String[] indices() {
         return indices;
     }
 
@@ -65,14 +69,15 @@ public final class FreezeIndexRequest extends TimedRequest {
      *
      * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      */
-    public void setIndicesOptions(IndicesOptions indicesOptions) {
+    public CloseIndexRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
+        return this;
     }
 
     /**
      * Returns the wait for active shard count or null if the default should be used
      */
-    public ActiveShardCount getWaitForActiveShards() {
+    public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
     }
 
@@ -90,7 +95,19 @@ public final class FreezeIndexRequest extends TimedRequest {
      *
      * @param waitForActiveShards number of active shard copies to wait on
      */
-    public void setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+    public CloseIndexRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
         this.waitForActiveShards = waitForActiveShards;
+        return this;
+    }
+
+    @Override
+    public Optional<ValidationException> validate() {
+        if (indices == null || indices.length == 0) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationError("index is missing");
+            return Optional.of(validationException);
+        } else {
+            return Optional.empty();
+        }
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -160,7 +161,7 @@ class PEMKeyConfig extends KeyConfig {
     @Override
     public String toString() {
         return "keyPath=[" + keyPath +
-            "], certPaths=[" + certPath +
-            "]";
+                "], certPaths=[" + certPath +
+                "]";
     }
 }

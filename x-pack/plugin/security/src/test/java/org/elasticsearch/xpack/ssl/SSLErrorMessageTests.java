@@ -248,7 +248,7 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return "/this/path/is/outside/the/config/directory.file";
+        return "/this/path/is/outside/the/config/directory/file.error";
     }
 
     /**

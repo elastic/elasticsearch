@@ -32,6 +32,7 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -430,6 +431,7 @@ public class SSLService {
 
     private SSLConfiguration loadConfiguration(String key, Settings settings, Map<SSLConfiguration, SSLContextHolder> contextHolders) {
         if (key.endsWith(".")) {
+            // Drop trailing '.' so that any exception messages are consistent
             key = key.substring(0, key.length() - 1);
         }
         try {

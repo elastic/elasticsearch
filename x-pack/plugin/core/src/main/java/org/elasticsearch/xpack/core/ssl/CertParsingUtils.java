@@ -57,7 +57,6 @@ public class CertParsingUtils {
         return certPaths.stream().map(p -> environment.configFile().resolve(p)).collect(Collectors.toList());
     }
 
-
     public static KeyStore readKeyStore(Path path, String type, char[] password)
             throws IOException, KeyStoreException, CertificateException, NoSuchAlgorithmException {
         try (InputStream in = Files.newInputStream(path)) {

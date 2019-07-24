@@ -39,7 +39,6 @@ abstract class TrustConfig {
 
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the provided configuration
-     *
      * @param environment the environment to resolve files against
      */
     abstract X509ExtendedTrustManager createTrustManager(Environment environment);
@@ -48,7 +47,6 @@ abstract class TrustConfig {
 
     /**
      * Returns a list of files that should be monitored for changes
-     *
      * @param environment the environment to resolve files against
      */
     abstract List<Path> filesToMonitor(@Nullable Environment environment);

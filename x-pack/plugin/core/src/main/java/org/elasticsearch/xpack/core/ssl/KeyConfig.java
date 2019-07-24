@@ -85,7 +85,7 @@ abstract class KeyConfig extends TrustConfig {
     }
 
     /**
-     * generate a new exception caused by a blocked file (i.e. security-manager access denied), that is required for this trust config
+     * generate a new exception caused by a blocked file (i.e. security-manager access denied), that is required for this key config
      */
     static ElasticsearchException blockedKeyConfigFile(AccessControlException cause, Environment environment, String fileType, Path path) {
         return new ElasticsearchException(

@@ -62,7 +62,6 @@ public class TestMatchers extends Matchers {
         };
     }
 
-
     public static <T> Matcher<Predicate<T>> predicateMatches(T value) {
         return new CustomMatcher<Predicate<T>>("Matches " + value) {
             @Override

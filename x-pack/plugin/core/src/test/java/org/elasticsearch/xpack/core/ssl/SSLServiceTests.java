@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -197,7 +196,7 @@ public class SSLServiceTests extends ESTestCase {
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
-            assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
+            assertThat(e.getCause(), throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
         }
     }
 
@@ -330,7 +329,7 @@ public class SSLServiceTests extends ESTestCase {
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
         assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
-        assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
     }
 
     public void testThatKeystorePasswordIsRequired() throws Exception {

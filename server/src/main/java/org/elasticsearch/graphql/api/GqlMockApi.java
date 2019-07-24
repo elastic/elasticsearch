@@ -126,7 +126,12 @@ public class GqlMockApi implements GqlApi {
     }
 
     @Override
-    public CompletableFuture<NodeInfo> getNode(String nodeIdOrName) throws Exception {
+    public CompletableFuture<Map<String, Object>> getNode(String nodeIdOrName) throws Exception {
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<NodeInfo> getNode2(String nodeIdOrName) throws Exception {
         return null;
     }
 }

@@ -70,7 +70,15 @@ public class GqlElasticsearchApi implements GqlApi {
 
 
     @Override
-    public CompletableFuture<NodeInfo> getNode(String nodeIdOrName) throws Exception {
+    public CompletableFuture<Map<String, Object>> getNode(String nodeIdOrName) throws Exception {
+        logger.info("getNode [nodeIdOrName = {}]", nodeIdOrName);
+        return ResolverGetNode.exec(client, nodeIdOrName)
+            .thenApply(logResult(logger, "getNode"));
+    }
+
+
+    @Override
+    public CompletableFuture<NodeInfo> getNode2(String nodeIdOrName) throws Exception {
         logger.info("getNode [nodeIdOrName = {}]", nodeIdOrName);
         return ResolverGetNode2.exec(client, nodeIdOrName)
             .thenApply(logResult(logger, "getNode"));

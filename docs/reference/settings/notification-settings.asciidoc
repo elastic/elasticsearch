@@ -113,6 +113,9 @@ can specify the following email account attributes:
   The user name for SMTP. Required.
 
   `smtp.password` (<<cluster-update-settings,Dynamic>>);;
+  The password for the specified SMTP user. deprecated[6.6]
+  
+  `smtp.secure_password` (<<secure-settings,Secure>>);;
   The password for the specified SMTP user.
 
   `smtp.starttls.enable` (<<cluster-update-settings,Dynamic>>);;
@@ -226,8 +229,11 @@ via HipChat. You can specify the following HipChat account attributes:
                       `user`, or `v1`. Required.
 
   `auth_token`;;
-  The authentication token to use to access
-                      the HipChat API. Required.
+  The authentication token to use to access the HipChat API. Required.
+  deprecated[6.6]
+
+  `secure_auth_token` (<<secure-settings,Secure>>);;
+  The authentication token to use to access the HipChat API. Required.
 
   `host`;;
   The HipChat server hostname. Defaults to `api.hipchat.com`.
@@ -273,8 +279,11 @@ via Slack. You can specify the following Slack account attributes:
 [[slack-account-attributes]]
 
   `url`;;
-  The Incoming Webhook URL to use to post
-                                    messages to Slack. Required.
+  The Incoming Webhook URL to use to post messages to Slack. Required.
+  deprecated[6.6]
+                                    
+  `secure_url` (<<secure-settings,Secure>>);;
+  The Incoming Webhook URL to use to post messages to Slack. Required.
 
   `message_defaults.from`;;
   The sender name to display in the
@@ -315,12 +324,23 @@ issues in Jira. You can specify the following Jira account attributes:
 [[jira-account-attributes]]
 
   `url`;;
+  The URL of the Jira Software server. Required. deprecated[6.6]
+
+  `secure_url` (<<secure-settings,Secure>>);;
   The URL of the Jira Software server. Required.
 
   `user`;;
   The name of the user to connect to the Jira Software server. Required.
+  deprecated[6.6]
+  
+  `secure_user` (<<secure-settings,Secure>>);;
+  The name of the user to connect to the Jira Software server. Required.
 
   `password`;;
+  The password of the user to connect to the Jira Software server. Required.
+  deprecated[6.6]
+  
+  `secure_password` (<<secure-settings,Secure>>);;
   The password of the user to connect to the Jira Software server. Required.
 
   `issue_defaults`;;
@@ -348,6 +368,11 @@ A name for the PagerDuty account associated with the API key you
 are using to access PagerDuty. Required.
 
 `service_api_key`;;
+The https://developer.pagerduty.com/documentation/rest/authentication[
+PagerDuty API key] to use to access PagerDuty. Required.
+deprecated[6.6]
+
+`secure_service_api_key` (<<secure-settings,Secure>>);;
 The https://developer.pagerduty.com/documentation/rest/authentication[
 PagerDuty API key] to use to access PagerDuty. Required.
 --

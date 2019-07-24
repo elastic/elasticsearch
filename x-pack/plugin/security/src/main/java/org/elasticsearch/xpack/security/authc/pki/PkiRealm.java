@@ -143,9 +143,11 @@ public class PkiRealm extends Realm implements CachingRealm {
         assert delegatedRealms != null : "Realm has not been initialized correctly";
         X509AuthenticationToken token = (X509AuthenticationToken) authToken;
         try {
-            final BytesKey fingerprint = computeFingerprint(token.credentials()[0]);
+            final BytesKey fingerprint = computeTokenFingerprint(token);
             User user = cache.get(fingerprint);
             if (user != null) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("Using cached authentication for DN [{}], as principal [{}]",
+                        token.dn(), user.principal()));
                 if (delegatedRealms.hasDelegation()) {
                     delegatedRealms.resolve(user.principal(), listener);
                 } else {
@@ -317,9 +319,13 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private static BytesKey computeFingerprint(X509Certificate certificate) throws CertificateEncodingException {
+    static BytesKey computeTokenFingerprint(X509AuthenticationToken token) throws CertificateEncodingException {
         MessageDigest digest = MessageDigests.sha256();
-        digest.update(certificate.getEncoded());
+        byte i = 1;
+        for (X509Certificate certificate : token.credentials()) {
+            digest.update(certificate.getEncoded());
+            digest.update(i++);
+        }
         return new BytesKey(digest.digest());
     }
 }

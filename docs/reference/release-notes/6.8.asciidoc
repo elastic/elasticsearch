@@ -30,7 +30,7 @@ Analysis::
 * Fix varying responses for `<index>/_analyze` request {pull}44342[#44342] (issues: {issue}44078[#44078], {issue}44284[#44284])
 
 CCR::
-* Skip update if leader and follower settings identical {pull}44535[#44535] (issue: {issue}44521[#44521])
+* Skip update if leader and follower settings are identical {pull}44535[#44535] (issue: {issue}44521[#44521])
 * Avoid stack overflow in auto-follow coordinator {pull}44421[#44421] (issue: {issue}43251[#43251])
 * Avoid NPE when checking for CCR index privileges {pull}44397[#44397] (issue: {issue}44172[#44172])
 

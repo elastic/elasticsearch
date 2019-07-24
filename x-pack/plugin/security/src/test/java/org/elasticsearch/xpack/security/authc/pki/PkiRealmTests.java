@@ -456,13 +456,14 @@ public class PkiRealmTests extends ESTestCase {
         when(mockCertChain[1].getEncoded()).thenReturn(randomByteArrayOfLength(3));
         BytesKey cacheKey = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(mockCertChain));
 
-        BytesKey sameCacheKey = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] {mockCertChain[0], mockCertChain[1]}));
+        BytesKey sameCacheKey = PkiRealm
+                .computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0], mockCertChain[1] }));
         assertThat(cacheKey, is(sameCacheKey));
 
-        BytesKey cacheKeyClient = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] {mockCertChain[0]}));
+        BytesKey cacheKeyClient = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[0] }));
         assertThat(cacheKey, is(not(cacheKeyClient)));
 
-        BytesKey cacheKeyRoot = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] {mockCertChain[1]}));
+        BytesKey cacheKeyRoot = PkiRealm.computeTokenFingerprint(new X509AuthenticationToken(new X509Certificate[] { mockCertChain[1] }));
         assertThat(cacheKey, is(not(cacheKeyRoot)));
         assertThat(cacheKeyClient, is(not(cacheKeyRoot)));
     }

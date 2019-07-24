@@ -39,6 +39,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -51,6 +52,7 @@ import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRI
  * read/write behavior to ensure that the bytes are always copied to a thread-local direct bytes buffer. This
  * happens BEFORE the call to the Java {@link SocketChannel} is issued.
  */
+@SuppressForbidden(reason = "Channel#write")
 public class CopyBytesSocketChannel extends NioSocketChannel {
 
     private static final int MAX_BYTES_PER_WRITE = 1 << 20;

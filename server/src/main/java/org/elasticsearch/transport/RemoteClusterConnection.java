@@ -454,13 +454,12 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                             maybeConnect();
                         }
                     });
-                    collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), transportService, connectionManager, listener);
+                    collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), listener);
                 }
             });
         }
 
-        private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, final TransportService transportService,
-                                        final ConnectionManager manager, ActionListener<Void> listener) {
+        private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
             if (Thread.currentThread().isInterrupted()) {
                 listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
             }
@@ -473,7 +472,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                         final TransportService.HandshakeResponse handshakeResponse;
                         final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
                         final Transport.Connection connection = PlainActionFuture.get(
-                            fut -> manager.openConnection(seedNode, profile, fut));
+                            fut -> connectionManager.openConnection(seedNode, profile, fut));
                         boolean success = false;
                         try {
                             try {
@@ -487,8 +486,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                             }
 
                             final DiscoveryNode handshakeNode = maybeAddProxyAddress(proxyAddress, handshakeResponse.getDiscoveryNode());
-                            if (nodePredicate.test(handshakeNode) && manager.size() < maxNumRemoteConnections) {
-                                PlainActionFuture.get(fut -> manager.connectToNode(handshakeNode, null,
+                            if (nodePredicate.test(handshakeNode) && connectionManager.size() < maxNumRemoteConnections) {
+                                PlainActionFuture.get(fut -> connectionManager.connectToNode(handshakeNode, null,
                                     transportService.connectionValidator(handshakeNode), ActionListener.map(fut, x -> null)));
                                 if (remoteClusterName.get() == null) {
                                     assert handshakeResponse.getClusterName().value() != null;
@@ -532,7 +531,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                 if (seedNodes.hasNext()) {
                     logger.debug(() -> new ParameterizedMessage("fetching nodes from external cluster [{}] failed moving to next node",
                         clusterAlias), ex);
-                    collectRemoteNodes(seedNodes, transportService, manager, listener);
+                    collectRemoteNodes(seedNodes, listener);
                 } else {
                     logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster [{}] failed", clusterAlias), ex);
                     listener.onFailure(ex);
@@ -617,7 +616,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     listener.onFailure(ex); // we got canceled - fail the listener and step out
                 } catch (Exception ex) {
                     logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), ex);
-                    collectRemoteNodes(seedNodes, transportService, connectionManager, listener);
+                    collectRemoteNodes(seedNodes, listener);
                 }
             }
 
@@ -628,7 +627,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     IOUtils.closeWhileHandlingException(connection);
                 } finally {
                     // once the connection is closed lets try the next node
-                    collectRemoteNodes(seedNodes, transportService, connectionManager, listener);
+                    collectRemoteNodes(seedNodes, listener);
                 }
             }
 

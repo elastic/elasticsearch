@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -99,6 +100,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -759,13 +761,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
             assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTaskFailures(), empty());
-            assertThat(response.getStatsResponses(), hasSize(1));
-            assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
-            ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
-            assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getMessage(), equalTo("no such index [index2]"));
+            if (response.getStatsResponses().isEmpty() == false) {
+                assertThat(response.getStatsResponses(), hasSize(1));
+                assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
+                ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
+                assertThat(fatalException, notNullValue());
+                assertThat(fatalException.getMessage(), equalTo("no such index [index2]"));
+            }
         });
-        pauseFollow("index2");
         ensureNoCcrTasks();
     }
 
@@ -1059,6 +1062,46 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         });
     }
 
+    public void testReplicatePrivateSettingsOnly() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(
+            getIndexSettings(1, 0, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")), XContentType.JSON));
+        ensureLeaderGreen("leader");
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        final ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
+        final SetOnce<Long> settingVersionOnLeader = new SetOnce<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final IndexMetaData indexMetaData = currentState.metaData().index("leader");
+                Settings.Builder settings = Settings.builder().put(indexMetaData.getSettings());
+                settings.put(PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey(), "internal-value");
+                settings.put(PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey(), "internal-value");
+                final MetaData.Builder metadata = MetaData.builder(currentState.metaData())
+                    .put(IndexMetaData.builder(indexMetaData)
+                        .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+                        .settings(settings).build(), true);
+                return ClusterState.builder(currentState).metaData(metadata).build();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                settingVersionOnLeader.set(newState.metaData().index("leader").getSettingsVersion());
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+        latch.await();
+        assertBusy(() -> assertThat(getFollowTaskSettingsVersion("follower"), equalTo(settingVersionOnLeader.get())));
+        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+        assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
+        assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
+    }
+
     public void testMustCloseIndexAndPauseToRestartWithPutFollowing() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
@@ -1274,6 +1317,37 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .put(seeds.getKey(), address));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         }
+    }
+
+    public void testCleanUpShardFollowTasksForDeletedIndices() throws Exception {
+        final int numberOfShards = randomIntBetween(1, 10);
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .build()));
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        leaderClient().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(1L)));
+
+        assertBusy(() -> {
+            String action = ShardFollowTask.NAME + "[c]";
+            ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
+            assertThat(listTasksResponse.getTasks(), hasSize(numberOfShards));
+        });
+
+        assertAcked(followerClient().admin().indices().prepareDelete("index2"));
+
+        assertBusy(() -> {
+            String action = ShardFollowTask.NAME + "[c]";
+            ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
+            assertThat(listTasksResponse.getTasks(), hasSize(0));
+        });
+        ensureNoCcrTasks();
     }
 
     private long getFollowTaskSettingsVersion(String followerIndex) {

@@ -1,5 +1,5 @@
 [[indices-update-settings]]
-== Update Indices Settings
+=== Update Indices Settings
 
 Change specific index level settings in real time.
 
@@ -40,7 +40,7 @@ request parameter can be set to `true`.
 
 [float]
 [[bulk]]
-=== Bulk Indexing Usage
+==== Bulk Indexing Usage
 
 For example, the update settings API can be used to dynamically change
 the index from being more performant for bulk indexing, and then move it
@@ -88,7 +88,7 @@ POST /twitter/_forcemerge?max_num_segments=5
 
 [float]
 [[update-settings-analysis]]
-=== Updating Index Analysis
+==== Updating Index Analysis
 
 It is also possible to define new <<analysis,analyzers>> for the index.
 But it is required to <<indices-open-close,close>> the index

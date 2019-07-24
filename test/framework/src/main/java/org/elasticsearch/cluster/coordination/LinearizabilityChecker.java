@@ -39,6 +39,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -227,13 +228,27 @@ public class LinearizabilityChecker {
      * @return true iff the history is linearizable w.r.t. the given spec
      */
     public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+        return isLinearizable(spec, history, missingResponseGenerator, () -> false);
+    }
+
+    /**
+     * Checks whether the provided history is linearizable with respect to the given sequential specification
+     *
+     * @param spec the sequential specification of the datatype
+     * @param history the history of events to check for linearizability
+     * @param missingResponseGenerator used to complete the history with missing responses
+     * @param terminateEarly a condition upon which to terminate early
+     * @return true iff the history is linearizable w.r.t. the given spec
+     */
+    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator,
+                                  BooleanSupplier terminateEarly) {
         history = history.clone(); // clone history before completing it
         history.complete(missingResponseGenerator); // complete history
         final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        return partitions.stream().allMatch(h -> isLinearizable(spec, h));
+        return partitions.stream().allMatch(h -> isLinearizable(spec, h, terminateEarly));
     }
 
-    private boolean isLinearizable(SequentialSpec spec, List<Event> history) {
+    private boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
         logger.debug("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
@@ -245,6 +260,9 @@ public class LinearizabilityChecker {
         Entry entry = headEntry.next; // current entry
 
         while (headEntry.next != null) {
+            if (terminateEarly.getAsBoolean()) {
+                return false;
+            }
             if (entry.match != null) {
                 final Optional<Object> maybeNextState = spec.nextState(state, entry.event.value, entry.match.event.value);
                 boolean shouldExploreNextState = false;

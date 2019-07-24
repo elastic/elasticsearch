@@ -42,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -62,7 +61,8 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
     private final NamedXContentRegistry xContentRegistry;
 
     protected AbstractTransportGetResourcesAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                                                  Supplier<Request> request, Client client, NamedXContentRegistry xContentRegistry) {
+                                                  Writeable.Reader<Request> request, Client client,
+                                                  NamedXContentRegistry xContentRegistry) {
         super(actionName, transportService, actionFilters, request);
         this.client = Objects.requireNonNull(client);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);

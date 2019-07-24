@@ -51,7 +51,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, WatcherServiceRequest::new);
+            WatcherServiceRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -62,11 +62,6 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

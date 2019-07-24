@@ -42,8 +42,7 @@ public class PutPipelineRequestTests extends ESTestCase {
         request.writeTo(output);
         StreamInput in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
 
-        PutPipelineRequest serialized = new PutPipelineRequest();
-        serialized.readFrom(in);
+        PutPipelineRequest serialized = new PutPipelineRequest(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());
     }

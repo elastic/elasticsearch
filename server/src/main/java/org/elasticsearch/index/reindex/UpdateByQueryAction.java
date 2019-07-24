@@ -19,18 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class UpdateByQueryAction extends StreamableResponseActionType<BulkByScrollResponse> {
+public class UpdateByQueryAction extends ActionType<BulkByScrollResponse> {
     public static final UpdateByQueryAction INSTANCE = new UpdateByQueryAction();
     public static final String NAME = "indices:data/write/update/byquery";
 
     private UpdateByQueryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public BulkByScrollResponse newResponse() {
-        return new BulkByScrollResponse();
+        super(NAME, BulkByScrollResponse::new);
     }
 }

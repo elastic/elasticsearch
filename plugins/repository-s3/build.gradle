@@ -101,6 +101,8 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
+boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(project.rootProject.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
 
@@ -167,8 +169,6 @@ if (useFixture) {
     'http://127.0.0.1:' + minioPort
   }
 
-  File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
-
   normalization {
     runtimeClasspath {
       // ignore generated address file for the purposes of build avoidance
@@ -178,12 +178,7 @@ if (useFixture) {
 
   thirdPartyTest {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
-    outputs.file(minioAddressFile)
-    doFirst {
-      file(minioAddressFile).text = "${ -> minioAddress.call() }"
-    }
-    // TODO: this could be a nonInputProperties.systemProperty so we don't need a file
-    systemProperty 'test.s3.endpoint', minioAddressFile.name
+    nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
 
   task integTestMinio(type: RestIntegTestTask) {
@@ -236,7 +231,8 @@ task s3FixtureProperties {
       "s3Fixture.temporary_key"          : s3TemporaryAccessKey,
       "s3Fixture.temporary_session_token": s3TemporarySessionToken,
       "s3Fixture.ec2_bucket_name"        : s3EC2Bucket,
-      "s3Fixture.ecs_bucket_name"        : s3ECSBucket
+      "s3Fixture.ecs_bucket_name"        : s3ECSBucket,
+      "s3Fixture.disableChunkedEncoding" : s3DisableChunkedEncoding
   ]
 
   doLast {
@@ -264,7 +260,8 @@ processTestResources {
           'ec2_bucket': s3EC2Bucket,
           'ec2_base_path': s3EC2BasePath,
           'ecs_bucket': s3ECSBucket,
-          'ecs_base_path': s3ECSBasePath
+          'ecs_base_path': s3ECSBasePath,
+          'disable_chunked_encoding': s3DisableChunkedEncoding,
   ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
@@ -331,7 +328,16 @@ thirdPartyAudit.ignoreMissingClasses (
   'software.amazon.ion.system.IonBinaryWriterBuilder',
   'software.amazon.ion.system.IonSystemBuilder',
   'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder'
+  'software.amazon.ion.system.IonWriterBuilder',
+  // We don't use the kms dependency 
+  'com.amazonaws.services.kms.AWSKMS',
+  'com.amazonaws.services.kms.AWSKMSClient',
+  'com.amazonaws.services.kms.model.DecryptRequest',
+  'com.amazonaws.services.kms.model.DecryptResult',
+  'com.amazonaws.services.kms.model.EncryptRequest',
+  'com.amazonaws.services.kms.model.EncryptResult',
+  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+  'com.amazonaws.services.kms.model.GenerateDataKeyResult'
 )
 
 thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'

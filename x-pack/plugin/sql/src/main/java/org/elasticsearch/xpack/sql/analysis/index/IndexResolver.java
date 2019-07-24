@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.TextEsField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -365,8 +366,8 @@ public class IndexResolver {
 
                 // lack of parent implies the field is an alias
                 if (map == null) {
-                    // as such, create the field manually
-                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false);
+                    // as such, create the field manually, marking the field to also be an alias
+                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false, true);
                 } else {
                     Iterator<FieldCapabilities> iterator = map.values().iterator();
                     FieldCapabilities parentCap = iterator.next();
@@ -374,7 +375,7 @@ public class IndexResolver {
                         parentCap = iterator.next();
                     }
                     final FieldCapabilities parentC = parentCap;
-                    fieldFunction = s -> createField(s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable());
+                    fieldFunction = s -> createField(s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable(), false);
                 }
 
                 parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
@@ -390,22 +391,23 @@ public class IndexResolver {
         return esField;
     }
 
-    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
+    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props,
+            boolean isAggregateable, boolean isAlias) {
         DataType esType = DataType.fromTypeName(typeName);
         switch (esType) {
             case TEXT:
-                return new TextEsField(fieldName, props, false);
+                return new TextEsField(fieldName, props, false, isAlias);
             case KEYWORD:
                 int length = DataType.KEYWORD.defaultPrecision;
                 // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
                 boolean normalized = false;
-                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized);
+                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized, isAlias);
             case DATETIME:
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
                 return new UnsupportedEsField(fieldName, typeName);
             default:
-                return new EsField(fieldName, esType, props, isAggregateable);
+                return new EsField(fieldName, esType, props, isAggregateable, isAlias);
         }
     }
 
@@ -497,7 +499,7 @@ public class IndexResolver {
                     if (unmappedIndices.isEmpty() == true) {
                         concreteIndices = asList(capIndices);
                     } else {
-                        concreteIndices = new ArrayList<>(capIndices.length - unmappedIndices.size() + 1);
+                        concreteIndices = new ArrayList<>(capIndices.length);
                         for (String capIndex : capIndices) {
                             // add only indices that have a mapping
                             if (unmappedIndices.contains(capIndex) == false) {
@@ -520,9 +522,26 @@ public class IndexResolver {
                         }
                         EsField field = indexFields.flattedMapping.get(fieldName);
                         if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
+                            int dot = fieldName.lastIndexOf('.');
+                            /*
+                             * Looking up the "tree" at the parent fields here to see if the field is an alias.
+                             * When the upper elements of the "tree" have no elements in fieldcaps, then this is an alias field. But not
+                             * always: if there are two aliases - a.b.c.alias1 and a.b.c.alias2 - only one of them will be considered alias.
+                             */
+                            Holder<Boolean> isAlias = new Holder<>(false);
+                            if (dot >= 0) {
+                                String parentName = fieldName.substring(0, dot);
+                                if (indexFields.flattedMapping.get(parentName) == null) {
+                                    // lack of parent implies the field is an alias
+                                    if (fieldCaps.get(parentName) == null) {
+                                        isAlias.set(true);
+                                    }
+                                }
+                            }
+                            
                             createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
                                     s -> invalidField != null ? invalidField : createField(s, typeCap.getType(), emptyMap(),
-                                            typeCap.isAggregatable()));
+                                            typeCap.isAggregatable(), isAlias.get()));
                         }
                     }
                 }

@@ -25,7 +25,8 @@ import java.util.List;
  */
 public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheResponse.Node> implements ToXContentFragment {
 
-    public ClearRolesCacheResponse() {
+    public ClearRolesCacheResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public ClearRolesCacheResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
@@ -34,12 +35,12 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
 
     @Override
     protected List<ClearRolesCacheResponse.Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::readNodeResponse);
+        return in.readList(Node::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClearRolesCacheResponse.Node> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
@@ -70,17 +71,12 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
 
     public static class Node extends BaseNodeResponse {
 
-        public Node() {
+        public Node(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Node(DiscoveryNode node) {
             super(node);
-        }
-
-        public static Node readNodeResponse(StreamInput in) throws IOException {
-            Node node = new Node();
-            node.readFrom(in);
-            return node;
         }
     }
 }

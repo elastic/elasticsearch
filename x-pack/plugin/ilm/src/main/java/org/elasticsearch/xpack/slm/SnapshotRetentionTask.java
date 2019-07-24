@@ -14,10 +14,12 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
@@ -50,7 +52,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     private final ClusterService clusterService;
 
     public SnapshotRetentionTask(Client client, ClusterService clusterService) {
-        this.client = client;
+        this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
         this.clusterService = clusterService;
     }
 
@@ -165,7 +167,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             listener.onResponse(Collections.emptyMap());
         }
 
-        client.admin().cluster().prepareGetSnapshots(repositories.toArray(Strings.EMPTY_ARRAY))
+        client.admin().cluster()
+            .prepareGetSnapshots(repositories.toArray(Strings.EMPTY_ARRAY))
             .setIgnoreUnavailable(true)
             .execute(new ActionListener<>() {
                 @Override
@@ -187,7 +190,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete) {
         // TODO: make this more resilient and possibly only delete for a certain amount of time
-        logger.info("starting snapshot retention deletion for [{}] snapshots", snapshotsToDelete.size());
+        int count = snapshotsToDelete.values().stream().mapToInt(List::size).sum();
+        if (count == 0) {
+            logger.debug("no snapshots are eligible for deletion");
+            return;
+        }
+        logger.info("starting snapshot retention deletion for [{}] snapshots", count);
         snapshotsToDelete.forEach((repo, snapshots) -> {
             snapshots.forEach(info -> {
                 logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, info.snapshotId());

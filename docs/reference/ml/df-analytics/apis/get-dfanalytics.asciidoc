@@ -52,7 +52,7 @@ by using a comma-separated list of {dfanalytics-jobs} or a wildcard expression.
   (Optional, boolean) Specifies what to do when the request:
 +
 --
-* Contains wildcard expressions and there are no {dfanalytics-job} that match.
+* Contains wildcard expressions and there are no {dfanalytics-jobs} that match.
 * Contains the `_all` string or no identifiers and there are no matches.
 * Contains wildcard expressions and there are only partial matches. 
 

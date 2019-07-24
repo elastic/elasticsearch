@@ -40,7 +40,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Set;
 
 final class OutboundHandler {
 
@@ -95,13 +94,12 @@ final class OutboundHandler {
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
      * objects back to the caller.
      *
-     * @see #sendErrorResponse(Version, Set, TcpChannel, long, String, Exception) for sending error responses
+     * @see #sendErrorResponse(Version, TcpChannel, long, String, Exception) for sending error responses
      */
-    void sendResponse(final Version nodeVersion, final Set<String> features, final TcpChannel channel,
-                      final long requestId, final String action, final TransportResponse response,
-                      final boolean compress, final boolean isHandshake) throws IOException {
+    void sendResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
+                      final TransportResponse response, final boolean compress, final boolean isHandshake) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
-        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, response, version,
+        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
             requestId, isHandshake, compress);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
         sendMessage(channel, message, listener);
@@ -110,12 +108,12 @@ final class OutboundHandler {
     /**
      * Sends back an error response to the caller via the given channel
      */
-    void sendErrorResponse(final Version nodeVersion, final Set<String> features, final TcpChannel channel, final long requestId,
-                           final String action, final Exception error) throws IOException {
+    void sendErrorResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
+                           final Exception error) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
         TransportAddress address = new TransportAddress(channel.getLocalAddress());
         RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
-        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, tx, version, requestId,
+        OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId,
             false, false);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
         sendMessage(channel, message, listener);

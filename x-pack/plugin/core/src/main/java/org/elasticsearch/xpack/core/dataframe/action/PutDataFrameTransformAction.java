@@ -53,7 +53,7 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new DataFrameTransformConfig(in);
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
                 this.deferValidation = in.readBoolean();
             } else {
                 this.deferValidation = false;
@@ -129,7 +129,7 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
                 out.writeBoolean(this.deferValidation);
             }
         }

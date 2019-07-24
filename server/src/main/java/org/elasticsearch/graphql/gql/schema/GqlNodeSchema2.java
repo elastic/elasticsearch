@@ -34,17 +34,17 @@ import static graphql.schema.GraphQLNonNull.nonNull;
 import static graphql.schema.GraphQLObjectType.newObject;
 import static graphql.schema.GraphQLTypeReference.typeRef;
 
-public class GqlNodeSchema {
+public class GqlNodeSchema2 {
     GqlApi api;
 
-    public GqlNodeSchema(GqlApi api) {
+    public GqlNodeSchema2(GqlApi api) {
         this.api = api;
     }
 
     /**
      * - Creates `Node` GraphQL type that represents an Elasticsearch document.
+     * - GraphQL `Node` type uses {@link NodeInfo} as DTO.
      * - Adds `Query.node(id): Node` resolver.
-     * - Adds `Node._: JSON` resolver.
      */
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .type(newObject()
@@ -52,7 +52,6 @@ public class GqlNodeSchema {
             .description(String.join("\n" , ""
                 , "`Node` represents an Elasticsearch server node."
             ))
-            .field(newFieldDefinition().name("_").type(ExtendedScalars.Json)).description("Fetch all `Node` data.")
             .field(newFieldDefinition().name("name").type(GraphQLID))
             .field(newFieldDefinition().name("transportAddress").type(GraphQLString))
             .field(newFieldDefinition().name("host").type(GraphQLString))
@@ -60,19 +59,7 @@ public class GqlNodeSchema {
             .field(newFieldDefinition().name("buildFlavor").type(GraphQLString))
             .field(newFieldDefinition().name("buildType").type(GraphQLString))
             .field(newFieldDefinition().name("buildHash").type(GraphQLString))
-            .field(newFieldDefinition().name("totalIndexingBuffer").type(GraphQLInt))
             .field(newFieldDefinition().name("roles").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("attributes").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("settings").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("os").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("process").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("jvm").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("threadPool").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("transport").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("http").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("plugins").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("modules").type(ExtendedScalars.Json))
-            .field(newFieldDefinition().name("ingest").type(ExtendedScalars.Json))
             .build())
         .queryField(newFieldDefinition()
             .name("node")
@@ -85,6 +72,5 @@ public class GqlNodeSchema {
         .fetcher("Query", "node", environment -> {
             String nodeIdOrName = environment.getArgument("id");
             return api.getNode(nodeIdOrName);
-        })
-        .fetcher("Node", "_", environment -> environment.getSource());
+        });
 }

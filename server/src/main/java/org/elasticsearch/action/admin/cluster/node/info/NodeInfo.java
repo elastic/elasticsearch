@@ -23,6 +23,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,6 +38,9 @@ import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Node information (static, does not change over time).
@@ -120,12 +124,32 @@ public class NodeInfo extends BaseNodeResponse {
 
     public String getName() { return getNode().getName(); }
 
+    public String getTransportAddress() { return getNode().getAddress().toString(); }
+
     /**
      * System's hostname. <code>null</code> in case of UnknownHostException
      */
     @Nullable
     public String getHostname() {
         return getNode().getHostName();
+    }
+    public String getHost() { return getHostname(); }
+
+    public String getHostAddress() { return getNode().getHostAddress(); }
+    public String getIp() { return getHostAddress(); }
+
+    public String getBuildFlavor() { return getBuild().flavor().displayName(); }
+
+    public String getBuildType() { return getBuild().type().displayName(); }
+
+    public String getBuildHash() { return getBuild().shortHash(); }
+
+    public List<String> getRoles() {
+        LinkedList<String> list = new LinkedList<>();
+        for (DiscoveryNodeRole role : getNode().getRoles()) {
+            list.add(role.roleName());
+        }
+        return list;
     }
 
     /**

@@ -61,15 +61,15 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
         for (NodeInfo nodeInfo : getNodes()) {
             builder.startObject(nodeInfo.getNode().getId());
 
-            builder.field("name", nodeInfo.getNode().getName());
-            builder.field("transport_address", nodeInfo.getNode().getAddress().toString());
-            builder.field("host", nodeInfo.getNode().getHostName());
-            builder.field("ip", nodeInfo.getNode().getHostAddress());
+            builder.field("name", nodeInfo.getName());
+            builder.field("transport_address", nodeInfo.getTransportAddress());
+            builder.field("host", nodeInfo.getHost());
+            builder.field("ip", nodeInfo.getIp());
 
             builder.field("version", nodeInfo.getVersion());
-            builder.field("build_flavor", nodeInfo.getBuild().flavor().displayName());
-            builder.field("build_type", nodeInfo.getBuild().type().displayName());
-            builder.field("build_hash", nodeInfo.getBuild().shortHash());
+            builder.field("build_flavor", nodeInfo.getBuildFlavor());
+            builder.field("build_type", nodeInfo.getBuildType());
+            builder.field("build_hash", nodeInfo.getBuildHash());
             if (nodeInfo.getTotalIndexingBuffer() != null) {
                 builder.humanReadableField("total_indexing_buffer", "total_indexing_buffer_in_bytes", nodeInfo.getTotalIndexingBuffer());
             }

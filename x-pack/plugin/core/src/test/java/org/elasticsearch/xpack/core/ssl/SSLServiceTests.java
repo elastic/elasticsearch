@@ -197,7 +197,7 @@ public class SSLServiceTests extends ESTestCase {
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
-            assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL KeyManagerFactory")));
+            assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
         }
     }
 
@@ -330,7 +330,7 @@ public class SSLServiceTests extends ESTestCase {
         ElasticsearchException e =
                 expectThrows(ElasticsearchException.class, () -> new SSLService(settings, env));
         assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
-        assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL TrustManagerFactory")));
+        assertThat(e.getCause(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
     }
 
     public void testThatKeystorePasswordIsRequired() throws Exception {

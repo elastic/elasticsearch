@@ -15,8 +15,10 @@ import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -56,13 +58,18 @@ class StoreTrustConfig extends TrustConfig {
 
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
+        final Path storePath = CertParsingUtils.resolvePath(trustStorePath, environment);
         try {
-            KeyStore trustStore = getStore(environment, trustStorePath, trustStoreType, trustStorePassword);
+            KeyStore trustStore = getStore(storePath, trustStoreType, trustStorePassword);
             return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingTrustConfigFile("truststore", trustStorePath, e);
+            throw missingTrustConfigFile(e, "truststore", storePath);
+        } catch (AccessDeniedException  e) {
+            throw unreadableTrustConfigFile(e, "truststore", storePath);
+        } catch (AccessControlException e) {
+            throw blockedTrustConfigFile(e, environment, "truststore", List.of(storePath));
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to initialize SSL TrustManagerFactory", e);
+            throw new ElasticsearchException("failed to initialize SSL TrustManager", e);
         }
     }
 

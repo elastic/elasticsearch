@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -70,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -353,7 +353,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL KeyManagerFactory")));
+        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -451,7 +451,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get(), TestMatchers.throwableWithMessage(containsString("failed to initialize SSL TrustManagerFactory")));
+        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -497,7 +497,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get().getMessage(), containsString("failed to initialize a TrustManagerFactory"));
+        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 

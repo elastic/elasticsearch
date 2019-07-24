@@ -12,11 +12,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -35,6 +35,7 @@ class PEMTrustConfig extends TrustConfig {
 
     /**
      * Create a new trust configuration that is built from the certificate files
+     *
      * @param caPaths the paths to the certificate files to trust
      */
     PEMTrustConfig(List<String> caPaths) {
@@ -46,10 +47,17 @@ class PEMTrustConfig extends TrustConfig {
         try {
             Certificate[] certificates = CertParsingUtils.readCertificates(caPaths, environment);
             return CertParsingUtils.trustManager(certificates);
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingTrustConfigFile("certificate_authorities", e.getMessage(), e);
+        } catch (NoSuchFileException noSuchFileException) {
+            final Path missingPath = CertParsingUtils.resolvePath(noSuchFileException.getFile(), environment);
+            throw missingTrustConfigFile(noSuchFileException, "certificate_authorities", missingPath);
+        } catch (AccessDeniedException accessDeniedException) {
+            final Path missingPath = CertParsingUtils.resolvePath(accessDeniedException.getFile(), environment);
+            throw unreadableTrustConfigFile(accessDeniedException, "certificate_authorities", missingPath);
+        } catch (AccessControlException accessControlException) {
+            final List<Path> paths = CertParsingUtils.resolvePaths(caPaths, environment);
+            throw blockedTrustConfigFile(accessControlException, environment, "certificate_authorities", paths);
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
+            throw new ElasticsearchException("failed to initialize SSL TrustManager", e);
         }
     }
 

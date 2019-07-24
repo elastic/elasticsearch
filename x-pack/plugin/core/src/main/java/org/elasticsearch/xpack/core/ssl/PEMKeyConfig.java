@@ -16,8 +16,10 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -64,15 +66,20 @@ class PEMKeyConfig extends KeyConfig {
 
             return CertParsingUtils.keyManager(certificateChain, privateKey, keyPassword.getChars());
         } catch (IOException | UnrecoverableKeyException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
-            throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
+            throw new ElasticsearchException("failed to initialize SSL KeyManagerFactory", e);
         }
     }
 
     private Certificate[] getCertificateChain(@Nullable Environment environment) throws CertificateException, IOException {
+        final Path certificate = CertParsingUtils.resolvePath(certPath, environment);
         try {
-            return CertParsingUtils.readCertificates(Collections.singletonList(certPath), environment);
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingKeyConfigFile("certificate", certPath, e);
+            return CertParsingUtils.readCertificates(Collections.singletonList(certificate));
+        } catch (FileNotFoundException | NoSuchFileException fileException) {
+            throw missingKeyConfigFile(fileException, "certificate", certificate);
+        } catch (AccessDeniedException accessException) {
+            throw unreadableKeyConfigFile(accessException, "certificate", certificate);
+        } catch (AccessControlException securityException) {
+            throw blockedKeyConfigFile(securityException, environment, "certificate", certificate);
         }
     }
 
@@ -99,10 +106,15 @@ class PEMKeyConfig extends KeyConfig {
     }
 
     private static PrivateKey readPrivateKey(String keyPath, SecureString keyPassword, Environment environment) throws IOException {
+        final Path key = CertParsingUtils.resolvePath(keyPath, environment);
         try {
-            return PemUtils.readPrivateKey(CertParsingUtils.resolvePath(keyPath, environment), keyPassword::getChars);
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingKeyConfigFile("key", keyPath, e);
+            return PemUtils.readPrivateKey(key, keyPassword::getChars);
+        } catch (FileNotFoundException | NoSuchFileException fileException) {
+            throw missingKeyConfigFile(fileException, "key", key);
+        } catch (AccessDeniedException accessException) {
+            throw unreadableKeyConfigFile(accessException, "key", key);
+        } catch (AccessControlException securityException) {
+            throw blockedKeyConfigFile(securityException, environment, "key", key);
         }
     }
 
@@ -148,7 +160,7 @@ class PEMKeyConfig extends KeyConfig {
     @Override
     public String toString() {
         return "keyPath=[" + keyPath +
-                "], certPaths=[" + certPath +
-                "]";
+            "], certPaths=[" + certPath +
+            "]";
     }
 }

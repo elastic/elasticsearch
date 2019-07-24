@@ -257,7 +257,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
     
     @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
-    public void testDriverConfigurationWithSSLInURL() throws Exception {
+    public void testDriverConfigurationWithSSLInURL() {
         Map<String, String> urlPropMap = sslProperties();
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
         

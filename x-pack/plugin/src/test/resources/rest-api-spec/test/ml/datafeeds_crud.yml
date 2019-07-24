@@ -215,6 +215,16 @@ setup:
             "indexes":["index-foo"],
             "scroll_size": 2000
           }
+  - match: { job_id: "datafeeds-crud-1" }
+
+  - do:
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id": "datafeeds-crud-1"
+          }
+  - match: { job_id: "datafeeds-crud-1" }
 
   - do:
       warnings:

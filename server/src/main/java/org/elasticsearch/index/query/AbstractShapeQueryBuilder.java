@@ -33,14 +33,6 @@ import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryIO;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
-import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
-import org.elasticsearch.common.geo.builders.LineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
-import org.elasticsearch.common.geo.builders.MultiPointBuilder;
-import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,19 +41,9 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -479,89 +461,6 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
                 listener.onFailure(e);
             }
         });
-    }
-
-    public static ShapeBuilder<?, ?, ?> geometryToShapeBuilder(Geometry geometry) {
-        ShapeBuilder<?, ?, ?> shapeBuilder = geometry.visit(new GeometryVisitor<>() {
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(Circle circle) {
-                throw new UnsupportedOperationException("circle is not supported");
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(GeometryCollection<?> collection) {
-                GeometryCollectionBuilder shapes = new GeometryCollectionBuilder();
-                for (Geometry geometry : collection) {
-                    shapes.shape(geometry.visit(this));
-                }
-                return shapes;
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(org.elasticsearch.geo.geometry.Line line) {
-                List<Coordinate> coordinates = new ArrayList<>();
-                for (int i = 0; i < line.length(); i++) {
-                    coordinates.add(new Coordinate(line.getLon(i), line.getLat(i), line.getAlt(i)));
-                }
-                return new LineStringBuilder(coordinates);
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(LinearRing ring) {
-                throw new UnsupportedOperationException("circle is not supported");
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(MultiLine multiLine) {
-                MultiLineStringBuilder lines = new MultiLineStringBuilder();
-                for (int i = 0; i < multiLine.size(); i++) {
-                    lines.linestring((LineStringBuilder) visit(multiLine.get(i)));
-                }
-                return lines;
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(MultiPoint multiPoint) {
-                List<Coordinate> coordinates = new ArrayList<>();
-                for (int i = 0; i < multiPoint.size(); i++) {
-                    Point p = multiPoint.get(i);
-                    coordinates.add(new Coordinate(p.getLon(), p.getLat(), p.getAlt()));
-                }
-                return new MultiPointBuilder(coordinates);
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(MultiPolygon multiPolygon) {
-                MultiPolygonBuilder polygons = new MultiPolygonBuilder();
-                for (int i = 0; i < multiPolygon.size(); i++) {
-                    polygons.polygon((PolygonBuilder) visit(multiPolygon.get(i)));
-                }
-                return polygons;
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(Point point) {
-                return new PointBuilder(point.getLon(), point.getLat());
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(org.elasticsearch.geo.geometry.Polygon polygon) {
-                PolygonBuilder polygonBuilder =
-                    new PolygonBuilder((LineStringBuilder) visit((org.elasticsearch.geo.geometry.Line) polygon.getPolygon()),
-                        ShapeBuilder.Orientation.RIGHT, false);
-                for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                    polygonBuilder.hole((LineStringBuilder) visit((org.elasticsearch.geo.geometry.Line) polygon.getHole(i)));
-                }
-                return polygonBuilder;
-            }
-
-            @Override
-            public ShapeBuilder<?, ?, ?> visit(Rectangle rectangle) {
-                return new EnvelopeBuilder(new Coordinate(rectangle.getMinLon(), rectangle.getMaxLat()),
-                    new Coordinate(rectangle.getMaxLon(), rectangle.getMinLat()));
-            }
-        });
-        return shapeBuilder;
     }
 
     @Override

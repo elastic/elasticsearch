@@ -129,7 +129,7 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, true)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(Result.RESULT_TYPE.getPreferredName(), TYPE.getPreferredName());
         }
         builder.field(JOB_ID.getPreferredName(), jobId);

@@ -25,6 +25,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -426,15 +427,24 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             if (Thread.currentThread().isInterrupted()) {
                 listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
             }
+
             if (seedNodes.hasNext()) {
-                final Consumer<Exception> exceptionConsumer = e -> {
+                final DiscoveryNode seedNode = maybeAddProxyAddress(proxyAddress, seedNodes.next().get());
+                logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
+                    proxyAddress);
+                final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
+
+                final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
+                connectionManager.openConnection(seedNode, profile, openConnectionStep);
+
+                final Consumer<Exception> onFailure = e -> {
                     if (e instanceof ConnectTransportException ||
                         e instanceof IOException ||
                         e instanceof IllegalStateException) {
                         // ISE if we fail the handshake with an version incompatible node
                         if (seedNodes.hasNext()) {
-                            logger.debug(() -> new ParameterizedMessage("fetching nodes from external cluster [{}] failed moving to next node",
-                                clusterAlias), e);
+                            logger.debug(() -> new ParameterizedMessage(
+                                "fetching nodes from external cluster [{}] failed moving to next node", clusterAlias), e);
                             collectRemoteNodes(seedNodes, listener);
                             return;
                         }
@@ -443,77 +453,59 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     listener.onFailure(e);
                 };
 
-                final DiscoveryNode seedNode = maybeAddProxyAddress(proxyAddress, seedNodes.next().get());
-                logger.debug("[{}] opening connection to seed node: [{}] proxy address: [{}]", clusterAlias, seedNode,
-                    proxyAddress);
-                final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
-                connectionManager.openConnection(seedNode, profile, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Transport.Connection connection) {
-                        ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
-                        transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                            getRemoteClusterNamePredicate(), new ActionListener<>() {
-                                @Override
-                                public void onResponse(TransportService.HandshakeResponse handshakeResponse) {
-                                    final DiscoveryNode handshakeNode = maybeAddProxyAddress(proxyAddress, handshakeResponse.getDiscoveryNode());
+                final StepListener<TransportService.HandshakeResponse> handShakeStep = new StepListener<>();
+                openConnectionStep.whenComplete(connection -> {
+                    ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
+                    transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
+                        getRemoteClusterNamePredicate(), handShakeStep);
+                }, onFailure);
 
-                                    final Runnable andThen = () -> {
-                                        ClusterStateRequest request = new ClusterStateRequest();
-                                        request.clear();
-                                        request.nodes(true);
-                                        // here we pass on the connection since we can only close it once the sendRequest returns otherwise
-                                        // due to the async nature (it will return before it's actually sent) this can cause the request to fail
-                                        // due to an already closed connection.
-                                        ThreadPool threadPool = transportService.getThreadPool();
-                                        ThreadContext threadContext = threadPool.getThreadContext();
-                                        TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler = new TransportService
-                                            .ContextRestoreResponseHandler<>(threadContext.newRestorableContext(false),
-                                            new SniffClusterStateResponseHandler(connection, listener, seedNodes));
-                                        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                                            // we stash any context here since this is an internal execution and should not leak any
-                                            // existing context information.
-                                            threadContext.markAsSystemContext();
-                                            transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
-                                                responseHandler);
-                                        }
-                                    };
+                final StepListener<Void> fullConnectionStep = new StepListener<>();
+                handShakeStep.whenComplete(handshakeResponse -> {
+                    final DiscoveryNode handshakeNode = maybeAddProxyAddress(proxyAddress, handshakeResponse.getDiscoveryNode());
 
-                                    if (nodePredicate.test(handshakeNode) && connectionManager.size() < maxNumRemoteConnections) {
-                                        connectionManager.connectToNode(handshakeNode, null,
-                                            transportService.connectionValidator(handshakeNode), new ActionListener<>() {
-                                                @Override
-                                                public void onResponse(Void aVoid) {
-                                                    if (remoteClusterName.get() == null) {
-                                                        assert handshakeResponse.getClusterName().value() != null;
-                                                        remoteClusterName.set(handshakeResponse.getClusterName());
-                                                    }
-                                                    andThen.run();
-                                                }
-
-                                                @Override
-                                                public void onFailure(Exception e) {
-                                                    IOUtils.closeWhileHandlingException(connection);
-                                                    exceptionConsumer.accept(e);
-                                                }
-                                            });
-                                    } else {
-                                        andThen.run();
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn(new ParameterizedMessage("failed to connect to seed node [{}]", connection.getNode()), e);
-                                    IOUtils.closeWhileHandlingException(connection);
-                                    exceptionConsumer.accept(e);
-                                }
-                            });
+                    if (nodePredicate.test(handshakeNode) && connectionManager.size() < maxNumRemoteConnections) {
+                        connectionManager.connectToNode(handshakeNode, null,
+                            transportService.connectionValidator(handshakeNode), fullConnectionStep);
+                    } else {
+                        fullConnectionStep.onResponse(null);
                     }
+                }, e -> {
+                    final Transport.Connection connection = openConnectionStep.result();
+                    logger.warn(new ParameterizedMessage("failed to connect to seed node [{}]", connection.getNode()), e);
+                    IOUtils.closeWhileHandlingException(connection);
+                    onFailure.accept(e);
+                });
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        exceptionConsumer.accept(e);
+                fullConnectionStep.whenComplete(aVoid -> {
+                    if (remoteClusterName.get() == null) {
+                        TransportService.HandshakeResponse handshakeResponse = handShakeStep.result();
+                        assert handshakeResponse.getClusterName().value() != null;
+                        remoteClusterName.set(handshakeResponse.getClusterName());
                     }
+                    final Transport.Connection connection = openConnectionStep.result();
+
+                    ClusterStateRequest request = new ClusterStateRequest();
+                    request.clear();
+                    request.nodes(true);
+                    // here we pass on the connection since we can only close it once the sendRequest returns otherwise
+                    // due to the async nature (it will return before it's actually sent) this can cause the request to fail
+                    // due to an already closed connection.
+                    ThreadPool threadPool = transportService.getThreadPool();
+                    ThreadContext threadContext = threadPool.getThreadContext();
+                    TransportService.ContextRestoreResponseHandler<ClusterStateResponse> responseHandler = new TransportService
+                        .ContextRestoreResponseHandler<>(threadContext.newRestorableContext(false),
+                        new SniffClusterStateResponseHandler(connection, listener, seedNodes));
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        // we stash any context here since this is an internal execution and should not leak any
+                        // existing context information.
+                        threadContext.markAsSystemContext();
+                        transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                            responseHandler);
+                    }
+                }, e -> {
+                    IOUtils.closeWhileHandlingException(openConnectionStep.result());
+                    onFailure.accept(e);
                 });
             } else {
                 listener.onFailure(new IllegalStateException("no seed node left"));
@@ -565,7 +557,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
             private void handleNodes(Iterator<DiscoveryNode> nodesIter) {
                 while (nodesIter.hasNext()) {
-                    DiscoveryNode node = maybeAddProxyAddress(proxyAddress, nodesIter.next());
+                    final DiscoveryNode node = maybeAddProxyAddress(proxyAddress, nodesIter.next());
                     if (nodePredicate.test(node) && connectionManager.size() < maxNumRemoteConnections) {
                         connectionManager.connectToNode(node, null,
                             transportService.connectionValidator(node), new ActionListener<>() {
@@ -583,7 +575,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                                         logger.debug(() -> new ParameterizedMessage("failed to connect to node {}", node), e);
                                         handleNodes(nodesIter);
                                     } else {
-                                        logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), e);
+                                        logger.warn(() ->
+                                            new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), e);
                                         IOUtils.closeWhileHandlingException(connection);
                                         collectRemoteNodes(seedNodes, listener);
                                     }

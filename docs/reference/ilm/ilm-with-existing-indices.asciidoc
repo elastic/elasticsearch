@@ -227,6 +227,9 @@ older periodic indices can be deleted.
 [[ilm-reindexing-into-rollover]]
 === Reindexing via {ilm-init}
 
+NOTE: The examples in this section assume daily indices as set up in
+<<ilm-with-existing-indices,the previous section>>.
+
 In some cases, it may be useful to reindex data into {ilm-init}-managed indices.
 This is more complex than simply attaching policies to existing indices as
 described in <<ilm-with-existing-periodic-indices,the previous section>>, and
@@ -366,7 +369,7 @@ POST _reindex
     "sort": { "@timestamp": "desc" }
   },
   "dest": {
-    "index": "mylogs" <2>,
+    "index": "mylogs", <2>
     "op_type": "create" <3>
   }
 }

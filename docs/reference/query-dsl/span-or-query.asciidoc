@@ -30,7 +30,7 @@ GET /_search
 
 
 [[span-or-top-level-params]]
-==== Top-level parameters for `span_near`
+==== Top-level parameters for `span_or`
 `clauses`::
 (Required, array of query objects) Array of one or more other
 <<span-queries,span query>> clauses. Returned documents must one or more of

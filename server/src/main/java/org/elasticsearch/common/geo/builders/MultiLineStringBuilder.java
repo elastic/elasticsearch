@@ -154,16 +154,6 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasti
         if (lines.isEmpty()) {
             return MultiLine.EMPTY;
         }
-        if (wrapdateline) {
-            List<org.elasticsearch.geo.geometry.Line> parts = new ArrayList<>();
-            for (LineStringBuilder line : lines) {
-                LineStringBuilder.decomposeGeometry(line.coordinates(false), parts);
-            }
-            if (parts.size() == 1) {
-                return parts.get(0);
-            }
-            return new MultiLine(parts);
-        }
         List<org.elasticsearch.geo.geometry.Line> linestrings = new ArrayList<>(lines.size());
         for (int i = 0; i < lines.size(); ++i) {
             LineStringBuilder lsb = lines.get(i);

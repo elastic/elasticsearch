@@ -245,6 +245,7 @@ public final class GeometryIndexer {
 
         for (int i = 1; i < lons.length; i++) {
             double t = intersection(lastLon, lons[i], dateline);
+            lastLon = lons[i];
             if (Double.isNaN(t) == false) {
                 double[] partLons = Arrays.copyOfRange(lons, offset, i + 1);
                 double[] partLats = Arrays.copyOfRange(lats, offset, i + 1);
@@ -330,7 +331,7 @@ public final class GeometryIndexer {
             exterior.add(new Point(shell.getLat(i), shell.getLon(i)));
         }
         for (int i = 0; i < hole.length(); i++) {
-            interior.remove(new Point(hole.getLat(i), hole.getLon(i)));
+            interior.add(new Point(hole.getLat(i), hole.getLon(i)));
         }
         exterior.retainAll(interior);
         if (exterior.size() >= 2) {
@@ -645,7 +646,7 @@ public final class GeometryIndexer {
                 edges[edgeOffset + i - 1].next = edges[edgeOffset + i] = new Edge(nextPoint, null);
                 edges[edgeOffset + i - 1].component = component;
             } else {
-                throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: " + nextPoint);
+                throw new InvalidShapeException("Provided shape has duplicate consecutive coordinates at: (" + nextPoint + ")");
             }
         }
 

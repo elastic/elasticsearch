@@ -35,7 +35,7 @@ CCR::
 * Avoid NPE when checking for CCR index privileges {pull}44397[#44397] (issue: {issue}44172[#44172])
 
 Engine::
-* AsyncIOProcessor preserve thread context {pull}43729[#43729]
+* Preserve thread context in AsyncIOProcessor {pull}43729[#43729]
 
 Features/ILM::
 * Fix swapped variables in error message {pull}44300[#44300]

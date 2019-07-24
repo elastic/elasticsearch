@@ -86,7 +86,7 @@ public class GqlMockApi implements GqlApi {
 
     @Override
     @SuppressWarnings("unchecked")
-    public CompletableFuture<List<Object>> getIndices() throws Exception {
+    public CompletableFuture<List<Object>> getIndexInfos() throws Exception {
         XContentBuilder builder = GqlApiUtils.createJavaUtilBuilder();
         builder
             .startArray()

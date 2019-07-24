@@ -96,7 +96,7 @@ public class GqlIndexInfoSchema {
             .name("indexInfo")
             .description("List all Elasticsearch indices.")
             .type(nonNull(list(nonNull(typeRef("IndexInfo"))))))
-        .fetcher("Query", "indexInfo", environment -> api.getIndices())
+        .fetcher("Query", "indexInfo", environment -> api.getIndexInfos())
         .fetcher("IndexInfo", "index", environment -> {
             String indexName = (String) ((Map<String, Object>) environment.getSource()).get("name");
             return api.getIndex(indexName);

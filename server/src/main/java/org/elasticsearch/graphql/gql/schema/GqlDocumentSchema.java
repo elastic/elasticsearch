@@ -48,7 +48,7 @@ public class GqlDocumentSchema {
         .type(newObject()
             .name("Document")
             .description(String.join("\n" , ""
-                    , "`Document` represents a a JSON document stored in Elasticsearch."
+                    , "`Document` represents a JSON document stored in Elasticsearch."
             ))
             .field(newFieldDefinition()
                 .name("_")

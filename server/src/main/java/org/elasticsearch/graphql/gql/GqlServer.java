@@ -49,6 +49,7 @@ public class GqlServer {
             .map(new GqlDocumentSchema(api).use)
             .map(new GqlIndexSchema(api).use)
             .map(new GqlIndexInfoSchema(api).use)
+            .map(new GqlNodeSchema(api).use)
             .get();
 
         schema = builder.build();

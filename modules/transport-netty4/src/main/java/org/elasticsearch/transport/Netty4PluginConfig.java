@@ -22,6 +22,8 @@ package org.elasticsearch.transport;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.transport.netty4.Netty4Utils;
 
 public class Netty4PluginConfig {
 
@@ -30,6 +32,7 @@ public class Netty4PluginConfig {
     private final Boolean directBufferPoolingDisabled;
 
     public Netty4PluginConfig(Settings settings) {
+        Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.settings = settings;
         directBufferPoolingDisabled = Netty4Plugin.NETTY_DISABLE_DIRECT_POOL.get(settings);
         if (directBufferPoolingDisabled) {

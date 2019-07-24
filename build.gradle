@@ -545,6 +545,6 @@ allprojects {
 
 gradle.projectsEvaluated {
   task s3ThirdPartyTests {
-    dependsOn project.tasks.findByPath("plugins:repository-s3:check")
+    dependsOn project.tasks.findByPath("plugins:repository-s3:check"), project.tasks.findByPath("x-pack:snapshot-tool:check")
   }
 }

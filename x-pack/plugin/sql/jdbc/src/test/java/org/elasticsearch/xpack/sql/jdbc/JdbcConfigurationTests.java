@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
+import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -255,6 +256,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertSslConfig(props, JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0).sslConfig());
     }
     
+    @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
     public void testDriverConfigurationWithSSLInURL() throws Exception {
         Map<String, String> urlPropMap = sslProperties();
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));

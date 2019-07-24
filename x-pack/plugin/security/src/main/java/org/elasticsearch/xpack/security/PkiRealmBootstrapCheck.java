@@ -31,7 +31,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
     }
 
     /**
-     * If a PKI realm is enabled, checks to see if SSL and Client authentication are enabled on at
+     * If a PKI realm is enabled, and does not support delegation(default), checks to see if SSL and Client authentication are enabled on at
      * least one network communication layer.
      */
     @Override

@@ -564,6 +564,7 @@ include::ilm/lifecycle_management_status.asciidoc[]
 include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
+[[_data_frame_transform_apis]]
 == {dataframe-transform-cap} APIs
 
 :upid: {mainid}-dataframe

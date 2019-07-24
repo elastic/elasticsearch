@@ -48,8 +48,18 @@ IMPORTANT: This API returns a maximum of 10,000 jobs.
 ==== {api-query-parms-title}
 
 `allow_no_jobs`::
-  (Optional, boolean) If `false` and the `job_id` does not match any job an 
-  error will be returned. The default value is `true`.
+  (Optional, boolean) Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no jobs that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty `jobs` array 
+when there are no matches and the subset of results when there are partial 
+matches. If this parameter is `false`, the request returns a `404` status code
+when there are no matches or only partial matches.
+--
 
 [[ml-get-job-stats-results]]
 ==== {api-response-body-title}

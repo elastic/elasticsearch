@@ -142,3 +142,18 @@ the behavior of an entity. 
 NOTE: Data frames are only available with the default distribution of {es}.
 
 // end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Outlier detection
+
+{stack-ov}/security-privileges.html[Outlier detection] utilizes Elastic data
+frame indexes to evaluate source indexes across multiple dimensions and identify
+clusters of data based on the assigned values and which values are different
+from those of the clustered data point. An outlier score can be used to indicate
+how different an entity is from other entities in the index based on the
+dimensions that you supply.
+
+NOTE: Outlier detection requires a platinum license.
+
+// end::notable-highlights[]

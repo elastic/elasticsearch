@@ -104,6 +104,10 @@ if (useFixture) {
     dependsOn tasks.postProcessFixture
     nonInputProperties.systemProperty 'test.s3.endpoint', "${ -> minioAddress.call() }"
   }
+} else {
+  task s3ThirdPartyTests {
+    dependsOn check
+  }
 }
 
 task unpackArchive(dependsOn: tasks.assemble, type: Copy) {

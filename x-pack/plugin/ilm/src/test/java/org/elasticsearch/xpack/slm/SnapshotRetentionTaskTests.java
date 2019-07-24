@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -83,7 +82,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             "repo", null, randomBoolean() ? null : SnapshotRetentionConfiguration.EMPTY);
         Map<String, SnapshotLifecyclePolicy> policyMap = Collections.singletonMap("policy", policy);
         Map<String, SnapshotLifecyclePolicy> policyWithNoRetentionMap = Collections.singletonMap("policy", policyWithNoRetention);
-        Function<SnapshotInfo, List<Tuple<String, SnapshotInfo>>> mkInfos = i -> Collections.singletonList(new Tuple<>("repo", i));
+        Function<SnapshotInfo, Map<String, List<SnapshotInfo>>> mkInfos = i ->
+            Collections.singletonMap("repo", Collections.singletonList(i));
 
         // Test when user metadata is null
         SnapshotInfo info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
@@ -140,15 +140,15 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             CountDownLatch latch = new CountDownLatch(1);
             MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(noOpClient, clusterService,
                 () -> {
-                    List<Tuple<String, SnapshotInfo>> snaps = new ArrayList<>(2);
-                    snaps.add(new Tuple<>("repo", eligibleSnapshot));
-                    snaps.add(new Tuple<>("repo", ineligibleSnapshot));
+                    List<SnapshotInfo> snaps = new ArrayList<>(2);
+                    snaps.add(eligibleSnapshot);
+                    snaps.add(ineligibleSnapshot);
                     logger.info("--> retrieving snapshots [{}]", snaps);
-                    return snaps;
+                    return Collections.singletonMap("repo", snaps);
                 },
                 snapsToDelete -> {
                     logger.info("--> deleting {}", snapsToDelete);
-                    deleted.set(snapsToDelete.stream().map(Tuple::v2).collect(Collectors.toList()));
+                    deleted.set(snapsToDelete.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
                     latch.countDown();
                 });
 
@@ -186,13 +186,13 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     private class MockSnapshotRetentionTask extends SnapshotRetentionTask {
 
-        private final Supplier<List<Tuple<String, SnapshotInfo>>> snapshotRetriever;
-        private final Consumer<List<Tuple<String, SnapshotInfo>>> snapshotDeleter;
+        private final Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever;
+        private final Consumer<Map<String, List<SnapshotInfo>>> snapshotDeleter;
 
         MockSnapshotRetentionTask(Client client,
                                   ClusterService clusterService,
-                                  Supplier<List<Tuple<String, SnapshotInfo>>> snapshotRetriever,
-                                  Consumer<List<Tuple<String, SnapshotInfo>>> snapshotDeleter) {
+                                  Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
+                                  Consumer<Map<String, List<SnapshotInfo>>> snapshotDeleter) {
             super(client, clusterService);
             this.snapshotRetriever = snapshotRetriever;
             this.snapshotDeleter = snapshotDeleter;
@@ -200,13 +200,13 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         @Override
         void getAllSnapshots(Collection<String> repositories,
-                             ActionListener<List<Tuple<String, SnapshotInfo>>> listener,
+                             ActionListener<Map<String, List<SnapshotInfo>>> listener,
                              Consumer<Exception> errorHandler) {
             listener.onResponse(this.snapshotRetriever.get());
         }
 
         @Override
-        void deleteSnapshots(List<Tuple<String, SnapshotInfo>> snapshotsToDelete) {
+        void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete) {
             this.snapshotDeleter.accept(snapshotsToDelete);
         }
     }

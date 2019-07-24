@@ -17,7 +17,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfigura
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,7 +34,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The {@code SnapshotRetentionTask} is invoked by the scheduled job from the
@@ -75,11 +74,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
                 getAllSnapshots(repositioriesToFetch, new ActionListener<>() {
                     @Override
-                    public void onResponse(List<Tuple<String, SnapshotInfo>> allSnapshots) {
+                    public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
                         // Find all the snapshots that are past their retention date
-                        final List<Tuple<String, SnapshotInfo>> snapshotsToBeDeleted = allSnapshots.stream()
-                            .filter(snapshot -> snapshotEligibleForDeletion(snapshot.v2(), allSnapshots, policiesWithRetention))
-                            .collect(Collectors.toList());
+                        final Map<String, List<SnapshotInfo>> snapshotsToBeDeleted = allSnapshots.entrySet().stream()
+                            .collect(Collectors.toMap(Map.Entry::getKey,
+                                e -> e.getValue().stream()
+                                    .filter(snapshot -> snapshotEligibleForDeletion(snapshot, allSnapshots, policiesWithRetention))
+                                    .collect(Collectors.toList())));
 
                         // Finally, delete the snapshots that need to be deleted
                         deleteSnapshots(snapshotsToBeDeleted);
@@ -110,7 +111,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getPolicy()));
     }
 
-    static boolean snapshotEligibleForDeletion(SnapshotInfo snapshot, List<Tuple<String, SnapshotInfo>> allSnapshots,
+    static boolean snapshotEligibleForDeletion(SnapshotInfo snapshot, Map<String, List<SnapshotInfo>> allSnapshots,
                                                Map<String, SnapshotLifecyclePolicy> policies) {
         if (snapshot.userMetadata() == null) {
             // This snapshot has no metadata, it is not eligible for deletion
@@ -145,37 +146,35 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         final String repository = policy.getRepository();
         // Retrieve the predicate based on the retention policy, passing in snapshots pertaining only to *this* policy and repository
         boolean eligible = retention.getSnapshotDeletionPredicate(
-            allSnapshots.stream()
-                .filter(t -> t.v1().equals(repository))
-                .filter(t -> Optional.ofNullable(t.v2().userMetadata())
+            allSnapshots.get(repository).stream()
+                .filter(info -> Optional.ofNullable(info.userMetadata())
                     .map(meta -> meta.get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD))
                     .map(pId -> pId.equals(policyId))
                     .orElse(false))
-                .map(Tuple::v2).collect(Collectors.toList()))
+                .collect(Collectors.toList()))
             .test(snapshot);
         logger.debug("[{}] testing snapshot [{}] deletion eligibility: {}",
             repository, snapshot.snapshotId(), eligible ? "ELIGIBLE" : "INELIGIBLE");
         return eligible;
     }
 
-    void getAllSnapshots(Collection<String> repositories, ActionListener<List<Tuple<String, SnapshotInfo>>> listener,
+    void getAllSnapshots(Collection<String> repositories, ActionListener<Map<String, List<SnapshotInfo>>> listener,
                          Consumer<Exception> errorHandler) {
+        if (repositories.isEmpty()) {
+            // Skip retrieving anything if there are no repositories to fetch
+            listener.onResponse(Collections.emptyMap());
+        }
+
         client.admin().cluster().prepareGetSnapshots(repositories.toArray(Strings.EMPTY_ARRAY))
             .setIgnoreUnavailable(true)
-            .execute(new ActionListener<GetSnapshotsResponse>() {
+            .execute(new ActionListener<>() {
                 @Override
                 public void onResponse(final GetSnapshotsResponse resp) {
-                    listener.onResponse(repositories.stream()
-                        .flatMap(repo -> {
-                            try {
-                                return resp.getSnapshots(repo).stream()
-                                    .map(si -> new Tuple<>(repo, si));
-                            } catch (Exception e) {
-                                logger.debug(new ParameterizedMessage("unable to retrieve snapshots for [{}] repository", repo), e);
-                                return Stream.empty();
-                            }
-                        })
-                        .collect(Collectors.toList()));
+                    Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
+                    repositories.forEach(repo -> {
+                        snapshots.put(repo, resp.getSnapshots(repo));
+                    });
+                    listener.onResponse(snapshots);
                 }
 
                 @Override
@@ -186,35 +185,37 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             });
     }
 
-    void deleteSnapshots(List<Tuple<String, SnapshotInfo>> snapshotsToDelete) {
+    void deleteSnapshots(Map<String, List<SnapshotInfo>> snapshotsToDelete) {
         // TODO: make this more resilient and possibly only delete for a certain amount of time
         logger.info("starting snapshot retention deletion for [{}] snapshots", snapshotsToDelete.size());
-        snapshotsToDelete.forEach(snap -> {
-            logger.info("[{}] snapshot retention deleting snapshot [{}]", snap.v1(), snap.v2().snapshotId());
-            CountDownLatch latch = new CountDownLatch(1);
-            client.admin().cluster().prepareDeleteSnapshot(snap.v1(), snap.v2().snapshotId().getName())
-                .execute(new LatchedActionListener<>(new ActionListener<>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                        if (acknowledgedResponse.isAcknowledged()) {
-                            logger.debug("[{}] snapshot [{}] deleted successfully", snap.v1(), snap.v2().snapshotId());
+        snapshotsToDelete.forEach((repo, snapshots) -> {
+            snapshots.forEach(info -> {
+                logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, info.snapshotId());
+                CountDownLatch latch = new CountDownLatch(1);
+                client.admin().cluster().prepareDeleteSnapshot(repo, info.snapshotId().getName())
+                    .execute(new LatchedActionListener<>(new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            if (acknowledgedResponse.isAcknowledged()) {
+                                logger.debug("[{}] snapshot [{}] deleted successfully", repo, info.snapshotId());
+                            }
                         }
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
-                            snap.v1(), snap.v2().snapshotId()), e);
-                    }
-                }, latch));
-            try {
-                // Deletes cannot occur simultaneously, so wait for this
-                // deletion to complete before attempting the next one
-                latch.await();
-            } catch (InterruptedException e) {
-                logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
-                    snap.v1(), snap.v2().snapshotId()), e);
-            }
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
+                                repo, info.snapshotId()), e);
+                        }
+                    }, latch));
+                try {
+                    // Deletes cannot occur simultaneously, so wait for this
+                    // deletion to complete before attempting the next one
+                    latch.await();
+                } catch (InterruptedException e) {
+                    logger.error(new ParameterizedMessage("[{}] deletion of snapshot [{}] interrupted",
+                        repo, info.snapshotId()), e);
+                }
+            });
         });
     }
 }

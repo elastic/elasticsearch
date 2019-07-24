@@ -366,7 +366,8 @@ POST _reindex
     "sort": { "@timestamp": "desc" }
   },
   "dest": {
-    "index": "mylogs" <2>
+    "index": "mylogs" <2>,
+    "op_type": "create" <3>
   }
 }
 -----------------------
@@ -375,6 +376,10 @@ POST _reindex
 <1> This index pattern matches our existing indices. Using the prefix for
     the new indices makes using this index pattern much easier.
 <2> The alias set up above
+<3> This option will cause the reindex to abort if it encounters multiple
+    documents with the same ID. This is optional, but recommended to prevent
+    accidentally overwriting documents if two documents from different indices
+    have the same ID.
 
 Once this completes, indexing new data can be resumed, as long as all new
 documents are indexed into the alias used above. All data, existing and new, can

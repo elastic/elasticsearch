@@ -42,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -110,7 +109,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new AbstractGeometryQueryBuilder whose Query will be against the given
      * field name using the given Shape
      *
      * @param fieldName
@@ -136,7 +135,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /**
-     * Creates a new GeoShapeQueryBuilder whose Query will be against the given
+     * Creates a new AbstractGeometryQueryBuilder whose Query will be against the given
      * field name and will use the Shape found with the given ID in the given
      * type
      *
@@ -394,9 +393,6 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             } else {
                 throw new QueryShardException(context, "failed to find " + queryFieldType() + " field [" + fieldName + "]");
             }
-        } else if (fieldType.typeName().equals(BaseGeoShapeFieldMapper.CONTENT_TYPE) == false) {
-            throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
         }
 
         return buildShapeQuery(context, fieldType);

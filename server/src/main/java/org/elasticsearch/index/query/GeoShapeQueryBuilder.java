@@ -227,6 +227,11 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
+        if (fieldType.typeName().equals(BaseGeoShapeFieldMapper.CONTENT_TYPE) == false) {
+            throw new QueryShardException(context,
+                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+        }
+
         final BaseGeoShapeFieldMapper.BaseGeoShapeFieldType ft = (BaseGeoShapeFieldMapper.BaseGeoShapeFieldType) fieldType;
         Query query;
         if (strategy != null || ft instanceof LegacyGeoShapeFieldMapper.GeoShapeFieldType) {

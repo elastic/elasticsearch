@@ -45,16 +45,24 @@ import java.nio.channels.SocketChannel;
 
 import static io.netty.channel.internal.ChannelUtils.MAX_BYTES_PER_GATHERING_WRITE_ATTEMPTED_LOW_THRESHOLD;
 
-public class CopySocketChannel extends NioSocketChannel {
+
+/**
+ * This class is adapted from {@link NioSocketChannel} class in the Netty project. It overrides the channel
+ * read/write behavior to ensure that the bytes are always copied to a thread-local direct bytes buffer. This
+ * happens BEFORE the call to the Java {@link SocketChannel} is issued.
+ */
+public class CopyBytesSocketChannel extends NioSocketChannel {
+
+    private static final int MAX_BYTES_PER_WRITE = 1 << 20;
 
     private final WriteConfig writeConfig = new WriteConfig();
-    private final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(1 << 19));
+    private final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
 
-    public CopySocketChannel() {
+    public CopyBytesSocketChannel() {
         super();
     }
 
-    CopySocketChannel(Channel parent, SocketChannel socket) {
+    CopyBytesSocketChannel(Channel parent, SocketChannel socket) {
         super(parent, socket);
     }
 
@@ -107,9 +115,10 @@ public class CopySocketChannel extends NioSocketChannel {
         ByteBuffer ioBuffer = getIoBuffer();
         ByteBuf wrapped = Unpooled.wrappedBuffer(ioBuffer);
         wrapped.clear();
-        wrapped.writeBytes(javaChannel(), allocHandle.attemptedBytesRead());
-        int bytesRead = wrapped.readableBytes();
-        byteBuf.writeBytes(wrapped, bytesRead);
+        int bytesRead = wrapped.writeBytes(javaChannel(), allocHandle.attemptedBytesRead());
+        if (bytesRead > 0) {
+            byteBuf.writeBytes(wrapped, bytesRead);
+        }
         return bytesRead;
     }
 
@@ -145,7 +154,7 @@ public class CopySocketChannel extends NioSocketChannel {
 
     private final class WriteConfig {
 
-        private volatile int maxBytesPerGatheringWrite = Integer.MAX_VALUE;
+        private volatile int maxBytesPerGatheringWrite = MAX_BYTES_PER_WRITE;
 
         private WriteConfig() {
             calculateMaxBytesPerGatheringWrite();

@@ -27,28 +27,34 @@ public class Netty4PluginConfig {
 
     private final ByteBufAllocator allocator;
     private final Settings settings;
+    private final Boolean directBufferPoolingDisabled;
 
     public Netty4PluginConfig(Settings settings) {
         this.settings = settings;
-        if (Netty4Plugin.NETTY_DISABLE_DIRECT_POOL.get(settings)) {
-            allocator = getNoDirectAllocator();
+        directBufferPoolingDisabled = Netty4Plugin.NETTY_DISABLE_DIRECT_POOL.get(settings);
+        if (directBufferPoolingDisabled) {
+            allocator = noDirectAllocator();
         } else {
             allocator = ByteBufAllocator.DEFAULT;
         }
+    }
+
+    public Settings getSettings() {
+        return settings;
+    }
+
+    public boolean isDirectBufferPoolingDisabled() {
+        return directBufferPoolingDisabled;
     }
 
     public ByteBufAllocator getAllocator() {
         return allocator;
     }
 
-    private ByteBufAllocator getNoDirectAllocator() {
+    private ByteBufAllocator noDirectAllocator() {
         return new PooledByteBufAllocator(false, PooledByteBufAllocator.defaultNumHeapArena(), 0,
             PooledByteBufAllocator.defaultPageSize(), PooledByteBufAllocator.defaultMaxOrder(),
             PooledByteBufAllocator.defaultTinyCacheSize(), PooledByteBufAllocator.defaultSmallCacheSize(),
             PooledByteBufAllocator.defaultNormalCacheSize(), PooledByteBufAllocator.defaultUseCacheForAllThreads());
-    }
-
-    public Settings getSettings() {
-        return settings;
     }
 }

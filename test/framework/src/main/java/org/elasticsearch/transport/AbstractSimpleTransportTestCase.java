@@ -2189,71 +2189,71 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testConcurrentDisconnectOnNonPublishedConnection() throws IOException, InterruptedException {
-//        MockTransportService serviceC = buildService("TS_C", version0,  Settings.EMPTY);
-//        CountDownLatch receivedLatch = new CountDownLatch(1);
-//        CountDownLatch sendResponseLatch = new CountDownLatch(1);
-//        serviceC.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new,
-//            (request, channel, task) -> {
-//                // don't block on a network thread here
-//                threadPool.generic().execute(new AbstractRunnable() {
-//                    @Override
-//                    public void onFailure(Exception e) {
-//                        try {
-//                            channel.sendResponse(e);
-//                        } catch (IOException e1) {
-//                            throw new UncheckedIOException(e1);
-//                        }
-//                    }
-//
-//                    @Override
-//                    protected void doRun() throws Exception {
-//                        receivedLatch.countDown();
-//                        sendResponseLatch.await();
-//                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-//                    }
-//                });
-//            });
-//        serviceC.start();
-//        serviceC.acceptIncomingRequests();
-//        CountDownLatch responseLatch = new CountDownLatch(1);
-//        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
-//            @Override
-//            public TransportResponse read(StreamInput in) {
-//                return TransportResponse.Empty.INSTANCE;
-//            }
-//
-//            @Override
-//            public void handleResponse(TransportResponse response) {
-//                responseLatch.countDown();
-//            }
-//
-//            @Override
-//            public void handleException(TransportException exp) {
-//                responseLatch.countDown();
-//            }
-//
-//            @Override
-//            public String executor() {
-//                return ThreadPool.Names.SAME;
-//            }
-//        };
-//
-//        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-//        builder.addConnections(1,
-//            TransportRequestOptions.Type.BULK,
-//            TransportRequestOptions.Type.PING,
-//            TransportRequestOptions.Type.RECOVERY,
-//            TransportRequestOptions.Type.REG,
-//            TransportRequestOptions.Type.STATE);
-//
-//        try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
-//            serviceB.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
-//                transportResponseHandler);
-//            receivedLatch.await();
-//            serviceC.close();
-//            sendResponseLatch.countDown();
-//            responseLatch.await();
-//        }
+        MockTransportService serviceC = buildService("TS_C", version0,  Settings.EMPTY);
+        CountDownLatch receivedLatch = new CountDownLatch(1);
+        CountDownLatch sendResponseLatch = new CountDownLatch(1);
+        serviceC.registerRequestHandler("internal:action", ThreadPool.Names.SAME, TestRequest::new,
+            (request, channel, task) -> {
+                // don't block on a network thread here
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (IOException e1) {
+                            throw new UncheckedIOException(e1);
+                        }
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        receivedLatch.countDown();
+                        sendResponseLatch.await();
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    }
+                });
+            });
+        serviceC.start();
+        serviceC.acceptIncomingRequests();
+        CountDownLatch responseLatch = new CountDownLatch(1);
+        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+            @Override
+            public TransportResponse read(StreamInput in) {
+                return TransportResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+
+        try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
+            serviceB.sendRequest(connection, "internal:action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
+                transportResponseHandler);
+            receivedLatch.await();
+            serviceC.close();
+            sendResponseLatch.countDown();
+            responseLatch.await();
+        }
     }
 
     public void testTransportStats() throws Exception {

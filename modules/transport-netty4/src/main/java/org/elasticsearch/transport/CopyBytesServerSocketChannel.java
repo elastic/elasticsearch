@@ -27,9 +27,13 @@ import org.apache.logging.log4j.Logger;
 import java.nio.channels.SocketChannel;
 import java.util.List;
 
-public class CopyServerSocketChannel extends NioServerSocketChannel {
+/**
+ * This class is adapted from {@link NioServerSocketChannel} class in the Netty project. It overrides the
+ * channel read messages behavior to ensure that a {@link @CopyBytesSocketChannel} socket channel is created.
+ */
+public class CopyBytesServerSocketChannel extends NioServerSocketChannel {
 
-    private static final Logger logger = LogManager.getLogger(CopyServerSocketChannel.class);
+    private static final Logger logger = LogManager.getLogger(CopyBytesServerSocketChannel.class);
 
     @Override
     protected int doReadMessages(List<Object> buf) throws Exception {
@@ -37,7 +41,7 @@ public class CopyServerSocketChannel extends NioServerSocketChannel {
 
         try {
             if (ch != null) {
-                buf.add(new CopySocketChannel(this, ch));
+                buf.add(new CopyBytesSocketChannel(this, ch));
                 return 1;
             }
         } catch (Throwable t) {

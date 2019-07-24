@@ -73,7 +73,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     @Inject
     public TransportGetTaskAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetTaskAction.NAME, transportService, GetTaskRequest::new, actionFilters);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -116,11 +116,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
         transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
-            new ActionListenerResponseHandler<>(listener, in -> {
-                GetTaskResponse response = new GetTaskResponse();
-                response.readFrom(in);
-                return response;
-            }, ThreadPool.Names.SAME));
+            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME));
     }
 
     /**

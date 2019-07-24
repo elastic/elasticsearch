@@ -55,7 +55,6 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
-        LENIENT_PARSER.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
     }
 
     private final String transformId;
@@ -133,7 +132,6 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
                 throw new IllegalArgumentException("when storing transform statistics, a valid transform id must be provided");
             }
             builder.field(DataFrameField.ID.getPreferredName(), transformId);
-            builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         }
         builder.endObject();
         return builder;

@@ -33,12 +33,17 @@ public final class DataFrameField {
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME_BASED_SYNC = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
     /**
      * Fields for checkpointing
      */
     // the timestamp of the checkpoint, mandatory
+    public static final ParseField CHECKPOINT = new ParseField("checkpoint");
+    public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
+    public static final ParseField POSITION = new ParseField("position");
+    public static final ParseField CHECKPOINT_PROGRESS = new ParseField("checkpoint_progress");
     public static final ParseField TIMESTAMP_MILLIS = new ParseField("timestamp_millis");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     // checkpoint for for time based sync

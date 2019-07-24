@@ -82,9 +82,4 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
     }
-
-    @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

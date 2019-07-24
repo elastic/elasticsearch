@@ -146,8 +146,10 @@ public class ClusterStateChanges {
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE);
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
+        shardFailedClusterStateTaskExecutor
+            = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
+        shardStartedClusterStateTaskExecutor
+            = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);

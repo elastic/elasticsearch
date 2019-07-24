@@ -16,6 +16,10 @@ do
   ES_CLASSPATH="$ES_CLASSPATH:$ES_HOME/$additional_classpath_directory/*"
 done
 
+# use a small heap size for the CLI tools, and thus the serial collector to
+# avoid stealing many CPU cycles; a user can override by setting ES_JAVA_OPTS
+ES_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${ES_JAVA_OPTS}"
+
 exec \
   "$JAVA" \
   $ES_JAVA_OPTS \

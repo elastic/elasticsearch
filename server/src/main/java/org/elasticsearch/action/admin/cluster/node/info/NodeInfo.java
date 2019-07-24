@@ -117,6 +117,9 @@ public class NodeInfo extends BaseNodeResponse {
         this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
+
+    public String getName() { return getNode().getName(); }
+
     /**
      * System's hostname. <code>null</code> in case of UnknownHostException
      */

@@ -17,18 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.graphql.api;
+package org.elasticsearch.graphql.api.resolver;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.node.NodeClient;
 
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public interface GqlApi {
-    CompletableFuture<Map<String, Object>> getInfo() throws Exception;
-    CompletableFuture<List<Object>> getIndexInfos() throws Exception;
-    CompletableFuture<Map<String, Object>> getIndex(String indexName) throws Exception;
-    CompletableFuture<Map<String, Object>> getDocument(String indexName, String documentId) throws Exception;
-    CompletableFuture<NodeInfo> getNode(String nodeIdOrName) throws Exception;
+import static org.elasticsearch.graphql.api.GqlApiUtils.*;
+
+public class ResolverGetNode2 {
+
+    @SuppressWarnings("unchecked")
+    public static CompletableFuture<NodeInfo> exec(NodeClient client, String nodeIdOrName) throws Exception {
+        String[] nodeIds = { nodeIdOrName };
+        final NodesInfoRequest request = new NodesInfoRequest(nodeIds);
+        request.all();
+
+        CompletableFuture<NodesInfoResponse> future = new CompletableFuture<NodesInfoResponse>();
+        client.admin().cluster().nodesInfo(request, futureToListener(future));
+
+        return future
+            .thenApply(response -> response.getNodes().get(0));
+    }
 }

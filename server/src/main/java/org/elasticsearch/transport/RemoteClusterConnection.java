@@ -366,6 +366,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      */
     private class ConnectHandler implements Closeable {
         private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final Object mutex = new Object();
         private final BlockingQueue<ActionListener<Void>> queue = new ArrayBlockingQueue<>(100);
 
         /**
@@ -376,7 +377,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             final boolean runConnect;
             final ActionListener<Void> listener =
                 ContextPreservingActionListener.wrapPreservingContext(connectListener, threadPool.getThreadContext());
-            synchronized (queue) {
+            synchronized (mutex) {
                 if (closed.get()) {
                     if (connectListener != null) {
                         connectListener.onFailure(new AlreadyClosedException("connect handler is already closed"));
@@ -395,7 +396,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     @Override
                     public void onFailure(Exception e) {
                         final Collection<ActionListener<Void>> toNotify = new ArrayList<>();
-                        synchronized (queue) {
+                        synchronized (mutex) {
                             queue.drainTo(toNotify);
                         }
                         ActionListener.onFailure(toNotify, e);
@@ -405,12 +406,12 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     protected void doRun() {
                         final Collection<ActionListener<Void>> toNotify = new ArrayList<>();
                         ActionListener<Void> listener1 = ActionListener.wrap((x) -> {
-                            synchronized (queue) {
+                            synchronized (mutex) {
                                 queue.drainTo(toNotify);
                             }
                             ActionListener.onResponse(toNotify, x);
                         }, (e) -> {
-                            synchronized (queue) {
+                            synchronized (mutex) {
                                 queue.drainTo(toNotify);
                             }
                             ActionListener.onFailure(toNotify, e);
@@ -522,7 +523,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         @Override
         public void close() throws IOException {
             final Collection<ActionListener<Void>> toNotify = new ArrayList<>();
-            synchronized (queue) {
+            synchronized (mutex) {
                 if (closed.compareAndSet(false, true)) {
                     queue.drainTo(toNotify);
                 }
@@ -619,7 +620,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     boolean assertNoRunningConnections() { // for testing only
-        synchronized (connectHandler.queue) {
+        synchronized (connectHandler.mutex) {
             assert connectHandler.queue.isEmpty();
         }
         return true;

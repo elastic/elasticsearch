@@ -35,7 +35,7 @@ To take {es} for a test drive, you can create a one-click cloud deployment on
 the https://www.elastic.co/cloud/elasticsearch-service/signup[Elasticsearch
 Service], or set up a basic {es} cluster on your own
 <<run-elasticsearch-linux,Linux>>,
-<<run-elasticsearch-mac,macOS>>, or
+macOS, or
 <<run-elasticsearch-win,Windows>> machine.
 
 [float]

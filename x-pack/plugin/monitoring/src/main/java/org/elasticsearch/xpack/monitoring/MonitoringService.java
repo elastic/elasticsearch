@@ -197,7 +197,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     }
 
     void createLocalResources() {
-        logger.debug("creating local resources");
+        LocalResourcesCreator localResourcesCreator = new LocalResourcesCreator();
     }
 
     /**

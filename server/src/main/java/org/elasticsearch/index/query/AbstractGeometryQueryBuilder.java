@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 /**
  * {@link QueryBuilder} that builds a GeoShape Query
  */
-public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
+public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. " +
         "The type should no longer be specified in the [indexed_shape] section.";
@@ -102,10 +102,10 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      *            Name of the field that will be queried
      * @param shape
      *            Shape used in the Query
-     * @deprecated use {@link #AbstractShapeQueryBuilder(String, Geometry)} instead
+     * @deprecated use {@link #AbstractGeometryQueryBuilder(String, Geometry)} instead
      */
     @Deprecated
-    protected AbstractShapeQueryBuilder(String fieldName, ShapeBuilder shape) {
+    protected AbstractGeometryQueryBuilder(String fieldName, ShapeBuilder shape) {
         this(fieldName, shape == null ? null : shape.buildGeometry(), null, null);
     }
 
@@ -118,7 +118,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      * @param shape
      *            Shape used in the Query
      */
-    public AbstractShapeQueryBuilder(String fieldName, Geometry shape) {
+    public AbstractGeometryQueryBuilder(String fieldName, Geometry shape) {
         this(fieldName, shape, null, null);
     }
 
@@ -131,7 +131,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      * @param indexedShapeId
      *            ID of the indexed Shape that will be used in the Query
      */
-    protected AbstractShapeQueryBuilder(String fieldName, String indexedShapeId) {
+    protected AbstractGeometryQueryBuilder(String fieldName, String indexedShapeId) {
         this(fieldName, (Geometry) null, indexedShapeId, null);
     }
 
@@ -146,14 +146,14 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      *            ID of the indexed Shape that will be used in the Query
      * @param indexedShapeType
      *            Index type of the indexed Shapes
-     * @deprecated use {@link #AbstractShapeQueryBuilder(String, String)} instead
+     * @deprecated use {@link #AbstractGeometryQueryBuilder(String, String)} instead
      */
     @Deprecated
-    protected AbstractShapeQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
+    protected AbstractGeometryQueryBuilder(String fieldName, String indexedShapeId, String indexedShapeType) {
         this(fieldName, (Geometry) null, indexedShapeId, indexedShapeType);
     }
 
-    protected AbstractShapeQueryBuilder(String fieldName, Geometry shape, String indexedShapeId, @Nullable String indexedShapeType) {
+    protected AbstractGeometryQueryBuilder(String fieldName, Geometry shape, String indexedShapeId, @Nullable String indexedShapeType) {
         if (fieldName == null) {
             throw new IllegalArgumentException("fieldName is required");
         }
@@ -167,8 +167,8 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
         this.supplier = null;
     }
 
-    protected AbstractShapeQueryBuilder(String fieldName, Supplier<Geometry> supplier, String indexedShapeId,
-                                        @Nullable String indexedShapeType) {
+    protected AbstractGeometryQueryBuilder(String fieldName, Supplier<Geometry> supplier, String indexedShapeId,
+                                           @Nullable String indexedShapeType) {
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;
@@ -179,7 +179,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     /**
      * Read from a stream.
      */
-    protected AbstractShapeQueryBuilder(StreamInput in) throws IOException {
+    protected AbstractGeometryQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();
         if (in.readBoolean()) {
@@ -349,7 +349,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
      * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
      * the field is unmapped.
      */
-    public AbstractShapeQueryBuilder<QB> ignoreUnmapped(boolean ignoreUnmapped) {
+    public AbstractGeometryQueryBuilder<QB> ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
         return this;
     }
@@ -372,10 +372,10 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
     /** creates a new ShapeQueryBuilder from the provided field name and shape builder */
-    protected abstract AbstractShapeQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Geometry shape);
+    protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Geometry shape);
     /** creates a new ShapeQueryBuilder from the provided field name, supplier, indexed shape id, and indexed shape type */
-    protected abstract AbstractShapeQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
-                                                                          String indexedShapeId, String indexedShapeType);
+    protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
+                                                                             String indexedShapeId, String indexedShapeType);
 
     /** returns true if the provided field type is valid for this query */
     protected boolean isValidContentType(String typeName) {
@@ -504,7 +504,7 @@ public abstract class AbstractShapeQueryBuilder<QB extends AbstractShapeQueryBui
     }
 
     @Override
-    protected boolean doEquals(AbstractShapeQueryBuilder other) {
+    protected boolean doEquals(AbstractGeometryQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(indexedShapeId, other.indexedShapeId)
             && Objects.equals(indexedShapeIndex, other.indexedShapeIndex)

@@ -83,7 +83,7 @@ import static org.elasticsearch.index.mapper.GeoShapeFieldMapper.toLucenePolygon
 /**
  * {@link QueryBuilder} that builds a GeoShape Query
  */
-public class GeoShapeQueryBuilder extends AbstractShapeQueryBuilder<GeoShapeQueryBuilder> {
+public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQueryBuilder> {
     public static final String NAME = "geo_shape";
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(GeoShapeQueryBuilder.class));
@@ -480,7 +480,7 @@ public class GeoShapeQueryBuilder extends AbstractShapeQueryBuilder<GeoShapeQuer
 
     @Override
     protected boolean doEquals(GeoShapeQueryBuilder other) {
-        return super.doEquals((AbstractShapeQueryBuilder)other)
+        return super.doEquals((AbstractGeometryQueryBuilder)other)
             && Objects.equals(strategy, other.strategy);
     }
 
@@ -521,7 +521,7 @@ public class GeoShapeQueryBuilder extends AbstractShapeQueryBuilder<GeoShapeQuer
 
     public static GeoShapeQueryBuilder fromXContent(XContentParser parser) throws IOException {
         ParsedGeoShapeQueryParams pgsqp =
-            (ParsedGeoShapeQueryParams)AbstractShapeQueryBuilder.parsedParamsFromXContent(parser, new ParsedGeoShapeQueryParams());
+            (ParsedGeoShapeQueryParams) AbstractGeometryQueryBuilder.parsedParamsFromXContent(parser, new ParsedGeoShapeQueryParams());
 
         GeoShapeQueryBuilder builder;
         if (pgsqp.type != null) {

@@ -121,8 +121,13 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         try {
             policyId = (String) snapshot.userMetadata().get(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD);
         } catch (Exception e) {
-            logger.error("unable to retrieve policy id from snapshot metadata [" + snapshot.userMetadata() + "]", e);
-            throw e;
+            logger.debug("unable to retrieve policy id from snapshot metadata [" + snapshot.userMetadata() + "]", e);
+            return false;
+        }
+
+        if (policyId == null) {
+            // policyId was null in the metadata, so it's not eligible
+            return false;
         }
 
         SnapshotLifecyclePolicy policy = policies.get(policyId);

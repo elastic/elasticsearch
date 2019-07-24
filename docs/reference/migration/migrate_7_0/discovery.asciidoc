@@ -70,3 +70,17 @@ pings, each of which times out after 10 seconds. Thus a node that is
 unresponsive for longer than 30 seconds is liable to be removed from the
 cluster. Previously the default timeout for each ping was 30 seconds, so that
 an unresponsive node might be kept in the cluster for over 90 seconds.
+
+[float]
+==== Master-ineligible nodes are ignored by discovery
+
+In earlier versions it was possible to use master-ineligible nodes during the
+discovery process, either as seed nodes or to transfer discovery gossip
+indirectly between the master-eligible nodes. Clusters that relied on
+master-ineligible nodes like this were fragile and unable to automatically
+recover from some kinds of failure. Discovery now involves only the
+master-eligible nodes in the cluster so that it is not possible to rely on
+master-ineligible nodes like this. You should configure
+<<modules-discovery-hosts-providers,`discovery.seed_hosts` or another seed
+hosts provider>> to provide the addresses of all the master-eligible nodes in
+your cluster.

@@ -1,3 +1,76 @@
+[[release-notes-6.8.2]]
+== {es} version 6.8.2
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[[enhancement-6.8.2]]
+[float]
+=== Enhancements
+
+Machine Learning::
+* Improve message when native controller cannot connect {pull}43565[#43565] (issue: {issue}42341[#42341])
+* Introduce a setting for the process connect timeout {pull}43234[#43234]
+
+Ranking::
+* Fix parameter value for calling `data.advanceExact` {pull}44205[#44205]
+
+Snapshot/Restore::
+* Add SAS token authentication support to Azure Repository plugin {pull}42982[#42982] (issue: {issue}42117[#42117])
+
+
+
+[[bug-6.8.2]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Do not copy initial recovery filter during an index split {pull}44053[#44053] (issue: {issue}43955[#43955])
+
+Analysis::
+* Fix varying responses for `<index>/_analyze` request {pull}44342[#44342] (issues: {issue}44078[#44078], {issue}44284[#44284])
+
+CCR::
+* Skip update if leader and follower settings are identical {pull}44535[#44535] (issue: {issue}44521[#44521])
+* Avoid stack overflow in auto-follow coordinator {pull}44421[#44421] (issue: {issue}43251[#43251])
+* Avoid NPE when checking for CCR index privileges {pull}44397[#44397] (issue: {issue}44172[#44172])
+
+Engine::
+* Preserve thread context in AsyncIOProcessor {pull}43729[#43729]
+
+Features/ILM::
+* Fix swapped variables in error message {pull}44300[#44300]
+* Account for node versions during allocation in ILM shrink {pull}43300[#43300] (issue: {issue}41879[#41879])
+* Narrow period of shrink action in which ILM prevents stopping {pull}43254[#43254] (issue: {issue}43253[#43253])
+
+Features/Indices APIs::
+* Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
+
+Features/Stats::
+* Return 0 for negative "free" and "total" memory reported by the OS {pull}42725[#42725] (issue: {issue}42157[#42157])
+
+Machine Learning::
+* Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
+* Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
+
+Mapping::
+* Prevent types deprecation warning for indices.exists requests {pull}43963[#43963] (issue: {issue}43905[#43905])
+* Add `include_type_name` in `indices.exists` REST API specification {pull}43910[#43910] (issue: {issue}43905[#43905])
+
+Network::
+* Reconnect remote cluster when seeds are changed {pull}43379[#43379] (issue: {issue}37799[#37799])
+
+SQL::
+* Handle the edge case of an empty array of values to return from source {pull}43868[#43868] (issue: {issue}43863[#43863])
+* Fix NPE in case of subsequent scrolled requests for a CSV/TSV formatted response {pull}43365[#43365] (issue: {issue}43327[#43327])
+* Increase hard limit for sorting on aggregates {pull}43220[#43220] (issue: {issue}43168[#43168])
+
+Search::
+* Fix wrong logic in `match_phrase` query with multi-word synonyms {pull}43941[#43941] (issue: {issue}43308[#43308])
+
+Security::
+* Do not swallow I/O exception getting authentication {pull}44398[#44398] (issues: {issue}44172[#44172], {issue}44397[#44397])
+* `SecurityIndexSearcherWrapper` doesn't always carry over caches and similarity {pull}43436[#43436]
+
 [[release-notes-6.8.1]]
 == {es} version 6.8.1
 

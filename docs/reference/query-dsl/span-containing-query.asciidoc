@@ -4,33 +4,47 @@
 <titleabbrev>Span containing</titleabbrev>
 ++++
 
-Returns matches which enclose another span query. The span containing
-query maps to Lucene `SpanContainingQuery`. Here is an example:
+Returns matching spans from a `big` <<span-queries,span query>> that also
+match a `little` span query.
+
+
+[[span-cont-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
         "span_containing" : {
-            "little" : {
-                "span_term" : { "field1" : "foo" }
-            },
             "big" : {
                 "span_near" : { 
                     "clauses" : [
-                        { "span_term" : { "field1" : "bar" } },
-                        { "span_term" : { "field1" : "baz" } }
+                        { "span_term" : { "message" : { "value" : "bar" } } },
+                        { "span_term" : { "message" : { "value" : "baz" } } }
                     ],
                     "slop" : 5,
                     "in_order" : true
                 }
+            },
+            "little" : {
+                "span_term" : { "message" : { "value" : "foo" } }
             }
         }
     }
 }
---------------------------------------------------
+----
 //  CONSOLE
 
-The `big` and `little` clauses can be any span type query. Matching
-spans from `big` that contain matches from `little` are returned.
+
+[[span-cont-top-level-params]]
+==== Top-level parameters for `span_containing`
+
+`big`::
+(Required, query object) Contains a <<span-queries,span query>>. To be returned,
+spans matching this query must also match the `little` span
+query.
+
+`little`::
+(Required, query object) Contains a <<span-queries,span query>>. To be returned,
+spans matching the `big` span query must also match this query.

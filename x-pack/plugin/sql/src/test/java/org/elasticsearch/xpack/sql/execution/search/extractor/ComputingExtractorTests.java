@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessorTests;
 import org.elasticsearch.xpack.sql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public class ComputingExtractorTests extends AbstractWireSerializingTestCase<Com
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-            new HitExtractorProcessor(new FieldHitExtractor(fieldName, null, UTC, true, false)),
+            new HitExtractorProcessor(new FieldHitExtractor(fieldName, DataType.DOUBLE, UTC, true, false)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

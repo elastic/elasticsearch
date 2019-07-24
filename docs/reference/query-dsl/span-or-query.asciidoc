@@ -4,24 +4,34 @@
 <titleabbrev>Span or</titleabbrev>
 ++++
 
-Matches the union of its span clauses. The span or query maps to Lucene
-`SpanOrQuery`. Here is an example:
+Wraps one or more <<span-queries,span queries>>, called query clauses or
+clauses. Returned documents must match **one or more** of these queries.
+
+
+[[span-or-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
         "span_or" : {
             "clauses" : [
-                { "span_term" : { "field" : "value1" } },
-                { "span_term" : { "field" : "value2" } },
-                { "span_term" : { "field" : "value3" } }
+                { "span_term" : { "message" : { "value" : "value1" } } },
+                { "span_term" : { "message" : { "value" : "value2" } } },
+                { "span_term" : { "message" : { "value" : "value3" } } }
             ]
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-The `clauses` element is a list of one or more other span type queries.
+
+[[span-or-top-level-params]]
+==== Top-level parameters for `span_near`
+`clauses`::
+(Required, array of query objects) Array of one or more other
+<<span-queries,span query>> clauses. Returned documents must one or more of
+these queries.

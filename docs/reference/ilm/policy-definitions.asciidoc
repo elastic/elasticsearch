@@ -90,20 +90,20 @@ policy definition.
 
 * Hot
   - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-rollover-action,Rollover>>
   - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-rollover-action,Rollover>>
 * Warm
   - <<ilm-set-priority-action,Set Priority>>
-  - <<ilm-allocate-action,Allocate>>
-  - <<ilm-readonly-action,Read-Only>>
-  - <<ilm-forcemerge-action,Force Merge>>
-  - <<ilm-shrink-action,Shrink>>
   - <<ilm-unfollow-action,Unfollow>>
+  - <<ilm-readonly-action,Read-Only>>
+  - <<ilm-allocate-action,Allocate>>
+  - <<ilm-shrink-action,Shrink>>
+  - <<ilm-forcemerge-action,Force Merge>>
 * Cold
   - <<ilm-set-priority-action,Set Priority>>
+  - <<ilm-unfollow-action,Unfollow>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
-  - <<ilm-unfollow-action,Unfollow>>
 * Delete
   - <<ilm-delete-action,Delete>>
 

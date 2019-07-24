@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,6 +28,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class SnapshotRetentionServiceTests extends ESTestCase {
 
@@ -65,7 +67,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
     private static class FakeRetentionTask extends SnapshotRetentionTask {
         FakeRetentionTask() {
-            super(null, null);
+            super(mock(Client.class), null);
         }
 
         @Override

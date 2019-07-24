@@ -75,7 +75,7 @@ And now we are ready to start our node and single cluster:
 
 [float]
 [[run-elasticsearch-win]]
-=== Run {es} on windows
+=== Run {es} on Windows
 
 For Windows users, we recommend using the {ref}/windows.html[MSI Installer package]. The package contains a graphical user interface (GUI) that guides you through the installation process.
 

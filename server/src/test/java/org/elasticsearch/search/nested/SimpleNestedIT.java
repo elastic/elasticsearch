@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -1216,7 +1217,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()
                 .endObject().endObject()));
 
-        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+        IndexResponse indexResponse1 = client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
                 .field("officelocation", "gendale")
                 .startArray("users")
                     .startObject()
@@ -1263,8 +1264,9 @@ public class SimpleNestedIT extends ESIntegTestCase {
                     .endObject()
                 .endArray()
                 .endObject()).get();
+        assertTrue(indexResponse1.getShardInfo().getSuccessful() > 0);
 
-        client().prepareIndex("test", "type", "2").setSource(jsonBuilder().startObject()
+        IndexResponse indexResponse2 = client().prepareIndex("test", "type", "2").setSource(jsonBuilder().startObject()
                 .field("officelocation", "gendale")
                 .startArray("users")
                     .startObject()
@@ -1311,6 +1313,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                     .endObject()
                 .endArray()
                 .endObject()).get();
+        assertTrue(indexResponse2.getShardInfo().getSuccessful() > 0);
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")

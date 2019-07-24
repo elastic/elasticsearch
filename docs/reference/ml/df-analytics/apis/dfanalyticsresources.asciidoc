@@ -21,12 +21,26 @@
   
 [source,js]
 --------------------------------------------------
-"analyzed_fields": {
-      "includes": [ "request.bytes", "response.counts.error" ],
-      "excludes": [ "source.geo" ]
-       }
+PUT _ml/data_frame/analytics/loganalytics
+{
+  "source": {
+    "index": "logdata"
+  },
+  "dest": {
+    "index": "logdata_out"
+  },
+  "analysis": {
+    "outlier_detection": {
+    }
+  },
+  "analyzed_fields": {
+        "includes": [ "request.bytes", "response.counts.error" ],
+        "excludes": [ "source.geo" ]
+  }
+}
 --------------------------------------------------
-// TEST[skip:TBD]
+// CONSOLE
+// TEST[setup:setup_logdata]
 
 `dest`::
   (object) The destination configuration of the analysis. The `index` property 

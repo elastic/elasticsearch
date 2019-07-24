@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Netty4PluginConfig;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SecurityHttpExceptionHandler;
@@ -34,10 +35,10 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
     private final SSLService sslService;
     private final SSLConfiguration sslConfiguration;
 
-    public SecurityNetty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
-                                             SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
-                                             Dispatcher dispatcher) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
+    public SecurityNetty4HttpServerTransport(Settings settings, Netty4PluginConfig pluginConfig, NetworkService networkService,
+                                             BigArrays bigArrays, IPFilter ipFilter, SSLService sslService, ThreadPool threadPool,
+                                             NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
+        super(settings, pluginConfig, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);

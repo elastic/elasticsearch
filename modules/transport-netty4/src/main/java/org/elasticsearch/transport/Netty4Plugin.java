@@ -93,9 +93,9 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher) {
-        Netty4PluginConfig nettyPlugingConfig = getNettyPluginConfig(settings);
-        return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
-            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
+        Netty4PluginConfig plugingConfig = getNettyPluginConfig(settings);
+        return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME, () -> new Netty4HttpServerTransport(settings, plugingConfig,
+            networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
     }
 
     private synchronized Netty4PluginConfig getNettyPluginConfig(Settings settings) {

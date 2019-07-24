@@ -54,7 +54,7 @@ public class CopySocketChannel extends NioSocketChannel {
         super();
     }
 
-    public CopySocketChannel(Channel parent, SocketChannel socket) {
+    CopySocketChannel(Channel parent, SocketChannel socket) {
         super(parent, socket);
     }
 
@@ -82,7 +82,7 @@ public class CopySocketChannel extends NioSocketChannel {
                 // to check if the total size of all the buffers is non-zero.
                 ByteBuffer ioBuffer = this.ioBuffer.get();
                 ioBuffer.clear();
-                copyBytes(nioBuffers, ioBuffer);
+                copyBytes(nioBuffers, nioBufferCnt, ioBuffer);
                 ioBuffer.flip();
 
                 int attemptedBytes = ioBuffer.remaining();
@@ -106,6 +106,7 @@ public class CopySocketChannel extends NioSocketChannel {
         allocHandle.attemptedBytesRead(byteBuf.writableBytes());
         ByteBuffer ioBuffer = getIoBuffer();
         ByteBuf wrapped = Unpooled.wrappedBuffer(ioBuffer);
+        wrapped.clear();
         wrapped.writeBytes(javaChannel(), allocHandle.attemptedBytesRead());
         int bytesRead = wrapped.readableBytes();
         byteBuf.writeBytes(wrapped, bytesRead);
@@ -131,8 +132,8 @@ public class CopySocketChannel extends NioSocketChannel {
         }
     }
 
-    private static void copyBytes(ByteBuffer[] source, ByteBuffer destination) {
-        for (int i = 0; i < source.length && destination.hasRemaining(); i++) {
+    private static void copyBytes(ByteBuffer[] source, int nioBufferCnt, ByteBuffer destination) {
+        for (int i = 0; i < nioBufferCnt && destination.hasRemaining(); i++) {
             ByteBuffer buffer = source[i];
             int nBytesToCopy = Math.min(destination.remaining(), buffer.remaining());
             int initialLimit = buffer.limit();

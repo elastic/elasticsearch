@@ -44,6 +44,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Netty4PluginConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -115,6 +116,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
         CustomNettyHttpServerTransport(final Settings settings) {
             super(settings,
+                new Netty4PluginConfig(settings),
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.bigArrays,
                 Netty4HttpServerPipeliningTests.this.threadPool,

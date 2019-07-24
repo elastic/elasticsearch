@@ -899,8 +899,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
-        httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+        httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, getNettyPluginConfig(settings),
+            networkService, bigArrays, ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
             pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings)));
 

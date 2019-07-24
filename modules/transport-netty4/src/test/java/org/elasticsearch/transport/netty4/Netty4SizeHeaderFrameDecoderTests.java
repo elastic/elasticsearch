@@ -30,6 +30,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Netty4PluginConfig;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
 import org.junit.Before;
@@ -65,8 +66,8 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         threadPool = new ThreadPool(settings);
         NetworkService networkService = new NetworkService(Collections.emptyList());
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        nettyTransport = new Netty4Transport(settings, Version.CURRENT, threadPool, networkService, recycler,
-            new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
+        nettyTransport = new Netty4Transport(settings, new Netty4PluginConfig(settings), Version.CURRENT, threadPool, networkService,
+            recycler, new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         nettyTransport.start();
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();

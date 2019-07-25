@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -79,7 +80,8 @@ public class PkiRealmTests extends ESTestCase {
 
         assertThat(realm.supports(null), is(false));
         assertThat(realm.supports(new UsernamePasswordToken("", new SecureString(new char[0]))), is(false));
-        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], randomBoolean())), is(true));
+        Authentication delegateeAuthentication = randomBoolean() ? mock(Authentication.class) : null;
+        assertThat(realm.supports(new X509AuthenticationToken(new X509Certificate[0], delegateeAuthentication)), is(true));
     }
 
     public void testExtractToken() throws Exception {
@@ -252,7 +254,8 @@ public class PkiRealmTests extends ESTestCase {
 
     public void testAuthenticationDelegationSuccess() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate }, true);
+        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate },
+                mock(Authentication.class));
 
         UserRoleMapper roleMapper = buildRoleMapper();
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -275,7 +278,8 @@ public class PkiRealmTests extends ESTestCase {
 
     public void testAuthenticationDelegationFailure() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
-        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate }, true);
+        X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate },
+                mock(Authentication.class));
 
         UserRoleMapper roleMapper = buildRoleMapper();
         MockSecureSettings secureSettings = new MockSecureSettings();

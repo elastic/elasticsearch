@@ -192,7 +192,12 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult> listener) {
-        final Map<String, Object> metadata = Map.of("pki_dn", token.dn());
+        final Map<String, Object> metadata;
+        if (token.isDelegated()) {
+            metadata = Map.of("pki_dn", token.dn(), "pki_delegatee", token.getDelegateeAuthentication());
+        } else {
+            metadata = Map.of("pki_dn", token.dn());
+        }
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, token.dn(), Set.of(), metadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User computedUser = new User(principal, roles.toArray(new String[roles.size()]), null, null, metadata, true);

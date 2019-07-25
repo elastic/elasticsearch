@@ -55,7 +55,11 @@ public class TransportDelegatePkiAuthenticationAction
             ActionListener<DelegatePkiAuthenticationResponse> listener) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication delegateeAuthentication = Authentication.getAuthentication(threadContext);
-        final X509AuthenticationToken x509DelegatedToken = new X509AuthenticationToken(request.getCertificates(), true);
+        if (delegateeAuthentication == null) {
+            listener.onFailure(new IllegalStateException("Delegatee authentication cannot be null"));
+            return;
+        }
+        final X509AuthenticationToken x509DelegatedToken = new X509AuthenticationToken(request.getCertificates(), delegateeAuthentication);
         logger.trace("Attempting to authenticate delegated x509Token [{}]", x509DelegatedToken);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authenticationService.authenticate(ACTION_NAME, request, x509DelegatedToken, ActionListener.wrap(authentication -> {

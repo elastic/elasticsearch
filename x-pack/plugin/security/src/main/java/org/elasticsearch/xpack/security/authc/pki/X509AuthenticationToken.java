@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
@@ -15,21 +16,21 @@ public class X509AuthenticationToken implements AuthenticationToken {
 
     private final String dn;
     private final X509Certificate[] credentials;
-    private final boolean isDelegated;
+    private final Authentication delegateeAuthentication;
     private String principal;
 
     public X509AuthenticationToken(X509Certificate[] certificates) {
-        this(certificates, false);
+        this(certificates, null);
     }
 
-    public X509AuthenticationToken(X509Certificate[] certificates, boolean isDelegated) {
+    public X509AuthenticationToken(X509Certificate[] certificates, Authentication delegateeAuthentication) {
         this.credentials = Objects.requireNonNull(certificates);
         if (false == CertParsingUtils.isOrderedCertificateChain(certificates)) {
             throw new IllegalArgumentException("certificates chain array is not ordered");
         }
         this.dn = certificates.length == 0 ? "" : certificates[0].getSubjectX500Principal().toString();
         this.principal = this.dn;
-        this.isDelegated = isDelegated;
+        this.delegateeAuthentication = delegateeAuthentication;
     }
 
     @Override
@@ -56,6 +57,10 @@ public class X509AuthenticationToken implements AuthenticationToken {
     }
 
     public boolean isDelegated() {
-        return isDelegated;
+        return delegateeAuthentication != null;
+    }
+
+    public Authentication getDelegateeAuthentication() {
+        return delegateeAuthentication;
     }
 }

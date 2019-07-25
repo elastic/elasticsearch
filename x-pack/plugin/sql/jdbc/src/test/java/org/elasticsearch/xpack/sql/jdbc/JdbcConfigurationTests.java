@@ -5,11 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
+import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -252,14 +256,20 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertSslConfig(props, JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0).sslConfig());
     }
     
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41557")
+    @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
     public void testDriverConfigurationWithSSLInURL() {
         Map<String, String> urlPropMap = sslProperties();
-        
-        Properties allProps = new Properties();
-        allProps.putAll(urlPropMap);
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
         
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            DriverManager.setLogWriter(new java.io.PrintWriter(System.out));
+            return null;
+        });
+
         try {
             DriverManager.getDriver("jdbc:es://test?" + sslUrlProps);
         } catch (SQLException sqle) {

@@ -19,16 +19,12 @@ public class TestClusterCleanupOnShutdown implements Runnable {
 
     private Set<ElasticsearchCluster> clustersToWatch = new HashSet<>();
 
-    public void watch(Collection<ElasticsearchCluster> cluster) {
-        synchronized (clustersToWatch) {
-            clustersToWatch.addAll(clustersToWatch);
-        }
+    public synchronized void watch(Collection<ElasticsearchCluster> clusters) {
+        clustersToWatch.addAll(clusters);
     }
 
-    public void unWatch(Collection<ElasticsearchCluster> cluster) {
-        synchronized (clustersToWatch) {
-            clustersToWatch.removeAll(clustersToWatch);
-        }
+    public synchronized void unWatch(Collection<ElasticsearchCluster> clusters) {
+        clustersToWatch.removeAll(clusters);
     }
 
     @Override
@@ -38,21 +34,23 @@ public class TestClusterCleanupOnShutdown implements Runnable {
                 Thread.sleep(Long.MAX_VALUE);
             }
         } catch (InterruptedException interrupted) {
-            synchronized (clustersToWatch) {
-                if (clustersToWatch.isEmpty()) {
-                    return;
-                }
-                logger.info("Cleanup thread was interrupted, shutting down all clusters");
-                Iterator<ElasticsearchCluster> iterator = clustersToWatch.iterator();
-                while (iterator.hasNext()) {
-                    ElasticsearchCluster cluster = iterator.next();
-                    iterator.remove();
-                    try {
-                        cluster.stop(false);
-                    } catch (Exception e) {
-                        logger.warn("Could not shut down {}", cluster, e);
-                    }
-                }
+            shutdownClusters();
+        }
+    }
+
+    public synchronized void shutdownClusters() {
+        if (clustersToWatch.isEmpty()) {
+            return;
+        }
+        logger.info("Cleanup thread was interrupted, shutting down all clusters");
+        Iterator<ElasticsearchCluster> iterator = clustersToWatch.iterator();
+        while (iterator.hasNext()) {
+            ElasticsearchCluster cluster = iterator.next();
+            iterator.remove();
+            try {
+                cluster.stop(false);
+            } catch (Exception e) {
+                logger.warn("Could not shut down {}", cluster, e);
             }
         }
     }

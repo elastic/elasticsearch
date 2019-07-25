@@ -221,6 +221,7 @@ public class JobResultsPersisterTests extends ESTestCase {
             indexRequest.sourceAsMap(),
             equalTo(
                 Map.of(
+                    "result_type", "timing_stats",
                     "job_id", "foo",
                     "bucket_count", 7,
                     "minimum_bucket_processing_time_ms", 1.0,
@@ -259,6 +260,7 @@ public class JobResultsPersisterTests extends ESTestCase {
             indexRequest.sourceAsMap(),
             equalTo(
                 Map.of(
+                    "result_type", "datafeed_timing_stats",
                     "job_id", "foo",
                     "search_count", 6,
                     "bucket_count", 66,

@@ -27,9 +27,8 @@ The following arguments are optional:
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-force]
 ---------------------------------------------------
-<1> Use to forcefully delete an opened job;
-this method is quicker than closing and deleting the job.
-Defaults to `false`.
+<1> Use to forcefully delete an opened job. This method is quicker than closing
+and deleting the job. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
@@ -50,9 +49,9 @@ for completion:
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 ---------------------------------------------------
-<1> whether was job deletion was acknowledged or not; will be `null` when set
-not to wait for completion
-<2> the id of the job deletion task; will be `null` when set to wait for
-completion
+<1> Whether job deletion was acknowledged or not. It will be `null` when set
+to not wait for completion.
+<2> The ID of the job deletion task. It will be `null` when set to wait for
+completion.
 
 include::../execution.asciidoc[]

@@ -4,17 +4,16 @@
 :response: GetDataFrameTransformStatsResponse
 --
 [id="{upid}-{api}"]
-=== Get Data Frame Transform Stats API
+=== Get {dataframe-transform} stats API
 
-The Get Data Frame Transform Stats API is used read the operational statistics
-of one or more {dataframe-transform}s.
+Retrieves the operational statistics of one or more {dataframe-transforms}.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Data Frame Transform Stats Request
+==== Get {dataframe-transform} stats request
 
 A +{request}+ requires a data frame transform id or the special wildcard `_all`
-to get the statistics for all {dataframe-transform}s
+to get the statistics for all {dataframe-transforms}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

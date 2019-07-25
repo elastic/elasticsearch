@@ -112,7 +112,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -316,7 +316,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege configurableClusterPrivilege = Mockito.mock(ConfigurableClusterPrivilege.class);
         final Predicate<TransportRequest> requestPredicate = r -> r == request;
         Mockito.when(configurableClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(configurableClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        Mockito.when(configurableClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilegeResolver.MANAGE_SECURITY);
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
             configurableClusterPrivilege
         };
@@ -337,7 +337,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final ConfigurableClusterPrivilege configurableClusterPrivilege = Mockito.mock(ConfigurableClusterPrivilege.class);
         final Predicate<TransportRequest> requestPredicate = r -> false;
         Mockito.when(configurableClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
-        Mockito.when(configurableClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        Mockito.when(configurableClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilegeResolver.MANAGE_SECURITY);
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
             configurableClusterPrivilege
         };

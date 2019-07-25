@@ -27,6 +27,8 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 
 public class Netty4PluginConfig {
 
+    private static final ByteBufAllocator NO_DIRECT_ALLOCATOR = noDirectAllocator();
+
     private final ByteBufAllocator allocator;
     private final Settings settings;
     private final Boolean directBufferPoolingDisabled;
@@ -36,7 +38,7 @@ public class Netty4PluginConfig {
         this.settings = settings;
         directBufferPoolingDisabled = Netty4Plugin.NETTY_DISABLE_DIRECT_POOL.get(settings);
         if (directBufferPoolingDisabled) {
-            allocator = noDirectAllocator();
+            allocator = NO_DIRECT_ALLOCATOR;
         } else {
             allocator = ByteBufAllocator.DEFAULT;
         }
@@ -54,7 +56,7 @@ public class Netty4PluginConfig {
         return allocator;
     }
 
-    private ByteBufAllocator noDirectAllocator() {
+    private static ByteBufAllocator noDirectAllocator() {
         return new PooledByteBufAllocator(false, PooledByteBufAllocator.defaultNumHeapArena(), 0,
             PooledByteBufAllocator.defaultPageSize(), PooledByteBufAllocator.defaultMaxOrder(),
             PooledByteBufAllocator.defaultTinyCacheSize(), PooledByteBufAllocator.defaultSmallCacheSize(),

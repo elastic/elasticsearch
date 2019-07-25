@@ -718,3 +718,88 @@ long elapsedTime = now - millisDateTime;
 ----
 <1> Note this parses the same string datetime every time the script runs. Use a
 numeric datetime to avoid a significant performance hit.
+
+==== Datetime Examples in Contexts
+
+curl -X PUT "localhost:9200/messages" -H 'Content-Type: application/json' -d'
+{
+    "mappings": {
+        "properties": {
+            "priority": {
+                "type": "integer"
+            },
+            "datetime": {
+                "type": "date"
+            },
+            "message": {
+                "type": "text"
+            }
+        }
+    }
+}
+'
+
+curl -X POST "localhost:9200/_bulk" -H 'Content-Type: application/json' -d'
+{ "index" : { "_index" : "messages", "_id" : "1" } }
+{ "priority": 1, "datetime": "2019-07-17T12:13:14Z", "message": "bomb stereotype opera spill bulletin" }
+{ "index" : { "_index" : "messages", "_id" : "2" } }
+{ "priority": 1, "datetime": "2019-07-24T01:14:59Z", "message": "wonder call bomb discuss disturbance" }
+{ "index" : { "_index" : "messages", "_id" : "3" } }
+{ "priority": 2, "datetime": "1983-10-14T00:36:42Z", "message": "drink tart random bulletin discuss" }
+{ "index" : { "_index" : "messages", "_id" : "4" } }
+{ "priority": 3, "datetime": "1983-10-10T02:15:15Z", "message": "prune faith thee random none" }
+{ "index" : { "_index" : "messages", "_id" : "5" } }
+{ "priority": 3, "datetime": "1983-10-10T17:18:19Z", "message": "sunburn candle burn none random" }
+{ "index" : { "_index" : "messages", "_id" : "6" } }
+{ "priority": 1, "datetime": "2019-08-03T17:19:31Z", "message": "faith bomb brain dry voyage" }
+{ "index" : { "_index" : "messages", "_id" : "7" } }
+{ "priority": 3, "datetime": "2019-08-04T17:20:00Z", "message": "plus minus none great even" }
+{ "index" : { "_index" : "messages", "_id" : "8" } }
+{ "priority": 2, "datetime": "2019-08-04T18:01:01Z", "message": "beat infect discuss later now" }
+{ "index" : { "_index" : "messages", "_id" : "9" } }
+{ "priority": 3, "datetime": "1983-10-10T19:00:45Z", "message": "too green red blue any" }
+{ "index" : { "_index" : "messages", "_id" : "10" } }
+{ "priority": 2, "datetime": "2019-07-23T23:39:54Z", "message": "hand proxy twelve none candle" }
+'
+
+curl -X GET "localhost:9200/messages/_search?pretty=true" -H 'Content-Type: application/json' -d'
+{
+    "aggs": {
+        "day-of-week-count": {
+            "terms": {
+                "script": "return doc[\"datetime\"].value.getDayOfWeekEnum()"
+            }
+        }
+    }
+}
+'
+
+curl -X GET "localhost:9200/messages/_search?pretty=true" -H 'Content-Type: application/json' -d'
+{
+    "aggs": {
+        "am-pm-count": {
+            "terms": {
+                "script": "return doc[\"datetime\"].value.getHour() < 12 ? \"AM\" : \"PM\";"
+            }
+        }
+    }
+}
+'
+
+curl -X GET "localhost:9200/_search?pretty=true" -H 'Content-Type: application/json' -d'
+    {
+        "query" : {
+            "match_all": {}
+        },
+        "script_fields" : {
+            "message_age_hours" : {
+                "script" : {
+                    "source": "ZonedDateTime now = ZonedDateTime.ofInstant(Instant.ofEpochMilli(params[\"now\"]), ZoneId.of(\"Z\")); def mdt = doc[\"datetime\"].value; long years = ChronoUnit.YEARS.between(now, mdt); return years;",
+                    "params": {
+                        "now": 1574005645830
+                    }
+                }
+            }
+        }
+    }
+'

@@ -117,7 +117,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
             // If no data node then set AllocationStatus to DECIDERS_NO
-            setAllocationStatus(allocation);
+            failedAllocationOfNewPrimaries(allocation);
             return;
         }
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
@@ -143,30 +143,19 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
     }
 
-    /**
-     * This method is called when there are no data nodes in the cluster.
-     *
-     * Newly created unassigned primary shards, with no prior allocation attempts
-     * are classified as yellow instead of red by cluster health.
-     * This function explicitly sets their allocation status to DECIDERS_NO, to
-     * indicate red indices with unassigned shards.
-     */
-    private void setAllocationStatus(RoutingAllocation allocation){
+    private void failedAllocationOfNewPrimaries(RoutingAllocation allocation){
         RoutingNodes routingNodes = allocation.routingNodes();
+        assert routingNodes.size() == 0 : routingNodes;
         RoutingNodes.UnassignedShards unassignedShards = routingNodes.unassigned();
-        if (unassignedShards.isEmpty()) {
-            return;
-        }
         RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = unassignedShards.iterator();
         while (unassignedIterator.hasNext()) {
-            ShardRouting shard = unassignedIterator.next();
-            UnassignedInfo shardInfo = shard.unassignedInfo();
-            if (shard.primary() && shardInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
-                UnassignedInfo newInfo = new UnassignedInfo(shardInfo.getReason(), shardInfo.getMessage(), shardInfo.getFailure(),
-                        shardInfo.getNumFailedAllocations(), shardInfo.getUnassignedTimeInNanos(),
-                        shardInfo.getUnassignedTimeInMillis(), shardInfo.isDelayed(),
-                        AllocationStatus.DECIDERS_NO);
-                unassignedIterator.updateUnassigned(newInfo, shard.recoverySource(), allocation.changes());
+            ShardRouting shardRouting = unassignedIterator.next();
+            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+                unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(), unassignedInfo.getFailure(),
+                    unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
+                    unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
+                    AllocationStatus.DECIDERS_NO), shardRouting.recoverySource(), allocation.changes());
             }
         }
     }

@@ -90,7 +90,7 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
             } else {// Only one ByteBuf so use non-gathering write
                 // Zero length buffers are not added to nioBuffers by ChannelOutboundBuffer, so there is no need
                 // to check if the total size of all the buffers is non-zero.
-                ByteBuffer ioBuffer = this.ioBuffer.get();
+                ByteBuffer ioBuffer = CopyBytesSocketChannel.ioBuffer.get();
                 ioBuffer.clear();
                 copyBytes(nioBuffers, nioBufferCnt, ioBuffer);
                 ioBuffer.flip();
@@ -125,7 +125,7 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
     }
 
     private ByteBuffer getIoBuffer() {
-        ByteBuffer ioBuffer = this.ioBuffer.get();
+        ByteBuffer ioBuffer = CopyBytesSocketChannel.ioBuffer.get();
         ioBuffer.clear();
         return ioBuffer;
     }

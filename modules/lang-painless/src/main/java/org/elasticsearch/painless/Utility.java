@@ -19,6 +19,11 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+
+import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
+
 /**
  * A set of methods for non-native boxing and non-native
  * exact math operations used at both compile-time and runtime.
@@ -41,6 +46,16 @@ public class Utility {
         }
 
         return value.charAt(0);
+    }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public static ZonedDateTime JCZDTToZonedDateTime(final JodaCompatibleZonedDateTime jczdt) {
+        return jczdt.getZonedDateTime();
+    }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public static Temporal JCZDTToTemporal(final JodaCompatibleZonedDateTime jczdt) {
+        return jczdt.getZonedDateTime();
     }
 
     private Utility() {}

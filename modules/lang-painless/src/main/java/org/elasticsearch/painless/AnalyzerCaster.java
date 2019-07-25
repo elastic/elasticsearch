@@ -22,7 +22,10 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
+import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
 import java.util.Objects;
 
 /**
@@ -72,10 +75,20 @@ public final class AnalyzerCaster {
                 return PainlessCast.originalTypetoTargetType(def.class, Float.class, explicit);
             } else if (expected == Double.class) {
                 return PainlessCast.originalTypetoTargetType(def.class, Double.class, explicit);
+            // TODO: remove this when the transition from Joda to Java datetimes is completed
+            } else if (expected == ZonedDateTime.class) {
+                return PainlessCast.originalTypetoTargetType(def.class, ZonedDateTime.class, explicit);
             }
         } else if (actual == String.class) {
             if (expected == char.class && explicit) {
                 return PainlessCast.originalTypetoTargetType(String.class, char.class, true);
+            }
+        // TODO: remove this when the transition from Joda to Java datetimes is completed
+        } else if (actual == JodaCompatibleZonedDateTime.class) {
+            if (expected == ZonedDateTime.class) {
+                return PainlessCast.originalTypetoTargetType(JodaCompatibleZonedDateTime.class, ZonedDateTime.class, explicit);
+            } else if (expected == Temporal.class) {
+                return PainlessCast.originalTypetoTargetType(JodaCompatibleZonedDateTime.class, Temporal.class, explicit);
             }
         } else if (actual == boolean.class) {
             if (expected == def.class) {

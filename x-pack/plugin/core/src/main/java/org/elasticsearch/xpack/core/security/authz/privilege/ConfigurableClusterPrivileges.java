@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -125,9 +126,7 @@ public final class ConfigurableClusterPrivileges {
      */
     public static class ManageApplicationPrivileges implements ConfigurableClusterPrivilege {
 
-        private static final ClusterPrivilege PRIVILEGE = ClusterPrivilegeResolver.get(
-            Collections.singleton("cluster:admin/xpack/security/privilege/*")
-        );
+        private static final Predicate<String> ACTION_PREDICATE = Automatons.predicate("cluster:admin/xpack/security/privilege/*");
         public static final String WRITEABLE_NAME = "manage-application-privileges";
 
         private final Set<String> applicationNames;
@@ -151,16 +150,6 @@ public final class ConfigurableClusterPrivileges {
         @Override
         public Category getCategory() {
             return Category.APPLICATION;
-        }
-
-        @Override
-        public ClusterPrivilege getPrivilege() {
-            return PRIVILEGE;
-        }
-
-        @Override
-        public Predicate<TransportRequest> getRequestPredicate() {
-            return this.requestPredicate;
         }
 
         public Collection<String> getApplicationNames() {
@@ -222,6 +211,11 @@ public final class ConfigurableClusterPrivileges {
         @Override
         public int hashCode() {
             return applicationNames.hashCode();
+        }
+
+        @Override
+        public ClusterPermission.Builder buildPermission(final ClusterPermission.Builder builder) {
+            return builder.add(this, ACTION_PREDICATE, requestPredicate);
         }
 
         private interface Fields {

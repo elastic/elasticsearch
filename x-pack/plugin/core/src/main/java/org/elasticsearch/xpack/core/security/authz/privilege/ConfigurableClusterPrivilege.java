@@ -10,33 +10,20 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.function.Predicate;
 
 /**
- * A ConfigurableClusterPrivilege is a composition of a {@link ClusterPrivilege} (that determines which actions may be executed)
- * with a {@link Predicate} for a {@link TransportRequest} (that determines which requests may be executed).
- * The a given execution of an action is considered to be permitted if both the action and the request are permitted.
+ * A ConfigurableClusterPrivilege is a form of {@link ClusterPrivilege} that can be configured by an Elasticsearch security administrator
+ * within a {@link org.elasticsearch.xpack.core.security.authz.RoleDescriptor}.
  */
-public interface ConfigurableClusterPrivilege extends NamedWriteable, ToXContentFragment {
+public interface ConfigurableClusterPrivilege extends NamedWriteable, ToXContentFragment, ClusterPrivilege {
 
     /**
      * The category under which this privilege should be rendered when output as XContent.
      */
     Category getCategory();
-
-    /**
-     * The action-level privilege that is required by this conditional privilege.
-     */
-    ClusterPrivilege getPrivilege();
-
-    /**
-     * The request-level privilege (as a {@link Predicate}) that is required by this conditional privilege.
-     */
-    Predicate<TransportRequest> getRequestPredicate();
 
     /**
      * A {@link ConfigurableClusterPrivilege} should generate a fragment of {@code XContent}, which consists of

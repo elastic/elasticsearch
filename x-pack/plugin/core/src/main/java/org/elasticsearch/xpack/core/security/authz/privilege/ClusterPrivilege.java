@@ -5,22 +5,16 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 
-import java.util.Collections;
-import java.util.Set;
-
-public final class ClusterPrivilege extends Privilege {
-
-    ClusterPrivilege(String name, String... patterns) {
-        super(name, patterns);
-    }
-
-    ClusterPrivilege(String name, Automaton automaton) {
-        super(Collections.singleton(name), automaton);
-    }
-
-    ClusterPrivilege(Set<String> name, Automaton automaton) {
-        super(name, automaton);
-    }
+/**
+ * This interface represents a privilege that is used to control access to cluster level actions.
+ */
+public interface ClusterPrivilege {
+    /**
+     * Uses {@link ClusterPermission.Builder} to add predicate that later can be used to build a {@link ClusterPermission}.
+     * @param builder {@link ClusterPermission.Builder}
+     * @return an instance of {@link ClusterPermission.Builder}
+     */
+    ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder);
 }

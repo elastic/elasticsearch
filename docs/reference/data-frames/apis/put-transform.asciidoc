@@ -40,6 +40,11 @@ structure (known as a {dataframe}). The ID for each document in the
 per entity. For more information, see
 {stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}].
 
+When the {dataframe-transform} is created, a series of validations occur to
+ensure its success. For example, there is a check for the existence of the
+source indices and a check that the destination index is not part of the source
+index pattern.
+
 IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
             Do not put a {dataframe-transform} directly into any
             `.data-frame-internal*` indices using the Elasticsearch index API.

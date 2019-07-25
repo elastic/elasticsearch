@@ -41,6 +41,13 @@ aggregations, the transform uses dynamic mappings unless a template exists or
 the destination index already exists. Mapping definitions in the destination
 index take precedence over dynamic mappings and templates.
 
+When a {dataframe-transform} starts, a series of validations occur to ensure its
+success. However, there are no initial privilege checks. When {es}
+{security-features} are enabled, the {dataframe-transform} remembers which roles
+the user that created it had at the time of creation and uses those same roles.
+If those roles do not have the required privileges on the source and destination
+indices, the {dataframe-transform} fails when it attempts unauthorized operations.
+
 [[start-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 

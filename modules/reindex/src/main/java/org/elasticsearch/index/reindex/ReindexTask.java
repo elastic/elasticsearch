@@ -32,6 +32,7 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -51,17 +52,24 @@ public class ReindexTask extends AllocatedPersistentTask {
     private final NodeClient client;
     private final TaskId taskId;
     private final BulkByScrollTask newTask;
+    private final Reindexer reindexer;
     private volatile BulkByScrollTask childTask;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
         private final ClusterService clusterService;
         private final Client client;
+        private final ThreadPool threadPool;
+        private final ScriptService scriptService;
+        private final ReindexSslConfig reindexSslConfig;
 
-        public ReindexPersistentTasksExecutor(ClusterService clusterService, final Client client) {
+        public ReindexPersistentTasksExecutor(ClusterService clusterService, final Client client, ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig reindexSslConfig) {
             super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
             this.client = client;
+            this.threadPool = threadPool;
+            this.scriptService = scriptService;
+            this.reindexSslConfig = reindexSslConfig;
         }
 
         @Override
@@ -76,14 +84,16 @@ public class ReindexTask extends AllocatedPersistentTask {
                                                      Map<String, String> headers) {
             ReindexRequest reindexRequest = taskInProgress.getParams().getReindexRequest();
             headers.putAll(taskInProgress.getParams().getHeaders());
-            return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, client, reindexRequest);
+            Reindexer reindexer = new Reindexer(clusterService, client, threadPool, scriptService, reindexSslConfig);
+            return new ReindexTask(id, type, action, parentTaskId, headers, clusterService, client, reindexer, reindexRequest);
         }
     }
 
     private ReindexTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
-                        ClusterService clusterService, Client client, ReindexRequest reindexRequest) {
+                        ClusterService clusterService, Client client, Reindexer reindexer, ReindexRequest reindexRequest) {
         super(id, type, action, "persistent " + reindexRequest.toString(), parentTask, headers);
         taskId = new TaskId(clusterService.localNode().getId(), id);
+        this.reindexer = reindexer;
         this.client = (NodeClient) client;
         this.newTask = new BulkByScrollTask(id, type, action, getDescription(), parentTask, headers);
     }

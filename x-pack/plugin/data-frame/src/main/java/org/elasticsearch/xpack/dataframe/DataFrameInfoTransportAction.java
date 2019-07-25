@@ -130,7 +130,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
             },
             failure -> {
                 if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(DataFrameIndexerTransformStats.createEmpty());
+                    statsListener.onResponse(new DataFrameIndexerTransformStats());
                 } else {
                     statsListener.onFailure(failure);
                 }

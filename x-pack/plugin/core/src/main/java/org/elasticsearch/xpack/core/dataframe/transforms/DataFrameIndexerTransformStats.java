@@ -56,16 +56,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     }
 
     /**
-     * Certain situations call for a default transform ID, e.g. when merging many different transforms for statistics gather.
-     *
-     * The returned stats object cannot be stored in the index as the transformId does not refer to a real transform configuration
-     *
-     * @return new DataFrameIndexerTransformStats with empty stats and a default transform ID
+     * Create with all stats set to zero
      */
-    public static DataFrameIndexerTransformStats createEmpty() {
-        return new DataFrameIndexerTransformStats();
-    }
-
     public DataFrameIndexerTransformStats() {
         super();
     }

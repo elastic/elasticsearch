@@ -706,7 +706,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                           "value", 122.55),
                                   DOC_COUNT, 44)
                     ));
-        DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.createEmpty();
+        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
 
         Map<String, String> fieldTypeMap = asStringMap(
                 aggName, "double",
@@ -789,7 +789,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                              Map<String, String> fieldTypeMap,
                              List<Map<String, Object>> expected,
                              long expectedDocCounts) throws IOException {
-        DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.createEmpty();
+        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 

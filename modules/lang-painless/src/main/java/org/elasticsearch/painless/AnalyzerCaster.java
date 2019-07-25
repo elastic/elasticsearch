@@ -25,7 +25,6 @@ import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
 import java.time.ZonedDateTime;
-import java.time.temporal.Temporal;
 import java.util.Objects;
 
 /**
@@ -87,8 +86,6 @@ public final class AnalyzerCaster {
         } else if (actual == JodaCompatibleZonedDateTime.class) {
             if (expected == ZonedDateTime.class) {
                 return PainlessCast.originalTypetoTargetType(JodaCompatibleZonedDateTime.class, ZonedDateTime.class, explicit);
-            } else if (expected == Temporal.class) {
-                return PainlessCast.originalTypetoTargetType(JodaCompatibleZonedDateTime.class, Temporal.class, explicit);
             }
         } else if (actual == boolean.class) {
             if (expected == def.class) {

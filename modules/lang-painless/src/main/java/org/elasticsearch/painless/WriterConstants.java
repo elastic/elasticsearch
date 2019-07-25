@@ -33,7 +33,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.time.ZonedDateTime;
-import java.time.temporal.Temporal;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
@@ -104,8 +103,6 @@ public final class WriterConstants {
     // TODO: remove this when the transition from Joda to Java datetimes is completed
     public static final Method JCZDT_TO_ZONEDDATETIME =
             getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
-    public static final Method JDZDT_TO_TEMPORAL =
-            getAsmMethod(Temporal.class, "JCZDTToTemporal", JodaCompatibleZonedDateTime.class);
 
     public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
 
@@ -171,7 +168,6 @@ public final class WriterConstants {
 
     // TODO: remove this when the transition from Joda to Java datetimes is completed
     public static final Method DEF_TO_ZONEDDATETIME = getAsmMethod(ZonedDateTime.class, "defToZonedDateTime", Object.class);
-    public static final Method DEF_TO_TEMPORAL = getAsmMethod(Temporal.class, "defToTemporal", Object.class);
 
     public static final Type DEF_ARRAY_LENGTH_METHOD_TYPE = Type.getMethodType(Type.INT_TYPE, Type.getType(Object.class));
 

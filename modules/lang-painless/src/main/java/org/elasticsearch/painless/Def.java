@@ -30,7 +30,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.time.ZonedDateTime;
-import java.time.temporal.Temporal;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.Iterator;
@@ -1195,15 +1194,6 @@ public final class Def {
         }
 
         return (ZonedDateTime)value;
-    }
-
-    // TODO: remove this when the transition from Joda to Java datetimes is completed
-    public static Temporal defToTemporal(final Object value) {
-        if (value instanceof JodaCompatibleZonedDateTime) {
-            return ((JodaCompatibleZonedDateTime)value).getZonedDateTime();
-        }
-
-        return (Temporal)value;
     }
 
     /**

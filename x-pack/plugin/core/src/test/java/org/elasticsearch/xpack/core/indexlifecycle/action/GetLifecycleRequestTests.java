@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
 
 import java.util.Arrays;
 
-public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLifecycleAction.Request> {
+public class GetLifecycleRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -18,8 +19,8 @@ public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLife
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

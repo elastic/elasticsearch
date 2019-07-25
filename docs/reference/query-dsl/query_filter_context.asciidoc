@@ -13,7 +13,7 @@ document matches, the query clause also calculates a `_score` representing how
 well the document matches, relative to other documents.
 
 Query context is in effect whenever a query clause is passed to a `query` parameter,
-such as the `query` parameter in the <<search-request-query,`search`>> API.
+such as the `query` parameter in the <<request-body-search-query,`search`>> API.
 --
 
 Filter context::

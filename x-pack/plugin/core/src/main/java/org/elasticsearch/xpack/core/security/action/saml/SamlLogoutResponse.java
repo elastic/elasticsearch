@@ -18,7 +18,9 @@ public final class SamlLogoutResponse extends ActionResponse {
 
     private String redirectUrl;
 
-    public SamlLogoutResponse() {
+    public SamlLogoutResponse(StreamInput in) throws IOException {
+        super(in);
+        redirectUrl = in.readString();
     }
 
     public SamlLogoutResponse(String redirectUrl) {
@@ -34,10 +36,4 @@ public final class SamlLogoutResponse extends ActionResponse {
         out.writeString(redirectUrl);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        redirectUrl = in.readString();
     }
-
-}

@@ -20,6 +20,27 @@ Term-level queries still normalize search terms for `keyword` fields with the
 [[term-level-query-types]]
 === Types of term-level queries
 
+<<query-dsl-exists-query,`exists` query>>::
+Returns documents that contain any indexed value for a field.
+
+<<query-dsl-fuzzy-query,`fuzzy` query>>::
+Returns documents that contain terms similar to the search term. {es} measures
+similarity, or fuzziness, using a
+http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein edit distance].
+
+<<query-dsl-ids-query,`ids` query>>::
+Returns documents based on their <<mapping-id-field, document IDs>>. 
+
+<<query-dsl-prefix-query,`prefix` query>>::
+Returns documents that contain a specific prefix in a provided field.
+
+<<query-dsl-range-query,`range` query>>::
+Returns documents that contain terms within a provided range.
+
+<<query-dsl-regexp-query,`regexp` query>>::
+Returns documents that contain terms matching a
+https://en.wikipedia.org/wiki/Regular_expression[regular expression].
+
 <<query-dsl-term-query,`term` query>>::
 Returns documents that contain an exact term in a provided field.
 
@@ -31,30 +52,21 @@ Returns documents that contain a minimum number of exact terms in a provided
 field. You can define the minimum number of matching terms using a field or
 script.
 
-<<query-dsl-range-query,`range` query>>::
-Returns documents that contain terms within a provided range.
-
-<<query-dsl-exists-query,`exists` query>>::
-Returns documents that contain any indexed value for a field.
-
-<<query-dsl-prefix-query,`prefix` query>>::
-Returns documents that contain a specific prefix in a provided field.
-
 <<query-dsl-wildcard-query,`wildcard` query>>::
 Returns documents that contain terms matching a wildcard pattern.
 
-<<query-dsl-regexp-query,`regexp` query>>::
-Returns documents that contain terms matching a
-https://en.wikipedia.org/wiki/Regular_expression[regular expression].
 
-<<query-dsl-fuzzy-query,`fuzzy` query>>::
-Returns documents that contain terms similar to the search term. {es} measures
-similarity, or fuzziness, using a
-http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein edit distance].
+include::exists-query.asciidoc[]
 
-<<query-dsl-ids-query,`ids` query>>::
-Returns documents based on their <<mapping-id-field, document IDs>>. 
+include::fuzzy-query.asciidoc[]
 
+include::ids-query.asciidoc[]
+
+include::prefix-query.asciidoc[]
+
+include::range-query.asciidoc[]
+
+include::regexp-query.asciidoc[]
 
 include::term-query.asciidoc[]
 
@@ -62,16 +74,4 @@ include::terms-query.asciidoc[]
 
 include::terms-set-query.asciidoc[]
 
-include::range-query.asciidoc[]
-
-include::exists-query.asciidoc[]
-
-include::prefix-query.asciidoc[]
-
 include::wildcard-query.asciidoc[]
-
-include::regexp-query.asciidoc[]
-
-include::fuzzy-query.asciidoc[]
-
-include::ids-query.asciidoc[]

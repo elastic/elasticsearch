@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
+import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -603,7 +603,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
 
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomTimeout(closeIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        RequestConvertersTests.setRandomTimeout(timeout -> closeIndexRequest.setTimeout(TimeValue.parseTimeValue(timeout, "test")),
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(closeIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(closeIndexRequest::indicesOptions, closeIndexRequest::indicesOptions,
             expectedParams);
@@ -614,12 +615,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(expectedParams, equalTo(request.getParameters()));
         Assert.assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         Assert.assertThat(request.getEntity(), nullValue());
-    }
-
-    public void testCloseIndexEmptyIndices() {
-        String[] indices = ESTestCase.randomBoolean() ? null : Strings.EMPTY_ARRAY;
-        ActionRequestValidationException validationException = new CloseIndexRequest(indices).validate();
-        Assert.assertNotNull(validationException);
     }
 
     public void testRefresh() {

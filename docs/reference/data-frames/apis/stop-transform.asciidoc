@@ -42,7 +42,7 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
-  (string) Required. Identifier for the {dataframe-transform}. This identifier
+  (Required, string) Identifier for the {dataframe-transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
@@ -50,7 +50,7 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-(boolean) Optional. Specifies what to do when the request:
+(Optional, boolean) Specifies what to do when the request:
 +
 --
 * Contains wildcard expressions and there are no {dataframe-transforms} that match.
@@ -69,7 +69,7 @@ are no matches or only partial matches.
 --
 
 `timeout`::
-  (time value) Optional. If `wait_for_completion=true`, the API blocks for (at
+  (Optional, time value) If `wait_for_completion=true`, the API blocks for (at
   maximum) the specified duration while waiting for the transform to stop. If
   more than `timeout` time has passed, the API throws a timeout exception. Even
   if a timeout exception is thrown, the stop request is still processing and
@@ -77,7 +77,7 @@ are no matches or only partial matches.
   call itself timed out while waiting for the status change. Defaults to `30s`
 
 `wait_for_completion`::
-  (boolean) Optional. If set to `true`, causes the API to block until the indexer 
+  (Optional, boolean) If set to `true`, causes the API to block until the indexer 
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 

@@ -58,8 +58,11 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         super(indices);
     }
 
-    public ForceMergeRequest() {
-
+    public ForceMergeRequest(StreamInput in) throws IOException {
+        super(in);
+        maxNumSegments = in.readInt();
+        onlyExpungeDeletes = in.readBoolean();
+        flush = in.readBoolean();
     }
 
     /**
@@ -109,14 +112,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public ForceMergeRequest flush(boolean flush) {
         this.flush = flush;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        maxNumSegments = in.readInt();
-        onlyExpungeDeletes = in.readBoolean();
-        flush = in.readBoolean();
     }
 
     @Override

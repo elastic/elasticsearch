@@ -48,9 +48,16 @@ public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTes
         return fromHlrc(instance);
     }
 
+    public static DataFrameIndexerTransformStats randomStats(String transformId) {
+        return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L));
+    }
+
     @Override
     protected DataFrameIndexerTransformStats createTestInstance() {
-        return DataFrameTransformStateTests.randomStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
+        return randomStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
     }
 
     @Override

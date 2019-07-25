@@ -1,5 +1,8 @@
 [[query-dsl-terms-query]]
-=== Terms Query
+=== Terms query
+++++
+<titleabbrev>Terms</titleabbrev>
+++++
 
 Returns documents that contain one or more *exact* terms in a provided field.
 
@@ -66,7 +69,7 @@ increases the relevance score.
 
 [[query-dsl-terms-query-highlighting]]
 ===== Highlighting `terms` queries
-<<search-request-highlighting,Highlighting>> is best-effort only. {es} may not
+<<request-body-search-highlighting,Highlighting>> is best-effort only. {es} may not
 return highlight results for `terms` queries depending on:
 
 * Highlighter type

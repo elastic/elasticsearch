@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -48,7 +49,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public abstract class TransportInstanceSingleOperationAction<
             Request extends InstanceShardOperationRequest<Request>,
@@ -66,7 +66,7 @@ public abstract class TransportInstanceSingleOperationAction<
     protected TransportInstanceSingleOperationAction(String actionName, ThreadPool threadPool,
                                                      ClusterService clusterService, TransportService transportService,
                                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                     Supplier<Request> request) {
+                                                     Writeable.Reader<Request> request) {
         super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -74,7 +74,7 @@ public abstract class TransportInstanceSingleOperationAction<
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor();
         this.shardActionName = actionName + "[s]";
-        transportService.registerRequestHandler(shardActionName, request, executor, new ShardTransportHandler());
+        transportService.registerRequestHandler(shardActionName, executor, request, new ShardTransportHandler());
     }
 
     @Override

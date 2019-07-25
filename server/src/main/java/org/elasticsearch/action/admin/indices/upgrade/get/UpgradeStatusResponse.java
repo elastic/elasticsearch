@@ -39,7 +39,12 @@ public class UpgradeStatusResponse extends BroadcastResponse {
 
     private Map<String, IndexUpgradeStatus> indicesUpgradeStatus;
 
-    UpgradeStatusResponse() {
+    UpgradeStatusResponse(StreamInput in) throws IOException {
+        super(in);
+        shards = new ShardUpgradeStatus[in.readVInt()];
+        for (int i = 0; i < shards.length; i++) {
+            shards[i] = new ShardUpgradeStatus(in);
+        }
     }
 
     UpgradeStatusResponse(ShardUpgradeStatus[] shards, int totalShards, int successfulShards, int failedShards,
@@ -70,15 +75,6 @@ public class UpgradeStatusResponse extends BroadcastResponse {
         }
         this.indicesUpgradeStatus = indicesUpgradeStats;
         return indicesUpgradeStats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shards = new ShardUpgradeStatus[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardUpgradeStatus.readShardUpgradeStatus(in);
-        }
     }
 
     @Override

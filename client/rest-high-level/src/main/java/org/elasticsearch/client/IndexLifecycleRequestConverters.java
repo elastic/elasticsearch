@@ -32,6 +32,10 @@ import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.snapshotlifecycle.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -156,6 +160,58 @@ final class IndexLifecycleRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(retryLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(retryLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getSnapshotLifecyclePolicy(GetSnapshotLifecyclePolicyRequest getSnapshotLifecyclePolicyRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_slm/policy")
+            .addCommaSeparatedPathParts(getSnapshotLifecyclePolicyRequest.getPolicyIds()).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(getSnapshotLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(getSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request putSnapshotLifecyclePolicy(PutSnapshotLifecyclePolicyRequest putSnapshotLifecyclePolicyRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_slm/policy")
+            .addPathPartAsIs(putSnapshotLifecyclePolicyRequest.getPolicy().getId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(putSnapshotLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(putSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
+        request.setEntity(RequestConverters.createEntity(putSnapshotLifecyclePolicyRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteSnapshotLifecyclePolicy(DeleteSnapshotLifecyclePolicyRequest deleteSnapshotLifecyclePolicyRequest) {
+        Request request = new Request(HttpDelete.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm/policy")
+                .addPathPartAsIs(deleteSnapshotLifecyclePolicyRequest.getPolicyId())
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(deleteSnapshotLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(deleteSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request executeSnapshotLifecyclePolicy(ExecuteSnapshotLifecyclePolicyRequest executeSnapshotLifecyclePolicyRequest) {
+        Request request = new Request(HttpPut.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm/policy")
+                .addPathPartAsIs(executeSnapshotLifecyclePolicyRequest.getPolicyId())
+                .addPathPartAsIs("_execute")
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(executeSnapshotLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(executeSnapshotLifecyclePolicyRequest.timeout());
         request.addParameters(params.asMap());
         return request;
     }

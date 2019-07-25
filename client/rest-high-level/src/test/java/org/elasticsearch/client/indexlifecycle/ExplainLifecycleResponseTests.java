@@ -53,6 +53,11 @@ public class ExplainLifecycleResponseTests extends AbstractXContentTestCase<Expl
     }
 
     @Override
+    protected boolean assertToXContentEquivalence() {
+        return false;
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));

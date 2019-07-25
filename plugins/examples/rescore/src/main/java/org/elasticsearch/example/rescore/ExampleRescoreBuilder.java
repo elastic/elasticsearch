@@ -189,7 +189,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
                         }
                         data = ((AtomicNumericFieldData) fd).getDoubleValues();
                     }
-                    if (false == data.advanceExact(topDocs.scoreDocs[i].doc)) {
+                    if (false == data.advanceExact(topDocs.scoreDocs[i].doc - leaf.docBase)) {
                         throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc
                                 + "] does not have the field [" + context.factorField.getFieldName() + "]");
                     }

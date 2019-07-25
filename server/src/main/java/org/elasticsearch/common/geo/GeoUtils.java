@@ -31,8 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -476,7 +474,7 @@ public class GeoUtils {
                 if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
                     throw new ElasticsearchParseException("field must be either lat/lon or geohash");
                 } else {
-                    return parseGeoHash(point, geohash, effectivePoint);
+                    return point.parseGeoHash(geohash, effectivePoint);
                 }
             } else if (numberFormatException != null) {
                 throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE,
@@ -499,8 +497,10 @@ public class GeoUtils {
                             lon = subParser.doubleValue();
                         } else if (element == 2) {
                             lat = subParser.doubleValue();
-                        } else {
+                        } else if (element == 3) {
                             GeoPoint.assertZValue(ignoreZValue, subParser.doubleValue());
+                        } else {
+                            throw new ElasticsearchParseException("[geo_point] field type does not accept > 3 dimensions");
                         }
                     } else {
                         throw new ElasticsearchParseException("numeric value expected");
@@ -510,32 +510,9 @@ public class GeoUtils {
             return point.reset(lat, lon);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
             String val = parser.text();
-            if (val.contains(",")) {
-                return point.resetFromString(val, ignoreZValue);
-            } else {
-                return parseGeoHash(point, val, effectivePoint);
-            }
-
+            return point.resetFromString(val, ignoreZValue, effectivePoint);
         } else {
             throw new ElasticsearchParseException("geo_point expected");
-        }
-    }
-
-    private static GeoPoint parseGeoHash(GeoPoint point, String geohash, EffectivePoint effectivePoint) {
-        if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
-            return point.resetFromGeoHash(geohash);
-        } else {
-            Rectangle rectangle = Geohash.toBoundingBox(geohash);
-            switch (effectivePoint) {
-                case TOP_LEFT:
-                    return point.reset(rectangle.getMaxLat(), rectangle.getMinLon());
-                case TOP_RIGHT:
-                    return point.reset(rectangle.getMaxLat(), rectangle.getMaxLon());
-                case BOTTOM_RIGHT:
-                    return point.reset(rectangle.getMinLat(), rectangle.getMaxLon());
-                default:
-                    throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
-            }
         }
     }
 
@@ -552,12 +529,7 @@ public class GeoUtils {
      */
     public static GeoPoint parseFromString(String val) {
         GeoPoint point = new GeoPoint();
-        boolean ignoreZValue = false;
-        if (val.contains(",")) {
-            return point.resetFromString(val, ignoreZValue);
-        } else {
-            return parseGeoHash(point, val, EffectivePoint.BOTTOM_LEFT);
-        }
+        return point.resetFromString(val, false, EffectivePoint.BOTTOM_LEFT);
     }
 
     /**

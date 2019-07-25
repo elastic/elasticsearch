@@ -1,5 +1,8 @@
 [[query-dsl-script-query]]
-=== Script Query
+=== Script query
+++++
+<titleabbrev>Script</titleabbrev>
+++++
 
 A query allowing to define
 <<modules-scripting,scripts>> as queries. They are typically used in a filter

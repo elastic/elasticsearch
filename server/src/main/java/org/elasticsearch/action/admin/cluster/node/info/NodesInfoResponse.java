@@ -37,7 +37,8 @@ import java.util.Map;
 
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
-    public NodesInfoResponse() {
+    public NodesInfoResponse(StreamInput in) throws IOException {
+        super(in);
     }
 
     public NodesInfoResponse(ClusterName clusterName, List<NodeInfo> nodes, List<FailedNodeException> failures) {
@@ -46,12 +47,12 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
     @Override
     protected List<NodeInfo> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeInfo::readNodeInfo);
+        return in.readList(NodeInfo::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override

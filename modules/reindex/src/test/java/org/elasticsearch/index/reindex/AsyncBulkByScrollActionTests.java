@@ -885,8 +885,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                                 true);
                     } else if (item instanceof UpdateRequest) {
                         UpdateRequest update = (UpdateRequest) item;
-                        response = new UpdateResponse(shardId, update.type(), update.id(),
-                                randomIntBetween(0, Integer.MAX_VALUE), Result.CREATED);
+                        response = new UpdateResponse(shardId, update.type(), update.id(), randomNonNegativeLong(),
+                            randomIntBetween(1, Integer.MAX_VALUE), randomIntBetween(0, Integer.MAX_VALUE), Result.CREATED);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
                         response =

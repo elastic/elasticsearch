@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import java.util.ArrayList;
@@ -108,7 +108,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
     static void getStatisticSummations(Client client, ActionListener<DataFrameIndexerTransformStats> statsListener) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(),
-                    DataFrameTransformStateAndStats.NAME)));
+                    DataFrameTransformStoredDoc.NAME)));
 
         SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .setSize(0)

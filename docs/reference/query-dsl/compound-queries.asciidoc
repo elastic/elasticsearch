@@ -12,7 +12,7 @@ speed and performance.
 
 [float]
 [[compound-query-types]]
-=== Types of compound queries
+=== Compound query types
 
 <<query-dsl-bool-query,`bool` query>>::
 Returns documents matching one or more wrapped queries using `and`, `or`, and

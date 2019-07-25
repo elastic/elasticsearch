@@ -1569,7 +1569,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx", "test-idx-closed");
         ensureGreen();
         logger.info("-->  closing index test-idx-closed");
-        assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
+        assertAcked(client.admin().indices().prepareClose("test-idx-closed").setWaitForActiveShards(ActiveShardCount.ALL));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test-idx-closed").getState(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());
@@ -3395,7 +3395,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotStatusOnFailedIndex() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44671", Constants.WINDOWS);
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();
         final Client client = client();
@@ -3682,6 +3681,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44671", Constants.WINDOWS);
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String repoName = "test-restore-snapshot-repo";

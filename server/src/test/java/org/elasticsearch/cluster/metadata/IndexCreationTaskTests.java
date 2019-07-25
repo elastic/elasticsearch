@@ -429,7 +429,14 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
             logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS) {
+
+            @Override
+            protected void checkShardLimit(final Settings settings, final ClusterState clusterState) {
+                // we have to make this a no-op since we are not mocking enough for this method to be able to execute
+            }
+
+        };
         return task.execute(state);
     }
 

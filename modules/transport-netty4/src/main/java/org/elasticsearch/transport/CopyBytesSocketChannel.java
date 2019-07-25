@@ -57,8 +57,8 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
 
     private static final int MAX_BYTES_PER_WRITE = 1 << 20;
 
+    private static final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
     private final WriteConfig writeConfig = new WriteConfig();
-    private final ThreadLocal<ByteBuffer> ioBuffer = ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE));
 
     public CopyBytesSocketChannel() {
         super();

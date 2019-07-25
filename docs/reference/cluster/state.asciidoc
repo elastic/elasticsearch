@@ -1,5 +1,5 @@
 [[cluster-state]]
-== Cluster State
+=== Cluster State
 
 The cluster state API allows access to metadata representing the state of the
 whole cluster. This includes information such as
@@ -39,7 +39,7 @@ retrieve the cluster state local to a particular node by adding `local=true` to
 the query string.
 
 [float]
-=== Response Filters
+==== Response Filters
 
 The cluster state contains information about all the indices in the cluster,
 including their mappings, as well as templates and other metadata. This means it

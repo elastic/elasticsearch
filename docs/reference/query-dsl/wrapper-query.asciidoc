@@ -1,5 +1,8 @@
 [[query-dsl-wrapper-query]]
-=== Wrapper Query
+=== Wrapper query
+++++
+<titleabbrev>Wrapper</titleabbrev>
+++++
 
 A query that accepts any other query as base64 encoded string.
 

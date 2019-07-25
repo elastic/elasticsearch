@@ -43,7 +43,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -86,14 +85,10 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }, MAPPINGS, ObjectParser.ValueType.OBJECT);
     }
 
-    private Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = emptyMap();
+    private final Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings;
 
     GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings) {
         this.mappings = mappings;
-    }
-
-
-    GetFieldMappingsResponse() {
     }
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
@@ -292,13 +287,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(mappings.size());
         for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
             out.writeString(indexEntry.getKey());

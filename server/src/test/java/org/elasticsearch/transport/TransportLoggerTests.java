@@ -37,7 +37,7 @@ import java.io.IOException;
 
 import static org.mockito.Mockito.mock;
 
-@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace")
+@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
 public class TransportLoggerTests extends ESTestCase {
 
     private MockLogAppender appender;

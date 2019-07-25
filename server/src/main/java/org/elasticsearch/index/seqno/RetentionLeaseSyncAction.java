@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
@@ -56,12 +55,7 @@ public class RetentionLeaseSyncAction extends
         TransportWriteAction<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> {
 
     public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
-    public static ActionType<Response> TYPE = new StreamableResponseActionType<>(ACTION_NAME) {
-        @Override
-        public Response newResponse() {
-            return new Response();
-        }
-    };
+    public static ActionType<Response> TYPE = new ActionType<>(ACTION_NAME, Response::new);
 
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
@@ -142,11 +136,6 @@ public class RetentionLeaseSyncAction extends
         }
 
         @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(Objects.requireNonNull(out));
             retentionLeases.writeTo(out);
@@ -167,6 +156,12 @@ public class RetentionLeaseSyncAction extends
 
     public static final class Response extends ReplicationResponse implements WriteResponse {
 
+        public Response() {}
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public void setForcedRefresh(final boolean forcedRefresh) {
             // ignore
@@ -175,8 +170,8 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected Response newResponseInstance() {
-        return new Response();
+    protected Response newResponseInstance(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
 }

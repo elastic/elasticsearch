@@ -71,7 +71,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -291,12 +290,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
     }
 
-    @TestLogging(
-            "_root:DEBUG,"
-                    + "org.elasticsearch.cluster.service:TRACE,"
-                    + "org.elasticsearch.indices.cluster:TRACE,"
-                    + "org.elasticsearch.indices.recovery:TRACE,"
-                    + "org.elasticsearch.index.shard:TRACE")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -713,7 +706,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
      * Tests scenario where recovery target successfully sends recovery request to source but then the channel gets closed while
      * the source is working on the recovery process.
      */
-    @TestLogging("_root:DEBUG,org.elasticsearch.indices.recovery:TRACE")
     public void testDisconnectsDuringRecovery() throws Exception {
         boolean primaryRelocation = randomBoolean();
         final String indexName = "test";
@@ -1015,4 +1007,5 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 });
         }
     }
+
 }

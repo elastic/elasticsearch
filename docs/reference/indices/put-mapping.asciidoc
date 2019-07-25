@@ -4,6 +4,7 @@
 <titleabbrev>Put mapping</titleabbrev>
 ++++
 
+
 Adds fields to an existing index.
 
 [float]
@@ -17,6 +18,7 @@ Adds fields to an existing index.
 [float]
 [[indices-put-mapping-desc]]
 === {api-description-title}
+
 
 You can use the put mapping API to add fields to an existing index. You also can
 use the API to make the following changes to existing fields:
@@ -74,6 +76,7 @@ details, please see <<removal-of-types>>.
 --
 
 include::{docdir}/rest-api/timeoutparms.asciidoc[]
+
 
 [float]
 [[indices-put-mapping-request-body]]

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -33,7 +32,7 @@ import java.util.Objects;
 /**
  * Response object containing flush acknowledgement and additional data
  */
-public class FlushJobResponse extends ActionResponse implements ToXContentObject {
+public class FlushJobResponse implements ToXContentObject {
 
     public static final ParseField FLUSHED = new ParseField("flushed");
     public static final ParseField LAST_FINALIZED_BUCKET_END = new ParseField("last_finalized_bucket_end");

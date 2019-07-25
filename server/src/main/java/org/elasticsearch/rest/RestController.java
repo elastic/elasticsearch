@@ -509,6 +509,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public XContentBuilder newBuilder(XContentType xContentType, XContentType responseContentType, boolean useFiltering)
+                throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+        }
+
+        @Override
         public BytesStreamOutput bytesOutput() {
             return delegate.bytesOutput();
         }

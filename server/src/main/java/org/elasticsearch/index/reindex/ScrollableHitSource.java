@@ -39,13 +39,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
 
 /**
- * A scrollable source of results.
+ * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
+ * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
+ * more data (only receives one response at a time).
  */
 public abstract class ScrollableHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
@@ -54,33 +57,52 @@ public abstract class ScrollableHitSource {
     protected final BackoffPolicy backoffPolicy;
     protected final ThreadPool threadPool;
     protected final Runnable countSearchRetry;
+    private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
     public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-            Consumer<Exception> fail) {
+                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
         this.threadPool = threadPool;
         this.countSearchRetry = countSearchRetry;
+        this.onResponse = onResponse;
         this.fail = fail;
     }
 
-    public final void start(Consumer<Response> onResponse) {
+    public final void start() {
         doStart(response -> {
            setScroll(response.getScrollId());
            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-           onResponse.accept(response);
+           onResponse(response);
         });
     }
     protected abstract void doStart(Consumer<? super Response> onResponse);
 
-    public final void startNextScroll(TimeValue extraKeepAlive, Consumer<Response> onResponse) {
+    final void startNextScroll(TimeValue extraKeepAlive) {
         doStartNextScroll(scrollId.get(), extraKeepAlive, response -> {
             setScroll(response.getScrollId());
-            onResponse.accept(response);
+            onResponse(response);
         });
     }
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
+
+    private void onResponse(Response response) {
+        setScroll(response.getScrollId());
+        onResponse.accept(new AsyncResponse() {
+            private AtomicBoolean alreadyDone = new AtomicBoolean();
+            @Override
+            public Response response() {
+                return response;
+            }
+
+            @Override
+            public void done(TimeValue extraKeepAlive) {
+                assert alreadyDone.compareAndSet(false, true);
+                startNextScroll(extraKeepAlive);
+            }
+        });
+    }
 
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
@@ -113,6 +135,19 @@ public abstract class ScrollableHitSource {
      */
     public final void setScroll(String scrollId) {
         this.scrollId.set(scrollId);
+    }
+
+    public interface AsyncResponse {
+        /**
+         * The response data made available.
+         */
+        Response response();
+
+        /**
+         * Called when done processing response to signal more data is needed.
+         * @param extraKeepAlive extra time to keep underlying scroll open.
+         */
+        void done(TimeValue extraKeepAlive);
     }
 
     /**

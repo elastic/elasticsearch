@@ -37,6 +37,11 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
 
     private String name;
 
+    public VerifyRepositoryRequest(StreamInput in) throws IOException {
+        super(in);
+        name = in.readString();
+    }
+
     public VerifyRepositoryRequest() {
     }
 
@@ -75,12 +80,6 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
      */
     public String name() {
         return this.name;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        name = in.readString();
     }
 
     @Override

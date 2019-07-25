@@ -20,6 +20,11 @@ public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceReque
 
     private Command command;
 
+    public WatcherServiceRequest(StreamInput in) throws IOException {
+        super(in);
+        command = Command.valueOf(in.readString().toUpperCase(Locale.ROOT));
+    }
+
     public WatcherServiceRequest() {
     }
 
@@ -50,12 +55,6 @@ public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceReque
         } else {
             return null;
         }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        command = Command.valueOf(in.readString().toUpperCase(Locale.ROOT));
     }
 
     @Override

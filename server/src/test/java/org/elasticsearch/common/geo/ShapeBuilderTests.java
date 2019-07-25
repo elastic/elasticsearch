@@ -19,12 +19,8 @@
 
 package org.elasticsearch.common.geo;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.LineString;
-import org.locationtech.jts.geom.Polygon;
-
-import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
@@ -32,6 +28,9 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Circle;
 import org.locationtech.spatial4j.shape.Point;
@@ -161,7 +160,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-110.0, 55.0));
 
         lsb.buildS4J();
-        lsb.buildGeometry();
+        buildGeometry(lsb);
 
         // Building a linestring that needs to be wrapped
         lsb = new LineStringBuilder(new CoordinatesBuilder()
@@ -175,7 +174,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(130.0, 60.0));
 
         lsb.buildS4J();
-        lsb.buildGeometry();
+        buildGeometry(lsb);
 
         // Building a lineString on the dateline
         lsb = new LineStringBuilder(new CoordinatesBuilder()
@@ -185,7 +184,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(-180.0, -80.0));
 
         lsb.buildS4J();
-        lsb.buildGeometry();
+        buildGeometry(lsb);
 
         // Building a lineString on the dateline
         lsb = new LineStringBuilder(new CoordinatesBuilder()
@@ -195,7 +194,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(180.0, -80.0));
 
         lsb.buildS4J();
-        lsb.buildGeometry();
+        buildGeometry(lsb);
     }
 
     public void testMultiLineString() {
@@ -215,7 +214,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 )
             );
         mlsb.buildS4J();
-        mlsb.buildGeometry();
+        buildGeometry(mlsb);
 
         // LineString that needs to be wrapped
         new MultiLineStringBuilder()
@@ -235,7 +234,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         mlsb.buildS4J();
-        mlsb.buildGeometry();
+        buildGeometry(mlsb);
     }
 
     public void testPolygonSelfIntersection() {
@@ -283,7 +282,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .close());
 
         assertMultiPolygon(pb.buildS4J(), true);
-        assertMultiPolygon(pb.buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(pb), false);
     }
 
     public void testLineStringWrapping() {
@@ -295,7 +294,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .close());
 
         assertMultiLineString(lsb.buildS4J(), true);
-        assertMultiLineString(lsb.buildGeometry(), false);
+        assertMultiLineString(buildGeometry(lsb), false);
     }
 
     public void testDatelineOGC() {
@@ -339,7 +338,7 @@ public class ShapeBuilderTests extends ESTestCase {
             ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(builder.close()), false);
     }
 
     public void testDateline() {
@@ -383,7 +382,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(builder.close()), false);
     }
 
     public void testComplexShapeWithHole() {
@@ -458,7 +457,7 @@ public class ShapeBuilderTests extends ESTestCase {
             )
             );
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildGeometry(), false);
+        assertPolygon(buildGeometry(builder.close()), false);
      }
 
     public void testShapeWithHoleAtEdgeEndPoints() {
@@ -480,7 +479,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(4, 1)
             ));
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildGeometry(), false);
+        assertPolygon(buildGeometry(builder.close()), false);
      }
 
     public void testShapeWithPointOnDateline() {
@@ -491,7 +490,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 );
             assertPolygon(builder.close().buildS4J(), true);
-            assertPolygon(builder.close().buildGeometry(), false);
+            assertPolygon(buildGeometry(builder.close()), false);
      }
 
     public void testShapeWithEdgeAlongDateline() {
@@ -504,7 +503,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildGeometry(), false);
+        assertPolygon(buildGeometry(builder.close()), false);
 
         // test case 2: test the negative side of the dateline
         builder = new PolygonBuilder(new CoordinatesBuilder()
@@ -515,7 +514,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildGeometry(), false);
+        assertPolygon(buildGeometry(builder.close()), false);
      }
 
     public void testShapeWithBoundaryHoles() {
@@ -537,7 +536,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(builder.close()), false);
 
         // test case 2: test the negative side of the dateline
         builder = new PolygonBuilder(
@@ -560,7 +559,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(builder.close()), false);
     }
 
     public void testShapeWithTangentialHole() {
@@ -582,7 +581,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(builder.close()), false);
     }
 
     public void testShapeWithInvalidTangentialHole() {
@@ -606,7 +605,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
         e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
-        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
+        e = expectThrows(IllegalArgumentException.class, () -> buildGeometry(builder.close()));
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
     }
 
@@ -634,7 +633,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(172, 0)
                 ));
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(builder.close()), false);
     }
 
     public void testBoundaryShapeWithInvalidTangentialHole() {
@@ -657,7 +656,7 @@ public class ShapeBuilderTests extends ESTestCase {
         Exception e;
         e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
-        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
+        e = expectThrows(IllegalArgumentException.class, () -> buildGeometry(builder.close()));
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
     }
 
@@ -673,7 +672,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildGeometry(), false);
+        assertPolygon(buildGeometry(builder.close()), false);
     }
 
     public void testShapeWithAlternateOrientation() {
@@ -686,7 +685,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildGeometry(), false);
+        assertPolygon(buildGeometry(builder.close()), false);
 
         // cw: geo core will convert to ccw across the dateline
         builder = new PolygonBuilder(new CoordinatesBuilder()
@@ -697,7 +696,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildGeometry(), false);
+        assertMultiPolygon(buildGeometry(builder.close()), false);
      }
 
     public void testInvalidShapeWithConsecutiveDuplicatePoints() {
@@ -711,7 +710,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
-        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
+        e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
         assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
     }
 
@@ -774,7 +773,11 @@ public class ShapeBuilderTests extends ESTestCase {
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
-        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
+        e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+    }
+
+    public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {
+        return new GeometryIndexer(true).prepareForIndexing(builder.buildGeometry());
     }
 }

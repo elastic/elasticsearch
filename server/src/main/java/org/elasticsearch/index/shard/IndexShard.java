@@ -40,7 +40,6 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -326,17 +325,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.executor(ThreadPool.Names.LISTENER), threadPool.scheduler(), logger);
-        final ReplicationTracker replicationTracker =
-                new ReplicationTracker(
-                        shardId,
-                        aId,
-                        indexSettings,
-                        primaryTerm,
-                        UNASSIGNED_SEQ_NO,
-                        globalCheckpointListeners::globalCheckpointUpdated,
-                        threadPool::absoluteTimeInMillis,
-                        (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener));
-        this.replicationTracker = replicationTracker;
+        this.replicationTracker = new ReplicationTracker(
+                shardId,
+                aId,
+                indexSettings,
+                primaryTerm,
+                UNASSIGNED_SEQ_NO,
+                globalCheckpointListeners::globalCheckpointUpdated,
+                threadPool::absoluteTimeInMillis,
+                (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener));
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -443,16 +440,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
+            assert currentRouting != null;
 
             if (!newRouting.shardId().equals(shardId())) {
                 throw new IllegalArgumentException("Trying to set a routing entry with shardId " +
                     newRouting.shardId() + " on a shard with shardId " + shardId());
             }
-            if ((currentRouting == null || newRouting.isSameAllocation(currentRouting)) == false) {
+            if (newRouting.isSameAllocation(currentRouting) == false) {
                 throw new IllegalArgumentException("Trying to set a routing entry with a different allocation. Current " +
                     currentRouting + ", new " + newRouting);
             }
-            if (currentRouting != null && currentRouting.primary() && newRouting.primary() == false) {
+            if (currentRouting.primary() && newRouting.primary() == false) {
                 throw new IllegalArgumentException("illegal state: trying to move shard from primary mode to replica mode. Current "
                     + currentRouting + ", new " + newRouting);
             }
@@ -586,7 +584,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 : "a started primary with non-pending operation term must be in primary mode " + this.shardRouting;
             shardStateUpdated.countDown();
         }
-        if (currentRouting != null && currentRouting.active() == false && newRouting.active()) {
+        if (currentRouting.active() == false && newRouting.active()) {
             indexEventListener.afterIndexShardStarted(this);
         }
         if (newRouting.equals(currentRouting) == false) {
@@ -631,8 +629,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void relocated(final String targetAllocationId, final Consumer<ReplicationTracker.PrimaryContext> consumer)
         throws IllegalIndexShardStateException, IllegalStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
-        final Releasable forceRefreshes = refreshListeners.forceRefreshes();
-        try {
+        try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
                 // no shard operation permits are being held here, move state from started to relocated
@@ -665,8 +662,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
-        } finally {
-            forceRefreshes.close();
         }
     }
 
@@ -745,7 +740,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 sourceWithResolvedType = new SourceToParse(sourceToParse.index(), resolvedType, sourceToParse.id(),
                     sourceToParse.source(), sourceToParse.getXContentType(), sourceToParse.routing());
             }
-            operation = prepareIndex(docMapper(resolvedType), indexSettings.getIndexVersionCreated(), sourceWithResolvedType,
+            operation = prepareIndex(docMapper(resolvedType), sourceWithResolvedType,
                 seqNo, opPrimaryTerm, version, versionType, origin, autoGeneratedTimeStamp, isRetry, ifSeqNo, ifPrimaryTerm);
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
@@ -763,7 +758,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
-    public static Engine.Index prepareIndex(DocumentMapperForType docMapper, Version indexCreatedVersion, SourceToParse source, long seqNo,
+    public static Engine.Index prepareIndex(DocumentMapperForType docMapper, SourceToParse source, long seqNo,
                                             long primaryTerm, long version, VersionType versionType, Engine.Operation.Origin origin,
                                             long autoGeneratedIdTimestamp, boolean isRetry,
                                             long ifSeqNo, long ifPrimaryTerm) {
@@ -1529,7 +1524,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
-        assertSequenceNumbersInCommit();
+        assert assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
@@ -1546,7 +1541,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return true;
     }
 
-    protected void onNewEngine(Engine newEngine) {
+    private void onNewEngine(Engine newEngine) {
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
     }
 
@@ -1856,10 +1851,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public List<Segment> segments(boolean verbose) {
         return getEngine().segments(verbose);
-    }
-
-    public void flushAndCloseEngine() throws IOException {
-        getEngine().flushAndClose();
     }
 
     public String getHistoryUUID() {
@@ -2876,7 +2867,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         };
-    };
+    }
 
     /**
      * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
@@ -2988,7 +2979,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new RefreshListeners(
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
-            threadPool.executor(ThreadPool.Names.LISTENER)::execute,
+            threadPool.executor(ThreadPool.Names.LISTENER),
             logger, threadPool.getThreadContext(),
             externalRefreshMetric);
     }

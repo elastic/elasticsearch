@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geo.geometry.Line;
 import org.elasticsearch.geo.geometry.LinearRing;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
@@ -50,7 +51,7 @@ public class GeometryParserTests extends ESTestCase {
             assertEquals(new Point(0, 100), format.fromXContent(parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder();
             format.toXContent(new Point(10, 100), newGeoJson, ToXContent.EMPTY_PARAMS);
-            assertEquals("{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}", Strings.toString(newGeoJson));
+            assertEquals("{\"type\":\"point\",\"coordinates\":[100.0,10.0]}", Strings.toString(newGeoJson));
         }
 
         XContentBuilder pointGeoJsonWithZ = XContentFactory.jsonBuilder()
@@ -114,6 +115,20 @@ public class GeometryParserTests extends ESTestCase {
             newGeoJson.endObject();
             assertEquals("{\"val\":\"point (100.0 10.0)\"}", Strings.toString(newGeoJson));
         }
+
+        // Make sure we can parse values outside the normal lat lon boundaries
+        XContentBuilder lineGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("foo", "LINESTRING (100 0, 200 10)")
+            .endObject();
+
+        try (XContentParser parser = createParser(lineGeoJson)) {
+            parser.nextToken(); // Start object
+            parser.nextToken(); // Field Name
+            parser.nextToken(); // Field Value
+            assertEquals(new Line(new double[]{0, 10}, new double[]{100, 200} ),
+                new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
+        }
     }
 
     public void testNullParsing() throws Exception {
@@ -133,7 +148,7 @@ public class GeometryParserTests extends ESTestCase {
             // if we serialize non-null value - it should be serialized as geojson
             format.toXContent(new Point(10, 100), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
-            assertEquals("{\"val\":{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}}", Strings.toString(newGeoJson));
+            assertEquals("{\"val\":{\"type\":\"point\",\"coordinates\":[100.0,10.0]}}", Strings.toString(newGeoJson));
 
             newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             format.toXContent(null, newGeoJson, ToXContent.EMPTY_PARAMS);

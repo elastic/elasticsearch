@@ -38,12 +38,12 @@ import org.elasticsearch.env.Environment;
  */
 class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
 
-    private final OptionSpec<Void> forceOption;
     private final OptionSpec<String> arguments;
 
     AddFileKeyStoreCommand() {
         super("Add a file setting to the keystore", false);
-        this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"), "Overwrite existing setting without prompting");
+        this.forceOption = parser.acceptsAll(Arrays.asList("f", "force"),
+            "Overwrite existing setting without prompting, creating keystore if necessary");
         // jopt simple has issue with multiple non options, so we just get one set of them here
         // and convert to File when necessary
         // see https://github.com/jopt-simple/jopt-simple/issues/103
@@ -52,7 +52,6 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
 
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-
         List<String> argumentValues = arguments.values(options);
         if (argumentValues.size() == 0) {
             throw new UserException(ExitCodes.USAGE, "Missing setting name");

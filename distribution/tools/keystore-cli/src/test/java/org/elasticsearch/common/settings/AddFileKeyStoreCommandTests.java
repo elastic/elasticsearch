@@ -58,11 +58,18 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         keystore.save(env.configFile(), password.toCharArray());
     }
 
-    public void testMissingCreateWithEmptyPassword() throws Exception {
+    public void testMissingCreateWithEmptyPasswordWhenPrompted() throws Exception {
         String password = "";
         Path file1 = createRandomFile();
         terminal.addTextInput("y");
         execute("foo", file1.toString());
+        assertSecureFile("foo", file1, password);
+    }
+
+    public void testMissingCreateWithEmptyPasswordWithoutPromptIfForced() throws Exception {
+        String password = "";
+        Path file1 = createRandomFile();
+        execute("-f", "foo", file1.toString());
         assertSecureFile("foo", file1, password);
     }
 

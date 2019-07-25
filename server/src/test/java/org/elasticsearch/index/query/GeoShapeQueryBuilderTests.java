@@ -198,7 +198,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     // see #3878
     public void testThatXContentSerializationInsideOfArrayWorks() throws Exception {
-        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(0, 0), new Coordinate(10, 10));
+        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(0, 10), new Coordinate(10, 0));
         GeoShapeQueryBuilder geoQuery = QueryBuilders.geoShapeQuery("searchGeometry", envelopeBuilder);
         JsonXContent.contentBuilder().startArray().value(geoQuery).endArray();
     }

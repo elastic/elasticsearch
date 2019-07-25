@@ -193,7 +193,7 @@ public final class ReservedFieldNames {
             DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(),
             DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(),
 
-            ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(),
+            ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
             ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
             ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
 

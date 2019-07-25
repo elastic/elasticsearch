@@ -935,7 +935,7 @@ public class ElasticsearchMappings {
             .endObject()
             .startObject(TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName())
                 .startObject(PROPERTIES)
-                    .startObject(ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName())
+                    .startObject(ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName())
                         .field(TYPE, DOUBLE)
                     .endObject()
                     .startObject(ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName())

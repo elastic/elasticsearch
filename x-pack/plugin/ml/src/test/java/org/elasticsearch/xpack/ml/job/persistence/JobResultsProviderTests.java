@@ -849,7 +849,7 @@ public class JobResultsProviderTests extends ESTestCase {
                     TimingStats.AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 666.0,
                     TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), 777.0,
                     TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
-                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 100.0,
+                        ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 100.0,
                         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(1000_000_000),
                         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 200.0)));
         SearchResponse response = createSearchResponse(source);
@@ -914,7 +914,7 @@ public class JobResultsProviderTests extends ESTestCase {
                     DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 66,
                     DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0,
                     DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
-                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 600.0,
+                        ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 600.0,
                         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600),
                         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0)));
         List<Map<String, Object>> sourceBar =
@@ -925,7 +925,7 @@ public class JobResultsProviderTests extends ESTestCase {
                     DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 77,
                     DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 777.0,
                     DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
-                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 700.0,
+                        ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 700.0,
                         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000700),
                         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 70.0)));
         SearchResponse responseFoo = createSearchResponse(sourceFoo);
@@ -989,7 +989,7 @@ public class JobResultsProviderTests extends ESTestCase {
                     DatafeedTimingStats.BUCKET_COUNT.getPreferredName(), 66,
                     DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName(), 666.0,
                     DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), Map.of(
-                        ExponentialAverageCalculationContext.INCREMENTAL_TIME_METRIC_MS.getPreferredName(), 600.0,
+                        ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 600.0,
                         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600),
                         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0)));
         SearchResponse response = createSearchResponse(source);

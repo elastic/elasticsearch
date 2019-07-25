@@ -51,7 +51,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class ExponentialAverageCalculationContext implements Writeable, ToXContentObject {
 
-    public static final ParseField INCREMENTAL_TIME_METRIC_MS = new ParseField("incremental_time_metric_ms");
+    public static final ParseField INCREMENTAL_METRIC_VALUE_MS = new ParseField("incremental_metric_value_ms");
     public static final ParseField LATEST_TIMESTAMP = new ParseField("latest_timestamp");
     public static final ParseField PREVIOUS_EXPONENTIAL_AVERAGE_MS = new ParseField("previous_exponential_average_ms");
 
@@ -70,7 +70,7 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
             });
 
     static {
-        PARSER.declareDouble(optionalConstructorArg(), INCREMENTAL_TIME_METRIC_MS);
+        PARSER.declareDouble(optionalConstructorArg(), INCREMENTAL_METRIC_VALUE_MS);
         PARSER.declareField(
             optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, LATEST_TIMESTAMP.getPreferredName()),
@@ -171,7 +171,7 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INCREMENTAL_TIME_METRIC_MS.getPreferredName(), incrementalMetricValueMs);
+        builder.field(INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), incrementalMetricValueMs);
         if (latestTimestamp != null) {
             builder.timeField(
                 LATEST_TIMESTAMP.getPreferredName(),

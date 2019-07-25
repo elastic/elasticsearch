@@ -233,7 +233,7 @@ public class JobResultsPersisterTests extends ESTestCase {
                     "average_bucket_processing_time_ms", 1.23,
                     "exponential_average_bucket_processing_time_ms", 7.89,
                     "exponential_average_calculation_context", Map.of(
-                        "incremental_time_metric_ms", 600.0,
+                        "incremental_metric_value_ms", 600.0,
                         "previous_exponential_average_ms", 60.0,
                         "latest_timestamp", 123456789))));
 
@@ -276,7 +276,7 @@ public class JobResultsPersisterTests extends ESTestCase {
                     "bucket_count", 66,
                     "total_search_time_ms", 666.0,
                     "exponential_average_calculation_context", Map.of(
-                        "incremental_time_metric_ms", 600.0,
+                        "incremental_metric_value_ms", 600.0,
                         "previous_exponential_average_ms", 60.0,
                         "latest_timestamp", 123456789))));
 

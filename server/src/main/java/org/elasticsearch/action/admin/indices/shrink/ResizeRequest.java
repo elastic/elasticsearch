@@ -101,8 +101,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
-        if (type == ResizeType.CLONE && out.getVersion().before(Version.V_8_0_0)) {
-            throw new IllegalArgumentException("can't send clone request to a node that's older than " + Version.V_8_0_0);
+        if (type == ResizeType.CLONE && out.getVersion().before(Version.V_7_4_0)) {
+            throw new IllegalArgumentException("can't send clone request to a node that's older than " + Version.V_7_4_0);
         }
         out.writeEnum(type);
         out.writeOptionalBoolean(copySettings);

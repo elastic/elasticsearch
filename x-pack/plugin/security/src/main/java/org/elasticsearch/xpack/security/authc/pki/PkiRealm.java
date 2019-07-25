@@ -317,6 +317,17 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
+    @Override
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        super.usageStats(ActionListener.wrap(stats -> {
+            stats.put("has_truststore", trustManager != null);
+            stats.put("has_delegated_realms", delegatedRealms != null);
+            stats.put("principal_pattern", principalPattern.pattern());
+            stats.put("is_authentication_delegated", delegationEnabled);
+            listener.onResponse(stats);
+        }, listener::onFailure));
+    }
+
     private static BytesKey computeFingerprint(X509Certificate certificate) throws CertificateEncodingException {
         MessageDigest digest = MessageDigests.sha256();
         digest.update(certificate.getEncoded());

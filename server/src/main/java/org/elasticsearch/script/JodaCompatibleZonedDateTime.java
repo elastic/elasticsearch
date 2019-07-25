@@ -57,7 +57,9 @@ import java.util.Objects;
 /**
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
-public class JodaCompatibleZonedDateTime implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
+public class JodaCompatibleZonedDateTime
+        implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
+    
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));

@@ -19,6 +19,8 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -88,6 +90,7 @@ final class ByteBufBytesReference extends BytesReference {
     @Override
     public BytesRef toBytesRef() {
         if (buffer.hasArray()) {
+            assert isBufferHierarchyUnpooled(buffer);
             return new BytesRef(buffer.array(), buffer.arrayOffset() + offset, length);
         }
         final byte[] copy = new byte[length];
@@ -100,4 +103,26 @@ final class ByteBufBytesReference extends BytesReference {
         return buffer.capacity();
     }
 
+    /**
+     * Checks if a {@link ByteBuf} is an unpooled buffer or if derived from other buffers is only derived from unpooled buffers.
+     *
+     * @param buffer A byte buffer instance. Must not be null.
+     * @return <code>true</code> iff this byte buffer and all its components have been allocated outside of Netty's buffer pool.
+     */
+    private static boolean isBufferHierarchyUnpooled(ByteBuf buffer) {
+        if (buffer.alloc() instanceof UnpooledByteBufAllocator) {
+            if (buffer instanceof CompositeByteBuf) {
+                CompositeByteBuf compositeBuffer = (CompositeByteBuf) buffer;
+                for(int i = 0; i < compositeBuffer.numComponents(); i++) {
+                    // access the internal component to avoid duplicating the buffer (see CompositeByteBuf#component(int))
+                    if (isBufferHierarchyUnpooled(compositeBuffer.internalComponent(i)) == false) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } else {
+            return false;
+        }
+    }
 }

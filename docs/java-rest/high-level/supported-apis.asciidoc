@@ -83,12 +83,12 @@ include::miscellaneous/ping.asciidoc[]
 include::miscellaneous/x-pack-info.asciidoc[]
 include::miscellaneous/x-pack-usage.asciidoc[]
 
-== Indices APIs
+== Index APIs
 
 :upid: {mainid}
 :doc-tests-file: {doc-tests}/IndicesClientDocumentationIT.java
 
-The Java High Level REST Client supports the following Indices APIs:
+The Java High Level REST Client supports the following Index APIs:
 
 Index Management::
 * <<{upid}-analyze>>

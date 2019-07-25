@@ -1,6 +1,6 @@
 {
   "indices.get_alias": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
     "stability": "stable",
     "methods": ["GET"],
     "url": {

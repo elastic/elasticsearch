@@ -20,7 +20,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -28,7 +27,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -46,21 +44,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
             Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
 
+    private final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
 
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
-        super(ReindexAction.NAME, transportService, actionFilters, (Writeable.Reader<ReindexRequest>) ReindexRequest::new);
-        this.reindexer = new Reindexer(settings, clusterService, client, threadPool, indexNameExpressionResolver, autoCreateIndex,
-            scriptService, sslConfig);
+        super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
+        this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
+        this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
 
     }
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        reindexer.initialValidation(request);
+        reindexValidator.initialValidation(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         reindexer.execute(bulkByScrollTask, request, listener);
     }

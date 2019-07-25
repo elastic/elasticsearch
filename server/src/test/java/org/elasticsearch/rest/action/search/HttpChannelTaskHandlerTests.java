@@ -50,8 +50,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-
 public class HttpChannelTaskHandlerTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -82,12 +80,11 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                     futures.add(actionFuture);
                 }
             }
-
             for (Future<?> future : futures) {
                 future.get();
             }
             //no channels get closed in this test
-            assertThat(httpChannelTaskHandler.httpChannels.size(), lessThanOrEqualTo(numChannels));
+            assertEquals(numChannels, httpChannelTaskHandler.httpChannels.size());
             for (Map.Entry<HttpChannel, HttpChannelTaskHandler.CloseListener> entry : httpChannelTaskHandler.httpChannels.entrySet()) {
                 assertEquals(0, entry.getValue().taskIds.size());
             }

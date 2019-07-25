@@ -49,7 +49,8 @@ final class HttpChannelTaskHandler {
 
     <Response extends ActionResponse> void execute(NodeClient client, HttpChannel httpChannel, ActionRequest request,
                                                    ActionType<Response> actionType, ActionListener<Response> listener) {
-        //0: initial state, 1: either linked or already unlinked, 2: linked and unlinked
+        //0: initial state, 1: either linked or already unlinked without being linked first, 2: first linked and then unlinked
+        //link can only be done if it's the first thing that happens. unlink will only happen if link was done first.
         AtomicInteger link = new AtomicInteger(0);
         Task task = client.executeLocally(actionType, request,
             new TaskListener<>() {
@@ -105,7 +106,6 @@ final class HttpChannelTaskHandler {
 
         //TODO test case where listener is registered, but no tasks have been added yet:
         // - connection gets closed, channel will be removed, no tasks will be cancelled
-        // - unlink is called before, hence the task is removed (not found) before it gets added
 
         //TODO check that no tasks are left behind through assertions at node close
     }

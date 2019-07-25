@@ -26,15 +26,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -134,23 +137,24 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    public void testPrepareIndexForPeerRecovery() throws Exception {
-        CheckedFunction<IndexShard, Long, Exception> populateData = shard -> {
-            List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
-            Randomness.shuffle(seqNos);
-            for (long seqNo : seqNos) {
-                shard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, new SourceToParse(
-                    shard.shardId().getIndexName(), "_doc", UUIDs.randomBase64UUID(), new BytesArray("{}"), XContentType.JSON));
-                if (randomInt(100) < 5) {
-                    shard.flush(new FlushRequest().waitIfOngoing(true));
-                }
+    private SeqNoStats populateRandomData(IndexShard shard) throws IOException {
+        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
+        Randomness.shuffle(seqNos);
+        for (long seqNo : seqNos) {
+            shard.applyIndexOperationOnReplica(seqNo, 1, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, new SourceToParse(
+                shard.shardId().getIndexName(), "_doc", UUIDs.randomBase64UUID(), new BytesArray("{}"), XContentType.JSON));
+            if (randomInt(100) < 5) {
+                shard.flush(new FlushRequest().waitIfOngoing(true));
             }
-            shard.sync();
-            long globalCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, shard.getLocalCheckpoint());
-            shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
-            shard.sync();
-            return globalCheckpoint;
-        };
+        }
+        shard.sync();
+        long globalCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, shard.getLocalCheckpoint());
+        shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+        shard.sync();
+        return shard.seqNoStats();
+    }
+
+    public void testPrepareIndexForPeerRecovery() throws Exception {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
 
@@ -166,7 +170,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         // good copy
         shard = newStartedShard(false);
-        long globalCheckpoint = populateData.apply(shard);
+        long globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
         Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
         assertTrue(safeCommit.isPresent());
         int expectedTotalLocal = 0;
@@ -191,7 +195,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         // corrupted copy
         shard = newStartedShard(false);
         if (randomBoolean()) {
-            populateData.apply(shard);
+            populateRandomData(shard);
         }
         shard.store().markStoreCorrupted(new IOException("test"));
         replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(),
@@ -206,7 +210,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         // copy with truncated translog
         shard = newStartedShard(false);
-        globalCheckpoint = populateData.apply(shard);
+        globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
         replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(),
             RecoverySource.PeerRecoverySource.INSTANCE));
         String translogUUID = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), globalCheckpoint,
@@ -222,6 +226,34 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
             assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(RecoveryState.Translog.UNKNOWN));
         }
+        assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
+        assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+        closeShards(replica);
+    }
+
+    public void testClosedIndexSkipsLocalRecovery() throws Exception {
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        IndexShard shard = newStartedShard(false);
+        long globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
+        Optional<SequenceNumbers.CommitInfo> safeCommit = shard.store().findSafeIndexCommit(globalCheckpoint);
+        assertTrue(safeCommit.isPresent());
+        final IndexMetaData indexMetaData;
+        if (randomBoolean()) {
+            indexMetaData = IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
+                .settings(shard.indexSettings().getSettings())
+                .state(IndexMetaData.State.CLOSE).build();
+        } else {
+            indexMetaData = IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
+                .settings(Settings.builder().put(shard.indexSettings().getSettings())
+                    .put(IndexMetaData.SETTING_BLOCKS_WRITE, true)).build();
+        }
+        IndexShard replica = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(),
+            RecoverySource.PeerRecoverySource.INSTANCE), indexMetaData, NoOpEngine::new);
+        replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
+        replica.prepareForIndexRecovery();
+        assertThat(replica.recoverLocallyUpToGlobalCheckpoint(), equalTo(safeCommit.get().localCheckpoint + 1));
+        assertThat(replica.recoveryState().getTranslog().totalLocal(), equalTo(0));
         assertThat(replica.recoveryState().getTranslog().recoveredOperations(), equalTo(0));
         assertThat(replica.getLastKnownGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
         closeShards(replica);

@@ -99,6 +99,7 @@ Index Management::
 * <<{upid}-close-index>>
 * <<{upid}-shrink-index>>
 * <<{upid}-split-index>>
+* <<{upid}-clone-index>>
 * <<{upid}-refresh>>
 * <<{upid}-flush>>
 * <<{upid}-flush-synced>>
@@ -133,6 +134,7 @@ include::indices/open_index.asciidoc[]
 include::indices/close_index.asciidoc[]
 include::indices/shrink_index.asciidoc[]
 include::indices/split_index.asciidoc[]
+include::indices/clone_index.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/flush.asciidoc[]
 include::indices/flush_synced.asciidoc[]

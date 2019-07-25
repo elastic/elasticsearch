@@ -55,6 +55,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -78,6 +79,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -441,6 +443,18 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
             return null;
         }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+
+        final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(0,5))
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1,5))
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())));
+        if (randomBoolean()) {
+            indexMetaData.state(IndexMetaData.State.CLOSE);
+        }
+        when(shard.indexSettings()).thenReturn(new IndexSettings(indexMetaData.build(), Settings.EMPTY));
+
         final AtomicBoolean phase1Called = new AtomicBoolean();
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();

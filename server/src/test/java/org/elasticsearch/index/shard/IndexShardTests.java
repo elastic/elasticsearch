@@ -1556,14 +1556,18 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
-        assertThat(shard.refreshStats().getTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
+        // refresh on: finalize and end of recovery
+        // finalizing a replica involves two refreshes with soft deletes because of estimateNumberOfHistoryOperations()
+        final long initialRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 2L : 3L;
+        logger.info("--> checking refresh stats for [{}], expecting [{}]", shard.routingEntry(), initialRefreshes);
+        assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes));
         long initialTotalTime = shard.refreshStats().getTotalTimeInMillis();
         // check time advances
         for (int i = 1; shard.refreshStats().getTotalTimeInMillis() == initialTotalTime; i++) {
             indexDoc(shard, "_doc", "test");
-            assertThat(shard.refreshStats().getTotal(), equalTo(2L + i - 1));
+            assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes + i - 1));
             shard.refresh("test");
-            assertThat(shard.refreshStats().getTotal(), equalTo(2L + i));
+            assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes + i));
             assertThat(shard.refreshStats().getTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
         }
         long refreshCount = shard.refreshStats().getTotal();
@@ -1590,18 +1594,18 @@ public class IndexShardTests extends IndexShardTestCase {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i));
             assertThat(shard.refreshStats().getExternalTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
         }
-        long externalRefreshCount = shard.refreshStats().getExternalTotal();
-
+        final long externalRefreshCount = shard.refreshStats().getExternalTotal();
+        final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
         indexDoc(shard, "_doc", "test");
         try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
-            assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1));
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
         }
         indexDoc(shard, "_doc", "test");
         shard.writeIndexingBuffer();
         assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
-        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 2));
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 2 - extraInternalRefreshes));
         closeShards(shard);
     }
 

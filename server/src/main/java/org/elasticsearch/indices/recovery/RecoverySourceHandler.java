@@ -29,6 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
@@ -52,7 +53,8 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -149,6 +151,10 @@ public class RecoverySourceHandler {
                 IOUtils.closeWhileHandlingException(releaseResources, () -> wrappedListener.onFailure(e));
             };
 
+            final boolean useRetentionLeases = shard.indexSettings().isSoftDeleteEnabled()
+                && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE;
+            final SetOnce<RetentionLease> retentionLeaseRef = new SetOnce<>();
+
             runUnderPrimaryPermit(() -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
                 ShardRouting targetShardRouting = routingTable.getByAllocationId(request.targetAllocationId());
@@ -158,13 +164,32 @@ public class RecoverySourceHandler {
                     throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
                 }
                 assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
+                retentionLeaseRef.set(useRetentionLeases ? shard.getRetentionLeases().get(
+                    ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting)) : null);
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
-            final Closeable retentionLock = shard.acquireRetentionLock();
-            resources.add(retentionLock);
+
             final long startingSeqNo;
-            final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
-                isTargetSameHistory() && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo());
+            final boolean isSequenceNumberBasedRecovery
+                = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && isTargetSameHistory()
+                && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
+                && (useRetentionLeases == false
+                || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
+
+            final Closeable retentionLock;
+            if (isSequenceNumberBasedRecovery && useRetentionLeases) {
+                // all the history we need is retained by an existing retention lease, so we do not need a separate retention lock
+                retentionLock = () -> {};
+                logger.trace("history is retained by {}", retentionLeaseRef.get());
+            } else {
+                // temporarily prevent any history from being discarded, and do this before acquiring the safe commit so that we can
+                // be certain that all operations after the safe commit's local checkpoint will be retained for the duration of this
+                // recovery.
+                retentionLock = shard.acquireRetentionLock();
+                resources.add(retentionLock);
+                logger.trace("history is retained by retention lock");
+            }
 
             final StepListener<SendFileResult> sendFileStep = new StepListener<>();
             final StepListener<ReplicationResponse> establishRetentionLeaseStep = new StepListener<>();
@@ -184,9 +209,22 @@ public class RecoverySourceHandler {
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
-                // We need to set this to 0 to create a translog roughly according to the retention policy on the target. Note that it will
-                // still filter out legacy operations without seqNo.
-                startingSeqNo = 0;
+
+                // Try and copy enough operations to the recovering peer so that if it is promoted to primary then it has a chance of being
+                // able to recover other replicas using operations-based recoveries. If we are not using retention leases then we
+                // conservatively copy all available operations. If we are using retention leases then "enough operations" is just the
+                // operations from the local checkpoint of the safe commit onwards, because when using soft deletes the safe commit retains
+                // at least as much history as anything else. The safe commit will often contain all the history retained by the current set
+                // of retention leases, but this is not guaranteed: an earlier peer recovery from a different primary might have created a
+                // retention lease for some history that this primary already discarded, since we discard history when the global checkpoint
+                // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
+                // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
+                // down.
+                startingSeqNo = useRetentionLeases
+                    ? Long.parseLong(safeCommitRef.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L
+                    : 0;
+                logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
+
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
                     shard.store().incRef();
@@ -201,8 +239,7 @@ public class RecoverySourceHandler {
                     });
 
                     final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
-                    if (shard.indexSettings().isSoftDeleteEnabled()
-                        && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE) {
+                    if (useRetentionLeases) {
                         runUnderPrimaryPermit(() -> {
                                 try {
                                     // If the target previously had a copy of this shard then a file-based recovery might move its global
@@ -233,20 +270,19 @@ public class RecoverySourceHandler {
             assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
             sendFileStep.whenComplete(r -> {
-                if (shard.indexSettings().isSoftDeleteEnabled()
-                    && shard.indexSettings().getIndexMetaData().getState() != IndexMetaData.State.CLOSE) {
+                if (useRetentionLeases && isSequenceNumberBasedRecovery == false) {
+                    // We can in general use retention leases for peer recovery, but there is no lease for the target node right now.
                     runUnderPrimaryPermit(() -> {
-                        try {
-                            // conservative estimate of the GCP for creating the lease. TODO use the actual GCP once it's appropriate
-                            final long globalCheckpoint = startingSeqNo - 1;
-                            // blindly create the lease. TODO integrate this with the recovery process
-                            shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), globalCheckpoint,
+                            // Start the lease off retaining all the history needed from the local checkpoint of the safe commit that we've
+                            // just established on the replica. This primary is certainly retaining such history, but other replicas might
+                            // not be. No big deal if this recovery succeeds, but if this primary fails then the new primary might have to
+                            // repeat phase 1 to recover this replica.
+                            // TODO TBD maybe do this earlier?
+                            final long localCheckpointOfSafeCommit = startingSeqNo - 1;
+                            logger.trace("creating new retention lease at [{}]", localCheckpointOfSafeCommit);
+                            shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), localCheckpointOfSafeCommit,
                                 new ThreadedActionListener<>(logger, shard.getThreadPool(),
                                     ThreadPool.Names.GENERIC, establishRetentionLeaseStep, false));
-                        } catch (RetentionLeaseAlreadyExistsException e) {
-                            logger.debug("peer-recovery retention lease already exists", e);
-                            establishRetentionLeaseStep.onResponse(null);
-                        }
                     }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]",
                         shard, cancellableThreads, logger);
                 } else {
@@ -255,6 +291,11 @@ public class RecoverySourceHandler {
             }, onFailure);
 
             establishRetentionLeaseStep.whenComplete(r -> {
+                if (useRetentionLeases) {
+                    // all the history we need is now retained by a retention lease so we can discard the retention lock
+                    retentionLock.close();
+                }
+
                 assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[prepareTargetForTranslog]");
                 // For a sequence based recovery, the target can keep its local translog
                 prepareTargetForTranslog(isSequenceNumberBasedRecovery == false,
@@ -273,14 +314,16 @@ public class RecoverySourceHandler {
                     shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads, logger);
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                if (logger.isTraceEnabled()) {
-                    logger.trace("snapshot translog for recovery; current size is [{}]",
-                        shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
-                }
+                logger.trace("snapshot translog for recovery; current size is [{}]",
+                    shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo));
                 final Translog.Snapshot phase2Snapshot = shard.getHistoryOperations("peer-recovery", startingSeqNo);
                 resources.add(phase2Snapshot);
-                // we can release the retention lock here because the snapshot itself will retain the required operations.
-                retentionLock.close();
+
+                if (useRetentionLeases == false) {
+                    // we can release the retention lock here because the snapshot itself will retain the required operations.
+                    retentionLock.close();
+                }
+
                 // we have to capture the max_seen_auto_id_timestamp and the max_seq_no_of_updates to make sure that these values
                 // are at least as high as the corresponding values on the primary when any of these operations were executed on it.
                 final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();

@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -49,8 +49,8 @@ final class HttpChannelTaskHandler {
 
     <Response extends ActionResponse> void execute(NodeClient client, HttpChannel httpChannel, ActionRequest request,
                                                    ActionType<Response> actionType, ActionListener<Response> listener) {
-
-        AtomicBoolean linkEnabled = new AtomicBoolean(true);
+        //0: initial state, 1: either linked or already unlinked, 2: linked and unlinked
+        AtomicInteger link = new AtomicInteger(0);
         Task task = client.executeLocally(actionType, request,
             new TaskListener<>() {
                 @Override
@@ -72,16 +72,16 @@ final class HttpChannelTaskHandler {
 
                 private void unlink(Task task) {
                     //the synchronized blocks are to make sure that only link or unlink for a specific task can happen at a given time,
-                    //they can't happen concurrently. The flag is needed because unlink can still be called before link, which would
+                    //they can't happen concurrently. The link flag is needed because unlink can still be called before link, which would
                     //lead to piling up task ids that are never removed from the map.
-                    //It may look like only either synchronized or the boolean flag are needed but they both are. In fact, the boolean flag
-                    //is needed to ensure that we don't link a task if we have already unlinked it. But it's not enough as, once we start
-                    //the linking, we do want its corresponding unlinking to happen, but only once the linking is completed. With only
-                    //the boolean flag, we would just miss unlinking for some tasks that are being linked when onResponse is called.
+                    //It may look like only either synchronized or the flag are needed but they both are. In fact, the flag is needed to
+                    //ensure that we don't link a task if we have already unlinked it. But it's not enough as, once we start the linking,
+                    //we do want its corresponding unlinking to happen, but only once the linking is completed. With only
+                    //the flag, we would just miss unlinking for some tasks that are being linked while onResponse is called.
                     synchronized(task) {
                         try {
-                            //nothing to do if link was not called yet: it would not find the task anyways.
-                            if (linkEnabled.compareAndSet(false, true)) {
+                            //nothing to do if link was not called yet: we would not find the task anyways.
+                            if (link.getAndIncrement() > 0) {
                                 CloseListener closeListener = httpChannels.get(httpChannel);
                                 TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
                                 closeListener.unregisterTask(taskId);
@@ -95,8 +95,9 @@ final class HttpChannelTaskHandler {
 
         CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener(client));
         synchronized (task) {
-            //make sure that the link is made only if the task is not already completed, otherwise unlink would have already been called
-            if (linkEnabled.compareAndSet(true, false)) {
+            //the task will only be registered if it's not completed yet, meaning if its TaskListener has not been called yet.
+            //otherwise, given that its listener has already been called, the task id would never be removed.
+            if (link.getAndIncrement() == 0) {
                 TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
                 closeListener.registerTask(httpChannel, taskId);
             }

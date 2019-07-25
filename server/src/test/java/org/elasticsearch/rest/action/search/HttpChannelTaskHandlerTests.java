@@ -50,6 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public class HttpChannelTaskHandlerTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -69,12 +71,9 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
         try (TestClient testClient = new TestClient(Settings.EMPTY, threadPool)) {
             HttpChannelTaskHandler httpChannelTaskHandler = new HttpChannelTaskHandler();
             List<Future<?>> futures = new ArrayList<>();
-            int numChannels = 1;//randomIntBetween(1, 30);
-            System.out.println("channels " + numChannels);
-
+            int numChannels = randomIntBetween(1, 30);
             for (int i = 0; i < numChannels; i++) {
-                int numTasks = 3;//randomIntBetween(1, 30);
-                System.out.println("tasks " + numTasks);
+                int numTasks = randomIntBetween(1, 30);
                 TestHttpChannel channel = new TestHttpChannel();
                 for (int j = 0; j < numTasks; j++) {
                     PlainListenableActionFuture<SearchResponse> actionFuture = PlainListenableActionFuture.newListenableFuture();
@@ -88,7 +87,7 @@ public class HttpChannelTaskHandlerTests extends ESTestCase {
                 future.get();
             }
             //no channels get closed in this test
-            assertEquals(numChannels, httpChannelTaskHandler.httpChannels.size());
+            assertThat(httpChannelTaskHandler.httpChannels.size(), lessThanOrEqualTo(numChannels));
             for (Map.Entry<HttpChannel, HttpChannelTaskHandler.CloseListener> entry : httpChannelTaskHandler.httpChannels.entrySet()) {
                 assertEquals(0, entry.getValue().taskIds.size());
             }

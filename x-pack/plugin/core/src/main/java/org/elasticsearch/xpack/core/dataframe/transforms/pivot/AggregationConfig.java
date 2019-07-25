@@ -59,7 +59,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
     public AggregationConfig(final StreamInput in) throws IOException {
         source = in.readMap();
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             if (in.readBoolean()) {
                 specialAggregations = in.readMap(StreamInput::readString, StreamInput::readString);
             } else {
@@ -79,7 +79,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(source);
         out.writeOptionalWriteable(aggregations);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             if (specialAggregations == null) {
                 out.writeBoolean(false);
             } else {

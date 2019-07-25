@@ -14,7 +14,8 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
+import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -78,8 +79,8 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
         Mockito.doAnswer(invocation -> {
-            assertSame(invocation.getArguments()[0], TransportFreezeIndexAction.FreezeIndexAction.INSTANCE);
-            TransportFreezeIndexAction.FreezeRequest request = (TransportFreezeIndexAction.FreezeRequest) invocation.getArguments()[1];
+            assertSame(invocation.getArguments()[0], FreezeIndexAction.INSTANCE);
+            FreezeRequest request = (FreezeRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertNotNull(request);

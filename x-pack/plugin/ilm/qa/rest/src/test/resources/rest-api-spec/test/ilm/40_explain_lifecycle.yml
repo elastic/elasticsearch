@@ -104,6 +104,7 @@ teardown:
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
   - is_true: indices.my_index.phase_time_millis
+  - is_true: indices.my_index.age
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -126,6 +127,7 @@ teardown:
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
   - is_true: indices.my_index.phase_time_millis
+  - is_true: indices.my_index.age
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -137,6 +139,7 @@ teardown:
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
   - is_true: indices.my_index2.phase_time_millis
+  - is_true: indices.my_index2.age
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
@@ -159,6 +162,7 @@ teardown:
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
   - is_true: indices.my_index.phase_time_millis
+  - is_true: indices.my_index.age
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -170,6 +174,7 @@ teardown:
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
   - is_true: indices.my_index2.phase_time_millis
+  - is_true: indices.my_index2.age
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
@@ -181,6 +186,7 @@ teardown:
   - match: { indices.another_index.action: "complete" }
   - match: { indices.another_index.step: "complete" }
   - is_true: indices.another_index.phase_time_millis
+  - is_true: indices.another_index.age
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   - is_false: indices.another_index.phase_execution
@@ -191,6 +197,7 @@ teardown:
   - is_false: indices.unmanaged_index.phase
   - is_false: indices.unmanaged_index.action
   - is_false: indices.unmanaged_index.step
+  - is_false: indices.unmanaged.age
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
 
@@ -208,6 +215,7 @@ teardown:
   - is_false: indices.unmanaged_index.action
   - is_false: indices.unmanaged_index.step
   - is_false: indices.unmanaged_index.phase_execution
+  - is_false: indices.unmanaged.age
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   - is_false: indices.my_index

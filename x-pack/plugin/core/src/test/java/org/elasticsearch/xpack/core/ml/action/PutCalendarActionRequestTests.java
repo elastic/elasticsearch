@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.CalendarTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
-public class PutCalendarActionRequestTests extends AbstractStreamableXContentTestCase<PutCalendarAction.Request> {
+public class PutCalendarActionRequestTests extends AbstractSerializingTestCase<PutCalendarAction.Request> {
 
     private final String calendarId = JobTests.randomValidJobId();
 
@@ -20,13 +21,13 @@ public class PutCalendarActionRequestTests extends AbstractStreamableXContentTes
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<PutCalendarAction.Request> instanceReader() {
+        return PutCalendarAction.Request::new;
     }
 
     @Override
-    protected PutCalendarAction.Request createBlankInstance() {
-        return new PutCalendarAction.Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override

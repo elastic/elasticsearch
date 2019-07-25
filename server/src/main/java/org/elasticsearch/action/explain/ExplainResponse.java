@@ -91,7 +91,7 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
             explanation = readExplanation(in);
         }
         if (in.readBoolean()) {
-            getResult = GetResult.readGetResult(in);
+            getResult = new GetResult(in);
         }
     }
 
@@ -134,11 +134,6 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
     @Override
     public RestStatus status() {
         return exists ? RestStatus.OK : RestStatus.NOT_FOUND;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

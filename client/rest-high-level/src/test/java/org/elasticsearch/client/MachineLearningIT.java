@@ -124,6 +124,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -435,9 +436,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testUpdateDatafeed() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
 
         String datafeedId = "datafeed-" + jobId;
@@ -459,6 +461,31 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(datafeedUpdate.getId(), equalTo(updatedDatafeed.getId()));
         assertThat(datafeedUpdate.getIndices(), equalTo(updatedDatafeed.getIndices()));
         assertThat(datafeedUpdate.getScrollSize(), equalTo(updatedDatafeed.getScrollSize()));
+    }
+
+    public void testUpdateDatafeed_UpdatingJobIdIsDeprecated() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
+
+        String anotherJobId = randomValidJobId();
+        Job anotherJob = buildJob(anotherJobId);
+        execute(new PutJobRequest(anotherJob), machineLearningClient::putJob, machineLearningClient::putJobAsync);
+
+        String datafeedId = "datafeed-" + jobId;
+        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
+        execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
+
+        DatafeedUpdate datafeedUpdateWithChangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(anotherJobId).build();
+        WarningFailureException exception = expectThrows(
+            WarningFailureException.class,
+            () -> execute(
+                new UpdateDatafeedRequest(datafeedUpdateWithChangedJobId),
+                machineLearningClient::updateDatafeed,
+                machineLearningClient::updateDatafeedAsync));
+        assertThat(exception.getResponse().getWarnings(), contains("The ability to update a datafeed's job_id is deprecated."));
     }
 
     public void testGetDatafeed() throws Exception {
@@ -1597,16 +1624,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .add(docForRegression(regressionIndex, 0.5, 0.9));  // #9
         highLevelClient().bulk(regressionBulk, RequestOptions.DEFAULT);
 
-        evaluateDataFrameRequest = new EvaluateDataFrameRequest(regressionIndex, new Regression(actualRegression, probabilityRegression));
+        evaluateDataFrameRequest = new EvaluateDataFrameRequest(regressionIndex,
+            new Regression(actualRegression, probabilityRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
 
         evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME));
-        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(1));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(2));
 
         MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
         assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
+
+        RSquaredMetric.Result rSquaredResult = evaluateDataFrameResponse.getMetricByName(RSquaredMetric.NAME);
+        assertThat(rSquaredResult.getMetricName(), equalTo(RSquaredMetric.NAME));
+        assertThat(rSquaredResult.getValue(), closeTo(-5.1000000000000005, 1e-9));
     }
 
     private static XContentBuilder defaultMappingForTest() throws IOException {

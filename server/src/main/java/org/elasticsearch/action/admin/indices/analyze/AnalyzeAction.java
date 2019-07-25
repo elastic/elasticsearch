@@ -52,12 +52,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, AnalyzeAction.Response::new);
     }
 
     /**
@@ -301,8 +296,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
                 tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
             } else {
@@ -317,11 +311,6 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 }
             }
             detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         public List<AnalyzeToken> getTokens() {
@@ -354,7 +343,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 AnalyzeToken[] tokenArray = null;
                 if (tokens != null) {
                     tokenArray = tokens.toArray(new AnalyzeToken[0]);
@@ -722,7 +711,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         AnalyzeTokenList(StreamInput in) throws IOException {
             name = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 tokens = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
             } else {
                 int size = in.readVInt();
@@ -767,7 +756,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 out.writeOptionalArray(tokens);
             } else {
                 if (tokens != null) {

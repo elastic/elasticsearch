@@ -93,4 +93,24 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     }
 
+    public static class RestCloneIndexAction extends RestResizeHandler {
+
+        public RestCloneIndexAction(final Settings settings, final RestController controller) {
+            super(settings);
+            controller.registerHandler(RestRequest.Method.PUT, "/{index}/_clone/{target}", this);
+            controller.registerHandler(RestRequest.Method.POST, "/{index}/_clone/{target}", this);
+        }
+
+        @Override
+        public String getName() {
+            return "clone_index_action";
+        }
+
+        @Override
+        protected ResizeType getResizeType() {
+            return ResizeType.CLONE;
+        }
+
+    }
+
 }

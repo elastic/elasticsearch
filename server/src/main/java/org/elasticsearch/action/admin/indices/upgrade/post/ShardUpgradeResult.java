@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.upgrade.post;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.text.ParseException;
 
-class ShardUpgradeResult implements Streamable {
+class ShardUpgradeResult implements Writeable {
 
     private ShardId shardId;
 
@@ -38,15 +38,22 @@ class ShardUpgradeResult implements Streamable {
 
     private boolean primary;
 
-
-    ShardUpgradeResult() {
-    }
-
     ShardUpgradeResult(ShardId shardId, boolean primary, Version upgradeVersion, org.apache.lucene.util.Version oldestLuceneSegment) {
         this.shardId = shardId;
         this.primary = primary;
         this.upgradeVersion = upgradeVersion;
         this.oldestLuceneSegment = oldestLuceneSegment;
+    }
+
+    ShardUpgradeResult(StreamInput in) throws IOException {
+        shardId = new ShardId(in);
+        primary = in.readBoolean();
+        upgradeVersion = Version.readVersion(in);
+        try {
+            oldestLuceneSegment = org.apache.lucene.util.Version.parse(in.readString());
+        } catch (ParseException ex) {
+            throw new IOException("failed to parse lucene version [" + oldestLuceneSegment + "]", ex);
+        }
     }
 
     public ShardId getShardId() {
@@ -63,20 +70,6 @@ class ShardUpgradeResult implements Streamable {
 
     public boolean primary() {
         return primary;
-    }
-
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardId = new ShardId(in);
-        primary = in.readBoolean();
-        upgradeVersion = Version.readVersion(in);
-        try {
-            oldestLuceneSegment = org.apache.lucene.util.Version.parse(in.readString());
-        } catch (ParseException ex) {
-            throw new IOException("failed to parse lucene version [" + oldestLuceneSegment + "]", ex);
-        }
-
     }
 
     @Override

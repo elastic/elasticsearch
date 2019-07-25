@@ -54,6 +54,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
     private DatafeedJobBuilder datafeedJobBuilder;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void init() {
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);

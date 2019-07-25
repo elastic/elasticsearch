@@ -48,7 +48,7 @@ public class JobDataDeleterTests extends ESTestCase {
 
         ArgumentCaptor<DeleteByQueryRequest> deleteRequestCaptor = ArgumentCaptor.forClass(DeleteByQueryRequest.class);
         verify(client).threadPool();
-        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any(ActionListener.class));
+        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
         verifyNoMoreInteractions(client);
 
         DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();

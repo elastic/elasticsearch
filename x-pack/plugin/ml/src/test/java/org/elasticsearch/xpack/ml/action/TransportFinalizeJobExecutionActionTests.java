@@ -42,7 +42,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
     private Client client;
 
     @Before
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private void setupMocks() {
         ExecutorService executorService = mock(ExecutorService.class);
         threadPool = mock(ThreadPool.class);

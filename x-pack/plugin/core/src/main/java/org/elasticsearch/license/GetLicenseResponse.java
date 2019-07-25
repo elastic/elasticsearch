@@ -15,7 +15,11 @@ public class GetLicenseResponse extends ActionResponse {
 
     private License license;
 
-    GetLicenseResponse() {
+    GetLicenseResponse(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            license = License.readLicense(in);
+        }
     }
 
     GetLicenseResponse(License license) {
@@ -24,14 +28,6 @@ public class GetLicenseResponse extends ActionResponse {
 
     public License license() {
         return license;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            license = License.readLicense(in);
-        }
     }
 
     @Override

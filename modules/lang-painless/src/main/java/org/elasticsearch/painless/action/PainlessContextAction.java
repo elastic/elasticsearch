@@ -72,12 +72,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 
     private PainlessContextAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PainlessContextAction.Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -107,11 +102,6 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(scriptContextName);
@@ -137,11 +127,6 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
             super(in);
             scriptContextNames = in.readStringList();
             painlessContextInfo = in.readOptionalWriteable(PainlessContextInfo::new);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

@@ -48,11 +48,11 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     public void testRountTrip() throws IOException {
         BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
                 BulkByScrollTaskStatusTests.randomStatus(), randomIndexingFailures(), randomSearchFailures(), randomBoolean());
-        BulkByScrollResponse tripped = new BulkByScrollResponse();
+        BulkByScrollResponse tripped;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                tripped.readFrom(in);
+                tripped = new BulkByScrollResponse(in);
             }
         }
         assertResponseEquals(response, tripped);

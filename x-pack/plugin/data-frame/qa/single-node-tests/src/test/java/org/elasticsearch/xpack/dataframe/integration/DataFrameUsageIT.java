@@ -11,7 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.Before;
 
@@ -56,7 +56,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         Request statsExistsRequest = new Request("GET",
             DataFrameInternalIndex.INDEX_NAME+"/_search?q=" +
                 INDEX_DOC_TYPE.getPreferredName() + ":" +
-                DataFrameTransformStateAndStats.NAME);
+                DataFrameTransformStoredDoc.NAME);
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));

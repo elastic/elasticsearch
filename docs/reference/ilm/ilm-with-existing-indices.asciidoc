@@ -91,7 +91,6 @@ guide>>.
 NOTE: If you are using Beats through Logstash, you may need to change your
 Logstash output configuration and invoke the Beats setup to use ILM for new
 data.
-// TODO: As soon as there's docs for Beats+LS to link to here, link to them.
 
 Once all new documents are being written to fully {ilm-init}-managed indices, it
 is easy to add an {ilm-init} policy to existing indices. However, there are two

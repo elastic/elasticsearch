@@ -114,8 +114,8 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
         this.totalSearchTimeMs += searchTimeMs;
     }
 
-    public void setBucketCount(long bucketCount) {
-        this.bucketCount = bucketCount;
+    public void incrementBucketCount(long bucketCount) {
+        this.bucketCount += bucketCount;
     }
 
     @Override

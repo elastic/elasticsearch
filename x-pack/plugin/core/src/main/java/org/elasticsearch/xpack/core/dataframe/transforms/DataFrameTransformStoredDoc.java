@@ -70,7 +70,7 @@ public class DataFrameTransformStoredDoc implements Writeable, ToXContentObject 
         this.id = in.readString();
         this.transformState = new DataFrameTransformState(in);
         this.transformStats = new DataFrameIndexerTransformStats(in);
-        if (in.getVersion().before(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
+        if (in.getVersion().before(Version.V_7_4_0)) {
             new DataFrameTransformCheckpointingInfo(in);
         }
     }
@@ -91,7 +91,7 @@ public class DataFrameTransformStoredDoc implements Writeable, ToXContentObject 
         out.writeString(id);
         transformState.writeTo(out);
         transformStats.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) { // TODO change to V_7_4_0 after backport
+        if (out.getVersion().before(Version.V_7_4_0)) {
             DataFrameTransformCheckpointingInfo.EMPTY.writeTo(out);
         }
     }

@@ -127,6 +127,17 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   ZonedDateTime withZoneSameLocal(ZoneId)
   ZonedDateTime withZoneSameInstant(ZoneId)
 
+  #### ChronoZonedDateTime
+  int compareTo(JodaCompatibleZonedDateTime)
+  Chronology getChronology()
+  String format(DateTimeFormatter)
+  int get(TemporalField)
+  long getLong(TemporalField)
+  ZoneOffset getOffset()
+  boolean isSupported(TemporalField)
+  long toEpochSecond()
+  LocalTime toLocalTime()
+
   #### Joda methods that exist in java time
   boolean equals(Object)
   int hashCode()

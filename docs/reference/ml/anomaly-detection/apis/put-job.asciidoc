@@ -2,10 +2,8 @@
 [testenv="platinum"]
 [[ml-put-job]]
 === Create {anomaly-jobs} API
-
-[subs="attributes"]
 ++++
-<titleabbrev>Create {anomaly-jobs}</titleabbrev>
+<titleabbrev>Create jobs</titleabbrev>
 ++++
 
 Instantiates an {anomaly-job}.

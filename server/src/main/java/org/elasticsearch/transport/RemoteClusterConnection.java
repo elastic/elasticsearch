@@ -396,9 +396,17 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     @Override
                     protected void doRun() {
                         collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(),
-                            ActionListener.wrap(
-                                (x) -> ActionListener.onResponse(getAndClearListeners(), x),
-                                (e) -> ActionListener.onFailure(getAndClearListeners(), e)));
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void aVoid) {
+                                    ActionListener.onResponse(getAndClearListeners(), aVoid);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    ActionListener.onFailure(getAndClearListeners(), e);
+                                }
+                            });
                     }
                 });
             }

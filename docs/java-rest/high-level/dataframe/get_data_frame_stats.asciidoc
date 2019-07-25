@@ -4,17 +4,17 @@
 :response: GetDataFrameTransformStatsResponse
 --
 [id="{upid}-{api}"]
-=== Get Data Frame Transform Stats API
+=== Get {dataframe-transform} stats API
 
-The Get Data Frame Transform Stats API is used read the operational statistics
-of one or more {dataframe-transform}s.
+The get {dataframe-transform} stats API is used read the operational statistics
+of one or more {dataframe-transforms}.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Data Frame Transform Stats Request
+==== Get {dataframe-transform} stats request
 
 A +{request}+ requires a data frame transform id or the special wildcard `_all`
-to get the statistics for all {dataframe-transform}s
+to get the statistics for all {dataframe-transforms}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -30,8 +30,9 @@ The following arguments are optional.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
-<1> The page parameters `from` and `size`. `from` specifies the number of data frame transform stats to skip.
-`size` specifies the maximum number of data frame transform stats to get.
+<1> The page parameters `from` and `size`. `from` specifies the number of
+{dataframe-transform} stats to skip.
+`size` specifies the maximum number of {dataframe-transform} stats to get.
 Defaults to `0` and `100` respectively.
 <2> Whether to ignore if a wildcard expression matches no transforms.
 

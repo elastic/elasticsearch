@@ -4,16 +4,20 @@
 <titleabbrev>Span field masking</titleabbrev>
 ++++
 
-Wrapper to allow span queries to participate in composite single-field span queries by 'lying' about their search field. The span field masking query maps to Lucene's `SpanFieldMaskingQuery`
+Wraps a <<span-queries,span query>>, letting you use queries like `span_near` or
+`span_or` to search across different fields.
 
-This can be used to support queries like `span-near` or `span-or` across different fields, which is not ordinarily permitted.
+Queries like `span_near` or `span_or` require any nested queries search the same
+field. With the `field_masking_span` query, you can use the `field` parameter to
+meet that requirement but search a different field instead. This is particularly
+useful for searching <<multi-fields-multiple-analyzers,multi-fields with
+multiple analyzers>>.
 
-Span field masking query is invaluable in conjunction with *multi-fields* when same content is indexed with multiple analyzers. For instance we could index a field with the standard analyzer which breaks text up into words, and again with the english analyzer which stems words into their root form.
-
-Example:
+[[span-mask-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
   "query": {
@@ -21,17 +25,17 @@ GET /_search
       "clauses": [
         {
           "span_term": {
-            "text": "quick brown"
+            "message": { "value": "quick brown" }
           }
         },
         {
           "field_masking_span": {
             "query": {
               "span_term": {
-                "text.stems": "fox"
+                "message.stems": { "value": "fox" }
               }
             },
-            "field": "text"
+            "field": "message"
           }
         }
       ],
@@ -40,7 +44,20 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-Note: as span field masking query returns the masked field, scoring will be done using the norms of the field name supplied. This may lead to unexpected scoring behaviour.
+[[span-mask-top-level-params]]
+==== Top-level parameters for `field_masking_span`
+`query`::
++
+--
+(Required, query object) Contains a <<span-queries,span query>>.
+
+While returned results are based on this query, the `field_masking_span` query
+calculates <<query-filter-context, relevance scores>> using norms of the field
+in the `field` parameter. This can result in unexpected relevance scoring.
+--
+
+`field`::
+(Required, string) Field used to meet search field requirements.

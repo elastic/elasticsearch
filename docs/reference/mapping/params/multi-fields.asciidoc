@@ -63,6 +63,7 @@ NOTE: Multi-fields do not change the original `_source` field.
 TIP: New multi-fields can be added to existing
 fields using the <<indices-put-mapping,PUT mapping API>>.
 
+[[multi-fields-multiple-analyzers]]
 ==== Multi-fields with multiple analyzers
 
 Another use case of multi-fields is to analyze the same field in different

@@ -56,7 +56,7 @@ Returns documents matching an `include` span query while removing overlapping
 matches from an `exclude` span query.
 
 <<query-dsl-span-or-query,`span_or` query>>::
-Returns documents with spans that match one or more of wrapped span queries.
+Returns documents with spans that match one or more wrapped span queries.
 
 <<query-dsl-span-term-query,`span_term` query>>::
 Matches spans that contain an exact term in a provided field.

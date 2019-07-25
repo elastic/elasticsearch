@@ -214,6 +214,10 @@ public class IndexLifecycleService
         }
     }
 
+    public boolean policyExists(String policyId) {
+        return policyRegistry.policyExists(policyId);
+    }
+
     /**
      * executes the policy execution on the appropriate indices by running cluster-state tasks per index.
      *

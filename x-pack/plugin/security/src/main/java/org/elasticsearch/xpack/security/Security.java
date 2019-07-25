@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
@@ -730,7 +731,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
                 new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
                 new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
-                new ActionHandler<>(TransportDelegatePkiAuthenticationAction.TYPE, TransportDelegatePkiAuthenticationAction.class),
+                new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
                 usageAction,
                 infoAction);
     }

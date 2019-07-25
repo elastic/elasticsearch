@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -32,9 +32,6 @@ import java.util.Map;
 public class TransportDelegatePkiAuthenticationAction
         extends HandledTransportAction<DelegatePkiAuthenticationRequest, DelegatePkiAuthenticationResponse> {
 
-    private static final String ACTION_NAME = "cluster:admin/xpack/security/delegate_pki";
-    public static final ActionType<DelegatePkiAuthenticationResponse> TYPE = new ActionType<>(ACTION_NAME,
-            DelegatePkiAuthenticationResponse::new);
     private static final Logger logger = LogManager.getLogger(TransportDelegatePkiAuthenticationAction.class);
 
     private final ThreadPool threadPool;
@@ -44,7 +41,7 @@ public class TransportDelegatePkiAuthenticationAction
     @Inject
     public TransportDelegatePkiAuthenticationAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
             AuthenticationService authenticationService, TokenService tokenService) {
-        super(ACTION_NAME, transportService, actionFilters, DelegatePkiAuthenticationRequest::new);
+        super(DelegatePkiAuthenticationAction.NAME, transportService, actionFilters, DelegatePkiAuthenticationRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
@@ -58,7 +55,7 @@ public class TransportDelegatePkiAuthenticationAction
         final X509AuthenticationToken x509DelegatedToken = new X509AuthenticationToken(request.getCertificates(), true);
         logger.trace("Attempting to authenticate delegated x509Token [{}]", x509DelegatedToken);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            authenticationService.authenticate(ACTION_NAME, request, x509DelegatedToken, ActionListener.wrap(authentication -> {
+            authenticationService.authenticate(DelegatePkiAuthenticationAction.NAME, request, x509DelegatedToken, ActionListener.wrap(authentication -> {
                 assert authentication != null : "authentication should never be null at this point";
                 tokenService.createOAuth2Tokens(authentication, delegateeAuthentication, Map.of(), false, ActionListener.wrap(tuple -> {
                     final TimeValue expiresIn = tokenService.getExpirationDelay();

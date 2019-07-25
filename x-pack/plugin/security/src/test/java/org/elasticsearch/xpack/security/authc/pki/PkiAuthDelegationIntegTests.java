@@ -15,9 +15,9 @@ import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
-import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -57,7 +57,7 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"));
         DelegatePkiAuthenticationRequest delegatePkiRequest = new DelegatePkiAuthenticationRequest(new X509Certificate[] { certificate });
         PlainActionFuture<DelegatePkiAuthenticationResponse> future = new PlainActionFuture<>();
-        client().execute(TransportDelegatePkiAuthenticationAction.TYPE, delegatePkiRequest, future);
+        client().execute(DelegatePkiAuthenticationAction.INSTANCE, delegatePkiRequest, future);
         String token = future.get().getTokenString();
         assertThat(token, is(notNullValue()));
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();

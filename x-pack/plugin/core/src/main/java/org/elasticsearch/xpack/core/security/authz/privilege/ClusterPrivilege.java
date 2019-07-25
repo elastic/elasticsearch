@@ -16,12 +16,14 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
+import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -32,12 +34,14 @@ import java.util.function.Predicate;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.minusAndMinimize;
+import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 
 public final class ClusterPrivilege extends Privilege {
 
     // shared automatons
-    private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
+    private static final Automaton DELEGATE_PKI_AUTOMATON = patterns(DelegatePkiAuthenticationAction.NAME);
+    private static final Automaton MANAGE_SECURITY_AUTOMATON = minusAndMinimize(patterns("cluster:admin/xpack/security/*"), DELEGATE_PKI_AUTOMATON);
     private static final Automaton MANAGE_SAML_AUTOMATON = patterns("cluster:admin/xpack/security/saml/*",
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");
@@ -49,7 +53,8 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton MONITOR_WATCHER_AUTOMATON = patterns("cluster:monitor/xpack/watcher/*");
     private static final Automaton MONITOR_ROLLUP_AUTOMATON = patterns("cluster:monitor/xpack/rollup/*");
     private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
-    private static final Automaton MANAGE_AUTOMATON = minusAndMinimize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
+    private static final Automaton MANAGE_AUTOMATON = minusAndMinimize(minusAndMinimize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON),
+            DELEGATE_PKI_AUTOMATON);
     private static final Automaton MANAGE_ML_AUTOMATON = patterns("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Automaton MANAGE_DATA_FRAME_AUTOMATON = patterns("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*");
     private static final Automaton MANAGE_WATCHER_AUTOMATON = patterns("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");
@@ -100,6 +105,8 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege READ_ILM =              new ClusterPrivilege("read_ilm", READ_ILM_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SLM =            new ClusterPrivilege("manage_slm", MANAGE_SLM_AUTOMATON);
     public static final ClusterPrivilege READ_SLM =              new ClusterPrivilege("read_slm", READ_SLM_AUTOMATON);
+    public static final ClusterPrivilege DELEGATE_PKI =          new ClusterPrivilege("delegate_pki",
+            unionAndMinimize(Arrays.asList(DELEGATE_PKI_AUTOMATON, patterns(InvalidateTokenAction.NAME))));
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
@@ -131,7 +138,8 @@ public final class ClusterPrivilege extends Privilege {
             entry("manage_ilm", MANAGE_ILM),
             entry("read_ilm", READ_ILM),
             entry("manage_slm", MANAGE_SLM),
-            entry("read_slm", READ_SLM));
+            entry("read_slm", READ_SLM),
+            entry("delegate_pki", DELEGATE_PKI));
 
     private static final ConcurrentHashMap<Set<String>, ClusterPrivilege> CACHE = new ConcurrentHashMap<>();
 

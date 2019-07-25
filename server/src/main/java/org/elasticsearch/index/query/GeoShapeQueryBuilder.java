@@ -174,6 +174,24 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     /**
+     * Sets the relation of query shape and indexed shape.
+     *
+     * @param relation relation of the shapes
+     * @return this
+     */
+    public GeoShapeQueryBuilder relation(ShapeRelation relation) {
+        if (relation == null) {
+            throw new IllegalArgumentException("No Shape Relation defined");
+        }
+        if (SpatialStrategy.TERM.equals(strategy) && relation != ShapeRelation.INTERSECTS) {
+            throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] only supports relation ["
+                + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+        }
+        this.relation = relation;
+        return this;
+    }
+
+    /**
      * Defines which spatial strategy will be used for building the geo shape
      * Query. When not set, the strategy that will be used will be the one that
      * is associated with the geo shape field in the mappings.

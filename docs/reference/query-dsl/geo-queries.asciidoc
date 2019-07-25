@@ -12,7 +12,7 @@ index.
 
 [float]
 [[geo-query-types]]
-=== Types of geo queries
+=== Geo query types
 
 <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> query::
 Returns documents based on geopoint within a

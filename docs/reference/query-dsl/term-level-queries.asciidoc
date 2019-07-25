@@ -18,7 +18,7 @@ Term-level queries still normalize search terms for `keyword` fields with the
 
 [float]
 [[term-level-query-types]]
-=== Types of term-level queries
+=== Term-level query types
 
 <<query-dsl-exists-query,`exists` query>>::
 Returns documents that contain any indexed value for a field.

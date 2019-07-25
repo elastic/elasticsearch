@@ -324,10 +324,15 @@ PUT ilm-mylogs-000001
 // CONSOLE
 // TEST[continued]
 
-At this point, new indexing should be paused to ensure that all existing data is
-reindexed properly. Adding new data to existing indices during this process can
-cause data to be added to the existing indices, but not be reindexed into the
-new indices.
+All new documents should be indexed via the `mylogs` alias at this point. Adding
+new data to the old indices during the reindexing process can cause data to be
+added to the old indices, but not be reindexed into the new indices.
+
+NOTE: If you do not want to mix new data and old data in the new ILM-managed
+indices, indexing of new data should be paused entirely while the reindex
+completes. Mixing old and new data within one index is safe, but keep in mind
+that the indices with mixed data should be retained in their entirety until you
+are ready to delete both the old and new data.
 
 By default, {ilm-init} only checks rollover conditions every 10 minutes. Under
 normal indexing load, this usually works well, but during reindexing, indices

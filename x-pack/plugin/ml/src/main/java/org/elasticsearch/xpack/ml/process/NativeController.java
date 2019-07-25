@@ -55,10 +55,19 @@ public class NativeController implements MlController {
     NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER, null,
                 true, true, false, false, false, false);
-        processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
+        connectStreams(processPipes);
         this.localNodeName = localNodeName;
         this.cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
         this.commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
+    }
+
+    private void connectStreams(ProcessPipes processPipes) throws IOException {
+        try {
+            processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
+        } catch (IOException ioe) {
+            processPipes.closeUnusedStreams();
+            throw ioe;
+        }
     }
 
     void tailLogsInThread() {

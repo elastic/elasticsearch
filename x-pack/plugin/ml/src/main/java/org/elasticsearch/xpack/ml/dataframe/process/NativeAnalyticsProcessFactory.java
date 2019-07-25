@@ -88,6 +88,11 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
         } catch (IOException e) {
             String msg = "Failed to launch data frame analytics process for job " + jobId;
             LOGGER.error(msg);
+            try {
+                processPipes.closeUnusedStreams();
+            } catch (IOException outer) {
+                LOGGER.error("Error closing process pipes", outer);
+            }
             throw ExceptionsHelper.serverError(msg, e);
         }
     }

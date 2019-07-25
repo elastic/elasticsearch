@@ -78,6 +78,11 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
         } catch (IOException e) {
             String msg = "Failed to launch normalizer for job " + jobId;
             LOGGER.error(msg);
+            try {
+                processPipes.closeUnusedStreams();
+            } catch (IOException outer) {
+                LOGGER.error("Error closing process pipes", outer);
+            }
             throw ExceptionsHelper.serverError(msg, e);
         }
     }

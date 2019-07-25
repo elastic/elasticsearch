@@ -121,6 +121,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         } catch (IOException e) {
             String msg = "Failed to launch autodetect for job " + job.getId();
             LOGGER.error(msg);
+            try {
+                processPipes.closeUnusedStreams();
+            } catch (IOException outer) {
+                LOGGER.error("Error closing process pipes", outer);
+            }
             throw ExceptionsHelper.serverError(msg, e);
         }
     }

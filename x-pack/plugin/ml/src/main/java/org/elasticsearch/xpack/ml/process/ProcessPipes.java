@@ -147,6 +147,27 @@ public class ProcessPipes {
         }
     }
 
+    public void closeUnusedStreams() throws IOException {
+        if (logStream != null) {
+            logStream.close();
+        }
+        if (commandStream != null) {
+            commandStream.close();
+        }
+        if (processInStream != null) {
+            processInStream.close();
+        }
+        if (processOutStream != null) {
+            processOutStream.close();
+        }
+        if (restoreStream != null) {
+            restoreStream.close();
+        }
+        if (persistStream != null) {
+            persistStream.close();
+        }
+    }
+
     public Optional<InputStream> getLogStream() {
         // Distinguish between pipe not wanted and pipe wanted but not successfully connected
         if (logPipeName == null) {

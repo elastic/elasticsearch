@@ -373,6 +373,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     assert listeners.isEmpty();
                 } else {
                     if (listeners.size() >= MAX_LISTENERS) {
+                        assert listeners.size() == MAX_LISTENERS;
                         listener.onFailure(new RejectedExecutionException("connect queue is full"));
                         return;
                     } else {

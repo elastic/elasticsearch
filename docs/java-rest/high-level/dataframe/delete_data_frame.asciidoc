@@ -6,6 +6,8 @@
 [id="{upid}-{api}"]
 === Delete {dataframe-transform} API
 
+Deletes an existing {dataframe-transform}.
+
 [id="{upid}-{api}-request"]
 ==== Delete {dataframe-transform} request
 

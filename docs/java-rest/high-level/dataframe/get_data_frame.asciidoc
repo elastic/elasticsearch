@@ -6,7 +6,7 @@
 [id="{upid}-{api}"]
 === Get {dataframe-transform} API
 
-The get {dataframe-transform} API is used get one or more {dataframe-transforms}.
+Retrieves configuration information about one or more {dataframe-transforms}.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]

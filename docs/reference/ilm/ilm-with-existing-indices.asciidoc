@@ -115,7 +115,7 @@ afraid to have more than one. Modifying a policy designed for new indices to be
 used on existing indices is generally very simple: just remove the `rollover`
 action.
 
-For example, if you created a policy for your existing indices with each phase
+For example, if you created a policy for your new indices with each phase
 like so:
 [source,js]
 -----------------------
@@ -157,8 +157,9 @@ PUT _ilm/policy/mylogs_policy
 // CONSOLE
 // TEST[continued]
 
-You can create a policy for existing indices by removing the `rollover` action,
-and in this case, the `hot` phase is now empty so we can remove that too:
+You can create a policy for pre-existing indices by removing the `rollover`
+action, and in this case, the `hot` phase is now empty so we can remove that
+too:
 
 [source,js]
 -----------------------
@@ -243,7 +244,7 @@ Before getting started with reindexing data, the new index structure should be
 set up. For this section, we'll be using the same setup described in
 <<ilm-with-existing-indices,{ilm-imit} with existing indices>>.
 
-First, we'll set up a template with rollover, and can include any additional
+First, we'll set up a policy with rollover, and can include any additional
 phases required. For simplicity, we'll just use rollover:
 
 [source,js]

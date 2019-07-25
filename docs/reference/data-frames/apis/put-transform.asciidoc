@@ -31,6 +31,15 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[put-data-frame-transform-desc]]
 ==== {api-description-title}
 
+This API defines a {dataframe-transform}, which copies data from source indices,
+transforms it, and persists it into an entity-centric destination index. The
+entities are defined by the set of `group_by` fields in the `pivot` object. You
+can also think of the destination index as a two-dimensional tabular data
+structure (known as a {dataframe}). The ID for each document in the
+{dataframe} is generated from a hash of the entity, so there is a unique row
+per entity. For more information, see
+{stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}].
+
 When the {dataframe-transform} is created, a series of validations occur to
 ensure its success. For example, there is a check for the existence of the
 source indices and a check that the destination index is not part of the source

@@ -128,7 +128,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     Object text = results.getObject(2);
                     Object keyword = results.getObject(3);
                     assertEquals(-25, number);
-                    assertEquals("xyz", text);
+                    assertEquals("-25", text);
                     assertEquals("-25", keyword);
                     assertFalse(results.next());
         });
@@ -448,8 +448,8 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                     assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getInt(e.getKey()));
                     assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
                 } else if (e.getValue() instanceof Float) {
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), results.getInt(e.getKey()));
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().floatValue()), actual);
+                    assertEquals("For field " + e.getKey(), e.getValue(), Integer.valueOf(results.getInt(e.getKey())).floatValue());
+                    assertEquals("For field " + e.getKey(), e.getValue(), Integer.valueOf(actual).floatValue());
                 } else {
                     assertEquals("For field " + e.getKey(), e.getValue().intValue(), results.getInt(e.getKey()));
                     assertEquals("For field " + e.getKey(), e.getValue().intValue(), actual);
@@ -559,9 +559,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
             for(Entry<String, Number> e : map.entrySet()) {
                 long actual = results.getObject(e.getKey(), Long.class);
-                if (e.getValue() instanceof Double || e.getValue() instanceof Float) {
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), results.getLong(e.getKey()));
-                    assertEquals("For field " + e.getKey(), Math.round(e.getValue().doubleValue()), actual);
+                if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), e.getValue(), Long.valueOf(results.getLong(e.getKey())).floatValue());
+                    assertEquals("For field " + e.getKey(), e.getValue(), Long.valueOf(actual).floatValue());
                 } else {
                     assertEquals("For field " + e.getKey(), e.getValue().longValue(), results.getLong(e.getKey()));
                     assertEquals("For field " + e.getKey(), e.getValue().longValue(), actual);
@@ -660,9 +660,15 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(SELECT_WILDCARD, (results) -> {
             results.next();
             for(Entry<String, Number> e : map.entrySet()) {
-                assertEquals("For field " + e.getKey(), e.getValue().doubleValue(), results.getDouble(e.getKey()), 0.0d);
-                assertEquals("For field " + e.getKey(),
-                        e.getValue().doubleValue(), results.getObject(e.getKey(), Double.class), 0.0d);
+                if (e.getValue() instanceof Float) {
+                    assertEquals("For field " + e.getKey(), e.getValue(), Double.valueOf(results.getDouble(e.getKey())).floatValue());
+                    assertEquals("For field " + e.getKey(),
+                            e.getValue(), Double.valueOf(results.getObject(e.getKey(), Double.class)).floatValue());
+                } else {
+                    assertEquals("For field " + e.getKey(), e.getValue().doubleValue(), results.getDouble(e.getKey()), 0.0d);
+                    assertEquals("For field " + e.getKey(),
+                            e.getValue().doubleValue(), results.getObject(e.getKey(), Double.class), 0.0d);
+                }
             }
         });
     }
@@ -1475,8 +1481,8 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(randomInt(50)));
-        // add the minimal value in the middle yet the test will pick it up since the results are sorted
-        values[2] = Integer.valueOf(-10);
+        // add the known value as the first one in list. Parsing from _source the value will pick up the first value in the array.
+        values[0] = Integer.valueOf(-10);
 
         String[] stringValues = new String[values.length];
         for (int i = 0; i < values.length; i++) {
@@ -1505,14 +1511,14 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(randomInt(50)));
-        // add the minimal value in the middle yet the test will pick it up since the results are sorted
-        values[2] = Integer.valueOf(-25);
+        // add the known value as the first one in list. Parsing from _source the value will pick up the first value in the array.
+        values[0] = Integer.valueOf(-25);
 
         String[] stringValues = new String[values.length];
         for (int i = 0; i < values.length; i++) {
             stringValues[i] = String.valueOf(values[i]);
         }
-        stringValues[0] = "xyz";
+        stringValues[1] = "xyz";
 
         index("test", "1", builder -> {
             builder.startArray("object");

@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
@@ -45,7 +45,7 @@ import java.util.function.LongSupplier;
 public class IndexLifecycleService
     implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkAction.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 
@@ -115,15 +115,15 @@ public class IndexLifecycleService
                     StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
 
                     if (OperationMode.STOPPING == currentMode) {
-                        if (stepKey != null && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction())) {
-                            logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in action [{}]",
-                                idxMeta.getIndex().getName(), policyName, stepKey.getAction());
+                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                            logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
+                                idxMeta.getIndex().getName(), policyName, stepKey.getName());
                             lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
-                            // ILM is trying to stop, but this index is in a Shrink action (or other dangerous action) so we can't stop
+                            // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                             safeToStop = false;
                         } else {
-                            logger.info("skipping policy execution for index [{}] with policy [{}] because ILM is stopping",
-                                idxMeta.getIndex().getName(), policyName);
+                            logger.info("skipping policy execution of step [{}] for index [{}] with policy [{}] because ILM is stopping",
+                                stepKey == null ? "n/a" : stepKey.getName(), idxMeta.getIndex().getName(), policyName);
                         }
                     } else {
                         lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
@@ -249,19 +249,19 @@ public class IndexLifecycleService
                 StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
 
                 if (OperationMode.STOPPING == currentMode) {
-                    if (stepKey != null && IGNORE_ACTIONS_MAINTENANCE_REQUESTED.contains(stepKey.getAction())) {
-                        logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in action [{}]",
-                            idxMeta.getIndex().getName(), policyName, stepKey.getAction());
+                    if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                        logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
+                            idxMeta.getIndex().getName(), policyName, stepKey.getName());
                         if (fromClusterStateChange) {
                             lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
                         } else {
                             lifecycleRunner.runPeriodicStep(policyName, idxMeta);
                         }
-                        // ILM is trying to stop, but this index is in a Shrink action (or other dangerous action) so we can't stop
+                        // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                         safeToStop = false;
                     } else {
-                        logger.info("skipping policy execution for index [{}] with policy [{}] because ILM is stopping",
-                            idxMeta.getIndex().getName(), policyName);
+                        logger.info("skipping policy execution of step [{}] for index [{}] with policy [{}] because ILM is stopping",
+                            stepKey == null ? "n/a" : stepKey.getName(), idxMeta.getIndex().getName(), policyName);
                     }
                 } else {
                     if (fromClusterStateChange) {

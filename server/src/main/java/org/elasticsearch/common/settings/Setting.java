@@ -113,6 +113,11 @@ public class Setting<T> implements ToXContentObject {
         NodeScope,
 
         /**
+         * Secure setting values equal on all nodes
+         */
+        Consistent,
+
+        /**
          * Index scope
          */
         IndexScope,
@@ -167,6 +172,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
+            checkPropertyRequiresNodeScope(propertiesAsSet, Property.Consistent);
             this.properties = propertiesAsSet;
         }
     }
@@ -174,6 +180,12 @@ public class Setting<T> implements ToXContentObject {
     private void checkPropertyRequiresIndexScope(final EnumSet<Property> properties, final Property property) {
         if (properties.contains(property) && properties.contains(Property.IndexScope) == false) {
             throw new IllegalArgumentException("non-index-scoped setting [" + key + "] can not have property [" + property + "]");
+        }
+    }
+
+    private void checkPropertyRequiresNodeScope(final EnumSet<Property> properties, final Property property) {
+        if (properties.contains(property) && properties.contains(Property.NodeScope) == false) {
+            throw new IllegalArgumentException("non-node-scoped setting [" + key + "] can not have property [" + property + "]");
         }
     }
 
@@ -319,6 +331,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public boolean hasNodeScope() {
         return properties.contains(Property.NodeScope);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting's value can be checked for equality across all nodes. Only {@link SecureSetting} instances
+     * may have this qualifier.
+     */
+    public boolean isConsistent() {
+        return properties.contains(Property.Consistent);
     }
 
     /**

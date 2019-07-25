@@ -18,6 +18,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
@@ -65,19 +66,19 @@ public class SecurityNioTransport extends NioTransport {
     private static final Logger logger = LogManager.getLogger(SecurityNioTransport.class);
 
     private final SecurityTransportExceptionHandler exceptionHandler;
-    private final IPFilter authenticator;
+    private final IPFilter ipFilter;
     private final SSLService sslService;
     private final Map<String, SSLConfiguration> profileConfiguration;
     private final boolean sslEnabled;
 
     public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                                 PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                                CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
+                                CircuitBreakerService circuitBreakerService, @Nullable final IPFilter ipFilter,
                                 SSLService sslService, NioGroupFactory groupFactory) {
         super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
             groupFactory);
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
-        this.authenticator = authenticator;
+        this.ipFilter = ipFilter;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {
@@ -92,8 +93,8 @@ public class SecurityNioTransport extends NioTransport {
     @Override
     protected void doStart() {
         super.doStart();
-        if (authenticator != null) {
-            authenticator.setBoundTransportAddress(boundAddress(), profileBoundAddresses());
+        if (ipFilter != null) {
+            ipFilter.setBoundTransportAddress(boundAddress(), profileBoundAddresses());
         }
     }
 
@@ -132,7 +133,6 @@ public class SecurityNioTransport extends NioTransport {
 
         private final String profileName;
         private final boolean isClient;
-        private final NioIPFilter ipFilter;
 
         private SecurityTcpChannelFactory(ProfileSettings profileSettings, boolean isClient) {
             this(new RawChannelFactory(profileSettings.tcpNoDelay,
@@ -146,13 +146,18 @@ public class SecurityNioTransport extends NioTransport {
             super(rawChannelFactory);
             this.profileName = profileName;
             this.isClient = isClient;
-            this.ipFilter = new NioIPFilter(authenticator, profileName);
         }
 
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
+            final NioChannelHandler handler;
+            if (ipFilter != null) {
+                handler = new NioIPFilter(readWriteHandler, nioChannel.getRemoteAddress(), ipFilter, profileName);
+            } else {
+                handler = readWriteHandler;
+            }
             InboundChannelBuffer networkBuffer = new InboundChannelBuffer(pageAllocator);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
 
@@ -160,10 +165,10 @@ public class SecurityNioTransport extends NioTransport {
             if (sslEnabled) {
                 SSLDriver sslDriver = new SSLDriver(createSSLEngine(channel), pageAllocator, isClient);
                 InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
-                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, networkBuffer,
-                    applicationBuffer, ipFilter);
+                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, handler, networkBuffer,
+                    applicationBuffer);
             } else {
-                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler, networkBuffer, ipFilter);
+                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, handler, networkBuffer);
             }
             nioChannel.setContext(context);
 

@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregatorFactory> {
+public class FiltersAggregatorFactory extends AggregatorFactory {
 
     private final String[] keys;
     private final Query[] filters;
@@ -45,7 +45,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregato
     private final String otherBucketKey;
 
     public FiltersAggregatorFactory(String name, List<KeyedFilter> filters, boolean keyed, boolean otherBucket,
-            String otherBucketKey, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
+            String otherBucketKey, SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactories,
             Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.keyed = keyed;

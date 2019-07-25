@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
@@ -41,8 +42,8 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     }
 
     @Override
-    protected SqlStatsRequest.NodeStatsRequest newNodeRequest(String nodeId, SqlStatsRequest request) {
-        return new SqlStatsRequest.NodeStatsRequest(request, nodeId);
+    protected SqlStatsRequest.NodeStatsRequest newNodeRequest(SqlStatsRequest request) {
+        return new SqlStatsRequest.NodeStatsRequest(request);
     }
 
     @Override
@@ -51,7 +52,7 @@ public class TransportSqlStatsAction extends TransportNodesAction<SqlStatsReques
     }
 
     @Override
-    protected SqlStatsResponse.NodeStatsResponse nodeOperation(SqlStatsRequest.NodeStatsRequest request) {
+    protected SqlStatsResponse.NodeStatsResponse nodeOperation(SqlStatsRequest.NodeStatsRequest request, Task task) {
         SqlStatsResponse.NodeStatsResponse statsResponse = new SqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         statsResponse.setStats(planExecutor.metrics().stats());
         

@@ -2,7 +2,7 @@
 class org.elasticsearch.painless.BindingsTests$BindingsTestScript {
 }
 
-class org.elasticsearch.painless.FeatureTestObject no_import {
+class org.elasticsearch.painless.FeatureTestObject @no_import {
   int z
   ()
   (int,int)

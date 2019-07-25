@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -156,7 +157,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
 
         @Override
-        protected abstract NodeResponse nodeOperation(NodeRequest request);
+        protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     }
 

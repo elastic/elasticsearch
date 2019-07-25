@@ -74,5 +74,4 @@ public final class GetPrivilegesRequest extends ActionRequest implements Applica
         out.writeOptionalString(application);
         out.writeStringArray(privileges);
     }
-
 }

@@ -53,8 +53,7 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         
         NodeStatsRequest() {}
 
-        NodeStatsRequest(SqlStatsRequest request, String nodeId) {
-            super(nodeId);
+        NodeStatsRequest(SqlStatsRequest request) {
             includeStats = request.includeStats();
         }
         

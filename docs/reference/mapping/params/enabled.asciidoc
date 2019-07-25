@@ -89,8 +89,8 @@ GET my_index/_mapping <3>
 <2> The document can be retrieved.
 <3> Checking the mapping reveals that no fields have been added.
 
-TIP: The `enabled` setting can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
+The `enabled` setting for existing fields and the top-level mapping
+definition cannot be updated.
 
 Note that because Elasticsearch completely skips parsing the field
 contents, it is possible to add non-object data to a disabled field:

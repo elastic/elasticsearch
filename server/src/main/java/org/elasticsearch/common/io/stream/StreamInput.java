@@ -30,11 +30,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -59,6 +61,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -359,6 +362,21 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    public SecureString readOptionalSecureString() throws IOException {
+        SecureString value = null;
+        BytesReference bytesRef = readOptionalBytesReference();
+        if (bytesRef != null) {
+            byte[] bytes = BytesReference.toBytes(bytesRef);
+            try {
+                value = new SecureString(CharArrays.utf8BytesToChars(bytes));
+            } finally {
+                Arrays.fill(bytes, (byte) 0);
+            }
+        }
+        return value;
+    }
+
+    @Nullable
     public Float readOptionalFloat() throws IOException {
         if (readBoolean()) {
             return readFloat();
@@ -413,6 +431,16 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return spare.toString();
+    }
+
+    public SecureString readSecureString() throws IOException {
+        BytesReference bytesRef = readBytesReference();
+        byte[] bytes = BytesReference.toBytes(bytesRef);
+        try {
+            return new SecureString(CharArrays.utf8BytesToChars(bytes));
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
+        }
     }
 
     public final float readFloat() throws IOException {

@@ -1,5 +1,4 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -9,59 +8,53 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-task integTestNoSecurity(type: RestIntegTestTask) {
-  description = "Run tests against a cluster that doesn't have security"
-}
-tasks.getByName("integTestNoSecurityRunner").configure {
-    systemProperty 'tests.has_security', 'false'
-}
-check.dependsOn(integTestNoSecurity)
-
-task integTestSecurity(type: RestIntegTestTask) {
-  dependsOn integTestNoSecurity
-  description = "Run tests against a cluster that has security"
-}
-tasks.getByName("integTestSecurityRunner").configure {
-    systemProperty 'tests.has_security', 'true'
-}
-check.dependsOn(integTestSecurity)
-
-configure(extensions.findByName("integTestNoSecurityCluster")) {
-  clusterName = "enable-security-on-basic"
-  numNodes = 2
-
-  setting 'xpack.ilm.enabled', 'false'
-  setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'basic'
-  setting 'xpack.security.enabled', 'false'
+integTest {
+    description = "Run tests against a cluster that doesn't have security"
+    runner {
+        systemProperty 'tests.has_security', 'false'
+    }
 }
 
-Task noSecurityTest = tasks.findByName("integTestNoSecurity")
-configure(extensions.findByName("integTestSecurityCluster")) {
-    clusterName = "basic-license"
-    numNodes = 2
-    dataDir = { nodeNum -> noSecurityTest.nodes[nodeNum].dataDir }
-
+testClusters.integTest {
+    distribution = 'DEFAULT'
+    numberOfNodes = 2
     setting 'xpack.ilm.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'basic'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.authc.anonymous.roles', 'anonymous'
-    setting 'xpack.security.transport.ssl.enabled', 'true'
-    setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
-    setting 'xpack.security.transport.ssl.key', 'transport.key'
-    setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
-    setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
-
-    extraConfigFile 'transport.key', project.projectDir.toPath().resolve('src/test/resources/ssl/transport.key').toFile()
-    extraConfigFile 'transport.crt', project.projectDir.toPath().resolve('src/test/resources/ssl/transport.crt').toFile()
-    extraConfigFile 'ca.crt', project.projectDir.toPath().resolve('src/test/resources/ssl/ca.crt').toFile()
-
-    setupCommand 'setupAdminUser',
-                 'bin/elasticsearch-users', 'useradd', 'admin_user', '-p', 'admin-password', '-r', 'superuser'
-    setupCommand 'setupTestUser' ,
-                 'bin/elasticsearch-users', 'useradd', 'security_test_user', '-p', 'security-test-password', '-r', 'security_test_role'
-    extraConfigFile 'roles.yml', project.projectDir.toPath().resolve('src/test/resources/roles.yml').toFile()
+    setting 'xpack.security.enabled', 'false'
 }
 
-integTest.enabled = false
+task integTestSecurity(type: Test) {
+    description = "Run tests against a cluster that has security"
+    useCluster testClusters.integTest
+    dependsOn integTest
+    systemProperty 'tests.has_security', 'true'
+    maxParallelForks = 1
+    outputs.cacheIf "Caching of REST tests not implemented yet", { false }
+
+    doFirst {
+        testClusters.integTest {
+            // Reconfigure cluster to enable security
+            setting 'xpack.security.enabled', 'true'
+            setting 'xpack.security.authc.anonymous.roles', 'anonymous'
+            setting 'xpack.security.transport.ssl.enabled', 'true'
+            setting 'xpack.security.transport.ssl.certificate', 'transport.crt'
+            setting 'xpack.security.transport.ssl.key', 'transport.key'
+            setting 'xpack.security.transport.ssl.key_passphrase', 'transport-password'
+            setting 'xpack.security.transport.ssl.certificate_authorities', 'ca.crt'
+
+            extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
+            extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
+            extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
+            extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+
+            user username: "admin_user", password: "admin-password"
+            user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+
+            restart()
+        }
+        nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.integTest.getAllHttpSocketURI().join(",")}"
+    }
+}
+check.dependsOn(integTestSecurity)
+

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -257,7 +258,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeRequest newNodeRequest(String nodeId, TestNodesRequest request) {
+        protected TestNodeRequest newNodeRequest(TestNodesRequest request) {
             return new TestNodeRequest();
         }
 
@@ -267,7 +268,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeResponse nodeOperation(TestNodeRequest request) {
+        protected TestNodeResponse nodeOperation(TestNodeRequest request, Task task) {
             return new TestNodeResponse();
         }
 

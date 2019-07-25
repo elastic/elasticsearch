@@ -19,9 +19,12 @@
 
 package org.elasticsearch.painless.spi;
 
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Constructor represents the equivalent of a Java constructor available as a whitelisted class
@@ -40,9 +43,20 @@ public final class WhitelistConstructor {
      */
     public final List<String> canonicalTypeNameParameters;
 
+    /** The {@link Map} of annotations for this constructor. */
+    public final Map<Class<?>, Object> painlessAnnotations;
+
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters) {
+    public WhitelistConstructor(String origin, List<String> canonicalTypeNameParameters, List<Object> painlessAnnotations) {
         this.origin = Objects.requireNonNull(origin);
         this.canonicalTypeNameParameters = Collections.unmodifiableList(Objects.requireNonNull(canonicalTypeNameParameters));
+
+        if (painlessAnnotations.isEmpty()) {
+            this.painlessAnnotations = Collections.emptyMap();
+        } else {
+            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+                    .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * Response containing one or more application privileges retrieved from the security index
@@ -21,11 +22,15 @@ public final class GetPrivilegesResponse extends ActionResponse {
     private ApplicationPrivilegeDescriptor[] privileges;
 
     public GetPrivilegesResponse(ApplicationPrivilegeDescriptor... privileges) {
-        this.privileges = privileges;
+        this.privileges = Objects.requireNonNull(privileges, "Application privileges cannot be null");
     }
 
     public GetPrivilegesResponse(Collection<ApplicationPrivilegeDescriptor> privileges) {
-        this(privileges.toArray(new ApplicationPrivilegeDescriptor[privileges.size()]));
+        this(privileges.toArray(new ApplicationPrivilegeDescriptor[0]));
+    }
+
+    public GetPrivilegesResponse() {
+        this(new ApplicationPrivilegeDescriptor[0]);
     }
 
     public ApplicationPrivilegeDescriptor[] privileges() {
@@ -44,4 +49,7 @@ public final class GetPrivilegesResponse extends ActionResponse {
         out.writeArray(privileges);
     }
 
+    public boolean isEmpty() {
+        return privileges.length == 0;
+    }
 }

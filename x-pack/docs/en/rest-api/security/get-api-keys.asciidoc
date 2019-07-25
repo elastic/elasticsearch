@@ -39,6 +39,10 @@ or `name`.
 
 NOTE: While all parameters are optional, at least one of them is required.
 
+==== Authorization
+
+To use this API, you must have at least the `manage_api_key` cluster privilege.
+
 ==== Examples
 
 If you create an API key as follows:

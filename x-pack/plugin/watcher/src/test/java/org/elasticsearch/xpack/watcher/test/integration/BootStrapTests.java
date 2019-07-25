@@ -304,7 +304,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         // Watcher could prevent to start if a watch record tried to executed twice or more and the watch didn't exist
         // for that watch record or the execution threadpool rejected the watch record.
         // A watch record without a watch is the easiest to simulate, so that is what this test does.
-        if (client().admin().indices().prepareExists(Watch.INDEX).get().isExists() == false) {
+        if (indexExists(Watch.INDEX) == false) {
             // we rarely create an .watches alias in the base class
             assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
         }

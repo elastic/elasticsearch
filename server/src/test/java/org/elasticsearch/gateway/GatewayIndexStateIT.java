@@ -52,7 +52,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.List;
@@ -75,6 +74,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GatewayIndexStateIT extends ESIntegTestCase {
 
     private final Logger logger = LogManager.getLogger(GatewayIndexStateIT.class);
+
+    @Override
+    protected boolean addMockInternalEngine() {
+        // testRecoverBrokenIndexMetadata replies on the flushing on shutdown behavior which can be randomly disabled in MockInternalEngine.
+        return false;
+    }
 
     public void testMappingMetaDataParsed() throws Exception {
         logger.info("--> starting 1 nodes");
@@ -315,7 +320,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 logger.info("--> delete index and verify it is deleted");
                 final Client client = client(otherNode);
                 client.admin().indices().prepareDelete(indexName).execute().actionGet();
-                assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+                assertFalse(indexExists(indexName, client));
                 logger.info("--> index deleted");
                 return super.onNodeStopped(nodeName);
             }
@@ -329,7 +334,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> verify that the deleted index is removed from the cluster and not reimported as dangling by the restarted node");
-        assertFalse(client().admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+        assertFalse(indexExists(indexName));
         assertBusy(() -> {
             final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
             try {
@@ -346,8 +351,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      * allocated in our metadata that we recover. In that case we now have the ability to check the index on local recovery from disk
      * if it is sane and if we can successfully create an IndexService. This also includes plugins etc.
      */
-    // temporarily enabling TRACE to aid debugging https://github.com/elastic/elasticsearch/issues/43034
-    @TestLogging("_root:TRACE")
     public void testRecoverBrokenIndexMetadata() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();

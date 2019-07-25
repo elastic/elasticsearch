@@ -272,8 +272,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         @Override
         public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
-            Searcher engineSearcher = context.searcher().getEngineSearcher();
-            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            DirectoryReader dirReader = context.searcher().getDirectoryReader();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
             if (lazyDirectoryReader != null) {
                 try {
                     lazyDirectoryReader.reset();
@@ -297,8 +297,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
         @Override
         public void onNewContext(SearchContext context) {
-            Searcher engineSearcher = context.searcher().getEngineSearcher();
-            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(engineSearcher.getDirectoryReader());
+            DirectoryReader dirReader = context.searcher().getDirectoryReader();
+            LazyDirectoryReader lazyDirectoryReader = unwrapLazyReader(dirReader);
             if (lazyDirectoryReader != null) {
                 registerRelease(context, lazyDirectoryReader);
             }

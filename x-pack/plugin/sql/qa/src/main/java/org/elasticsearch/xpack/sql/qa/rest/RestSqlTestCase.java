@@ -621,46 +621,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testNextPageText() throws IOException {
-        int size = 20;
-        String[] docs = new String[size];
-        for (int i = 0; i < size; i++) {
-            docs[i] = "{\"text\":\"text" + i + "\", \"number\":" + i + "}\n";
-        }
-        index(docs);
-
-        String request = "{\"query\":\"SELECT text, number, number + 5 AS sum FROM test ORDER BY number\", \"fetch_size\":2}";
-
-        String cursor = null;
-        for (int i = 0; i < 20; i += 2) {
-            Tuple<String, String> response;
-            if (i == 0) {
-                response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), "text/plain");
-            } else {
-                response = runSqlAsText(StringUtils.EMPTY, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
-                        ContentType.APPLICATION_JSON), "text/plain");
-            }
-
-            StringBuilder expected = new StringBuilder();
-            if (i == 0) {
-                expected.append("     text      |    number     |      sum      \n");
-                expected.append("---------------+---------------+---------------\n");
-            }
-            expected.append(String.format(Locale.ROOT, "%-15s|%-15d|%-15d\n", "text" + i, i, i + 5));
-            expected.append(String.format(Locale.ROOT, "%-15s|%-15d|%-15d\n", "text" + (i + 1), i + 1, i + 6));
-            cursor = response.v2();
-            assertEquals(expected.toString(), response.v1());
-            assertNotNull(cursor);
-        }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
-                StringUtils.EMPTY));
-
-        Map<String, Object> response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
-                "/close");
-        assertEquals(true, response.get("succeeded"));
-
-        assertEquals(0, getNumberOfSearchContexts("test"));
+        executeQueryWithNextPage("text/plain", "     text      |    number     |      sum      \n", "%-15s|%-15d|%-15d\n");
     }
 
     // CSV/TSV tests
@@ -702,6 +663,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
         assertEquals(expected, response.v1());
     }
+    
+    public void testNextPageCSV() throws IOException {
+        executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
+    }
 
     public void testQueryInTSV() throws IOException {
         index("{\"name\":" + toJson("first") + ", \"number\" : 1 }",
@@ -719,6 +684,55 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertEquals(expected, response.v1());
         response = runSqlAsTextFormat(query, "tsv");
         assertEquals(expected, response.v1());
+    }
+    
+    public void testNextPageTSV() throws IOException {
+        executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
+    }
+    
+    private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
+        int size = 20;
+        String[] docs = new String[size];
+        for (int i = 0; i < size; i++) {
+            docs[i] = "{\"text\":\"text" + i + "\", \"number\":" + i + "}\n";
+        }
+        index(docs);
+
+        String request = "{\"query\":\"SELECT text, number, number + 5 AS sum FROM test ORDER BY number\", \"fetch_size\":2}";
+
+        String cursor = null;
+        for (int i = 0; i < 20; i += 2) {
+            Tuple<String, String> response;
+            if (i == 0) {
+                response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), format);
+            } else {
+                response = runSqlAsText(StringUtils.EMPTY, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
+                        ContentType.APPLICATION_JSON), format);
+            }
+
+            StringBuilder expected = new StringBuilder();
+            if (i == 0) {
+                expected.append(expectedHeader);
+                if (format == "text/plain") {
+                    expected.append("---------------+---------------+---------------\n");
+                }
+            }
+            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
+            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
+            cursor = response.v2();
+            assertEquals(expected.toString(), response.v1());
+            assertNotNull(cursor);
+        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("rows", emptyList());
+        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+                StringUtils.EMPTY));
+
+        Map<String, Object> response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+                "/close");
+        assertEquals(true, response.get("succeeded"));
+
+        assertEquals(0, getNumberOfSearchContexts("test"));
     }
 
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {

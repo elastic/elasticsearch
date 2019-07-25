@@ -19,9 +19,10 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
-public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsResponse> {
+public class ClusterUpdateSettingsAction extends ActionType<ClusterUpdateSettingsResponse> {
 
     public static final ClusterUpdateSettingsAction INSTANCE = new ClusterUpdateSettingsAction();
     public static final String NAME = "cluster:admin/settings/update";
@@ -31,7 +32,7 @@ public class ClusterUpdateSettingsAction extends Action<ClusterUpdateSettingsRes
     }
 
     @Override
-    public ClusterUpdateSettingsResponse newResponse() {
-        return new ClusterUpdateSettingsResponse();
+    public Writeable.Reader<ClusterUpdateSettingsResponse> getResponseReader() {
+        return ClusterUpdateSettingsResponse::new;
     }
 }

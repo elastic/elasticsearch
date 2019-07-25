@@ -43,6 +43,8 @@ import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
+import org.elasticsearch.client.security.GetBuiltinPrivilegesRequest;
+import org.elasticsearch.client.security.GetBuiltinPrivilegesResponse;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -749,6 +751,34 @@ public final class SecurityClient {
                                      ActionListener<InvalidateTokenResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
             InvalidateTokenResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Synchronously get builtin (cluster &amp; index) privilege(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-builtin-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param options the request options (e.g. headers), use
+     *                {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get builtin privileges call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetBuiltinPrivilegesResponse getBuiltinPrivileges(final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(GetBuiltinPrivilegesRequest.INSTANCE,
+            GetBuiltinPrivilegesRequest::getRequest, options, GetBuiltinPrivilegesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get builtin (cluster &amp; index) privilege(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-builtin-privileges.html">
+     * the docs</a> for more.
+     *
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getBuiltinPrivilegesAsync(final RequestOptions options, final ActionListener<GetBuiltinPrivilegesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(GetBuiltinPrivilegesRequest.INSTANCE,
+            GetBuiltinPrivilegesRequest::getRequest, options, GetBuiltinPrivilegesResponse::fromXContent, listener, emptySet());
     }
 
     /**

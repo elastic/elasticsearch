@@ -230,7 +230,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         List<SnapshotInfo> snapshotInfos = client.admin().cluster().prepareGetSnapshots("test-repo")
-            .setSnapshots("test-snap").get().getSnapshots();
+            .setSnapshots("test-snap").get().getSnapshots("test-repo");
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));

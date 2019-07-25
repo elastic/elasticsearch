@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -54,7 +55,7 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
  */
 final class TypeConverter {
 
-    private static WellKnownText WKT = new WellKnownText();
+    private static WellKnownText WKT = new WellKnownText(true, new GeographyValidator(true));
 
     private TypeConverter() {}
 

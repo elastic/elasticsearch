@@ -84,7 +84,7 @@ public class PrimaryReplicaSyncer {
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
         Translog.Snapshot snapshot = null;
         try {
-            final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
+            final long startingSeqNo = indexShard.getLastKnownGlobalCheckpoint() + 1;
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
             final ShardId shardId = indexShard.shardId();
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.

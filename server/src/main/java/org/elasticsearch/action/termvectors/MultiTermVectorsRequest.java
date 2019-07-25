@@ -139,7 +139,7 @@ public class MultiTermVectorsRequest extends ActionRequest
         int size = in.readVInt();
         requests = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            requests.add(TermVectorsRequest.readTermVectorsRequest(in));
+            requests.add(new TermVectorsRequest(in));
         }
     }
 

@@ -45,9 +45,11 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
             ObjectParser.ValueType.BOOLEAN);
     }
 
-    protected boolean acknowledged;
+    protected final boolean acknowledged;
 
-    public AcknowledgedResponse() {
+    public AcknowledgedResponse(StreamInput in) throws IOException {
+        super(in);
+        acknowledged = in.readBoolean();
     }
 
     public AcknowledgedResponse(boolean acknowledged) {
@@ -64,8 +66,7 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        acknowledged = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

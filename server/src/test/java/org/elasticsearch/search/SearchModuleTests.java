@@ -390,24 +390,14 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
-                ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context,
+                ValuesSourceConfig<ValuesSource> config, AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
             return null;
         }
 
         @Override
         protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
             return null;
-        }
-
-        @Override
-        protected int innerHashCode() {
-            return 0;
-        }
-
-        @Override
-        protected boolean innerEquals(Object obj) {
-            return false;
         }
 
         private static TestAggregationBuilder fromXContent(String name, XContentParser p) {
@@ -443,16 +433,6 @@ public class SearchModuleTests extends ESTestCase {
         @Override
         protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
             return null;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
-        }
-
-        @Override
-        protected boolean doEquals(Object obj) {
-            return false;
         }
 
         private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {

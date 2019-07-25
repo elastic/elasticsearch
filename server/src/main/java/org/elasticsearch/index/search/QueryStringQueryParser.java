@@ -154,6 +154,12 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     @Override
+    public void setEnablePositionIncrements(boolean enable) {
+        super.setEnablePositionIncrements(enable);
+        queryBuilder.setEnablePositionIncrements(enable);
+    }
+
+    @Override
     public void setDefaultOperator(Operator op) {
         super.setDefaultOperator(op);
         queryBuilder.setOccur(op == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD);

@@ -389,11 +389,26 @@ public class MetaDataIndexStateService {
             }
             final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), request.taskId());
             final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, parentTaskId);
+                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, true, parentTaskId);
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }
-            transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);
+            transportVerifyShardBeforeCloseAction.execute(shardRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(ReplicationResponse replicationResponse) {
+                    final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
+                        new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, false, parentTaskId);
+                    if (request.ackTimeout() != null) {
+                        shardRequest.timeout(request.ackTimeout());
+                    }
+                    transportVerifyShardBeforeCloseAction.execute(shardRequest, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 

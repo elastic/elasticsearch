@@ -1,7 +1,8 @@
 [[cat-snapshots]]
 == cat snapshots
 
-The `snapshots` command shows all snapshots that belong to a specific repository.
+The `snapshots` command shows all snapshots that belong to a specific repository
+or multiple repositories.
 To find a list of available repositories to query, the command `/_cat/repositories` can be used.
 Querying the snapshots of a repository named `repo1` then looks as follows.
 
@@ -18,9 +19,9 @@ Which looks like:
 
 [source,txt]
 --------------------------------------------------
-id     status start_epoch start_time end_epoch  end_time duration indices successful_shards failed_shards total_shards
-snap1  FAILED 1445616705  18:11:45   1445616978 18:16:18     4.6m       1                 4             1            5
-snap2 SUCCESS 1445634298  23:04:58   1445634672 23:11:12     6.2m       2                10             0           10
+id     repository status start_epoch start_time end_epoch  end_time duration indices successful_shards failed_shards total_shards
+snap1  repo1      FAILED 1445616705  18:11:45   1445616978 18:16:18     4.6m       1                 4             1            5
+snap2  repo1      SUCCESS 1445634298  23:04:58   1445634672 23:11:12     6.2m       2                10             0           10
 --------------------------------------------------
 // TESTRESPONSE[s/FAILED/SUCCESS/ s/14456\d+/\\d+/ s/\d+(\.\d+)?(m|s|ms)/\\d+(\\.\\d+)?(m|s|ms)/]
 // TESTRESPONSE[s/\d+:\d+:\d+/\\d+:\\d+:\\d+/]
@@ -32,3 +33,17 @@ Each snapshot contains information about when it was started and stopped.
 Start and stop timestamps are available in two formats.
 The `HH:MM:SS` output is simply for quick human consumption.
 The epoch time retains more information, including date, and is machine sortable if the snapshot process spans days.
+
+It is also possible to get the list of snapshots from multiple repositories.
+Here are some examples:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/snapshots/_all
+GET /_cat/snapshots/repo1,repo2
+GET /_cat/snapshots/repo*
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:no repo2]
+
+Please note that if one of the repositories fails during the request you will get an exception instead of the table.

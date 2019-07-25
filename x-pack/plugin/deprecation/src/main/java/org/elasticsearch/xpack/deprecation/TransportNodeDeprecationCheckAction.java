@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
@@ -52,8 +53,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     }
 
     @Override
-    protected NodesDeprecationCheckAction.NodeRequest newNodeRequest(String nodeId, NodesDeprecationCheckRequest request) {
-        return new NodesDeprecationCheckAction.NodeRequest(nodeId, request);
+    protected NodesDeprecationCheckAction.NodeRequest newNodeRequest(NodesDeprecationCheckRequest request) {
+        return new NodesDeprecationCheckAction.NodeRequest(request);
     }
 
     @Override
@@ -62,7 +63,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     }
 
     @Override
-    protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
+    protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request, Task task) {
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
             (c) -> c.apply(settings, pluginsService.info()));
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.client.dataframe.transforms;
 
 import org.elasticsearch.client.core.IndexerState;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +38,8 @@ public class DataFrameTransformStateTests extends ESTestCase {
                 DataFrameTransformStateTests::toXContent,
                 DataFrameTransformState::fromXContent)
                 .supportsUnknownFields(true)
-                .randomFieldsExcludeFilter(field -> field.equals("current_position"))
+                .randomFieldsExcludeFilter(field -> field.equals("current_position") ||
+                    field.equals("node.attributes"))
                 .test();
     }
 
@@ -47,7 +49,8 @@ public class DataFrameTransformStateTests extends ESTestCase {
             randomPositionMap(),
             randomLongBetween(0,10),
             randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : DataFrameTransformProgressTests.randomInstance());
+            randomBoolean() ? null : DataFrameTransformProgressTests.randomInstance(),
+            randomBoolean() ? null : NodeAttributesTests.createRandom());
     }
 
     public static void toXContent(DataFrameTransformState state, XContentBuilder builder) throws IOException {
@@ -64,6 +67,10 @@ public class DataFrameTransformStateTests extends ESTestCase {
         if (state.getProgress() != null) {
             builder.field("progress");
             DataFrameTransformProgressTests.toXContent(state.getProgress(), builder);
+        }
+        if (state.getNode() != null) {
+            builder.field("node");
+            state.getNode().toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         builder.endObject();
     }

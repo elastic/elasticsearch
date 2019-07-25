@@ -8,6 +8,7 @@ You can use the following APIs to perform security activities.
 * <<security-api-clear-cache>>
 * <<security-api-has-privileges>>
 * <<security-api-ssl>>
+* <<security-api-get-builtin-privileges>>
 
 [float]
 [[security-api-app-privileges]]
@@ -105,6 +106,7 @@ include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
 include::security/get-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
+include::security/get-builtin-privileges.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/get-roles.asciidoc[]
 include::security/get-tokens.asciidoc[]

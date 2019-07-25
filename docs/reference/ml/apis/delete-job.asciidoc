@@ -8,13 +8,20 @@
 
 Deletes an existing anomaly detection job.
 
-
-==== Request
+[[ml-delete-job-request]]
+==== {api-request-title}
 
 `DELETE _ml/anomaly_detectors/<job_id>`
 
+[[ml-delete-job-prereqs]]
+==== {api-prereq-title}
 
-==== Description
+* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
+cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-delete-job-desc]]
+==== {api-description-title}
 
 All job configuration, model state and results are deleted.
 
@@ -30,29 +37,25 @@ is used the job must be closed before it can be deleted.
 It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
 
-==== Path Parameters
+[[ml-delete-job-path-parms]]
+==== {api-path-parms-title}
 
-`job_id` (required)::
-  (string) Identifier for the job
+`<job_id>` (Required)::
+  (string) Identifier for the job.
 
-===== Query Parameters
+[[ml-delete-job-query-parms]]
+==== {api-query-parms-title}
 
-`force`::
+`force` (Optional)::
   (boolean) Use to forcefully delete an opened job; this method is quicker than
   closing and deleting the job.
 
-`wait_for_completion`::
+`wait_for_completion` (Optional)::
   (boolean) Specifies whether the request should return immediately or wait
   until the job deletion completes. Defaults to `true`.
 
-==== Authorization
-
-If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security Privileges].
-
-
-==== Examples
+[[ml-delete-job-example]]
+==== {api-examples-title}
 
 The following example deletes the `total-requests` job:
 

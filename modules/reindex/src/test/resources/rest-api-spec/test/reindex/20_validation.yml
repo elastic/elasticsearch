@@ -95,21 +95,26 @@
           conflicts: cat
 
 ---
-"invalid size fails":
+"specifying size fails":
+  - skip:
+      version: " - 7.99.99"
+      reason: "size supported until 8"
+
   - do:
       index:
-        index:   test
-        id:      1
-        body:    { "text": "test" }
+        index:  test
+        id:     1
+        body:   { "text": "test" }
+
   - do:
-      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      catch: /invalid parameter \[size\], use \[max_docs\] instead/
       reindex:
         body:
           source:
             index: test
           dest:
             index: dest
-          size: -4
+          size: 1
 
 ---
 "invalid max_docs in body fails":
@@ -152,28 +157,6 @@
             index: test
           dest:
             index: dest
-
----
-"inconsistent max_docs and size fails":
-  - skip:
-      version: " - 7.2.99"
-      reason: "max_docs introduced in 7.3.0"
-
-  - do:
-      index:
-        index:   test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
-      reindex:
-        body:
-          source:
-            index: test
-          dest:
-            index: dest
-          size: 4
-          max_docs: 5
 
 ---
 "inconsistent max_docs in body and max_docs in URL fails":

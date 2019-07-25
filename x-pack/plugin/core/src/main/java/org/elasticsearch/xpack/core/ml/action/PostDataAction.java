@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -24,18 +24,13 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostDataAction extends Action<PostDataAction.Response> {
+public class PostDataAction extends ActionType<PostDataAction.Response> {
 
     public static final PostDataAction INSTANCE = new PostDataAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/data/post";
 
     private PostDataAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

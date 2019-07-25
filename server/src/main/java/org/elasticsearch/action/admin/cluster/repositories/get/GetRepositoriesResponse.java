@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -39,14 +38,14 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class GetRepositoriesResponse extends ActionResponse implements ToXContentObject {
 
-    private RepositoriesMetaData repositories;
-
-    GetRepositoriesResponse() {
-        repositories = new RepositoriesMetaData(Collections.emptyList());
-    }
+    private final RepositoriesMetaData repositories;
 
     GetRepositoriesResponse(RepositoriesMetaData repositories) {
         this.repositories = repositories;
+    }
+
+    public GetRepositoriesResponse(StreamInput in) throws IOException {
+        repositories = new RepositoriesMetaData(in);
     }
 
     /**
@@ -61,7 +60,7 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        repositories = new RepositoriesMetaData(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

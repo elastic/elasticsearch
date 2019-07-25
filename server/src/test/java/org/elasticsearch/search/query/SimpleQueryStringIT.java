@@ -642,7 +642,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "2", "3");
     }
 
-
     public void testFieldAliasOnDisallowedFieldType() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));

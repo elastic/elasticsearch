@@ -88,15 +88,16 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
 
     @Override
     protected void masterOperation(
-            CcrStatsAction.Request request,
-            ClusterState state,
-            ActionListener<CcrStatsAction.Response> listener
+        Task task, CcrStatsAction.Request request,
+        ClusterState state,
+        ActionListener<CcrStatsAction.Response> listener
     ) throws Exception {
         CheckedConsumer<FollowStatsAction.StatsResponses, Exception> handler = statsResponse -> {
             AutoFollowStats stats = autoFollowCoordinator.getStats();
             listener.onResponse(new CcrStatsAction.Response(stats, statsResponse));
         };
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.execute(FollowStatsAction.INSTANCE, statsRequest, ActionListener.wrap(handler, listener::onFailure));
     }
 

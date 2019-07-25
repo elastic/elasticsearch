@@ -92,7 +92,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     }
 
     @Override
-    protected void masterOperation(PutDatafeedAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, PutDatafeedAction.Request request, ClusterState state,
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from

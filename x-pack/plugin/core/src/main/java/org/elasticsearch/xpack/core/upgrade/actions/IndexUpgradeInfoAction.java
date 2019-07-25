@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.core.upgrade.actions;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
 
-public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoResponse> {
+public class IndexUpgradeInfoAction extends StreamableResponseActionType<IndexUpgradeInfoResponse> {
 
     public static final IndexUpgradeInfoAction INSTANCE = new IndexUpgradeInfoAction();
     public static final String NAME = "cluster:admin/xpack/upgrade/info";

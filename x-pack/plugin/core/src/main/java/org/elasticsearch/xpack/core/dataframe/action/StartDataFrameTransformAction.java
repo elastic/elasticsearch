@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -22,18 +22,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformAction extends Action<StartDataFrameTransformAction.Response> {
+public class StartDataFrameTransformAction extends ActionType<StartDataFrameTransformAction.Response> {
 
     public static final StartDataFrameTransformAction INSTANCE = new StartDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/start";
 
     private StartDataFrameTransformAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

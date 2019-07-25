@@ -598,7 +598,11 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
         return Objects.equals(buckets, that.buckets)
                 && Objects.equals(format, that.format)
@@ -606,7 +610,7 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets, format, bucketInfo);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, bucketInfo);
     }
 }

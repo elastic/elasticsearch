@@ -111,6 +111,15 @@ public abstract class ValuesSource {
             public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
                     throws IOException;
 
+            /**
+             * Whether this values source is able to provide a mapping between global and segment ordinals,
+             * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
+             * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
+             */
+            public boolean supportsGlobalOrdinalsMapping() {
+                return true;
+            }
+
             /** Returns a mapping from segment ordinals to global ordinals. */
             public abstract LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context)
                     throws IOException;
@@ -151,6 +160,11 @@ public abstract class ValuesSource {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
+                }
+
+                @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return indexFieldData.supportsGlobalOrdinalsMapping();
                 }
 
                 @Override
@@ -452,6 +466,7 @@ public abstract class ValuesSource {
                 if (bytesValues.advanceExact(doc)) {
                     count = bytesValues.docValueCount();
                     grow();
+                    script.setDocument(doc);
                     for (int i = 0; i < count; ++i) {
                         final BytesRef value = bytesValues.nextValue();
                         script.setNextAggregationValue(value.utf8ToString());

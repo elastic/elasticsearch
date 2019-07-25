@@ -43,6 +43,7 @@ public class DataFrameTransformState {
     private static final ParseField CHECKPOINT = new ParseField("checkpoint");
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField PROGRESS = new ParseField("progress");
+    private static final ParseField NODE = new ParseField("node");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER =
@@ -52,7 +53,8 @@ public class DataFrameTransformState {
                         (Map<String, Object>) args[2],
                         (long) args[3],
                         (String) args[4],
-                        (DataFrameTransformProgress) args[5]));
+                        (DataFrameTransformProgress) args[5],
+                        (NodeAttributes) args[6]));
 
     static {
         PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
@@ -61,6 +63,7 @@ public class DataFrameTransformState {
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
         PARSER.declareField(optionalConstructorArg(), DataFrameTransformProgress::fromXContent, PROGRESS, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE, ValueType.OBJECT);
     }
 
     public static DataFrameTransformState fromXContent(XContentParser parser) throws IOException {
@@ -73,19 +76,22 @@ public class DataFrameTransformState {
     private final Map<String, Object> currentPosition;
     private final String reason;
     private final DataFrameTransformProgress progress;
+    private final NodeAttributes node;
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
                                    @Nullable Map<String, Object> position,
                                    long checkpoint,
                                    @Nullable String reason,
-                                   @Nullable DataFrameTransformProgress progress) {
+                                   @Nullable DataFrameTransformProgress progress,
+                                   @Nullable NodeAttributes node) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.currentPosition = position == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(position));
         this.checkpoint = checkpoint;
         this.reason = reason;
         this.progress = progress;
+        this.node = node;
     }
 
     public IndexerState getIndexerState() {
@@ -115,6 +121,11 @@ public class DataFrameTransformState {
         return progress;
     }
 
+    @Nullable
+    public NodeAttributes getNode() {
+        return node;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -132,12 +143,13 @@ public class DataFrameTransformState {
             Objects.equals(this.currentPosition, that.currentPosition) &&
             Objects.equals(this.progress, that.progress) &&
             this.checkpoint == that.checkpoint &&
+            Objects.equals(this.node, that.node) &&
             Objects.equals(this.reason, that.reason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason, progress);
+        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason, progress, node);
     }
 
 }

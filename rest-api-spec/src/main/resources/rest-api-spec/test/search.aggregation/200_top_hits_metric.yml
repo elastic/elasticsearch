@@ -92,16 +92,19 @@ setup:
               aggs:
                 users:
                   top_hits:
-                    sort: "users.last.keyword"
+                    sort:
+                      users.last.keyword:
+                        nested:
+                          path: users
                     seq_no_primary_term: true
 
   - match: { hits.total: 2 }
   - length: { aggregations.groups.buckets.0.users.hits.hits: 2 }
-  - match: { aggregations.groups.buckets.0.users.hits.hits.0._id: "1" }
+  - match: { aggregations.groups.buckets.0.users.hits.hits.0._id: "2" }
   - match: { aggregations.groups.buckets.0.users.hits.hits.0._index: my-index }
   - gte: { aggregations.groups.buckets.0.users.hits.hits.0._seq_no: 0 }
   - gte: { aggregations.groups.buckets.0.users.hits.hits.0._primary_term: 1 }
-  - match: { aggregations.groups.buckets.0.users.hits.hits.1._id: "2" }
+  - match: { aggregations.groups.buckets.0.users.hits.hits.1._id: "1" }
   - match: { aggregations.groups.buckets.0.users.hits.hits.1._index: my-index }
   - gte: { aggregations.groups.buckets.0.users.hits.hits.1._seq_no: 0 }
   - gte: { aggregations.groups.buckets.0.users.hits.hits.1._primary_term: 1 }

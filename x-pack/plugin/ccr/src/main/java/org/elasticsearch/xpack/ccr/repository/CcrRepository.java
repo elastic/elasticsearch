@@ -491,10 +491,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     while (offset < fileLength && error.get() == null) {
                         final long requestSeqId = requestSeqIdTracker.generateSeqNo();
                         try {
-                            requestSeqIdTracker.waitForOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
+                            requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
 
                             if (error.get() != null) {
-                                requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                                 break;
                             }
 
@@ -514,7 +514,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         @Override
                                         public void onFailure(Exception e) {
                                             error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
-                                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                            requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                                         }
 
                                         @Override
@@ -526,24 +526,24 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                             throttleListener.accept(nanosPaused);
                                             final boolean lastChunk = r.getOffset() + actualChunkSize >= fileLength;
                                             multiFileWriter.writeFileChunk(fileInfo.metadata(), r.getOffset(), r.getChunk(), lastChunk);
-                                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                            requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                                         }
                                     }),
                                     e -> {
                                         error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
-                                        requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                        requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                                     }
                                     ), timeout, ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME);
                             remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request, listener);
                         } catch (Exception e) {
                             error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
-                            requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                            requestSeqIdTracker.markSeqNoAsProcessed(requestSeqId);
                         }
                     }
                 }
 
                 try {
-                    requestSeqIdTracker.waitForOpsToComplete(requestSeqIdTracker.getMaxSeqNo());
+                    requestSeqIdTracker.waitForProcessedOpsToComplete(requestSeqIdTracker.getMaxSeqNo());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new ElasticsearchException(e);

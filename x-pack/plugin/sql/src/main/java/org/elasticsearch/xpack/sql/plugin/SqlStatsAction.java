@@ -6,9 +6,9 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class SqlStatsAction extends Action<SqlStatsResponse> {
+public class SqlStatsAction extends StreamableResponseActionType<SqlStatsResponse> {
 
     public static final SqlStatsAction INSTANCE = new SqlStatsAction();
     public static final String NAME = "cluster:monitor/xpack/sql/stats/dist";

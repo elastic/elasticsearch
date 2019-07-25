@@ -37,6 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -67,8 +68,8 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodeRequest newNodeRequest(String nodeId, Request request) {
-        return new NodeRequest(nodeId);
+    protected NodeRequest newNodeRequest(Request request) {
+        return new NodeRequest();
     }
 
     @Override
@@ -82,7 +83,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     @Override
-    protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
+    protected NodeGatewayMetaState nodeOperation(NodeRequest request, Task task) {
         return new NodeGatewayMetaState(clusterService.localNode(), metaState.getMetaData());
     }
 
@@ -114,14 +115,6 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     }
 
     public static class NodeRequest extends BaseNodeRequest {
-
-        public NodeRequest() {
-        }
-
-        NodeRequest(String nodeId) {
-            super(nodeId);
-        }
-
     }
 
     public static class NodeGatewayMetaState extends BaseNodeResponse {

@@ -138,7 +138,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
     }
 
-    public void testIsConditionFails() {
+    public void testIsConditionIsTrueEvenWhenMoreSegments() {
         int maxNumSegments = randomIntBetween(3, 10);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Client client = Mockito.mock(Client.class);
@@ -191,8 +191,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
             }
         });
 
-        assertFalse(conditionMetResult.get());
-        assertEquals(new SegmentCountStep.Info(1L), conditionInfo.get());
+        assertTrue(conditionMetResult.get());
+        assertEquals(new SegmentCountStep.Info(0L), conditionInfo.get());
     }
 
     public void testThrowsException() {

@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -70,8 +71,8 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     }
 
     @Override
-    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state,
-        final ActionListener<CreateSnapshotResponse> listener) {
+    protected void masterOperation(Task task, final CreateSnapshotRequest request, ClusterState state,
+                                   final ActionListener<CreateSnapshotResponse> listener) {
         if (request.waitForCompletion()) {
             snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {

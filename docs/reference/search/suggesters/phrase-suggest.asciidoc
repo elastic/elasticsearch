@@ -224,7 +224,7 @@ The response contains suggestions scored by the most likely spell correction fir
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST test/_search
 {
   "suggest": {
     "text" : "noble prize",
@@ -293,7 +293,7 @@ properties that can be configured.
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST test/_search
 {
   "suggest": {
     "text" : "obel prize",
@@ -414,7 +414,7 @@ accept ordinary analyzer names.
 
 [source,js]
 --------------------------------------------------
-POST _search
+POST test/_search
 {
   "suggest": {
     "text" : "obel prize",

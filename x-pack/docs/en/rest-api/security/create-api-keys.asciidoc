@@ -37,16 +37,20 @@ The following parameters can be specified in the body of a POST or PUT request:
 `name`::
 (string) Specifies the name for this API key.
 
-`role_descriptors` (required)::
+`role_descriptors` (optional)::
 (array-of-role-descriptor) An array of role descriptors for this API key. This
-parameter is required but can be an empty array, which applies the permissions
-of the authenticated user. If you supply role descriptors, they must be a subset
-of the authenticated user's permissions. The structure of role descriptor is the
+parameter is optional. When it is not specified or is an empty array, then the API key will have
+the permissions of the authenticated user. If you supply role descriptors, they must
+be a subset of the authenticated user's permissions. The structure of role descriptor is the
 same as the request for create role API. For more details, see
 <<security-api-roles,role management APIs>>.
 
 `expiration`::
 (string) Optional expiration time for the API key. By default, API keys never expire.
+
+==== Authorization
+
+To use this API, you must have at least the `manage_api_key` cluster privilege.
 
 ==== Examples
 

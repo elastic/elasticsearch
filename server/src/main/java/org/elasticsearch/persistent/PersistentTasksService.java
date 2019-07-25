@@ -20,7 +20,7 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -129,7 +129,7 @@ public class PersistentTasksService {
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
-        void execute(final Req request, final Action<Resp> action, final ActionListener<PersistentTask<?>> listener) {
+        void execute(final Req request, final ActionType<Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
                 client.execute(action, request, ActionListener.map(listener, PersistentTaskResponse::getTask));
             } catch (Exception e) {

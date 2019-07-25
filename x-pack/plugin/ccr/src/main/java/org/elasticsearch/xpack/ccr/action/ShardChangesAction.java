@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -52,18 +52,13 @@ import java.util.concurrent.TimeoutException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class ShardChangesAction extends Action<ShardChangesAction.Response> {
+public class ShardChangesAction extends ActionType<ShardChangesAction.Response> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
 
     private ShardChangesAction() {
         super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -75,8 +70,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
         private long fromSeqNo;
         private int maxOperationCount;
-        private ShardId shardId;
-        private String expectedHistoryUUID;
+        private final ShardId shardId;
+        private final String expectedHistoryUUID;
         private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_READ_POLL_TIMEOUT;
         private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE;
 
@@ -88,7 +83,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.expectedHistoryUUID = expectedHistoryUUID;
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            fromSeqNo = in.readVLong();
+            maxOperationCount = in.readVInt();
+            shardId = new ShardId(in);
+            expectedHistoryUUID = in.readString();
+            pollTimeout = in.readTimeValue();
+            maxBatchSize = new ByteSizeValue(in);
+
+            // Starting the clock in order to know how much time is spent on fetching operations:
+            relativeStartNanos = System.nanoTime();
         }
 
         public ShardId getShard() {
@@ -146,20 +151,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                         addValidationError("maxBatchSize [" + maxBatchSize.getStringRep() + "] must be larger than 0", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            fromSeqNo = in.readVLong();
-            maxOperationCount = in.readVInt();
-            shardId = new ShardId(in);
-            expectedHistoryUUID = in.readString();
-            pollTimeout = in.readTimeValue();
-            maxBatchSize = new ByteSizeValue(in);
-
-            // Starting the clock in order to know how much time is spent on fetching operations:
-            relativeStartNanos = System.nanoTime();
         }
 
         @Override

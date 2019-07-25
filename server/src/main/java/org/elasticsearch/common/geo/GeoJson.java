@@ -44,6 +44,7 @@ import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geo.utils.GeometryValidator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,18 +67,20 @@ public final class GeoJson {
 
     private final boolean rightOrientation;
     private final boolean coerce;
-    private final boolean ignoreZValue;
+    private final GeometryValidator validator;
 
-    public GeoJson(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
+    public GeoJson(boolean rightOrientation, boolean coerce, GeometryValidator validator) {
         this.rightOrientation = rightOrientation;
         this.coerce = coerce;
-        this.ignoreZValue = ignoreZValue;
+        this.validator = validator;
     }
 
     public Geometry fromXContent(XContentParser parser)
         throws IOException {
         try (XContentSubParser subParser = new XContentSubParser(parser)) {
-            return PARSER.apply(subParser, this);
+            Geometry geometry = PARSER.apply(subParser, this);
+            validator.validate(geometry);
+            return geometry;
         }
     }
 
@@ -215,7 +218,7 @@ public final class GeoJson {
 
     static {
         PARSER.declareString(constructorArg(), FIELD_TYPE);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p, c.ignoreZValue), FIELD_COORDINATES,
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p), FIELD_COORDINATES,
             ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(optionalConstructorArg(), PARSER, FIELD_GEOMETRIES);
         PARSER.declareString(optionalConstructorArg(), FIELD_ORIENTATION);
@@ -298,20 +301,20 @@ public final class GeoJson {
      * Recursive method which parses the arrays of coordinates used to define
      * Shapes
      */
-    private static CoordinateNode parseCoordinates(XContentParser parser, boolean ignoreZValue) throws IOException {
+    private static CoordinateNode parseCoordinates(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         // Base cases
         if (token != XContentParser.Token.START_ARRAY &&
             token != XContentParser.Token.END_ARRAY &&
             token != XContentParser.Token.VALUE_NULL) {
-            return new CoordinateNode(parseCoordinate(parser, ignoreZValue));
+            return new CoordinateNode(parseCoordinate(parser));
         } else if (token == XContentParser.Token.VALUE_NULL) {
             throw new IllegalArgumentException("coordinates cannot contain NULL values)");
         }
 
         List<CoordinateNode> nodes = new ArrayList<>();
         while (token != XContentParser.Token.END_ARRAY) {
-            CoordinateNode node = parseCoordinates(parser, ignoreZValue);
+            CoordinateNode node = parseCoordinates(parser);
             if (nodes.isEmpty() == false && nodes.get(0).numDimensions() != node.numDimensions()) {
                 throw new ElasticsearchParseException("Exception parsing coordinates: number of dimensions do not match");
             }
@@ -325,7 +328,7 @@ public final class GeoJson {
     /**
      * Parser a singe set of 2 or 3 coordinates
      */
-    private static Point parseCoordinate(XContentParser parser, boolean ignoreZValue) throws IOException {
+    private static Point parseCoordinate(XContentParser parser) throws IOException {
         // Add support for coerce here
         if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
             throw new ElasticsearchParseException("geo coordinates must be numbers");
@@ -339,7 +342,7 @@ public final class GeoJson {
         // alt (for storing purposes only - future use includes 3d shapes)
         double alt = Double.NaN;
         if (token == XContentParser.Token.VALUE_NUMBER) {
-            alt = GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+            alt = parser.doubleValue();
             parser.nextToken();
         }
         // do not support > 3 dimensions

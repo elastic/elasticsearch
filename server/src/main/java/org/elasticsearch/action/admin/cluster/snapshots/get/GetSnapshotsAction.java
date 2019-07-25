@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Get snapshots action
  */
-public class GetSnapshotsAction extends Action<GetSnapshotsResponse> {
+public class GetSnapshotsAction extends ActionType<GetSnapshotsResponse> {
 
     public static final GetSnapshotsAction INSTANCE = new GetSnapshotsAction();
     public static final String NAME = "cluster:admin/snapshot/get";
@@ -34,8 +35,8 @@ public class GetSnapshotsAction extends Action<GetSnapshotsResponse> {
     }
 
     @Override
-    public GetSnapshotsResponse newResponse() {
-        return new GetSnapshotsResponse();
+    public Writeable.Reader<GetSnapshotsResponse> getResponseReader() {
+        return GetSnapshotsResponse::new;
     }
 }
 

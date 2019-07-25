@@ -39,7 +39,7 @@ node, while 6.7 can only communicate with 7.0. Version compatibility  is
 symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
 communicate with 6.7. The matrix below summarizes compatibility as described above.
 
-[cols="^,^,^,^,^,^"]
+[cols="^,^,^,^,^,^,^,^"]
 |====
 | Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
 | 5.0->5.5      |    Yes   | Yes |    No    | No  | No  | No  |    No

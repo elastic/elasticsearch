@@ -153,6 +153,12 @@ public class RestRequest implements ToXContent.Params {
         GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH, TRACE, CONNECT
     }
 
+    /**
+     * Returns the HTTP method used in the REST request.
+     *
+     * @return the {@link Method} used in the REST request
+     * @throws IllegalArgumentException if the HTTP method is invalid
+     */
     public Method method() {
         return httpRequest.method();
     }

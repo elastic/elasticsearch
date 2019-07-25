@@ -601,4 +601,25 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
+
+    /**
+     * Range queries should generally be cacheable, at least the ones we create randomly.
+     * This test makes sure we also test the non-cacheable cases regularly.
+     */
+    @Override
+    public void testCacheability() throws IOException {
+        RangeQueryBuilder queryBuilder = createTestQueryBuilder();
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+
+        // queries on date fields using "now" should not be cached
+        queryBuilder = new RangeQueryBuilder(randomFrom(DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
+        queryBuilder.to("now");
+        context = createShardContext();
+        rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
 }

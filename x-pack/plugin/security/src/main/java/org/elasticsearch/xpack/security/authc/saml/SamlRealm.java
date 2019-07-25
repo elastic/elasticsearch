@@ -439,20 +439,22 @@ public final class SamlRealm extends Realm implements Releasable {
             return;
         }
 
-        final Map<String, Object> userMeta = new HashMap<>();
+        final Map<String, Object> userMetaBuilder = new HashMap<>();
         if (populateUserMetadata) {
             for (SamlAttributes.SamlAttribute a : attributes.attributes()) {
-                userMeta.put("saml(" + a.name + ")", a.values);
+                userMetaBuilder.put("saml(" + a.name + ")", a.values);
                 if (Strings.hasText(a.friendlyName)) {
-                    userMeta.put("saml_" + a.friendlyName, a.values);
+                    userMetaBuilder.put("saml_" + a.friendlyName, a.values);
                 }
             }
         }
         if (attributes.name() != null) {
-            userMeta.put(USER_METADATA_NAMEID_VALUE, attributes.name().value);
-            userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            userMetaBuilder.put(USER_METADATA_NAMEID_VALUE, attributes.name().value);
+            if (attributes.name().format != null) {
+                userMetaBuilder.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
+            }
         }
-
+        final Map<String, Object> userMeta = Map.copyOf(userMetaBuilder);
 
         final List<String> groups = groupsAttribute.getAttribute(attributes);
         final String dn = resolveSingleValueAttribute(attributes, dnAttribute, DN_ATTRIBUTE.name(config));
@@ -764,7 +766,7 @@ public final class SamlRealm extends Realm implements Releasable {
                                     return null;
                                 }
                                 return value;
-                            }).filter(Objects::nonNull).collect(Collectors.toList())
+                            }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList())
                     );
                 } else {
                     return new AttributeParser(
@@ -780,7 +782,7 @@ public final class SamlRealm extends Realm implements Releasable {
                         + "] is also set");
             } else {
                 return new AttributeParser("No SAML attribute for [" + setting.name(realmConfig) + "]",
-                        attributes -> Collections.emptyList());
+                        attributes -> List.of());
             }
         }
 

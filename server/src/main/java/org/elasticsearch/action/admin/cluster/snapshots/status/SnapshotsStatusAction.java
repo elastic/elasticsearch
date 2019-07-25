@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
  * Snapshots status action
  */
-public class SnapshotsStatusAction extends Action<SnapshotsStatusResponse> {
+public class SnapshotsStatusAction extends StreamableResponseActionType<SnapshotsStatusResponse> {
 
     public static final SnapshotsStatusAction INSTANCE = new SnapshotsStatusAction();
     public static final String NAME = "cluster:admin/snapshot/status";

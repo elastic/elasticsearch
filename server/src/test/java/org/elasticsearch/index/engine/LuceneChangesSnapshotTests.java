@@ -161,7 +161,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         int totalOps = 0;
         for (Engine.Operation op : operations) {
             // Engine skips deletes or indexes below the local checkpoint
-            if (engine.getLocalCheckpoint() < op.seqNo() || op instanceof Engine.NoOp) {
+            if (engine.getProcessedLocalCheckpoint() < op.seqNo() || op instanceof Engine.NoOp) {
                 seqNoToTerm.put(op.seqNo(), op.primaryTerm());
                 if (op instanceof Engine.Index) {
                     totalOps += ((Engine.Index) op).docs().size();
@@ -228,7 +228,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         readyLatch.countDown();
         readyLatch.await();
         concurrentlyApplyOps(operations, engine);
-        assertThat(engine.getLocalCheckpointTracker().getCheckpoint(), equalTo(operations.size() - 1L));
+        assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), equalTo(operations.size() - 1L));
         isDone.set(true);
         for (Follower follower : followers) {
             follower.join();
@@ -237,13 +237,13 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     class Follower extends Thread {
-        private final Engine leader;
+        private final InternalEngine leader;
         private final InternalEngine engine;
         private final TranslogHandler translogHandler;
         private final AtomicBoolean isDone;
         private final CountDownLatch readLatch;
 
-        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch) throws IOException {
+        Follower(InternalEngine leader, AtomicBoolean isDone, CountDownLatch readLatch) throws IOException {
             this.leader = leader;
             this.isDone = isDone;
             this.readLatch = readLatch;
@@ -252,9 +252,9 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             this.engine = createEngine(createStore(), createTempDir());
         }
 
-        void pullOperations(Engine follower) throws IOException {
-            long leaderCheckpoint = leader.getLocalCheckpoint();
-            long followerCheckpoint = follower.getLocalCheckpoint();
+        void pullOperations(InternalEngine follower) throws IOException {
+            long leaderCheckpoint = leader.getLocalCheckpointTracker().getProcessedCheckpoint();
+            long followerCheckpoint = follower.getLocalCheckpointTracker().getProcessedCheckpoint();
             if (followerCheckpoint < leaderCheckpoint) {
                 long fromSeqNo = followerCheckpoint + 1;
                 long batchSize = randomLongBetween(0, 100);
@@ -271,7 +271,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 readLatch.countDown();
                 readLatch.await();
                 while (isDone.get() == false ||
-                    engine.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpoint()) {
+                    engine.getLocalCheckpointTracker().getProcessedCheckpoint() <
+                        leader.getLocalCheckpointTracker().getProcessedCheckpoint()) {
                     pullOperations(engine);
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);

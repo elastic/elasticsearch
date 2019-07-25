@@ -120,9 +120,9 @@ configuring allocation rules is optional. When configuring allocation rules,
 setting number of replicas is optional. Although this action can be treated as
 two separate index settings updates, both can be configured at once.
 
-Read more about index replicas <<getting-started-shards-and-replicas,here>>.
-Read more about shard allocation filtering in
-the <<shard-allocation-filtering,Shard allocation filtering documentation>>.
+For more information about how {es} uses replicas for scaling, see
+<<scalability>>. See <<shard-allocation-filtering>> for more information about
+controlling where Elasticsearch allocates shards of a particular index.
 
 [[ilm-allocate-options]]
 .Allocate Options

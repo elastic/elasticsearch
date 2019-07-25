@@ -32,7 +32,7 @@ public class GetDataFrameTransformsStatsActionResponseTests extends AbstractWire
             taskFailures.add(new TaskOperationFailure("node1", randomLongBetween(1, 10), new Exception("error")));
             nodeFailures.add(new FailedNodeException("node1", "message", new Exception("error")));
         }
-        return new Response(stats, taskFailures, nodeFailures);
+        return new Response(stats, randomLongBetween(stats.size(), 10_000_000L), taskFailures, nodeFailures);
     }
 
     @Override

@@ -131,13 +131,13 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
         }
 
-        // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
+        // Submit a job that will reschedule itself after running
         threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
 
         try {
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(() -> maybeRefresh());
+                threadPool.executor(executorName()).execute(this::maybeRefresh);
             }
         } catch (EsRejectedExecutionException ex) {
             logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
@@ -173,7 +173,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
-            threadPool.executor(executorName()).execute(() -> maybeRefresh());
+            threadPool.executor(executorName()).execute(this::maybeRefresh);
         }
 
         if (this.isMaster && event.nodesRemoved()) {
@@ -316,7 +316,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                 ShardStats[] stats = indicesStatsResponse.getShards();
                 ImmutableOpenMap.Builder<String, Long> newShardSizes = ImmutableOpenMap.builder();
                 ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath = ImmutableOpenMap.builder();
-                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath, clusterService.state());
+                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
                 shardSizes = newShardSizes.build();
                 shardRoutingToDataPath = newShardRoutingToDataPath.build();
             }
@@ -365,7 +365,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
     }
 
     static void buildShardLevelInfo(Logger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
-                                    ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath, ClusterState state) {
+                                    ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath) {
         for (ShardStats s : stats) {
             newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
             long size = s.getStats().getStore().sizeInBytes();

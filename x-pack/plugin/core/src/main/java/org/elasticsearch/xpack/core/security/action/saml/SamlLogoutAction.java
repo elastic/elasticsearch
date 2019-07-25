@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
 /**
- * Action for initiating a logout process for a SAML-SSO user
+ * ActionType for initiating a logout process for a SAML-SSO user
  */
-public final class SamlLogoutAction extends Action<SamlLogoutResponse> {
+public final class SamlLogoutAction extends StreamableResponseActionType<SamlLogoutResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/saml/logout";
     public static final SamlLogoutAction INSTANCE = new SamlLogoutAction();

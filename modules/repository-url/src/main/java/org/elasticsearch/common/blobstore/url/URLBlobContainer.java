@@ -96,6 +96,11 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 
+    @Override
+    public void delete() {
+        throw new UnsupportedOperationException("URL repository is read only");
+    }
+
     /**
      * This operation is not supported by URLBlobContainer
      */

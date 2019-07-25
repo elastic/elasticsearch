@@ -13,7 +13,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
@@ -47,7 +46,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * This test makes sure per-action conditions are honored.
  */
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestCase {
 
     private final Input input = simpleInput("key", 15).build();

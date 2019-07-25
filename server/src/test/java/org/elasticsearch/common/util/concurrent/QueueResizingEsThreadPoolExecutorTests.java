@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -154,7 +154,6 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         context.close();
     }
 
-    @TestLogging("org.elasticsearch.common.util.concurrent:DEBUG")
     public void testAutoQueueSizingWithMax() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         ResizableBlockingQueue<Runnable> queue =

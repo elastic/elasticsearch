@@ -49,6 +49,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     Set<Long> releasedSearchContexts = new HashSet<>();
     SearchRequest searchRequest = new SearchRequest();
     AtomicInteger phasesExecuted = new AtomicInteger();
+    AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
         this.numShards = numShards;
@@ -82,9 +83,9 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
-        return new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
-            failures.toArray(new ShardSearchFailure[failures.size()]), SearchResponse.Clusters.EMPTY);
+    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
+        searchResponse.set(new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
+            failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY));
     }
 
     @Override
@@ -128,11 +129,6 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public void execute(Runnable command) {
         command.run();
-    }
-
-    @Override
-    public void onResponse(SearchResponse response) {
-        Assert.fail("should not be called");
     }
 
     @Override

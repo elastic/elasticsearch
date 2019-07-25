@@ -1,6 +1,6 @@
 Project idpFixtureProject = xpackProject("test:idp-fixture")
-evaluationDependsOn(idpFixtureProject.path)
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -21,10 +21,12 @@ project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
 
 task setupPorts {
     dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
+    // Don't attempt to get ephemeral ports when Docker is not available
+    onlyIf { idpFixtureProject.postProcessFixture.enabled }
     doLast {
         String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
         int ephemeralPort = Integer.valueOf(portString)
-        File idpMetaFile = file(outputDir + '/idp-metadata.xml')
+        File idpMetaFile = file("$outputDir/idp-metadata.xml")
         List<String> lines = idpMetaFile.readLines("UTF-8")
         StringBuilder content = new StringBuilder()
         for (String line : lines) {
@@ -35,56 +37,44 @@ task setupPorts {
         idpMetaFile.write(content.toString(), "UTF-8")
     }
 }
-// Don't attempt to get ephemeral ports when Docker is not available
-setupPorts.onlyIf { idpFixtureProject.postProcessFixture.enabled }
 
-integTestCluster.dependsOn setupPorts
 
-integTestCluster {
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.http.ssl.enabled', 'false'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.realms.file.file.order', '0'
-  // SAML realm 1 (no authorization_realms)
-  setting 'xpack.security.authc.realms.saml.shibboleth.order', '1'
-  setting 'xpack.security.authc.realms.saml.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.saml.shibboleth.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.saml.shibboleth.sp.entity_id', 'http://mock1.http.elastic.local/'
-  // The port in the ACS URL is fake - the test will bind the mock webserver
-  // to a random port and then whenever it needs to connect to a URL on the
-  // mock webserver it will replace 54321 with the real port
-  setting 'xpack.security.authc.realms.saml.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
-  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
-  // SAML realm 2 (uses authorization_realms)
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
-  setting 'xpack.security.authc.realms.native.native.order', '3'
+integTest.runner.dependsOn setupPorts
 
-  setting 'xpack.ml.enabled', 'false'
-  setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
+testClusters.integTest {
+    distribution = "DEFAULT"
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.http.ssl.enabled', 'false'
+    setting 'xpack.security.authc.token.enabled', 'true'
+    setting 'xpack.security.authc.realms.file.file.order', '0'
+    // SAML realm 1 (no authorization_realms)
+    setting 'xpack.security.authc.realms.saml.shibboleth.order', '1'
+    setting 'xpack.security.authc.realms.saml.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+    setting 'xpack.security.authc.realms.saml.shibboleth.idp.metadata.path', 'idp-metadata.xml'
+    setting 'xpack.security.authc.realms.saml.shibboleth.sp.entity_id', 'http://mock1.http.elastic.local/'
+    // The port in the ACS URL is fake - the test will bind the mock webserver
+    // to a random port and then whenever it needs to connect to a URL on the
+    // mock webserver it will replace 54321 with the real port
+    setting 'xpack.security.authc.realms.saml.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
+    setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
+    setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
+    // SAML realm 2 (uses authorization_realms)
+    setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
+    setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+    setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'
+    setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
+    setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
+    setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
+    setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
+    setting 'xpack.security.authc.realms.native.native.order', '3'
 
-  extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")
+    setting 'xpack.ml.enabled', 'false'
+    setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
 
-  setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+    extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")
 
-  waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-                dest: tmpFile.toString(),
-                username: 'test_admin',
-                password: 'x-pack-test-password',
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
+    user username: "test_admin", password: 'x-pack-test-password'
 }
 
 forbiddenPatterns {

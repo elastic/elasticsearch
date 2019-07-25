@@ -42,10 +42,15 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
                 ObjectParser.ValueType.BOOLEAN);
     }
 
-    private boolean shardsAcknowledged;
+    private final boolean shardsAcknowledged;
 
-
-    protected ShardsAcknowledgedResponse() {
+    protected ShardsAcknowledgedResponse(StreamInput in, boolean readShardsAcknowledged) throws IOException {
+        super(in);
+        if (readShardsAcknowledged) {
+            this.shardsAcknowledged = in.readBoolean();
+        } else {
+            this.shardsAcknowledged = false;
+        }
     }
 
     protected ShardsAcknowledgedResponse(boolean acknowledged, boolean shardsAcknowledged) {
@@ -63,10 +68,6 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
         return shardsAcknowledged;
     }
 
-    protected void readShardsAcknowledged(StreamInput in) throws IOException {
-        shardsAcknowledged = in.readBoolean();
-    }
-
     protected void writeShardsAcknowledged(StreamOutput out) throws IOException {
         out.writeBoolean(shardsAcknowledged);
     }
@@ -80,14 +81,14 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
     public boolean equals(Object o) {
         if (super.equals(o)) {
             ShardsAcknowledgedResponse that = (ShardsAcknowledgedResponse) o;
-            return shardsAcknowledged == that.shardsAcknowledged;
+            return isShardsAcknowledged() == that.isShardsAcknowledged();
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), shardsAcknowledged);
+        return Objects.hash(super.hashCode(), isShardsAcknowledged());
     }
 
 }

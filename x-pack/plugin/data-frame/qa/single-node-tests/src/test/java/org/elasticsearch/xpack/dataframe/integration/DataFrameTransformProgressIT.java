@@ -119,7 +119,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
     public void testGetProgress() throws Exception {
         createReviewsIndex();
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
-        DestConfig destConfig = new DestConfig("unnecessary");
+        DestConfig destConfig = new DestConfig("unnecessary", null);
         GroupConfig histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
             Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0)));
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
@@ -130,11 +130,14 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        SearchResponse response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        SearchResponse response = restClient.search(
+            TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT);
 
         DataFrameTransformProgress progress =
             TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
@@ -151,10 +154,12 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
-        response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT);
         progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
@@ -168,10 +173,12 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
-        response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
+        response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
+            RequestOptions.DEFAULT);
         progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(0L));

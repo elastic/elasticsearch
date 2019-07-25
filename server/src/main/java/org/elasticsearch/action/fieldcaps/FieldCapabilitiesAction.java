@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.StreamableResponseActionType;
 
-public class FieldCapabilitiesAction extends Action<FieldCapabilitiesResponse> {
+public class FieldCapabilitiesAction extends StreamableResponseActionType<FieldCapabilitiesResponse> {
 
     public static final FieldCapabilitiesAction INSTANCE = new FieldCapabilitiesAction();
     public static final String NAME = "indices:data/read/field_caps";

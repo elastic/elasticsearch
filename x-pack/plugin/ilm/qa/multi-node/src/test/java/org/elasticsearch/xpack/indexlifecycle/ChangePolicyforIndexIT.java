@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.WaitForRolloverReadyStep;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -44,10 +45,10 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
      * to rollover and a warm phase with an impossible allocation action. The
      * second policy has a rollover action requiring 1000 document and a warm
      * phase that moves the index to known nodes that will succeed. An index is
-     * created with the fiorst policy set and the test ensures the policy is in
+     * created with the first policy set and the test ensures the policy is in
      * the rollover step. It then changes the policy for the index to the second
      * policy. It indexes a single document and checks that the index moves past
-     * the hot phase and through the warm phasee (proving the hot phase
+     * the hot phase and through the warm phase (proving the hot phase
      * definition from the first policy was used) and then checks the allocation
      * settings from the second policy are set ont he index (proving the second
      * policy was used for the warm phase)
@@ -112,7 +113,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
 
         // Check the index goes to the warm phase and completes
-        assertBusy(() -> assertStep(indexName, TerminalPolicyStep.KEY));
+        assertBusy(() -> assertStep(indexName, TerminalPolicyStep.KEY), 30, TimeUnit.SECONDS);
 
         // Check index is allocated on integTest-1 and integTest-2 as per policy_2
         Request getSettingsRequest = new Request("GET", "/" + indexName + "/_settings");

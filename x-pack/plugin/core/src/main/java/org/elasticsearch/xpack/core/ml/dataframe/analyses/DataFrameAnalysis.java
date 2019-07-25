@@ -9,8 +9,13 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.Map;
+import java.util.Set;
 
 public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
     Map<String, Object> getParams();
+
+    boolean supportsCategoricalFields();
+
+    Set<String> getRequiredFields();
 }

@@ -1559,7 +1559,6 @@ public class IndexShardTests extends IndexShardTestCase {
         // refresh on: finalize and end of recovery
         // finalizing a replica involves two refreshes with soft deletes because of estimateNumberOfHistoryOperations()
         final long initialRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 2L : 3L;
-        logger.info("--> checking refresh stats for [{}], expecting [{}]", shard.routingEntry(), initialRefreshes);
         assertThat(shard.refreshStats().getTotal(), equalTo(initialRefreshes));
         long initialTotalTime = shard.refreshStats().getTotalTimeInMillis();
         // check time advances

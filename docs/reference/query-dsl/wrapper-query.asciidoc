@@ -4,10 +4,22 @@
 <titleabbrev>Wrapper</titleabbrev>
 ++++
 
-A query that accepts any other query as base64 encoded string.
+Accepts any other query as a string in the following formats:
+
+* Base64-encoded 
+* JSON
+* YAML
+
+The `wrapper` query is particularly useful with the {java-rest}/index.html[{es}
+Java high level REST client], where you may need to pass other queries as
+JSON-formatted strings.
+
+
+[[wrapper-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query" : {
@@ -16,12 +28,15 @@ GET /_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-<1> Base64 encoded string:  `{"term" : { "user" : "Kimchy" }}`
+<1> Base64-encoded string: `{"term" : { "user" : "Kimchy" }}`
 
-This query is more useful in the context of the Java high-level REST client or
-transport client to also accept queries as json formatted string.
-In these cases queries can be specified as a json or yaml formatted string or
-as a query builder (which is a available in the Java high-level REST client).
+
+[[wrapper-top-level-params]]
+==== Top-level parameters for `wrapper`
+
+`query`::
+(Required, string) Contains a query as a base64-encoded, JSON-formatted,
+or YAML-formatted string.

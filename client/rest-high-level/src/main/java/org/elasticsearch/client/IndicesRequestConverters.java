@@ -337,6 +337,13 @@ final class IndicesRequestConverters {
         return resize(resizeRequest);
     }
 
+    static Request clone(ResizeRequest resizeRequest) throws IOException {
+        if (resizeRequest.getResizeType() != ResizeType.CLONE) {
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices clone request");
+        }
+        return resize(resizeRequest);
+    }
+
     private static Request resize(ResizeRequest resizeRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart(resizeRequest.getSourceIndex())
                 .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))

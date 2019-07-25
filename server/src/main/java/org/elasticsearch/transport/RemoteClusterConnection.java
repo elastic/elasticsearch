@@ -92,7 +92,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
     private final TimeValue initialConnectionTimeout;
-    private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
+    private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -208,9 +208,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
                     @Override
                     public ClusterStateResponse read(StreamInput in) throws IOException {
-                        ClusterStateResponse response = new ClusterStateResponse();
-                        response.readFrom(in);
-                        return response;
+                        return new ClusterStateResponse(in);
                     }
 
                     @Override
@@ -321,8 +319,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     @Override
     public void close() throws IOException {
         IOUtils.close(connectHandler);
-        // In the ConnectionManager we wait on connections being closed.
-        threadPool.generic().execute(connectionManager::close);
+        connectionManager.closeNoBlock();
     }
 
     public boolean isClosed() {
@@ -567,9 +564,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
             @Override
             public ClusterStateResponse read(StreamInput in) throws IOException {
-                ClusterStateResponse response = new ClusterStateResponse();
-                response.readFrom(in);
-                return response;
+                return new ClusterStateResponse(in);
             }
 
             @Override

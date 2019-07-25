@@ -183,7 +183,7 @@ public class TypeParsersTests extends ESTestCase {
             BytesReference.bytes(mapping), true, mapping.contentType()).v2();
 
         Mapper.TypeParser typeParser = new KeywordFieldMapper.TypeParser();
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext("type",
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(
             null, null, type -> typeParser, Version.CURRENT, null);
 
         TypeParsers.parseField(builder, "some-field", fieldNode, parserContext);

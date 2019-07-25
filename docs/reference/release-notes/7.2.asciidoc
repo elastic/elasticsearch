@@ -7,6 +7,12 @@ Also see <<breaking-changes-7.2,Breaking changes in 7.2>>.
 [float]
 === Enhancements
 
+Infra/Core::
+* Add default CLI JVM options {pull}44545[#44545] (issue: {issue}42021[#42021])
+
+Infra/Plugins::
+* Do not checksum all bytes at once in plugin install {pull}44649[#44649] (issue: {issue}44545[#44545])
+
 Machine Learning::
 * Improve message when native controller cannot connect {pull}43565[#43565] (issue: {issue}42341[#42341])
 * Introduce a setting for the process connect timeout {pull}43234[#43234]
@@ -39,9 +45,12 @@ Features/ILM::
 * Account for node versions during allocation in ILM Shrink {pull}43300[#43300] (issue: {issue}41879[#41879])
 
 Features/Indices APIs::
+* Check shard limit after applying index templates {pull}44619[#44619] (issues: {issue}34021[#34021], {issue}44567[#44567], {issue}44619[#44619])
+* Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
 * Prevent NullPointerException in TransportRolloverAction {pull}43353[#43353] (issue: {issue}43296[#43296])
 
 Infra/Packaging::
+* Restore setting up temp dir for windows service {pull}44541[#44541]
 * Fix the bundled jdk flag to be passed through windows startup {pull}43502[#43502]
 
 Machine Learning::

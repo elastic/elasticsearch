@@ -233,7 +233,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         masterService.setClusterStateSupplier(this::clusterState);
 
         transportService.registerRequestHandler(
-            DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+            DISCOVERY_REJOIN_ACTION_NAME, ThreadPool.Names.SAME, RejoinClusterRequest::new, new RejoinClusterRequestHandler());
 
         if (clusterApplier instanceof ClusterApplierService) {
             ((ClusterApplierService) clusterApplier).addLowPriorityApplier(gatewayMetaState);
@@ -1097,13 +1097,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             this.fromNodeId = fromNodeId;
         }
 
-        public RejoinClusterRequest() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public RejoinClusterRequest(StreamInput in) throws IOException {
+            super(in);
             fromNodeId = in.readOptionalString();
+
         }
 
         @Override

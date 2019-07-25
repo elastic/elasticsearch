@@ -25,6 +25,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
@@ -2789,6 +2790,18 @@ public class TranslogTests extends ESTestCase {
         }
         Checkpoint read = Checkpoint.read(tempDir.resolve("foo.cpk"));
         assertEquals(read, checkpoint);
+    }
+
+    public void testLegacyCheckpointVersion() throws IOException {
+        expectThrows(
+            TranslogCorruptedException.class,
+            IndexFormatTooOldException.class,
+            () -> Checkpoint.read(getDataPath("/org/elasticsearch/index/checkpoint/v1.ckp.binary"))
+        );
+        assertThat(Checkpoint.read(getDataPath("/org/elasticsearch/index/checkpoint/v2.ckp.binary")),
+            equalTo(new Checkpoint(-1312746831014894010L, 44230819, 4168771208509507653L, 6217263213205155568L,
+                8590850694628654668L, 3768575734506660560L, 1476009383806516272L,
+                SequenceNumbers.UNASSIGNED_SEQ_NO)));
     }
 
     /**

@@ -34,7 +34,15 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
     private ShardId shardId;
     private long globalCheckpoint;
 
-    public RecoveryFinalizeRecoveryRequest() {
+    public RecoveryFinalizeRecoveryRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = new ShardId(in);
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            globalCheckpoint = in.readZLong();
+        } else {
+            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
     }
 
     RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint) {
@@ -53,18 +61,6 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
 
     public long globalCheckpoint() {
         return globalCheckpoint;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-            shardId = new ShardId(in);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            globalCheckpoint = in.readZLong();
-        } else {
-            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
     }
 
     @Override

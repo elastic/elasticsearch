@@ -7,17 +7,20 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetTrialStatusAction extends StreamableTransportMasterNodeReadAction<GetTrialStatusRequest, GetTrialStatusResponse> {
+import java.io.IOException;
+
+public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction<GetTrialStatusRequest, GetTrialStatusResponse> {
 
     @Inject
     public TransportGetTrialStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
@@ -32,8 +35,8 @@ public class TransportGetTrialStatusAction extends StreamableTransportMasterNode
     }
 
     @Override
-    protected GetTrialStatusResponse newResponse() {
-        return new GetTrialStatusResponse();
+    protected GetTrialStatusResponse read(StreamInput in) throws IOException {
+        return new GetTrialStatusResponse(in);
     }
 
     @Override

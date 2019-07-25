@@ -1,12 +1,12 @@
 [[indices]]
-= Indices APIs
+== Index APIs
 
 Index APIs are used to manage individual indices,
 index settings, aliases, mappings, and index templates.
 
 [float]
 [[index-management]]
-== Index management:
+=== Index management:
 
 * <<indices-create-index>>
 * <<indices-delete-index>>
@@ -22,7 +22,7 @@ index settings, aliases, mappings, and index templates.
 
 [float]
 [[mapping-management]]
-== Mapping management:
+=== Mapping management:
 
 * <<indices-put-mapping>>
 * <<indices-get-mapping>>
@@ -31,12 +31,12 @@ index settings, aliases, mappings, and index templates.
 
 [float]
 [[alias-management]]
-== Alias management:
+=== Alias management:
 * <<indices-aliases>>
 
 [float]
 [[index-settings]]
-== Index settings:
+=== Index settings:
 * <<indices-update-settings>>
 * <<indices-get-settings>>
 * <<indices-analyze>>
@@ -44,7 +44,7 @@ index settings, aliases, mappings, and index templates.
 
 [float]
 [[monitoring]]
-== Monitoring:
+=== Monitoring:
 * <<indices-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>
@@ -52,7 +52,7 @@ index settings, aliases, mappings, and index templates.
 
 [float]
 [[status-management]]
-== Status management:
+=== Status management:
 * <<indices-clearcache>>
 * <<indices-refresh>>
 * <<indices-flush>>
@@ -74,12 +74,10 @@ include::indices/split-index.asciidoc[]
 
 include::indices/rollover-index.asciidoc[]
 
-:leveloffset: -1
 include::indices/apis/freeze.asciidoc[]
 
 include::indices/apis/unfreeze.asciidoc[]
 
-:leveloffset: +1
 include::indices/put-mapping.asciidoc[]
 
 include::indices/get-mapping.asciidoc[]

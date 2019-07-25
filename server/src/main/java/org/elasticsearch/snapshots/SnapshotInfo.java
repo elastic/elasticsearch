@@ -303,7 +303,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (size > 0) {
             List<SnapshotShardFailure> failureBuilder = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                failureBuilder.add(SnapshotShardFailure.readSnapshotShardFailure(in));
+                failureBuilder.add(new SnapshotShardFailure(in));
             }
             shardFailures = Collections.unmodifiableList(failureBuilder);
         } else {

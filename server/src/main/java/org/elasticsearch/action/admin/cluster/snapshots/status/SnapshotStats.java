@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 
-public class SnapshotStats implements Streamable, ToXContentObject {
+public class SnapshotStats implements Writeable, ToXContentObject {
 
     private long startTime;
     private long time;
@@ -44,7 +44,25 @@ public class SnapshotStats implements Streamable, ToXContentObject {
     private long totalSize;
     private long processedSize;
 
-    SnapshotStats() {
+    SnapshotStats() {}
+
+    SnapshotStats(StreamInput in) throws IOException {
+        startTime = in.readVLong();
+        time = in.readVLong();
+
+        incrementalFileCount = in.readVInt();
+        processedFileCount = in.readVInt();
+
+        incrementalSize = in.readVLong();
+        processedSize = in.readVLong();
+
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            totalFileCount = in.readVInt();
+            totalSize = in.readVLong();
+        } else {
+            totalFileCount = incrementalFileCount;
+            totalSize = incrementalSize;
+        }
     }
 
     SnapshotStats(long startTime, long time,
@@ -116,13 +134,6 @@ public class SnapshotStats implements Streamable, ToXContentObject {
         return processedSize;
     }
 
-
-    public static SnapshotStats readSnapshotStats(StreamInput in) throws IOException {
-        SnapshotStats stats = new SnapshotStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(startTime);
@@ -137,26 +148,6 @@ public class SnapshotStats implements Streamable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeVInt(totalFileCount);
             out.writeVLong(totalSize);
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        startTime = in.readVLong();
-        time = in.readVLong();
-
-        incrementalFileCount = in.readVInt();
-        processedFileCount = in.readVInt();
-
-        incrementalSize = in.readVLong();
-        processedSize = in.readVLong();
-
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            totalFileCount = in.readVInt();
-            totalSize = in.readVLong();
-        } else {
-            totalFileCount = incrementalFileCount;
-            totalSize = incrementalSize;
         }
     }
 

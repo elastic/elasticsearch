@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
 import org.elasticsearch.geo.utils.StandardValidator;
@@ -31,7 +32,7 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
     @Override
     protected Rectangle createTestInstance(boolean hasAlt) {
         assumeFalse("3rd dimension is not supported yet", hasAlt);
-        return randomRectangle();
+        return GeometryTestUtils.randomRectangle();
     }
 
     public void testBasicSerialization() throws IOException, ParseException {

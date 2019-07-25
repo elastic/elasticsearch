@@ -470,7 +470,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         } else {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
             assertExpected(gcb.buildS4J(), gcb, true);
-            assertExpected(gcb.buildGeometry(), gcb, false);
+            assertExpected(new GeometryIndexer(true).prepareForIndexing(gcb.buildGeometry()), gcb, false);
         }
     }
 

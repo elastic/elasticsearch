@@ -87,11 +87,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             jobBuilder.writeTo(out);
@@ -148,11 +143,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
 
         public Job getResponse() {
             return job;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

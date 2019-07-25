@@ -80,8 +80,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    MetaDataIndexAliasesService indexAliasesService, Client client) {
-        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            RolloverRequest::new);
+        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,
+            indexNameExpressionResolver);
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.client = client;
@@ -289,7 +289,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
         createIndexRequest.cause("rollover_index");
         createIndexRequest.index(targetIndexName);
-        return new CreateIndexClusterStateUpdateRequest(createIndexRequest,
+        return new CreateIndexClusterStateUpdateRequest(
             "rollover_index", targetIndexName, providedIndexName)
             .ackTimeout(createIndexRequest.timeout())
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())

@@ -1,5 +1,5 @@
 [[request-body-search-queries-and-filters]]
-=== Named Queries
+==== Named Queries
 
 Each filter and query can accept a `_name` in its top level definition.
 

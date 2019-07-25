@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -36,21 +36,24 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
     /**
      * Represents a failure.
      */
-    public static class Failure implements Streamable {
-        private String index;
-        private String type;
-        private String id;
-        private Exception cause;
-
-        Failure() {
-
-        }
+    public static class Failure implements Writeable {
+        private final String index;
+        private final String type;
+        private final String id;
+        private final Exception cause;
 
         public Failure(String index, String type, String id, Exception cause) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.cause = cause;
+        }
+
+        public Failure(StreamInput in) throws IOException {
+            index = in.readString();
+            type = in.readOptionalString();
+            id = in.readString();
+            cause = in.readException();
         }
 
         /**
@@ -84,20 +87,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
             return this.cause;
         }
 
-        public static Failure readFailure(StreamInput in) throws IOException {
-            Failure failure = new Failure();
-            failure.readFrom(in);
-            return failure;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            type = in.readOptionalString();
-            id = in.readString();
-            cause = in.readException();
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
@@ -107,13 +96,18 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         }
     }
 
-    private MultiTermVectorsItemResponse[] responses;
-
-    MultiTermVectorsResponse() {
-    }
+    private final MultiTermVectorsItemResponse[] responses;
 
     public MultiTermVectorsResponse(MultiTermVectorsItemResponse[] responses) {
         this.responses = responses;
+    }
+
+    public MultiTermVectorsResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = new MultiTermVectorsItemResponse[in.readVInt()];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = new MultiTermVectorsItemResponse(in);
+        }
     }
 
     public MultiTermVectorsItemResponse[] getResponses() {
@@ -153,15 +147,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
         static final String _INDEX = "_index";
         static final String _TYPE = "_type";
         static final String _ID = "_id";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new MultiTermVectorsItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = MultiTermVectorsItemResponse.readItemResponse(in);
-        }
     }
 
     @Override

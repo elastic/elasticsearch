@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
@@ -31,7 +32,7 @@ import java.util.Collections;
 public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollection<Geometry>> {
     @Override
     protected GeometryCollection<Geometry> createTestInstance(boolean hasAlt) {
-        return randomGeometryCollection(hasAlt);
+        return GeometryTestUtils.randomGeometryCollection(hasAlt);
     }
 
 

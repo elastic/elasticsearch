@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -103,5 +104,39 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
         assertHitCount(response, 1L);
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
         assertHitCount(response, 1L);
+    }
+
+    public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
+        String synonymsFileName = "synonyms.txt";
+        Path configDir = node().getEnvironment().configFile();
+        if (Files.exists(configDir) == false) {
+            Files.createDirectory(configDir);
+        }
+        Path synonymsFile = configDir.resolve(synonymsFileName);
+        if (Files.exists(synonymsFile) == false) {
+            Files.createFile(synonymsFile);
+        }
+        try (PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+            out.println("foo, baz");
+        }
+
+        final String indexName = "test";
+        final String analyzerName = "my_synonym_analyzer";
+        MapperException ex = expectThrows(MapperException.class, () -> client().admin().indices().prepareCreate(indexName)
+                .setSettings(Settings.builder()
+                .put("index.number_of_shards", 5)
+                .put("index.number_of_replicas", 0)
+                .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
+                .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "my_synonym_filter")
+                .put("analysis.filter.my_synonym_filter.type", "synonym")
+                .put("analysis.filter.my_synonym_filter.updateable", "true")
+                .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
+                .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
+
+        assertEquals(
+                "Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
+                + "contains filters [my_synonym_filter] that are not allowed to run in all mode.",
+                ex.getMessage());
     }
 }

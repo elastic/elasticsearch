@@ -21,17 +21,20 @@ package org.elasticsearch.action.admin.indices.alias.exists;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportAliasesExistAction extends StreamableTransportMasterNodeReadAction<GetAliasesRequest, AliasesExistResponse> {
+import java.io.IOException;
+
+public class TransportAliasesExistAction extends TransportMasterNodeReadAction<GetAliasesRequest, AliasesExistResponse> {
 
     @Inject
     public TransportAliasesExistAction(TransportService transportService, ClusterService clusterService,
@@ -48,14 +51,14 @@ public class TransportAliasesExistAction extends StreamableTransportMasterNodeRe
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+    protected AliasesExistResponse read(StreamInput in) throws IOException {
+        return new AliasesExistResponse(in);
     }
 
     @Override
-    protected AliasesExistResponse newResponse() {
-        return new AliasesExistResponse();
+    protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override

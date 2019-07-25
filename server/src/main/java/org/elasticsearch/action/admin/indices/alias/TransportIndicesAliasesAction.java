@@ -72,8 +72,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RequestValidators<IndicesAliasesRequest> requestValidators) {
-        super(IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            IndicesAliasesRequest::new);
+        super(IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, IndicesAliasesRequest::new,
+            indexNameExpressionResolver);
         this.indexAliasesService = indexAliasesService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
     }

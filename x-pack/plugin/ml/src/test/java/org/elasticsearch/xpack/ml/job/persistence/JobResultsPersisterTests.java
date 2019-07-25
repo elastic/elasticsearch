@@ -219,6 +219,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertThat(indexRequest.index(), equalTo(".ml-anomalies-.write-foo"));
         assertThat(indexRequest.id(), equalTo("foo_timing_stats"));
         Map<String, Object> expectedSourceAsMap = new HashMap<>();
+        expectedSourceAsMap.put("result_type", "timing_stats");
         expectedSourceAsMap.put("job_id", "foo");
         expectedSourceAsMap.put("bucket_count", 7);
         expectedSourceAsMap.put("minimum_bucket_processing_time_ms", 1.0);
@@ -231,6 +232,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPersistDatafeedTimingStats() {
         Client client = mockClient(ArgumentCaptor.forClass(BulkRequest.class));
         doAnswer(
@@ -254,6 +256,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertThat(indexRequest.id(), equalTo("foo_datafeed_timing_stats"));
         assertThat(indexRequest.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));
         Map<String, Object> expectedSourceAsMap = new HashMap<>();
+        expectedSourceAsMap.put("result_type", "datafeed_timing_stats");
         expectedSourceAsMap.put("job_id", "foo");
         expectedSourceAsMap.put("search_count", 6);
         expectedSourceAsMap.put("bucket_count", 66);

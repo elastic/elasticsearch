@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.repositories.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,11 +31,13 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -46,7 +48,7 @@ import java.util.Set;
  * Transport action for get repositories operation
  */
 public class TransportGetRepositoriesAction extends
-    StreamableTransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
+    TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     @Inject
     public TransportGetRepositoriesAction(TransportService transportService, ClusterService clusterService,
@@ -62,8 +64,8 @@ public class TransportGetRepositoriesAction extends
     }
 
     @Override
-    protected GetRepositoriesResponse newResponse() {
-        return new GetRepositoriesResponse();
+    protected GetRepositoriesResponse read(StreamInput in) throws IOException {
+        return new GetRepositoriesResponse(in);
     }
 
     @Override

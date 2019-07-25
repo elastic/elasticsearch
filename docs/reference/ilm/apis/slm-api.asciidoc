@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[snapshot-lifecycle-management-api]]
-== Snapshot Lifecycle Management API
+== Snapshot lifecycle management API
 
 The Snapshot Lifecycle Management APIs are used to manage policies for the time
 and frequency of automatic snapshots. Snapshot Lifecycle Management is related

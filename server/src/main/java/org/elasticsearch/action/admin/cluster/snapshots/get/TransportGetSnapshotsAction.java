@@ -22,13 +22,14 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
@@ -39,6 +40,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,7 +53,7 @@ import java.util.stream.Collectors;
 /**
  * Transport Action for get snapshots operation
  */
-public class TransportGetSnapshotsAction extends StreamableTransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
+public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -69,9 +71,10 @@ public class TransportGetSnapshotsAction extends StreamableTransportMasterNodeAc
     }
 
     @Override
-    protected GetSnapshotsResponse newResponse() {
-        return new GetSnapshotsResponse();
+    protected GetSnapshotsResponse read(StreamInput in) throws IOException {
+        return new GetSnapshotsResponse(in);
     }
+
 
     @Override
     protected ClusterBlockException checkBlock(GetSnapshotsRequest request, ClusterState state) {

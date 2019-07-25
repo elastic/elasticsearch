@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransfo
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
@@ -105,7 +105,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             listener.onResponse(new DataFrameFeatureSetUsage(available(),
                 enabled(),
                 Collections.emptyMap(),
-                DataFrameIndexerTransformStats.withDefaultTransformId()));
+                new DataFrameIndexerTransformStats()));
             return;
         }
 
@@ -139,7 +139,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                     listener.onResponse(new DataFrameFeatureSetUsage(available(),
                         enabled(),
                         transformsCountByState,
-                        DataFrameIndexerTransformStats.withDefaultTransformId()));
+                        new DataFrameIndexerTransformStats()));
                     return;
                 }
                 transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
@@ -179,7 +179,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 statisticsList.add(0L);
             }
         }
-        return DataFrameIndexerTransformStats.withDefaultTransformId(statisticsList.get(0),  // numPages
+        return new DataFrameIndexerTransformStats(statisticsList.get(0),  // numPages
             statisticsList.get(1),  // numInputDocuments
             statisticsList.get(2),  // numOutputDocuments
             statisticsList.get(3),  // numInvocations
@@ -194,7 +194,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     static void getStatisticSummations(Client client, ActionListener<DataFrameIndexerTransformStats> statsListener) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(),
-                    DataFrameTransformStateAndStats.NAME)));
+                    DataFrameTransformStoredDoc.NAME)));
 
         SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .setSize(0)
@@ -216,7 +216,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             },
             failure -> {
                 if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(DataFrameIndexerTransformStats.withDefaultTransformId());
+                    statsListener.onResponse(new DataFrameIndexerTransformStats());
                 } else {
                     statsListener.onFailure(failure);
                 }

@@ -41,7 +41,20 @@ public class ClusterStateResponse extends ActionResponse {
     private ClusterState clusterState;
     private boolean waitForTimedOut = false;
 
-    public ClusterStateResponse() {
+    public ClusterStateResponse(StreamInput in) throws IOException {
+        super(in);
+        clusterName = new ClusterName(in);
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
+        } else {
+            clusterState = ClusterState.readFrom(in, null);
+        }
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            new ByteSizeValue(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            waitForTimedOut = in.readBoolean();
+        }
     }
 
     public ClusterStateResponse(ClusterName clusterName, ClusterState clusterState, boolean waitForTimedOut) {
@@ -71,23 +84,6 @@ public class ClusterStateResponse extends ActionResponse {
      */
     public boolean isWaitForTimedOut() {
         return waitForTimedOut;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        clusterName = new ClusterName(in);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            clusterState = in.readOptionalWriteable(innerIn -> ClusterState.readFrom(innerIn, null));
-        } else {
-            clusterState = ClusterState.readFrom(in, null);
-        }
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            new ByteSizeValue(in);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            waitForTimedOut = in.readBoolean();
-        }
     }
 
     @Override

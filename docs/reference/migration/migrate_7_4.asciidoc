@@ -68,3 +68,26 @@ Starting in version 7.4, a `+` in a URL will be encoded as `%2B` by all REST API
 If your application requires handling `+` as a single space you can return to the old behaviour by setting the system property
 `es.rest.url_plus_as_space` to `true`. Note that this behaviour is deprecated and setting this system property to `true` will cease
 to be supported in version 8.
+
+[float]
+[[breaking_74_cluster_changes]]
+=== Cluster changes
+
+[float]
+==== Rerouting after starting a shard runs at lower priority
+
+After starting each shard the elected master node must perform a reroute to
+search for other shards that could be allocated. In particular, when creating
+an index it is this task that allocates the replicas once the primaries have
+started. In versions prior to 7.4 this task runs at priority `URGENT`, but
+starting in version 7.4 its priority is reduced to `NORMAL`. In a
+well-configured cluster this reduces the amount of work the master must do, but
+means that a cluster with a master that is overloaded with other tasks at
+`HIGH` or `URGENT` priority may take longer to allocate all replicas.
+
+Additionally, before 7.4 the `GET
+_cluster_health?wait_for_no_initializing_shards` and `GET
+_cluster/health?wait_for_no_relocating_shards` APIs would return only once all
+pending reroutes have completed too, but starting in version 7.4 if you want to
+wait for the rerouting process to completely finish you should add the
+`wait_for_events=languid` query parameter when calling these APIs.

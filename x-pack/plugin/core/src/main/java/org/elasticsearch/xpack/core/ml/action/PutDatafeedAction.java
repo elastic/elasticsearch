@@ -63,11 +63,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             datafeed.writeTo(out);
@@ -119,11 +114,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
         public DatafeedConfig getResponse() {
             return datafeed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,10 +40,12 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -51,7 +53,7 @@ import java.util.List;
  * master node in the cluster.
  */
 public class TransportClusterAllocationExplainAction
-        extends StreamableTransportMasterNodeAction<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
+        extends TransportMasterNodeAction<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
 
     private final ClusterInfoService clusterInfoService;
     private final AllocationDeciders allocationDeciders;
@@ -78,13 +80,13 @@ public class TransportClusterAllocationExplainAction
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ClusterAllocationExplainRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    protected ClusterAllocationExplainResponse read(StreamInput in) throws IOException {
+        return new ClusterAllocationExplainResponse(in);
     }
 
     @Override
-    protected ClusterAllocationExplainResponse newResponse() {
-        return new ClusterAllocationExplainResponse();
+    protected ClusterBlockException checkBlock(ClusterAllocationExplainRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

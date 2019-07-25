@@ -96,12 +96,11 @@ public class PublicationTransportHandler {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
 
-        transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
+        transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
+            BytesTransportRequest::new, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
 
-        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, BytesTransportRequest::new,
-            ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> {
+        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, ThreadPool.Names.GENERIC,
+            false, false, BytesTransportRequest::new, (request, channel, task) -> {
                 handleIncomingPublishRequest(request);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             });
@@ -111,8 +110,7 @@ public class PublicationTransportHandler {
             (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel)));
 
         transportService.registerRequestHandler(PublishClusterStateAction.COMMIT_ACTION_NAME,
-            PublishClusterStateAction.CommitClusterStateRequest::new,
-            ThreadPool.Names.GENERIC, false, false,
+            ThreadPool.Names.GENERIC, false, false, PublishClusterStateAction.CommitClusterStateRequest::new,
             (request, channel, task) -> {
                 final Optional<ClusterState> matchingClusterState = Optional.ofNullable(lastSeenClusterState.get()).filter(
                     cs -> cs.stateUUID().equals(request.stateUUID));

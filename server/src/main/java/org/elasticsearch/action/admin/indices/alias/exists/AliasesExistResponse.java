@@ -33,7 +33,9 @@ public class AliasesExistResponse extends ActionResponse {
         this.exists = exists;
     }
 
-    AliasesExistResponse() {
+    AliasesExistResponse(StreamInput in) throws IOException {
+        super(in);
+        exists = in.readBoolean();
     }
 
     public boolean exists() {
@@ -42,12 +44,6 @@ public class AliasesExistResponse extends ActionResponse {
 
     public boolean isExists() {
         return exists();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        exists = in.readBoolean();
     }
 
     @Override

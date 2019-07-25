@@ -119,10 +119,6 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         return Objects.hash(username, completeMatch, cluster, index, application);
     }
 
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     private static Set<ResourcePrivileges> readResourcePrivileges(StreamInput in) throws IOException {
         final int count = in.readVInt();
         final Set<ResourcePrivileges> set = new TreeSet<>(Comparator.comparing(o -> o.getResource()));

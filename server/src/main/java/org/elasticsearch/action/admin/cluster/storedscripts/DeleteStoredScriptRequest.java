@@ -33,6 +33,15 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
 
     private String id;
 
+    public DeleteStoredScriptRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
+            in.readString(); // read lang from previous versions
+        }
+
+        id = in.readString();
+    }
+
     DeleteStoredScriptRequest() {
         super();
     }
@@ -64,17 +73,6 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
         this.id = id;
 
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-
-        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
-            in.readString(); // read lang from previous versions
-        }
-
-        id = in.readString();
     }
 
     @Override

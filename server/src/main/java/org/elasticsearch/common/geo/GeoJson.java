@@ -382,17 +382,17 @@ public final class GeoJson {
         return geometry.visit(new GeometryVisitor<String, RuntimeException>() {
             @Override
             public String visit(Circle circle) {
-                return "Circle";
+                return "circle";
             }
 
             @Override
             public String visit(GeometryCollection<?> collection) {
-                return "GeometryCollection";
+                return "geometrycollection";
             }
 
             @Override
             public String visit(Line line) {
-                return "LineString";
+                return "linestring";
             }
 
             @Override
@@ -402,32 +402,32 @@ public final class GeoJson {
 
             @Override
             public String visit(MultiLine multiLine) {
-                return "MultiLineString";
+                return "multilinestring";
             }
 
             @Override
             public String visit(MultiPoint multiPoint) {
-                return "MultiPoint";
+                return "multipoint";
             }
 
             @Override
             public String visit(MultiPolygon multiPolygon) {
-                return "MultiPolygon";
+                return "multipolygon";
             }
 
             @Override
             public String visit(Point point) {
-                return "Point";
+                return "point";
             }
 
             @Override
             public String visit(Polygon polygon) {
-                return "Polygon";
+                return "polygon";
             }
 
             @Override
             public String visit(Rectangle rectangle) {
-                return "Envelope";
+                return "envelope";
             }
         });
     }

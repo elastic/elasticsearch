@@ -53,7 +53,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            IndexScopedSettings indexScopedSettings) {
         super(PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, PutIndexTemplateRequest::new);
+            PutIndexTemplateRequest::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }

@@ -124,8 +124,8 @@ public class JoinHelper {
         transportService.registerRequestHandler(JOIN_ACTION_NAME, ThreadPool.Names.GENERIC, false, false, JoinRequest::new,
             (request, channel, task) -> joinHandler.accept(request, transportJoinCallback(request, channel)));
 
-        transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_ACTION_NAME, MembershipAction.JoinRequest::new,
-            ThreadPool.Names.GENERIC, false, false,
+        transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_ACTION_NAME,
+            ThreadPool.Names.GENERIC, false, false, MembershipAction.JoinRequest::new,
             (request, channel, task) -> joinHandler.accept(new JoinRequest(request.getNode(), Optional.empty()), // treat as non-voting join
                 transportJoinCallback(request, channel)));
 
@@ -138,7 +138,7 @@ public class JoinHelper {
             });
 
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
-            ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
+            ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metaData().clusterUUIDCommitted() &&
@@ -152,7 +152,7 @@ public class JoinHelper {
             });
 
         transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
+            ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metaData().clusterUUIDCommitted() &&
@@ -167,11 +167,11 @@ public class JoinHelper {
             });
 
         transportService.registerRequestHandler(
-            ZenDiscovery.DISCOVERY_REJOIN_ACTION_NAME, ZenDiscovery.RejoinClusterRequest::new, ThreadPool.Names.SAME,
+            ZenDiscovery.DISCOVERY_REJOIN_ACTION_NAME, ThreadPool.Names.SAME, ZenDiscovery.RejoinClusterRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
 
         transportService.registerRequestHandler(
-            MembershipAction.DISCOVERY_LEAVE_ACTION_NAME, MembershipAction.LeaveRequest::new, ThreadPool.Names.SAME,
+            MembershipAction.DISCOVERY_LEAVE_ACTION_NAME, ThreadPool.Names.SAME, MembershipAction.LeaveRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
     }
 

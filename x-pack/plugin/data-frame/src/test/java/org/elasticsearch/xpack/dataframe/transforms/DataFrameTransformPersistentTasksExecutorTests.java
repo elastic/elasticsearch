@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +44,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
@@ -99,12 +102,17 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         DataFrameTransformsConfigManager transformsConfigManager = new DataFrameTransformsConfigManager(client, xContentRegistry());
         DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
             transformsConfigManager);
-
+        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(cSettings);
         DataFrameTransformPersistentTasksExecutor executor = new DataFrameTransformPersistentTasksExecutor(client,
             transformsConfigManager,
             dataFrameTransformsCheckpointService, mock(SchedulerEngine.class),
             new DataFrameAuditor(client, ""),
-            mock(ThreadPool.class));
+            mock(ThreadPool.class),
+            clusterService,
+            Settings.EMPTY);
 
         assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks"));

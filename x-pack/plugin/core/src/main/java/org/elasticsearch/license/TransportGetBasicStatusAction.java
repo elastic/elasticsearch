@@ -7,17 +7,20 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetBasicStatusAction extends StreamableTransportMasterNodeReadAction<GetBasicStatusRequest, GetBasicStatusResponse> {
+import java.io.IOException;
+
+public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction<GetBasicStatusRequest, GetBasicStatusResponse> {
 
     @Inject
     public TransportGetBasicStatusAction(TransportService transportService, ClusterService clusterService,
@@ -33,8 +36,8 @@ public class TransportGetBasicStatusAction extends StreamableTransportMasterNode
     }
 
     @Override
-    protected GetBasicStatusResponse newResponse() {
-        return new GetBasicStatusResponse();
+    protected GetBasicStatusResponse read(StreamInput in) throws IOException {
+        return new GetBasicStatusResponse(in);
     }
 
     @Override

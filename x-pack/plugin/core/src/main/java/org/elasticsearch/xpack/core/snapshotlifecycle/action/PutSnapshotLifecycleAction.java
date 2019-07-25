@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,12 +26,7 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
     public static final String NAME = "cluster:admin/slm/put";
 
     protected PutSnapshotLifecycleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<PutSnapshotLifecycleAction.Response> getResponseReader() {
-        return Response::new;
+        super(NAME, PutSnapshotLifecycleAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -43,6 +37,12 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
         public Request(String lifecycleId, SnapshotLifecyclePolicy lifecycle) {
             this.lifecycleId = lifecycleId;
             this.lifecycle = lifecycle;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            lifecycleId = in.readString();
+            lifecycle = new SnapshotLifecyclePolicy(in);
         }
 
         public Request() { }
@@ -57,13 +57,6 @@ public class PutSnapshotLifecycleAction extends ActionType<PutSnapshotLifecycleA
 
         public static Request parseRequest(String lifecycleId, XContentParser parser) {
             return new Request(lifecycleId, SnapshotLifecyclePolicy.parse(parser, lifecycleId));
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            lifecycleId = in.readString();
-            lifecycle = new SnapshotLifecyclePolicy(in);
         }
 
         @Override

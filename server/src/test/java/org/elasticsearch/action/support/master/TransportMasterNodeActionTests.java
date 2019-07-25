@@ -125,6 +125,12 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     }
 
     public static class Request extends MasterNodeRequest<Request> {
+        Request() {}
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -133,6 +139,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     class Response extends ActionResponse {
         private long identity = randomLong();
+
+        Response() {}
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+            identity = in.readLong();
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -151,19 +164,13 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(identity);
         }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            identity = in.readLong();
-        }
     }
 
-    class Action extends StreamableTransportMasterNodeAction<Request, Response> {
+    class Action extends TransportMasterNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService,
                ThreadPool threadPool) {
             super(actionName, transportService, clusterService, threadPool,
-                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), Request::new);
+                    new ActionFilters(new HashSet<>()), Request::new, new IndexNameExpressionResolver());
         }
 
         @Override
@@ -179,8 +186,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Response read(StreamInput in) throws IOException {
+            return new Response(in);
         }
 
         @Override

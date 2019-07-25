@@ -442,7 +442,7 @@ public class MetaDataIndexStateService {
             final boolean acknowledged = result.getValue().hasFailures() == false;
             try {
                 if (acknowledged == false) {
-                    logger.debug("verification of shards before closing {} failed", index);
+                    logger.debug("verification of shards before closing {} failed [{}]", index, result);
                     continue;
                 }
                 final IndexMetaData indexMetaData = metadata.getSafe(index);

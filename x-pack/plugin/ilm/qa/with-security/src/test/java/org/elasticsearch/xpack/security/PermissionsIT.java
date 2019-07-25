@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security;
 
 import org.apache.http.entity.ContentType;
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class PermissionsIT extends ESRestTestCase {
+
     private static final String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
 
     private String deletePolicy = "deletePolicy";
@@ -371,4 +373,5 @@ public class PermissionsIT extends ESRestTestCase {
             super(restClient, (client) -> {}, Collections.emptyList());
         }
     }
+
 }

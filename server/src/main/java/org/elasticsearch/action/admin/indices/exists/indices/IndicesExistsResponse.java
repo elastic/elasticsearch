@@ -29,7 +29,9 @@ public class IndicesExistsResponse extends ActionResponse {
 
     private boolean exists;
 
-    IndicesExistsResponse() {
+    IndicesExistsResponse(StreamInput in) throws IOException {
+        super(in);
+        exists = in.readBoolean();
     }
 
     public IndicesExistsResponse(boolean exists) {
@@ -38,12 +40,6 @@ public class IndicesExistsResponse extends ActionResponse {
 
     public boolean isExists() {
         return this.exists;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        exists = in.readBoolean();
     }
 
     @Override

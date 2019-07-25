@@ -1,0 +1,159 @@
+[[release-highlights-7.3.0]]
+== 7.3.0 release highlights
+++++
+<titleabbrev>7.3.0</titleabbrev>
+++++
+
+coming[7.3.0]
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+[float]
+==== Voting-only master nodes
+
+A new <<voting-only-node,`node.voting-only`>> role has been introduced that
+allows nodes to participate in elections even though they are not eligible to become the master.
+The benefit is that these nodes still help with high availability while
+requiring less CPU and heap than master nodes.
+
+NOTE: The `node.voting-only` role is only available with the default
+distribution of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Reloading of search-time synonyms
+
+A new <<indices-reload-analyzers,Analyzer reload API>> allows to reload the
+definition of search-time analyzers and their associated resources. A common
+use-case for this API is the reloading of search-time synonyms. In earlier
+versions of Elasticsearch, users could force synonyms to be reloaded by closing
+the index and then opening it again. With this new API, synonyms can be updated
+without closing the index.
+
+NOTE: The Analyzer reload API is only available with the default distribution
+of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== New `flattened` field type
+
+A new <<flattened,`flattened`>> field type has been added, which can index
+arbitrary `json` objects into a single field. This helps avoid hitting issues
+due to many fields in mappings, at the cost of more limited search
+functionality.
+
+NOTE: The <<flattened,`flattened`>> field type is only available with the
+default distribution of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Functions on vector fields
+
+Painless now support computing the <<vector-functions,cosine similarity>> and
+the <<vector-functions,dot product>> of a query vector and either values of a
+<<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field.
+
+NOTE: These functions are only available with the default distribution of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Prefix and wildcard support for intervals
+
+<<query-dsl-intervals-query,Intervals>> now support querying by
+<<intervals-prefix,prefix>> or <<intervals-wildcard,wildcard>>.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Rare terms aggregation
+
+A new
+<<search-aggregations-bucket-rare-terms-aggregation,Rare Terms aggregation>>
+allows to find the least frequent values in a field. It is intended to replace
+the `"order" : { "_count" : "asc" }` option of the
+<<search-aggregations-bucket-terms-aggregation,terms aggregations>>.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Aliases are replicated via {ccr}
+
+Read aliases are now replicated via <<ccr-put-follow,{ccr}>>. Note that write
+aliases are still not replicated since they only make sense for indices that
+are being written to while follower indices do not receive direct writes.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== SQL supports frozen indices
+
+{es-sql} now supports querying <<frozen-indices, frozen indices>> via the new
+<<sql-index-frozen,`FROZEN`>> keyword.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Fixed memory leak when using templates in document-level security
+
+{xpack-ref}/document-level-security.html[Document-level security] was using an
+unbounded cache for the set of visible documents. This could lead to a memory
+leak when using a templated query as a role query. The cache has been fixed to
+evict based on memory usage and has a limit of 50MB.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== More memory-efficient aggregations on `keyword` fields
+
+<<search-aggregations-bucket-terms-aggregation,Terms aggregations>> generally
+need to build
+<<search-aggregations-bucket-terms-aggregation-execution-hint,global ordinals>>
+in order to run. Unfortunately this operation became more memory-intensive in
+6.0 due to the move to doc-value iterators in order to improve handling of
+sparse fields. Memory pressure of global ordinals now goes back to a more
+similar level as what you could have on pre-6.0 releases.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Data frame pivot transforms to create entity-centric indexes
+
+<<put-dfanalytics,Data frames>>, released in 7.2, allow to transform an
+existing index to a secondary, summarized index. 7.3 now introduces Data frame
+pivot transforms in order to create entity-centric indexes that can summarize
+the behavior of an entity. 
+
+NOTE: Data frames are only available with the default distribution of {es}.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Outlier detection
+
+{stack-ov}/security-privileges.html[Outlier detection] utilizes Elastic data
+frame indexes to evaluate source indexes across multiple dimensions and identify
+clusters of data based on the assigned values and which values are different
+from those of the clustered data point. An outlier score can be used to indicate
+how different an entity is from other entities in the index based on the
+dimensions that you supply.
+
+NOTE: Outlier detection requires a platinum license.
+
+// end::notable-highlights[]

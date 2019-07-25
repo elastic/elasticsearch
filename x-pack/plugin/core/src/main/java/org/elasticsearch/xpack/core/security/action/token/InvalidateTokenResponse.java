@@ -44,11 +44,6 @@ public final class InvalidateTokenResponse extends ActionResponse implements ToX
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         result.toXContent(builder, params);
         return builder;

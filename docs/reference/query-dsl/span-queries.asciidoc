@@ -28,7 +28,7 @@ allowed.
 
 [float]
 [[span-query-types]]
-=== Types of span queries
+=== Span query types
 
 <<query-dsl-span-containing-query,`span_containing` query>>::
 Returns matching spans from a `big` span query that also match

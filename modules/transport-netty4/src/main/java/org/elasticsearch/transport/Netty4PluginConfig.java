@@ -27,8 +27,6 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 
 public class Netty4PluginConfig {
 
-    private static final ByteBufAllocator NO_DIRECT_ALLOCATOR = noDirectAllocator();
-
     private final ByteBufAllocator allocator;
     private final Settings settings;
     private final Boolean directBufferPoolingDisabled;
@@ -38,7 +36,7 @@ public class Netty4PluginConfig {
         this.settings = settings;
         directBufferPoolingDisabled = Netty4Plugin.NETTY_DISABLE_DIRECT_POOL.get(settings);
         if (directBufferPoolingDisabled) {
-            allocator = NO_DIRECT_ALLOCATOR;
+            allocator = getNoDirectAllocator();
         } else {
             allocator = ByteBufAllocator.DEFAULT;
         }
@@ -56,10 +54,16 @@ public class Netty4PluginConfig {
         return allocator;
     }
 
-    private static ByteBufAllocator noDirectAllocator() {
-        return new PooledByteBufAllocator(false, PooledByteBufAllocator.defaultNumHeapArena(), 0,
-            PooledByteBufAllocator.defaultPageSize(), PooledByteBufAllocator.defaultMaxOrder(),
-            PooledByteBufAllocator.defaultTinyCacheSize(), PooledByteBufAllocator.defaultSmallCacheSize(),
-            PooledByteBufAllocator.defaultNormalCacheSize(), PooledByteBufAllocator.defaultUseCacheForAllThreads());
+    private static volatile ByteBufAllocator noDirectAllocator;
+
+    private static synchronized ByteBufAllocator getNoDirectAllocator() {
+        if (noDirectAllocator == null) {
+            noDirectAllocator = new PooledByteBufAllocator(false, PooledByteBufAllocator.defaultNumHeapArena(), 0,
+                PooledByteBufAllocator.defaultPageSize(), PooledByteBufAllocator.defaultMaxOrder(),
+                PooledByteBufAllocator.defaultTinyCacheSize(), PooledByteBufAllocator.defaultSmallCacheSize(),
+                PooledByteBufAllocator.defaultNormalCacheSize(), PooledByteBufAllocator.defaultUseCacheForAllThreads());
+        }
+
+        return noDirectAllocator;
     }
 }

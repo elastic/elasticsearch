@@ -1,7 +1,7 @@
 [[geo-queries]]
 == Geo queries
 
-{es} supports two type of geometric, or geo, data:
+{es} supports two type of geographic, or geo, data:
 
 * <<geo-point,Geopoint>> fields which support latitude-longitude pairs
 * <<geo-shape,Geoshape>> fields which support points, lines, circles,

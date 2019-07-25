@@ -35,11 +35,10 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPositio
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -167,7 +166,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     public DataFrameIndexerTransformStats getStats() {
         if (getIndexer() == null) {
-            return new DataFrameIndexerTransformStats(getTransformId());
+            return new DataFrameIndexerTransformStats();
         } else {
             return getIndexer().getStats();
         }
@@ -426,7 +425,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         ClientDataFrameIndexerBuilder(String transformId) {
             this.transformId = transformId;
-            this.initialStats = new DataFrameIndexerTransformStats(transformId);
+            this.initialStats = new DataFrameIndexerTransformStats();
         }
 
         ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
@@ -552,7 +551,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 fieldMappings,
                 ExceptionsHelper.requireNonNull(initialState, "initialState"),
                 initialPosition,
-                initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats,
+                initialStats == null ? new DataFrameIndexerTransformStats() : initialStats,
                 transformProgress,
                 lastCheckpoint,
                 nextCheckpoint);
@@ -691,11 +690,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 getProgress());
             logger.debug("Updating persistent state of transform [{}] to [{}]", transformConfig.getId(), state.toString());
 
-            // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
-            // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
-            transformsConfigManager.putOrUpdateTransformStats(
-                    new DataFrameTransformStateAndStats(transformId, state, getStats(),
-                            DataFrameTransformCheckpointingInfo.EMPTY), // TODO should this be null
+            // Persist the current state and stats in the internal index. The interval of this method being
+            // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
+            // often when doing bulk indexing calls or at the end of one indexing run.
+            transformsConfigManager.putOrUpdateTransformStoredDoc(
+                    new DataFrameTransformStoredDoc(transformId, state, getStats()),
                     ActionListener.wrap(
                             r -> {
                                 // for auto stop shutdown the task

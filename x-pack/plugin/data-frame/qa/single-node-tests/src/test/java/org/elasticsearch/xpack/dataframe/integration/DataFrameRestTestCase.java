@@ -328,13 +328,17 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static String getDataFrameIndexerState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
-        return transformStatsAsMap == null ? null :
-            (String) XContentMapValues.extractValue("state.indexer_state", transformStatsAsMap);
+        if (transformStatsAsMap == null) {
+            return null;
+        }
+        String indexerState = (String) XContentMapValues.extractValue("checkpointing.next.indexer_state", transformStatsAsMap);
+        // If the transform is stopped then it might not have an indexer state, but logically that's the same as the indexer being stopped
+        return indexerState == null ? "stopped" : indexerState;
     }
 
     protected static String getDataFrameTaskState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
-        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state.task_state", transformStatsAsMap);
+        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("task_state", transformStatsAsMap);
     }
 
     protected static Map<?, ?> getDataFrameState(String transformId) throws IOException {
@@ -425,7 +429,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
 
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
-        return (int) XContentMapValues.extractValue("state.checkpoint", transformStatsAsMap);
+        return (int) XContentMapValues.extractValue("checkpointing.last.checkpoint", transformStatsAsMap);
     }
 
     protected void setupDataAccessRole(String role, String... indices) throws IOException {

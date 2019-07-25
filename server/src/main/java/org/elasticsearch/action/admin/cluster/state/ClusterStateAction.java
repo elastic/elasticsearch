@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class ClusterStateAction extends StreamableResponseActionType<ClusterStateResponse> {
+public class ClusterStateAction extends ActionType<ClusterStateResponse> {
 
     public static final ClusterStateAction INSTANCE = new ClusterStateAction();
     public static final String NAME = "cluster:monitor/state";
 
     private ClusterStateAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ClusterStateResponse newResponse() {
-        return new ClusterStateResponse();
+        super(NAME, ClusterStateResponse::new);
     }
 }

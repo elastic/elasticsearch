@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -161,4 +162,7 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     public String toString() {
         return Strings.toString(this);
     }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
 }

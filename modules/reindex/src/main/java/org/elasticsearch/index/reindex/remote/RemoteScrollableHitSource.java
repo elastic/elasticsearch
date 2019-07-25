@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -44,9 +43,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -68,8 +68,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     Version remoteVersion;
 
     public RemoteScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-            Consumer<Exception> fail, RestClient client, BytesReference query, SearchRequest searchRequest) {
-        super(logger, backoffPolicy, threadPool, countSearchRetry, fail);
+                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
+                                     RestClient client, BytesReference query, SearchRequest searchRequest) {
+        super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.query = query;
         this.searchRequest = searchRequest;
         this.client = client;

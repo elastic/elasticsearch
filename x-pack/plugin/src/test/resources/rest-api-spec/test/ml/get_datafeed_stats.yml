@@ -126,16 +126,22 @@ setup:
   - do:
       ml.get_datafeed_stats:
         datafeed_id: datafeed-1
-  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
-  - match: { datafeeds.0.state: "stopped"}
+  - match:  { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match:  { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
+  - match:  { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-1" }
+  - match:  { datafeeds.0.timing_stats.search_count: 0 }
+  - match:  { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
 
   - do:
       ml.get_datafeed_stats:
         datafeed_id: datafeed-2
-  - match: { datafeeds.0.datafeed_id: "datafeed-2"}
-  - match: { datafeeds.0.state: "stopped"}
+  - match:  { datafeeds.0.datafeed_id: "datafeed-2"}
+  - match:  { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
+  - match:  { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-2" }
+  - match:  { datafeeds.0.timing_stats.search_count: 0 }
+  - match:  { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
 
 ---
 "Test get stats for started datafeed":
@@ -146,8 +152,8 @@ setup:
 
   - do:
       ml.start_datafeed:
-        "datafeed_id": "datafeed-1"
-        "start": 0
+        datafeed_id: "datafeed-1"
+        start: 0
 
   - do:
       ml.get_datafeed_stats:
@@ -159,6 +165,46 @@ setup:
   - match: { datafeeds.0.node.attributes.ml\.max_open_jobs: "20"}
 
 ---
+"Test get stats for started datafeed contains timing stats":
+
+  - do:
+      ml.open_job:
+        job_id: get-datafeed-stats-1
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "datafeed-1"
+        start: 0
+  - match: { started: true}
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: datafeed-1
+  - match:  { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match:  { datafeeds.0.state: "started"}
+  - match:  { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-1"}
+  - match:  { datafeeds.0.timing_stats.search_count: 0}
+  - match:  { datafeeds.0.timing_stats.bucket_count: 0}
+  - match:  { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
+  - is_false: datafeeds.0.timing_stats.average_search_time_per_bucket_ms
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: "datafeed-1"
+  - match: { stopped: true}
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: datafeed-1
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.state: "stopped"}
+  - match: { datafeeds.0.timing_stats.job_id: "get-datafeed-stats-1"}
+  # We don't really know at this point if datafeed managed to perform at least one search, hence the very relaxed assertion
+  - gte:   { datafeeds.0.timing_stats.search_count: 0}
+  - gte:   { datafeeds.0.timing_stats.bucket_count: 0}
+  - gte:   { datafeeds.0.timing_stats.total_search_time_ms: 0.0}
+
+---
 "Test implicit get all datafeed stats given started datafeeds":
 
   - do:
@@ -167,8 +213,8 @@ setup:
 
   - do:
       ml.start_datafeed:
-        "datafeed_id": "datafeed-1"
-        "start": 0
+        datafeed_id: "datafeed-1"
+        start: 0
 
   - do:
       ml.open_job:
@@ -176,8 +222,8 @@ setup:
 
   - do:
       ml.start_datafeed:
-        "datafeed_id": "datafeed-2"
-        "start": 0
+        datafeed_id: "datafeed-2"
+        start: 0
 
   - do:
       ml.get_datafeed_stats: {}

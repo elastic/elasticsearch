@@ -48,7 +48,6 @@ public class TransportListEnrichPolicyAction
         return new ListEnrichPolicyAction.Response(in);
     }
 
-    @Override
     protected ListEnrichPolicyAction.Response newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }

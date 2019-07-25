@@ -19,7 +19,7 @@ API will have access to the `ctx` variable which exposes:
 [float]
 == Search and aggregation scripts
 
-With the exception of <<search-request-script-fields,script fields>> which are
+With the exception of <<request-body-search-script-fields,script fields>> which are
 executed once per search hit, scripts used in search and aggregations will be
 executed once for every document which might match a query or an aggregation.
 Depending on how many documents you have, this could mean millions or billions
@@ -34,7 +34,7 @@ Field values can be accessed from a script using
 === Accessing the score of a document within a script
 
 Scripts used in the <<query-dsl-function-score-query,`function_score` query>>,
-in <<search-request-sort,script-based sorting>>, or in
+in <<request-body-search-sort,script-based sorting>>, or in
 <<search-aggregations,aggregations>> have access to the `_score` variable which
 represents the current relevance score of a document.
 
@@ -162,7 +162,7 @@ many documents.
 
 
 It makes sense to use `_source` or stored fields when generating a
-<<search-request-script-fields,script field>> for the top ten hits from a search
+<<request-body-search-script-fields,script field>> for the top ten hits from a search
 result but, for other search and aggregation use cases, always prefer using
 doc values.
 =========================================================

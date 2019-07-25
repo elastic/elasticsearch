@@ -93,7 +93,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
 
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.size(0));
             } finally {
@@ -115,7 +115,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             toSeqNo = randomLongBetween(refreshedSeqNo + 1, numOps * 2);
             Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, false)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, refreshedSeqNo));
             } finally {
@@ -134,7 +134,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             toSeqNo = randomLongBetween(fromSeqNo, refreshedSeqNo);
             searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
+                    searcher, mapperService, between(1, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE), fromSeqNo, toSeqNo, true)) {
                 searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
             } finally {
@@ -150,18 +150,16 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     /**
-     * If an operation above the local checkpoint is delivered multiple times, an engine will add multiple copies of that operation
-     * into Lucene (only the first copy is non-stale; others are stale and soft-deleted). Moreover, a nested document is indexed into
-     * Lucene as multiple documents (only the root document has both seq_no and term, non-root docs only have seq_no). This test verifies
-     * that {@link LuceneChangesSnapshot} returns exactly one operation per seq_no, and skip non-root nested documents or stale copies.
+     * A nested document is indexed into Lucene as multiple documents. While the root document has both sequence number and primary term,
+     * non-root documents don't have primary term but only sequence numbers. This test verifies that {@link LuceneChangesSnapshot}
+     * correctly skip non-root documents and returns at most one operation per sequence number.
      */
-    public void testSkipStaleOrNonRootOfNestedDocuments() throws Exception {
+    public void testSkipNonRootOfNestedDocuments() throws Exception {
         Map<Long, Long> seqNoToTerm = new HashMap<>();
         List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
         int totalOps = 0;
         for (Engine.Operation op : operations) {
-            // Engine skips deletes or indexes below the local checkpoint
-            if (engine.getProcessedLocalCheckpoint() < op.seqNo() || op instanceof Engine.NoOp) {
+            if (engine.getLocalCheckpointTracker().hasProcessed(op.seqNo()) == false) {
                 seqNoToTerm.put(op.seqNo(), op.primaryTerm());
                 if (op instanceof Engine.Index) {
                     totalOps += ((Engine.Index) op).docs().size();
@@ -184,7 +182,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         engine.refresh("test");
         Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
         try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, between(1, 100), 0, maxSeqNo, false)) {
-            searcher = null;
+                searcher = null;
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(seqNoToTerm.get(op.seqNo())));

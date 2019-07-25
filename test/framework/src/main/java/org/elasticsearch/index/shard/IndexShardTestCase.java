@@ -369,8 +369,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     indexSettings.getSettings(), "index");
             mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-            final Engine.Warmer warmer = searcher -> {
-            };
+            final Engine.Warmer warmer = reader -> {};
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
             indexShard = new IndexShard(
@@ -520,6 +519,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
             }
+            final Engine engine = shard.getEngineOrNull();
+            if (engine != null) {
+                EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
+            }
         } finally {
             IOUtils.close(() -> shard.close("test", false), shard.store());
         }
@@ -632,7 +635,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
             pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(primary,
-            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
+            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), threadPool,
             request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
             currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable);

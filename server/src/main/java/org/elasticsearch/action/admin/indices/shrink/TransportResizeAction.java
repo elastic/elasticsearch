@@ -72,8 +72,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     protected TransportResizeAction(String actionName, TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            ResizeRequest::new);
+        super(actionName, transportService, clusterService, threadPool, actionFilters, ResizeRequest::new, indexNameExpressionResolver);
         this.createIndexService = createIndexService;
         this.client = client;
     }
@@ -83,11 +82,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ResizeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -185,7 +179,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         settingsBuilder.put("index.number_of_shards", numShards);
         targetIndex.settings(settingsBuilder);
 
-        return new CreateIndexClusterStateUpdateRequest(targetIndex, cause, targetIndex.index(), targetIndexName)
+        return new CreateIndexClusterStateUpdateRequest(cause, targetIndex.index(), targetIndexName)
                 // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
                 // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
                 // miss the mappings for everything is corrupted and hard to debug

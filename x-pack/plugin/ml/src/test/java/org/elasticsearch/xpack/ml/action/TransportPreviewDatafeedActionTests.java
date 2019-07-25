@@ -45,6 +45,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     private Exception capturedFailure;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         dataExtractor = mock(DataExtractor.class);
         actionListener = mock(ActionListener.class);

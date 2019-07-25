@@ -21,6 +21,7 @@ package org.elasticsearch.geo.geometry;
 
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.GeometryValidator;
+import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
 
 import java.io.IOException;
@@ -59,5 +60,10 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
 
         ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(10, 200, 1)));
         assertEquals("invalid longitude 200.0; must be between -180.0 and 180.0", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> new StandardValidator(false).validate(new Circle(10, 200, 1, 20)));
+        assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+
+        new StandardValidator(true).validate(new Circle(10, 200, 1, 20));
     }
 }

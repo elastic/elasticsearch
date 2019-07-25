@@ -40,8 +40,6 @@ include-tagged::{doc-tests-file}[{api}-config]
 <7> Optional, the time interval behind real time that data is queried.
 <8> Optional, allows the use of script fields.
 <9> Optional, the `size` parameter used in the searches.
-<10> Optional, the `jobId` that references the job that the datafeed should be associated with
-after the update.
 
 include::../execution.asciidoc[]
 

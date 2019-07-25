@@ -1,5 +1,5 @@
 [[indices-get-settings]]
-== Get Settings
+=== Get Settings
 
 The get settings API allows to retrieve settings of index/indices:
 
@@ -11,7 +11,7 @@ GET /twitter/_settings
 // TEST[setup:twitter]
 
 [float]
-=== Multiple Indices and Types
+==== Multiple Indices and Types
 
 The get settings API can be used to get settings for more than one index
 with a single call. General usage of the API follows the
@@ -33,7 +33,7 @@ GET /log_2013_*/_settings
 // TEST[s/^/PUT kimchy\nPUT log_2013_01_01\n/]
 
 [float]
-=== Filtering settings by name
+==== Filtering settings by name
 
 The settings that are returned can be filtered with wildcard matching
 as follows:

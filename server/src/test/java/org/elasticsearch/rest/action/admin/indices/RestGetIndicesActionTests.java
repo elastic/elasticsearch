@@ -36,7 +36,7 @@ import static org.mockito.Mockito.mock;
 public class RestGetIndicesActionTests extends RestActionTestCase {
 
     /**
-     * Test that setting the "include_type_name" parameter raises a warning
+     * Test that setting the "include_type_name" parameter raises a warning for the GET request
      */
     public void testIncludeTypeNamesWarning() throws IOException {
         Map<String, String> params = new HashMap<>();
@@ -56,6 +56,22 @@ public class RestGetIndicesActionTests extends RestActionTestCase {
                 .withMethod(RestRequest.Method.GET)
                 .withPath("/some_index")
                 .build();
+        handler.prepareRequest(request, mock(NodeClient.class));
+    }
+
+    /**
+     * Test that setting the "include_type_name" parameter doesn't raises a warning if the HEAD method is used (indices.exists)
+     */
+    public void testIncludeTypeNamesWarningExists() throws IOException {
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.HEAD)
+            .withPath("/some_index")
+            .withParams(params)
+            .build();
+
+        RestGetIndicesAction handler = new RestGetIndicesAction(Settings.EMPTY, mock(RestController.class));
         handler.prepareRequest(request, mock(NodeClient.class));
     }
 }

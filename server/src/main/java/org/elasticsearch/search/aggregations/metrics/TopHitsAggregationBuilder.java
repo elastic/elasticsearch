@@ -577,7 +577,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    protected TopHitsAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
+    protected TopHitsAggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
             throws IOException {
         long innerResultWindow = from() + size();
         int maxInnerResultWindow = context.mapperService().getIndexSettings().getMaxInnerResultWindow();

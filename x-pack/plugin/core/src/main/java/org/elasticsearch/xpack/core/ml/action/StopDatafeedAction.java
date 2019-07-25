@@ -36,12 +36,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private StopDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StopDatafeedAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

@@ -77,12 +77,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     }
 
     public static DatafeedUpdate createRandomized(String datafeedId) {
-        return createRandomized(datafeedId, null);
+        return createRandomized(datafeedId, null, true);
     }
 
-    public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed) {
+    public static DatafeedUpdate createRandomized(String datafeedId, @Nullable DatafeedConfig datafeed, boolean canSetJobId) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(datafeedId);
-        if (randomBoolean() && datafeed == null) {
+        if (randomBoolean() && datafeed == null && canSetJobId) {
             builder.setJobId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
@@ -276,9 +276,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 withoutAggs.setAggProvider(null);
                 datafeed = withoutAggs.build();
             }
-            DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed);
+            DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed, true);
             while (update.isNoop(datafeed)) {
-                update = createRandomized(datafeed.getId(), datafeed);
+                update = createRandomized(datafeed.getId(), datafeed, true);
             }
 
             DatafeedConfig updatedDatafeed = update.apply(datafeed, Collections.emptyMap());

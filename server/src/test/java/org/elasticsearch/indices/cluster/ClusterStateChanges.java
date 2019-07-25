@@ -74,6 +74,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -143,8 +144,10 @@ public class ClusterStateChanges {
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE);
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
+        shardFailedClusterStateTaskExecutor
+            = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger);
+        shardStartedClusterStateTaskExecutor
+            = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, () -> Priority.NORMAL, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
@@ -213,7 +216,7 @@ public class ClusterStateChanges {
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, r) -> {});
+        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

@@ -512,7 +512,7 @@ public class XContentParserTests extends ESTestCase {
      *
      * Returns the number of tokens in the marked field
      */
-    private int generateRandomObjectForMarking(XContentBuilder builder) throws IOException {
+    private static int generateRandomObjectForMarking(XContentBuilder builder) throws IOException {
         builder.startObject()
             .field("first_field", "foo")
             .field("marked_field");
@@ -521,7 +521,7 @@ public class XContentParserTests extends ESTestCase {
         return numberOfTokens;
     }
 
-    private int generateRandomObject(XContentBuilder builder, int level) throws IOException {
+    public static int generateRandomObject(XContentBuilder builder, int level) throws IOException {
         int tokens = 2;
         builder.startObject();
         int numberOfElements = randomInt(5);
@@ -533,7 +533,7 @@ public class XContentParserTests extends ESTestCase {
         return tokens;
     }
 
-    private int generateRandomValue(XContentBuilder builder, int level) throws IOException {
+    private static int generateRandomValue(XContentBuilder builder, int level) throws IOException {
         @SuppressWarnings("unchecked") CheckedSupplier<Integer, IOException> fieldGenerator = randomFrom(
             () -> {
                 builder.value(randomInt());
@@ -568,7 +568,7 @@ public class XContentParserTests extends ESTestCase {
         return fieldGenerator.get();
     }
 
-    private int generateRandomArray(XContentBuilder builder, int level) throws IOException {
+    private static int generateRandomArray(XContentBuilder builder, int level) throws IOException {
         int tokens = 2;
         int arraySize = randomInt(3);
         builder.startArray();

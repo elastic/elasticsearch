@@ -84,7 +84,7 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
 
     @Override
     protected ValueCountAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new ValueCountAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 

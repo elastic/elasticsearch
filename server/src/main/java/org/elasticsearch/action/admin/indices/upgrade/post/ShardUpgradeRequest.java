@@ -29,20 +29,16 @@ import java.io.IOException;
 
 public final class ShardUpgradeRequest extends BroadcastShardRequest {
 
-    private UpgradeRequest request = new UpgradeRequest();
+    private UpgradeRequest request;
 
-    public ShardUpgradeRequest() {
+    public ShardUpgradeRequest(StreamInput in) throws IOException {
+        super(in);
+        request = new UpgradeRequest(in);
     }
 
     ShardUpgradeRequest(ShardId shardId, UpgradeRequest request) {
         super(shardId, request);
         this.request = request;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        request.readFrom(in);
     }
 
     @Override

@@ -258,7 +258,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
             Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (minimize != null && minimize && !model.canBeMinimized()) {
             // If the user asks to minimize, but this model doesn't support

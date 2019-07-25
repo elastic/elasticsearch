@@ -89,6 +89,40 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Integer version;
 
+    public PutIndexTemplateRequest(StreamInput in) throws IOException {
+        super(in);
+        cause = in.readString();
+        name = in.readString();
+
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            indexPatterns = in.readStringList();
+        } else {
+            indexPatterns = Collections.singletonList(in.readString());
+        }
+        order = in.readInt();
+        create = in.readBoolean();
+        settings = readSettingsFromStream(in);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            final String type = in.readString();
+            String mappingSource = in.readString();
+            mappings.put(type, mappingSource);
+        }
+        if (in.getVersion().before(Version.V_6_5_0)) {
+            // Used to be used for custom index metadata
+            int customSize = in.readVInt();
+            assert customSize == 0 : "expected not to have any custom metadata";
+            if (customSize > 0) {
+                throw new IllegalStateException("unexpected custom metadata when none is supported");
+            }
+        }
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            aliases.add(new Alias(in));
+        }
+        version = in.readOptionalVInt();
+    }
+
     public PutIndexTemplateRequest() {
     }
 
@@ -452,41 +486,6 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictExpand();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        cause = in.readString();
-        name = in.readString();
-
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            indexPatterns = in.readStringList();
-        } else {
-            indexPatterns = Collections.singletonList(in.readString());
-        }
-        order = in.readInt();
-        create = in.readBoolean();
-        settings = readSettingsFromStream(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            final String type = in.readString();
-            String mappingSource = in.readString();
-            mappings.put(type, mappingSource);
-        }
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            // Used to be used for custom index metadata
-            int customSize = in.readVInt();
-            assert customSize == 0 : "expected not to have any custom metadata";
-            if (customSize > 0) {
-                throw new IllegalStateException("unexpected custom metadata when none is supported");
-            }
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            aliases.add(Alias.read(in));
-        }
-        version = in.readOptionalVInt();
     }
 
     @Override

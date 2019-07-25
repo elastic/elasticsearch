@@ -214,7 +214,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         }
         JavaVersion full =
             AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
+                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
         if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
             return Collections.singletonList("TLSv1.2");
         }

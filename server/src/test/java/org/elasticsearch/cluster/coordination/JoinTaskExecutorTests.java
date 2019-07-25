@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;

@@ -97,8 +97,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
     @Override

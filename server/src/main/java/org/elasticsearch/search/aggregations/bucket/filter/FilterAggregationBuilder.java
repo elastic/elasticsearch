@@ -93,7 +93,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new FilterAggregatorFactory(name, filter, context, parent, subFactoriesBuilder, metaData);
     }

@@ -117,7 +117,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         super.doValidate(parent, aggFactories, pipelineAggregatorFactories);
 

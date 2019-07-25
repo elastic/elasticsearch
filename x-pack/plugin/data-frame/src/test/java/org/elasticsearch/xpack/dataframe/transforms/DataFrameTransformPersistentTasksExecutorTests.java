@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +44,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
@@ -52,15 +55,15 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
             .addTask("data-frame-task-1",
                 DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-1", Version.CURRENT),
+                new DataFrameTransform("data-frame-task-1", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
             .addTask("data-frame-task-2",
                 DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-2", Version.CURRENT),
+                new DataFrameTransform("data-frame-task-2", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""))
             .addTask("data-frame-task-3",
                 DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-3", Version.CURRENT),
+                new DataFrameTransform("data-frame-task-3", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""));
 
         PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
@@ -99,16 +102,21 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         DataFrameTransformsConfigManager transformsConfigManager = new DataFrameTransformsConfigManager(client, xContentRegistry());
         DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
             transformsConfigManager);
-
+        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(cSettings);
         DataFrameTransformPersistentTasksExecutor executor = new DataFrameTransformPersistentTasksExecutor(client,
             transformsConfigManager,
             dataFrameTransformsCheckpointService, mock(SchedulerEngine.class),
             new DataFrameAuditor(client, ""),
-            mock(ThreadPool.class));
+            mock(ThreadPool.class),
+            clusterService,
+            Settings.EMPTY);
 
-        assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks"));
-        assertThat(executor.getAssignment(new DataFrameTransform("new-old-task-id", Version.V_7_2_0), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new DataFrameTransform("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
             equalTo("past-data-node-1"));
     }
 

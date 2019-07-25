@@ -48,7 +48,7 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              indexNameExpressionResolver, DeleteRepositoryRequest::new);
+              DeleteRepositoryRequest::new, indexNameExpressionResolver);
         this.repositoriesService = repositoriesService;
     }
 
@@ -60,11 +60,6 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

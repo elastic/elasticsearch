@@ -138,7 +138,6 @@ public class LicensingTests extends SecurityIntegTestCase {
         deleteSecurityIndex();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42215")
     public void testEnableDisableBehaviour() throws Exception {
         IndexResponse indexResponse = index("test", "type", jsonBuilder()
                 .startObject()

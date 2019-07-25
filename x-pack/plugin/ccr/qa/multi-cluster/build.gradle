@@ -17,7 +17,7 @@ task "leader-cluster"(type: RestIntegTestTask) {
 }
 
 testClusters."leader-cluster" {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
 }
 
@@ -32,7 +32,7 @@ task "middle-cluster"(type: RestIntegTestTask) {
     }
 }
 testClusters."middle-cluster" {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.leader_cluster.seeds',
             { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
@@ -52,7 +52,7 @@ task 'follow-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters."follow-cluster" {
-    distribution = "DEFAULT"
+    testDistribution = 'DEFAULT'
     setting 'xpack.monitoring.collection.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.leader_cluster.seeds',

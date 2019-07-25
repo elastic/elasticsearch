@@ -52,6 +52,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         when(executorService.submit(any(Runnable.class))).thenReturn(mock(Future.class));
     }
 
+    @SuppressWarnings("unchecked")
     public void testProcessStartTime() throws Exception {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
@@ -73,6 +74,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testWriteRecord() throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
@@ -108,6 +110,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testFlush() throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
@@ -140,6 +143,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         testWriteMessage(p -> p.persistState(), AutodetectControlMsgWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
     }
 
+    @SuppressWarnings("unchecked")
     public void testConsumeAndCloseOutputStream() throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
@@ -156,6 +160,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void testWriteMessage(CheckedConsumer<NativeAutodetectProcess> writeFunction, String expectedMessageCode) throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);

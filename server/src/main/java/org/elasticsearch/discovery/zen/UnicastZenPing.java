@@ -24,6 +24,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
@@ -99,8 +101,6 @@ public class UnicastZenPing implements ZenPing {
 
     private final AtomicInteger pingingRoundIdGenerator = new AtomicInteger();
 
-    private final CancellableThreads cancellableThreads = new CancellableThreads();
-
     private final Map<Integer, PingingRound> activePingingRounds = newConcurrentMap();
 
     // a list of temporal responses a node will return for a request (holds responses from other nodes)
@@ -147,13 +147,21 @@ public class UnicastZenPing implements ZenPing {
     }
 
     private SeedHostsProvider.HostsResolver createHostsResolver() {
-        return hosts -> SeedHostsResolver.resolveHostsLists(cancellableThreads, unicastZenPingExecutorService, logger, hosts,
-            transportService, resolveTimeout);
+        return hosts -> SeedHostsResolver.resolveHostsLists(
+            new CancellableThreads() {
+                public void execute(Interruptible interruptible) {
+                    try {
+                        interruptible.run();
+                    } catch (InterruptedException e) {
+                        throw new CancellableThreads.ExecutionCancelledException("interrupted by " + e);
+                    }
+                }
+            },
+            unicastZenPingExecutorService, logger, hosts, transportService, resolveTimeout);
     }
 
     @Override
     public void close() {
-        cancellableThreads.cancel("stopping UnicastZenPing");
         ThreadPool.terminate(unicastZenPingExecutorService, 10, TimeUnit.SECONDS);
         Releasables.close(activePingingRounds.values());
         closed = true;
@@ -285,7 +293,10 @@ public class UnicastZenPing implements ZenPing {
                     logger.trace("[{}] opening connection to [{}]", id(), node);
                     result = transportService.openConnection(node, connectionProfile);
                     try {
-                        transportService.handshake(result, connectionProfile.getHandshakeTimeout().millis());
+                        Connection finalResult = result;
+                        PlainActionFuture.get(fut ->
+                            transportService.handshake(finalResult, connectionProfile.getHandshakeTimeout().millis(),
+                                ActionListener.map(fut, x -> null)));
                         synchronized (this) {
                             // acquire lock and check if closed, to prevent leaving an open connection after closing
                             ensureOpen();
@@ -523,11 +534,6 @@ public class UnicastZenPing implements ZenPing {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeInt(id);
@@ -561,13 +567,7 @@ public class UnicastZenPing implements ZenPing {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeInt(id);
             out.writeVInt(pingResponses.length);
             for (PingResponse pingResponse : pingResponses) {

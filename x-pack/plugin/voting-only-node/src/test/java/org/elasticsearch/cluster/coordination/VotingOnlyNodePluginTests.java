@@ -7,6 +7,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -75,6 +76,17 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         assertBusy(() -> assertThat(
             client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
             equalTo(3)));
+        assertThat(
+            VotingOnlyNodePlugin.isVotingOnlyNode(client().admin().cluster().prepareState().get().getState().nodes().getMasterNode()),
+            equalTo(false));
+    }
+
+    public void testBootstrapOnlySingleVotingOnlyNode() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode(Settings.builder().put(VotingOnlyNodePlugin.VOTING_ONLY_NODE_SETTING.getKey(), true)
+            .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build());
+        internalCluster().startNode();
+        assertBusy(() -> assertThat(client().admin().cluster().prepareState().get().getState().getNodes().getSize(), equalTo(2)));
         assertThat(
             VotingOnlyNodePlugin.isVotingOnlyNode(client().admin().cluster().prepareState().get().getState().nodes().getMasterNode()),
             equalTo(false));

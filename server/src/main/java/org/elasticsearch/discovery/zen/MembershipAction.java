@@ -72,13 +72,13 @@ public class MembershipAction {
         this.listener = listener;
 
 
-        transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME, JoinRequest::new,
-            ThreadPool.Names.GENERIC, new JoinRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_JOIN_ACTION_NAME,
+            ThreadPool.Names.GENERIC, JoinRequest::new, new JoinRequestRequestHandler());
         transportService.registerRequestHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            () -> new ValidateJoinRequest(), ThreadPool.Names.GENERIC,
+            ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             new ValidateJoinRequestRequestHandler(transportService::getLocalNode, joinValidators));
-        transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME, LeaveRequest::new,
-            ThreadPool.Names.GENERIC, new LeaveRequestRequestHandler());
+        transportService.registerRequestHandler(DISCOVERY_LEAVE_ACTION_NAME,
+            ThreadPool.Names.GENERIC, LeaveRequest::new, new LeaveRequestRequestHandler());
     }
 
     public void sendLeaveRequest(DiscoveryNode masterNode, DiscoveryNode node) {
@@ -112,17 +112,13 @@ public class MembershipAction {
             return node;
         }
 
-        public JoinRequest() {
+        public JoinRequest(StreamInput in) throws IOException {
+            super(in);
+            node = new DiscoveryNode(in);
         }
 
         public JoinRequest(DiscoveryNode node) {
             this.node = node;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            node = new DiscoveryNode(in);
         }
 
         @Override
@@ -183,17 +179,13 @@ public class MembershipAction {
 
         private DiscoveryNode node;
 
-        public LeaveRequest() {
+        public LeaveRequest(StreamInput in) throws IOException {
+            super(in);
+            node = new DiscoveryNode(in);
         }
 
         private LeaveRequest(DiscoveryNode node) {
             this.node = node;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            node = new DiscoveryNode(in);
         }
 
         @Override

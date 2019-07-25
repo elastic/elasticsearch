@@ -27,7 +27,7 @@ processTestResources.dependsOn(copyKeyCerts)
 integTest.dependsOn copyKeyCerts
 
 testClusters.integTest {
-  distribution = 'DEFAULT'
+  testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.monitoring.enabled', 'false'

@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class IndicesExistsAction extends StreamableResponseActionType<IndicesExistsResponse> {
+public class IndicesExistsAction extends ActionType<IndicesExistsResponse> {
 
     public static final IndicesExistsAction INSTANCE = new IndicesExistsAction();
     public static final String NAME = "indices:admin/exists";
 
     private IndicesExistsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public IndicesExistsResponse newResponse() {
-        return new IndicesExistsResponse();
+        super(NAME, IndicesExistsResponse::new);
     }
 }

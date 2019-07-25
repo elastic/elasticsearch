@@ -18,8 +18,13 @@
  */
 package org.elasticsearch.client.ml.job.process;
 
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -32,6 +37,7 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
         return new TimingStats(
             jobId,
             randomLong(),
+            randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomDouble(),
@@ -54,10 +60,11 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
     }
 
     public void testConstructor() {
-        TimingStats stats = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
+        TimingStats stats = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(7L));
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(8.61));
         assertThat(stats.getMinBucketProcessingTimeMs(), equalTo(1.0));
         assertThat(stats.getMaxBucketProcessingTimeMs(), equalTo(2.0));
         assertThat(stats.getAvgBucketProcessingTimeMs(), equalTo(1.23));
@@ -65,20 +72,37 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
     }
 
     public void testConstructor_NullValues() {
-        TimingStats stats = new TimingStats(JOB_ID, 7, null, null, null, null);
+        TimingStats stats = new TimingStats(JOB_ID, 7, 8.61, null, null, null, null);
 
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getBucketCount(), equalTo(7L));
+        assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(8.61));
         assertThat(stats.getMinBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getMaxBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getAvgBucketProcessingTimeMs(), nullValue());
         assertThat(stats.getExponentialAvgBucketProcessingTimeMs(), nullValue());
     }
 
+    public void testParse_OptionalFieldsAbsent() throws IOException {
+        String json = "{\"job_id\": \"my-job-id\"}";
+        try (XContentParser parser =
+                 XContentFactory.xContent(XContentType.JSON).createParser(
+                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
+            TimingStats stats = TimingStats.PARSER.apply(parser, null);
+            assertThat(stats.getJobId(), equalTo(JOB_ID));
+            assertThat(stats.getBucketCount(), equalTo(0L));
+            assertThat(stats.getTotalBucketProcessingTimeMs(), equalTo(0.0));
+            assertThat(stats.getMinBucketProcessingTimeMs(), nullValue());
+            assertThat(stats.getMaxBucketProcessingTimeMs(), nullValue());
+            assertThat(stats.getAvgBucketProcessingTimeMs(), nullValue());
+            assertThat(stats.getExponentialAvgBucketProcessingTimeMs(), nullValue());
+        }
+    }
+
     public void testEquals() {
-        TimingStats stats1 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats2 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats3 = new TimingStats(JOB_ID, 7, 1.0, 3.0, 1.23, 7.89);
+        TimingStats stats1 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
+        TimingStats stats2 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
+        TimingStats stats3 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 3.0, 1.23, 7.89);
 
         assertTrue(stats1.equals(stats1));
         assertTrue(stats1.equals(stats2));
@@ -86,9 +110,9 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
     }
 
     public void testHashCode() {
-        TimingStats stats1 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats2 = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStats stats3 = new TimingStats(JOB_ID, 7, 1.0, 3.0, 1.23, 7.89);
+        TimingStats stats1 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
+        TimingStats stats2 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 2.0, 1.23, 7.89);
+        TimingStats stats3 = new TimingStats(JOB_ID, 7, 8.61, 1.0, 3.0, 1.23, 7.89);
 
         assertEquals(stats1.hashCode(), stats1.hashCode());
         assertEquals(stats1.hashCode(), stats2.hashCode());

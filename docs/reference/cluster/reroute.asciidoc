@@ -1,5 +1,5 @@
 [[cluster-reroute]]
-== Cluster Reroute
+=== Cluster Reroute
 
 The reroute command allows for manual changes to the allocation of individual
 shards in the cluster. For example, a shard can be moved from one node to
@@ -77,7 +77,7 @@ The commands supported are:
     <<modules-cluster,allocation deciders>> into account.
 
 [float]
-=== Retrying failed allocations
+==== Retrying failed allocations
 
 The cluster will attempt to allocate a shard a maximum of
 `index.allocation.max_retries` times in a row (defaults to `5`), before giving
@@ -90,7 +90,7 @@ calling the <<cluster-reroute,`reroute`>> API with the `?retry_failed` URI
 query parameter, which will attempt a single retry round for these shards.
 
 [float]
-=== Forced allocation on unrecoverable errors
+==== Forced allocation on unrecoverable errors
 
 Two more commands are available that allow the allocation of a primary shard to
 a node. These commands should however be used with extreme care, as primary

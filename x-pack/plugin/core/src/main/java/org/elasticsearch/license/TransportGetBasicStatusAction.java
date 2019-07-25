@@ -14,8 +14,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction<GetBasicStatusRequest, GetBasicStatusResponse> {
 
@@ -33,8 +36,8 @@ public class TransportGetBasicStatusAction extends TransportMasterNodeReadAction
     }
 
     @Override
-    protected GetBasicStatusResponse newResponse() {
-        return new GetBasicStatusResponse();
+    protected GetBasicStatusResponse read(StreamInput in) throws IOException {
+        return new GetBasicStatusResponse(in);
     }
 
     @Override

@@ -24,20 +24,20 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +53,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -65,8 +65,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
@@ -180,8 +182,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
-        routingTable = service.applyStartedShards(clusterState,
-            routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int targetShards;
         do {
@@ -250,8 +251,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         // now we start the shard
-        routingTable = service.applyStartedShards(clusterState,
-            routingTable.index("source").shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         MetaDataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
@@ -386,9 +386,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
 
         // now we start the shard
-        final RoutingTable routingTable = service.applyStartedShards(
-                routingTableClusterState,
-                initialRoutingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        final RoutingTable routingTable
+            = ESAllocationTestCase.startInitializingShardsAndReroute(service, routingTableClusterState, indexName).routingTable();
         final ClusterState clusterState = ClusterState.builder(routingTableClusterState).routingTable(routingTable).build();
 
         final Settings.Builder indexSettingsBuilder = Settings.builder().put("index.number_of_shards", 1).put(requestSettings);
@@ -489,14 +488,19 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
             .build();
 
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-        Optional<String> errorMessage = MetaDataCreateIndexService.checkShardLimit(indexSettings, state);
+        final ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> MetaDataCreateIndexService.checkShardLimit(indexSettings, state));
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        assertTrue(errorMessage.isPresent());
-        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
-            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
+        final String expectedMessage = String.format(
+            Locale.ROOT,
+            "this action would add [%d] total shards, but this cluster currently has [%d]/[%d] maximum shards open",
+            totalShards,
+            currentShards,
+            maxShards);
+        assertThat(e, hasToString(containsString(expectedMessage)));
     }
 
 }

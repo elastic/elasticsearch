@@ -37,9 +37,9 @@ public class CloseIndexRequestTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
 
-            final CloseIndexRequest deserializedRequest = new CloseIndexRequest();
+            final CloseIndexRequest deserializedRequest;
             try (StreamInput in = out.bytes().streamInput()) {
-                deserializedRequest.readFrom(in);
+                deserializedRequest = new CloseIndexRequest(in);
             }
             assertEquals(request.timeout(), deserializedRequest.timeout());
             assertEquals(request.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());
@@ -75,10 +75,10 @@ public class CloseIndexRequestTests extends ESTestCase {
                 out.writeStringArray(sample.indices());
                 sample.indicesOptions().writeIndicesOptions(out);
 
-                final CloseIndexRequest deserializedRequest = new CloseIndexRequest();
+                final CloseIndexRequest deserializedRequest;
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
-                    deserializedRequest.readFrom(in);
+                    deserializedRequest = new CloseIndexRequest(in);
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());
                 assertEquals(sample.masterNodeTimeout(), deserializedRequest.masterNodeTimeout());

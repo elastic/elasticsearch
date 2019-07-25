@@ -63,8 +63,8 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                          PersistentTasksClusterService persistentTasksClusterService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                          PersistentTasksService persistentTasksService) {
-        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            SetUpgradeModeAction.Request::new);
+        super(SetUpgradeModeAction.NAME, transportService, clusterService, threadPool, actionFilters, SetUpgradeModeAction.Request::new,
+            indexNameExpressionResolver);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
         this.client = client;
@@ -79,11 +79,6 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

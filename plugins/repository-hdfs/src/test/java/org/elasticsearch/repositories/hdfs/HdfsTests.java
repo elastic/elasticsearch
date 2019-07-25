@@ -27,9 +27,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 
@@ -145,6 +149,9 @@ public class HdfsTests extends ESSingleNodeTestCase {
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+        final BlobStoreRepository repo =
+            (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+        BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
     public void testMissingUri() {

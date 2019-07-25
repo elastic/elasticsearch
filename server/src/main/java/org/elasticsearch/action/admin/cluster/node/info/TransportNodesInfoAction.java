@@ -61,8 +61,8 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     }
 
     @Override
-    protected NodeInfo newNodeResponse() {
-        return new NodeInfo();
+    protected NodeInfo newNodeResponse(StreamInput in) throws IOException {
+        return new NodeInfo(in);
     }
 
     @Override
@@ -76,18 +76,13 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
 
         NodesInfoRequest request;
 
-        public NodeInfoRequest() {
+        public NodeInfoRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesInfoRequest(in);
         }
 
         public NodeInfoRequest(NodesInfoRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesInfoRequest();
-            request.readFrom(in);
         }
 
         @Override

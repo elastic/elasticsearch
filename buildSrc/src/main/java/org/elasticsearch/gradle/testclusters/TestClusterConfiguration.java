@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
+import org.elasticsearch.gradle.PropertyNormalization;
 import org.gradle.api.logging.Logging;
 import org.slf4j.Logger;
 
@@ -38,7 +38,7 @@ public interface TestClusterConfiguration {
 
     void setVersion(String version);
 
-    void setDistribution(Distribution distribution);
+    void setTestDistribution(TestDistribution distribution);
 
     void plugin(URI plugin);
 
@@ -52,23 +52,31 @@ public interface TestClusterConfiguration {
 
     void keystore(String key, File value);
 
+    void keystore(String key, File value, PropertyNormalization normalization);
+
     void keystore(String key, FileSupplier valueSupplier);
 
     void setting(String key, String value);
 
+    void setting(String key, String value, PropertyNormalization normalization);
+
     void setting(String key, Supplier<CharSequence> valueSupplier);
+
+    void setting(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
 
     void systemProperty(String key, String value);
 
     void systemProperty(String key, Supplier<CharSequence> valueSupplier);
 
+    void systemProperty(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
+
     void environment(String key, String value);
 
     void environment(String key, Supplier<CharSequence> valueSupplier);
 
-    void jvmArgs(String... values);
+    void environment(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
 
-    void jvmArgs(Supplier<String[]> valueSupplier);
+    void jvmArgs(String... values);
 
     void freeze();
 
@@ -79,6 +87,8 @@ public interface TestClusterConfiguration {
     void restart();
 
     void extraConfigFile(String destination, File from);
+
+    void extraConfigFile(String destination, File from, PropertyNormalization normalization);
 
     void user(Map<String, String> userSpec);
 
@@ -157,8 +167,6 @@ public interface TestClusterConfiguration {
             .replaceAll("^[^a-zA-Z0-9]+", "")
             .replaceAll("[^a-zA-Z0-9]+", "-");
     }
-
-
 
     boolean isProcessAlive();
 }

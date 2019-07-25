@@ -364,7 +364,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             jobListener.onResponse(
                     new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
             return Void.TYPE;
-        }).when(jobManager).expandJobs(eq(MetaData.ALL), eq(true), any(ActionListener.class));
+        }).when(jobManager).expandJobs(eq(MetaData.ALL), eq(true), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

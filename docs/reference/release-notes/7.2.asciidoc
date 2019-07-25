@@ -1,3 +1,85 @@
+[[release-notes-7.2.1]]
+== {es} version 7.2.1
+
+Also see <<breaking-changes-7.2,Breaking changes in 7.2>>.
+
+[[enhancement-7.2.1]]
+[float]
+=== Enhancements
+
+Infra/Core::
+* Add default CLI JVM options {pull}44545[#44545] (issue: {issue}42021[#42021])
+
+Infra/Plugins::
+* Do not checksum all bytes at once in plugin install {pull}44649[#44649] (issue: {issue}44545[#44545])
+
+Machine Learning::
+* Improve message when native controller cannot connect {pull}43565[#43565] (issue: {issue}42341[#42341])
+* Introduce a setting for the process connect timeout {pull}43234[#43234]
+
+[[bug-7.2.1]]
+[float]
+=== Bug fixes
+
+Analysis::
+* Issue deprecation warnings for preconfigured delimited_payload_filter {pull}43684[#43684] (issues: {issue}26625[#26625], {issue}43568[#43568])
+
+Authentication::
+* Fix credential encoding for OIDC token request {pull}43808[#43808] (issue: {issue}43709[#43709])
+
+Data Frame::
+* Reorder format priorities in dest mapping {pull}43602[#43602]
+* Adjust error message {pull}43455[#43455]
+* Size the GET stats search by number of Ids requested {pull}43206[#43206] (issue: {issue}43203[#43203])
+
+Distributed::
+* Fix DefaultShardOperationFailedException subclass xcontent serialization {pull}43435[#43435] (issue: {issue}43423[#43423])
+
+Engine::
+* AsyncIOProcessor preserve thread context {pull}43729[#43729]
+
+Features/CAT APIs::
+* Fix indices shown in _cat/indices {pull}43286[#43286] (issues: {issue}33888[#33888], {issue}38824[#38824], {issue}39933[#39933])
+
+Features/ILM::
+* Account for node versions during allocation in ILM Shrink {pull}43300[#43300] (issue: {issue}41879[#41879])
+
+Features/Indices APIs::
+* Check shard limit after applying index templates {pull}44619[#44619] (issues: {issue}34021[#34021], {issue}44567[#44567], {issue}44619[#44619])
+* Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
+* Prevent NullPointerException in TransportRolloverAction {pull}43353[#43353] (issue: {issue}43296[#43296])
+
+Infra/Packaging::
+* Restore setting up temp dir for windows service {pull}44541[#44541]
+* Fix the bundled jdk flag to be passed through windows startup {pull}43502[#43502]
+
+Machine Learning::
+* Fix datafeed checks when a concrete remote index is present {pull}43923[#43923]
+* Don't persist model state at the end of lookback if the lookback did not generate any input {ml-pull}527[#527] (issue: {ml-issue}519[#519])
+* Don't write model size stats when job is closed without any input {ml-pull}516[#516] (issue: {ml-issue}394[#394])
+
+Mapping::
+* Prevent types deprecation warning for indices.exists requests {pull}43963[#43963] (issue: {issue}43905[#43905])
+* Add include_type_name in indices.exitst REST API spec {pull}43910[#43910] (issue: {issue}43905[#43905])
+* Fix index_prefix sub field name on nested text fields {pull}43862[#43862] (issue: {issue}43741[#43741])
+
+Network::
+* Reconnect remote cluster when seeds are changed {pull}43379[#43379] (issue: {issue}37799[#37799])
+
+SQL::
+* Fix NPE in case of subsequent scrolled requests for a CSV/TSV formatted response {pull}43365[#43365] (issue: {issue}43327[#43327])
+* Increase hard limit for sorting on aggregates {pull}43220[#43220] (issue: {issue}43168[#43168])
+
+Search::
+* Fix wrong logic in `match_phrase` query with multi-word synonyms {pull}43941[#43941] (issue: {issue}43308[#43308])
+* Fix UOE on search requests that match a sparse role query {pull}43668[#43668] (issue: {issue}42857[#42857])
+* Fix propagation of enablePositionIncrements in QueryStringQueryBuilder {pull}43578[#43578] (issue: {issue}43574[#43574])
+* Fix round up of date range without rounding {pull}43303[#43303] (issue: {issue}43277[#43277])
+
+Security::
+* SecurityIndexSearcherWrapper doesn't always carry over caches and similarity {pull}43436[#43436]
+
+
 [[release-notes-7.2.0]]
 == {es} version 7.2.0
 
@@ -127,7 +209,6 @@ Cluster Coordination::
 Data Frame::
 * Persist and restore checkpoint and position {pull}41942[#41942] (issue: {issue}41752[#41752])
 * Complete the Data Frame task on stop {pull}41752[#41752]
-* Add sync api {pull}41491[#41491]
 * Data Frame stop all {pull}41156[#41156]
 * Data Frame HLRC Get Stats API {pull}40327[#40327]
 * Data Frame HLRC Get API {pull}40209[#40209]

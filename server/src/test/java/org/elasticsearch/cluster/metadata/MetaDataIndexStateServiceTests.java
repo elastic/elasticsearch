@@ -64,6 +64,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -123,6 +124,42 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                 assertThat(updatedState.blocks().hasIndexBlockWithId(blockedIndex.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
             }
         }
+    }
+
+    public void testCloseRoutingTableWithRestoredIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithRestoredIndex")).build();
+
+        String indexName = "restored-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addRestoredIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+    }
+
+    public void testCloseRoutingTableWithSnapshottedIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithSnapshottedIndex")).build();
+
+        String indexName = "snapshotted-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addSnapshotIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
     }
 
     public void testCloseRoutingTableRemovesRoutingTable() {

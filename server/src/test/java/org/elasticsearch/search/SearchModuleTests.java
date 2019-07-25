@@ -400,8 +400,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
-                ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+        protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context,
+                ValuesSourceConfig<ValuesSource> config, AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
             return null;
         }
 

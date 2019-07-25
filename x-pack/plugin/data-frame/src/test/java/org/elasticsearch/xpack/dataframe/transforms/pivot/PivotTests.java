@@ -47,7 +47,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PivotTests extends ESTestCase {
 
@@ -140,10 +142,10 @@ public class PivotTests extends ESTestCase {
     public void testValidateAllUnsupportedAggregations() throws Exception {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
-            SourceConfig source = new SourceConfig(new String[]{"existing_source"}, QueryConfig.matchAll());
 
             Pivot pivot = new Pivot(getValidPivotConfig(aggregationConfig));
-            assertInvalidTransform(client, source, pivot);
+            RuntimeException ex = expectThrows(RuntimeException.class, pivot::validateConfig);
+            assertThat("expected aggregations to be unsupported, but they were", ex, is(notNullValue()));
         }
     }
 
@@ -248,7 +250,7 @@ public class PivotTests extends ESTestCase {
     private static void validate(Client client, SourceConfig source, Pivot pivot, boolean expectValid) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        pivot.validate(client, source, ActionListener.wrap(validity -> {
+        pivot.validateQuery(client, source, ActionListener.wrap(validity -> {
             assertEquals(expectValid, validity);
             latch.countDown();
         }, e -> {

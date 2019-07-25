@@ -46,7 +46,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                Client client) {
         super(FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, FinalizeJobExecutionAction.Request::new);
+                FinalizeJobExecutionAction.Request::new, indexNameExpressionResolver);
         this.client = client;
     }
 
@@ -58,11 +58,6 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

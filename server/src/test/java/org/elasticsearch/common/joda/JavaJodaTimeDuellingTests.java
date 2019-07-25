@@ -40,6 +40,26 @@ import static org.hamcrest.Matchers.is;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
 
+    //these parsers should allow both ',' and '.' as a decimal point
+    public void testDecimalPointParsing(){
+        assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time");
+        assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time");
+
+        assertSameDate("2001-01-01T00:00:00.123Z", "date_optional_time");
+        assertSameDate("2001-01-01T00:00:00,123Z", "date_optional_time");
+
+        // only java.time has nanos parsing, but the results for 3digits should be the same
+        DateFormatter jodaFormatter = Joda.forPattern("strict_date_optional_time");
+        DateFormatter javaFormatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time_nanos", jodaFormatter, javaFormatter);
+        assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time_nanos", jodaFormatter, javaFormatter);
+
+        assertParseException("2001-01-01T00:00:00.123,456Z", "strict_date_optional_time");
+        assertParseException("2001-01-01T00:00:00.123,456Z", "date_optional_time");
+        //This should fail, but java is ok with this because the field has the same value
+//        assertJavaTimeParseException("2001-01-01T00:00:00.123,123Z", "strict_date_optional_time_nanos");
+    }
+
     public void testIncompatiblePatterns() {
         // in joda 'y' means year, this is changed to 'u' in java.time. difference is in before era yeaers
         assertSameMillis("-0001-01-01", "yyyy-MM-dd", "8uuuu-MM-dd");

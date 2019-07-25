@@ -1,5 +1,5 @@
 [[search-count]]
-== Count API
+=== Count API
 
 The count API allows to easily execute a query and get the number of
 matches for that query. It can be executed across one or more indices.
@@ -49,12 +49,12 @@ The query is optional, and when not provided, it will use `match_all` to
 count all the docs.
 
 [float]
-=== Multi index
+==== Multi index
 
 The count API can be applied to <<search-multi-index,multiple indices>>.
 
 [float]
-=== Request Parameters
+==== Request Parameters
 
 When executing count using the query parameter `q`, the query passed is
 a query string using Lucene query parser. There are additional
@@ -85,7 +85,7 @@ Defaults to no terminate_after.
 |=======================================================================
 
 [float]
-=== Request Body
+==== Request Body
 
 The count can use the <<query-dsl,Query DSL>> within
 its body in order to express the query that should be executed. The body
@@ -95,14 +95,14 @@ Both HTTP GET and HTTP POST can be used to execute count with body.
 Since not all clients support GET with body, POST is allowed as well.
 
 [float]
-=== Distributed
+==== Distributed
 
 The count operation is broadcast across all shards. For each shard id
 group, a replica is chosen and executed against it. This means that
 replicas increase the scalability of count.
 
 [float]
-=== Routing
+==== Routing
 
 The routing value (a comma separated list of the routing values) can be
 specified to control which shards the count request will be executed on.

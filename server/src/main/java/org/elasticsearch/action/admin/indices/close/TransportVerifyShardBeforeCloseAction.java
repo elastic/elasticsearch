@@ -64,8 +64,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance() {
-        return new ReplicationResponse();
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
     @Override
@@ -169,11 +169,6 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         @Override
         public String toString() {
             return "verify shard " + shardId + " before close with block " + clusterBlock;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

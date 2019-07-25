@@ -72,9 +72,9 @@ integTest.runner  {
     'ml/evaluate_data_frame/Test given missing index',
     'ml/evaluate_data_frame/Test given index does not exist',
     'ml/evaluate_data_frame/Test given missing evaluation',
-    'ml/evaluate_data_frame/Test binary_soft_classifition auc_roc given actual_field is always true',
-    'ml/evaluate_data_frame/Test binary_soft_classifition auc_roc given actual_field is always false',
-    'ml/evaluate_data_frame/Test binary_soft_classification given evaluation with emtpy metrics',
+    'ml/evaluate_data_frame/Test binary_soft_classification auc_roc given actual_field is always true',
+    'ml/evaluate_data_frame/Test binary_soft_classification auc_roc given actual_field is always false',
+    'ml/evaluate_data_frame/Test binary_soft_classification given evaluation with empty metrics',
     'ml/evaluate_data_frame/Test binary_soft_classification given missing actual_field',
     'ml/evaluate_data_frame/Test binary_soft_classification given missing predicted_probability_field',
     'ml/evaluate_data_frame/Test binary_soft_classification given precision with threshold less than zero',
@@ -83,6 +83,7 @@ integTest.runner  {
     'ml/evaluate_data_frame/Test binary_soft_classification given precision with empty thresholds',
     'ml/evaluate_data_frame/Test binary_soft_classification given recall with empty thresholds',
     'ml/evaluate_data_frame/Test binary_soft_classification given confusion_matrix with empty thresholds',
+    'ml/evaluate_data_frame/Test regression given evaluation with empty metrics',
     'ml/delete_job_force/Test cannot force delete a non-existent job',
     'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',
     'ml/delete_model_snapshot/Test delete snapshot missing job_id',
@@ -162,7 +163,7 @@ integTest.runner  {
 
 
 testClusters.integTest  {
-  distribution = 'DEFAULT'
+  testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin"

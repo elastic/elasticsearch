@@ -20,7 +20,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -40,26 +40,24 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RemovePersistentTaskAction extends StreamableResponseActionType<PersistentTaskResponse> {
+public class RemovePersistentTaskAction extends ActionType<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/remove";
 
     private RemovePersistentTaskAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PersistentTaskResponse newResponse() {
-        return new PersistentTaskResponse();
+        super(NAME, PersistentTaskResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
 
         private String taskId;
 
-        public Request() {
+        public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            taskId = in.readString();
         }
 
         public Request(String taskId) {
@@ -68,12 +66,6 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
 
         public void setTaskId(String taskId) {
             this.taskId = taskId;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            taskId = in.readString();
         }
 
         @Override
@@ -125,7 +117,7 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, Request::new);
+                Request::new, indexNameExpressionResolver);
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
@@ -135,8 +127,8 @@ public class RemovePersistentTaskAction extends StreamableResponseActionType<Per
         }
 
         @Override
-        protected PersistentTaskResponse newResponse() {
-            return new PersistentTaskResponse();
+        protected PersistentTaskResponse read(StreamInput in) throws IOException {
+            return new PersistentTaskResponse(in);
         }
 
         @Override

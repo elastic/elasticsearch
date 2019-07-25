@@ -182,7 +182,7 @@ If everything goes well with installation, you should see a bunch of messages th
 
 --------------------------------------------------
 
-Without going too much into detail, we can see that our node named "6-bjhwl" (which will be a different set of characters in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
+Without going too much into detail, we can see that our node named "localhost.localdomain" has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
 
 As mentioned previously, we can override either the cluster or node name. This can be done from the command line when starting Elasticsearch as follows:
 
@@ -715,14 +715,14 @@ As for the response, we see the following parts:
 ** `hits.total.relation` - whether `hits.total.value` is the exact hit count, in which case it is equal to `"eq"` or a
                            lower bound of the total hit count (greater than or equals), in which case it is equal to `gte`.
 * `hits.hits` – actual array of search results (defaults to first 10 documents)
-* `hits.sort` - sort key for results (missing if sorting by score)
+* `hits.sort` - sort value of the sort key for each result (missing if sorting by score)
 * `hits._score` and `max_score` - ignore these fields for now
 
 The accuracy of `hits.total` is controlled by the request parameter `track_total_hits`, when set to true
 the request will track the total hits accurately (`"relation": "eq"`). It defaults to `10,000`
 which means that the total hit count is accurately tracked up to `10,000` documents.
 You can force an accurate count by setting `track_total_hits` to true explicitly.
-See the <<search-request-track-total-hits, request body>> documentation
+See the <<request-body-search-track-total-hits, request body>> documentation
 for more details.
 
 Here is the same exact search above using the alternative request body method:

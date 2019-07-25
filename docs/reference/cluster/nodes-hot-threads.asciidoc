@@ -1,5 +1,5 @@
 [[cluster-nodes-hot-threads]]
-== Nodes hot_threads
+=== Nodes hot_threads
 
 This API yields a breakdown of the hot threads on each selected node in the
 cluster. Its endpoints are `/_nodes/hot_threads` and

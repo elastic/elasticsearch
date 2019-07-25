@@ -144,7 +144,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
                            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (sorts.isEmpty() && size == null && from == 0) {
             throw new IllegalStateException("[" + name + "] is configured to perform nothing. Please set either of "

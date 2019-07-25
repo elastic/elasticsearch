@@ -28,6 +28,22 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
     private RoleDescriptor.IndicesPrivileges[] indexPrivileges;
     private ApplicationResourcePrivileges[] applicationPrivileges;
 
+    public HasPrivilegesRequest() {}
+
+    public HasPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        this.username = in.readString();
+        this.clusterPrivileges = in.readStringArray();
+        int indexSize = in.readVInt();
+        indexPrivileges = new RoleDescriptor.IndicesPrivileges[indexSize];
+        for (int i = 0; i < indexSize; i++) {
+            indexPrivileges[i] = new RoleDescriptor.IndicesPrivileges(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
+        }
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -97,21 +113,6 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     public void applicationPrivileges(ApplicationResourcePrivileges... appPrivileges) {
         this.applicationPrivileges = appPrivileges;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.username = in.readString();
-        this.clusterPrivileges = in.readStringArray();
-        int indexSize = in.readVInt();
-        indexPrivileges = new RoleDescriptor.IndicesPrivileges[indexSize];
-        for (int i = 0; i < indexSize; i++) {
-            indexPrivileges[i] = new RoleDescriptor.IndicesPrivileges(in);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
-        }
     }
 
     @Override

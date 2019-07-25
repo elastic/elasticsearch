@@ -517,7 +517,7 @@ public class CoordinationState {
         private final Set<Join> joins;
 
         public boolean addVote(DiscoveryNode sourceNode) {
-            return nodes.put(sourceNode.getId(), sourceNode) == null;
+            return sourceNode.isMasterNode() && nodes.put(sourceNode.getId(), sourceNode) == null;
         }
 
         public boolean addJoinVote(Join join) {

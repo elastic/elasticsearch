@@ -31,7 +31,6 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -173,8 +172,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
 
         String systemJavaHome = sh.getEnv().get("JAVA_HOME");
-        Path log = installation.logs.resolve("elasticsearch.log");
-        assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+            containsString(systemJavaHome));
     }
 
     public void test51JavaHomeOverride() throws Exception {

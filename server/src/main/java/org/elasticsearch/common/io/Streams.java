@@ -21,6 +21,7 @@ package org.elasticsearch.common.io;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;
@@ -224,6 +225,17 @@ public abstract class Streams {
      */
     public static BytesStream flushOnCloseStream(BytesStream os) {
         return new FlushOnCloseOutputStream(os);
+    }
+
+    /**
+     * Reads all bytes from the given {@link InputStream} and closes it afterwards.
+     */
+    public static BytesReference readFully(InputStream in) throws IOException {
+        try (InputStream inputStream = in) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            copy(inputStream, out);
+            return out.bytes();
+        }
     }
 
     /**

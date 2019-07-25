@@ -169,7 +169,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
                            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (window <= 0) {
             throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");

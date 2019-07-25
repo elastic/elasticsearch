@@ -60,8 +60,8 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RequestValidators<PutMappingRequest> requestValidators) {
-        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            PutMappingRequest::new);
+        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest::new,
+            indexNameExpressionResolver);
         this.metaDataMappingService = metaDataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
     }
@@ -75,11 +75,6 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

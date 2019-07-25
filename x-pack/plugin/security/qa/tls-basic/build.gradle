@@ -15,7 +15,7 @@ forbiddenPatterns {
 
 
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
   extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')

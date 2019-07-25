@@ -80,18 +80,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodeRequest extends BaseNodeRequest {
         protected String requestName;
 
-        public NodeRequest() {
-            super();
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
         public NodeRequest(NodesRequest request) {
             requestName = request.requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
         }
 
         @Override
@@ -114,19 +109,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
         private String requestName;
 
-        NodesRequest() {
-            super();
+        NodesRequest(StreamInput in) throws IOException {
+            super(in);
+            requestName = in.readString();
         }
 
         public NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            requestName = in.readString();
         }
 
         @Override
@@ -161,8 +151,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         @Override
-        protected NodeResponse newNodeResponse() {
-            return new NodeResponse();
+        protected NodeResponse newNodeResponse(StreamInput in) throws IOException {
+            return new NodeResponse(in);
         }
     }
 

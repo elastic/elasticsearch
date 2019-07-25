@@ -22,7 +22,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,7 +29,7 @@ import org.elasticsearch.index.store.StoreStats;
 
 import java.io.IOException;
 
-public class DocsStats implements Streamable, Writeable, ToXContentFragment {
+public class DocsStats implements Writeable, ToXContentFragment {
 
     private long count = 0;
     private long deleted = 0;
@@ -91,11 +90,6 @@ public class DocsStats implements Streamable, Writeable, ToXContentFragment {
     public long getAverageSizeInBytes() {
         long totalDocs = count + deleted;
         return totalDocs == 0 ? 0 : totalSizeInBytes / totalDocs;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

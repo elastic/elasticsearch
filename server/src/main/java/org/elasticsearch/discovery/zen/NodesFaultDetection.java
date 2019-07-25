@@ -86,7 +86,7 @@ public class NodesFaultDetection extends FaultDetection {
             pingRetryCount);
 
         transportService.registerRequestHandler(
-            PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, false, false, new PingRequestHandler());
+            PING_ACTION_NAME, ThreadPool.Names.SAME, false, false, PingRequest::new, new PingRequestHandler());
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -313,7 +313,12 @@ public class NodesFaultDetection extends FaultDetection {
 
         private long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
-        public PingRequest() {
+        public PingRequest(StreamInput in) throws IOException {
+            super(in);
+            targetNode = new DiscoveryNode(in);
+            clusterName = new ClusterName(in);
+            masterNode = new DiscoveryNode(in);
+            clusterStateVersion = in.readLong();
         }
 
         public PingRequest(DiscoveryNode targetNode, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
@@ -340,15 +345,6 @@ public class NodesFaultDetection extends FaultDetection {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            targetNode = new DiscoveryNode(in);
-            clusterName = new ClusterName(in);
-            masterNode = new DiscoveryNode(in);
-            clusterStateVersion = in.readLong();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             targetNode.writeTo(out);
@@ -366,5 +362,8 @@ public class NodesFaultDetection extends FaultDetection {
         public PingResponse(StreamInput in) throws IOException {
             super(in);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

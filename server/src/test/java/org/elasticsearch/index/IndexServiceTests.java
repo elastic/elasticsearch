@@ -288,7 +288,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
             // we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(1, search.totalHits.value);
             }
         });
@@ -301,7 +301,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the force refresh we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(2, search.totalHits.value);
             }
         });
@@ -309,7 +309,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(3, search.totalHits.value);
             }
         });

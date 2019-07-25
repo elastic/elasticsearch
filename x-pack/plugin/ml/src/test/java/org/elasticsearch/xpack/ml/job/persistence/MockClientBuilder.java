@@ -168,6 +168,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder get(GetResponse response) {
         doAnswer(new Answer<Void>() {
             @Override
@@ -401,6 +402,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
         when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
@@ -419,6 +421,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder prepareGetMapping(GetMappingsResponse response) {
         GetMappingsRequestBuilder builder = mock(GetMappingsRequestBuilder.class);
 
@@ -436,6 +439,7 @@ public class MockClientBuilder {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     public MockClientBuilder putTemplate(ArgumentCaptor<PutIndexTemplateRequest> requestCaptor) {
         doAnswer(new Answer<Void>() {
             @Override

@@ -193,7 +193,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected ScriptedMetricAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected ScriptedMetricAggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
             Builder subfactoriesBuilder) throws IOException {
 
         if (combineScript == null) {

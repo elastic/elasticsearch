@@ -21,6 +21,7 @@ package org.elasticsearch.client.security.hlrc;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.hamcrest.Matchers;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HasPrivilegesResponseTests extends AbstractHlrcStreamableXContentTestCase<
+public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
     org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse,
     HasPrivilegesResponse> {
 
@@ -110,36 +110,13 @@ public class HasPrivilegesResponseTests extends AbstractHlrcStreamableXContentTe
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        // Because we have nested objects with { string : boolean }, unknown fields cause parsing problems
-        return false;
-    }
-
-    @Override
-    protected org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse createBlankInstance() {
-        return new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse();
-    }
-
-    @Override
-    protected org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse createTestInstance() {
+    protected org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse createServerTestInstance() {
         return randomResponse();
     }
 
     @Override
-    public HasPrivilegesResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+    protected HasPrivilegesResponse doParseToClientInstance(XContentParser parser) throws IOException {
         return HasPrivilegesResponse.fromXContent(parser);
-    }
-
-    @Override
-    public org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse convertHlrcToInternal(HasPrivilegesResponse hlrc) {
-        return new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(
-            hlrc.getUsername(),
-            hlrc.hasAllRequested(),
-            hlrc.getClusterPrivileges(),
-            toResourcePrivileges(hlrc.getIndexPrivileges()),
-            hlrc.getApplicationPrivileges().entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> toResourcePrivileges(e.getValue())))
-            );
     }
 
     private static List<ResourcePrivileges> toResourcePrivileges(Map<String, Map<String, Boolean>> map) {
@@ -155,11 +132,10 @@ public class HasPrivilegesResponseTests extends AbstractHlrcStreamableXContentTe
         out.setVersion(version);
         original.writeTo(out);
 
-        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse copy =
-            new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse();
         final StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
-        copy.readFrom(in);
+        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse copy =
+            new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(in);
         Assert.assertThat(in.read(), equalTo(-1));
         return copy;
     }
@@ -192,5 +168,20 @@ public class HasPrivilegesResponseTests extends AbstractHlrcStreamableXContentTe
             list.add(ResourcePrivileges.builder(resource).addPrivileges(privileges).build());
         }
         return list;
+    }
+
+    @Override
+    protected void assertInstances(org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse serverTestInstance,
+                                   HasPrivilegesResponse hlrc) {
+        org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse other =
+            new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(
+                hlrc.getUsername(),
+                hlrc.hasAllRequested(),
+                hlrc.getClusterPrivileges(),
+                toResourcePrivileges(hlrc.getIndexPrivileges()),
+                hlrc.getApplicationPrivileges().entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> toResourcePrivileges(e.getValue())))
+        );
+        assertEquals(serverTestInstance, other);
     }
 }

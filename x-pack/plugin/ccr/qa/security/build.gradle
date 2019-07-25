@@ -17,7 +17,7 @@ task 'leader-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters.'leader-cluster' {
-    distribution = 'Default'
+    testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'false'
@@ -36,7 +36,7 @@ task 'follow-cluster'(type: RestIntegTestTask) {
 }
 
 testClusters.'follow-cluster' {
-    distribution = 'Default'
+    testDistribution = 'DEFAULT'
     setting 'cluster.remote.leader_cluster.seeds', {
         "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\""
     }

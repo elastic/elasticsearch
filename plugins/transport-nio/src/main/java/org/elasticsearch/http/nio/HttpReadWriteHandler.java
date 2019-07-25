@@ -31,10 +31,10 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.HttpReadTimeoutException;
-import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -58,12 +58,12 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     private final TaskScheduler taskScheduler;
     private final LongSupplier nanoClock;
     private final long readTimeoutNanos;
-    private boolean channelRegistered = false;
+    private boolean channelActive = false;
     private boolean requestSinceReadTimeoutTrigger = false;
     private int inFlightRequests = 0;
 
     public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                                NioCorsConfig corsConfig, TaskScheduler taskScheduler, LongSupplier nanoClock) {
+                                CorsHandler.Config corsConfig, TaskScheduler taskScheduler, LongSupplier nanoClock) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
         this.taskScheduler = taskScheduler;
@@ -91,8 +91,8 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     }
 
     @Override
-    public void channelRegistered() {
-        channelRegistered = true;
+    public void channelActive() {
+        channelActive = true;
         if (readTimeoutNanos > 0) {
             scheduleReadTimeout();
         }
@@ -100,7 +100,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) {
-        assert channelRegistered : "channelRegistered should have been called";
+        assert channelActive : "channelActive should have been called";
         int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
         Object message;
         while ((message = adaptor.pollInboundMessage()) != null) {
@@ -123,7 +123,7 @@ public class HttpReadWriteHandler implements NioChannelHandler {
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
         assert writeOperation.getObject() instanceof NioHttpResponse : "This channel only supports messages that are of type: "
             + NioHttpResponse.class + ". Found type: " + writeOperation.getObject().getClass() + ".";
-        assert channelRegistered : "channelRegistered should have been called";
+        assert channelActive : "channelActive should have been called";
         --inFlightRequests;
         assert inFlightRequests >= 0 : "Inflight requests should never drop below zero, found: " + inFlightRequests;
         adaptor.write(writeOperation);

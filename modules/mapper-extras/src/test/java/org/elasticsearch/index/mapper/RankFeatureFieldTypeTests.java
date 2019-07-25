@@ -43,4 +43,9 @@ public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
             }
         });
     }
+
+    public void testIsAggregatable() {
+        MappedFieldType fieldType = createDefaultFieldType();
+        assertFalse(fieldType.isAggregatable());
+    }
 }

@@ -26,7 +26,14 @@ public class MonitoringBulkResponse extends ActionResponse {
     private Error error;
     private boolean ignored;
 
-    public MonitoringBulkResponse() {
+    public MonitoringBulkResponse(StreamInput in) throws IOException {
+        super(in);
+        tookInMillis = in.readVLong();
+        error = in.readOptionalWriteable(Error::new);
+
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            ignored = in.readBoolean();
+        }
     }
 
     public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
@@ -77,19 +84,7 @@ public class MonitoringBulkResponse extends ActionResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        tookInMillis = in.readVLong();
-        error = in.readOptionalWriteable(Error::new);
-
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            ignored = in.readBoolean();
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeOptionalWriteable(error);
 

@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetBucketsAction.Request;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction.Request;
 
-public class GetBucketActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class GetBucketActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -51,13 +52,13 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new GetBucketsAction.Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override

@@ -71,7 +71,6 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
                 "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://my.sp.example.net/\">" +
                 "<md:SPSSODescriptor AuthnRequestsSigned=\"false\" WantAssertionsSigned=\"true\"" +
                 " protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">" +
-                "<md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>" +
                 "<md:AssertionConsumerService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\"" +
                 " Location=\"https://my.sp.example.net/saml/acs/post\" index=\"1\" isDefault=\"true\"/>" +
                 "</md:SPSSODescriptor>" +

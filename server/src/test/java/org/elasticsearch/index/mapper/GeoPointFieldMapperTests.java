@@ -75,6 +75,23 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }
 
+    public void testWKT() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("point").field("type", "geo_point");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("point", "POINT (2 3)")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("point"), notNullValue());
+    }
+
     public void testLatLonValuesStored() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("point").field("type", "geo_point");

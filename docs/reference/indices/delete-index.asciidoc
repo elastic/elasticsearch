@@ -1,5 +1,5 @@
 [[indices-delete-index]]
-== Delete Index
+=== Delete Index
 
 The delete index API allows to delete an existing index.
 

@@ -5,24 +5,19 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 /**
  * This action is testing whether a user has the specified
  * {@link RoleDescriptor.IndicesPrivileges privileges}
  */
-public class HasPrivilegesAction extends StreamableResponseActionType<HasPrivilegesResponse> {
+public class HasPrivilegesAction extends ActionType<HasPrivilegesResponse> {
 
     public static final HasPrivilegesAction INSTANCE = new HasPrivilegesAction();
     public static final String NAME = "cluster:admin/xpack/security/user/has_privileges";
 
     private HasPrivilegesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public HasPrivilegesResponse newResponse() {
-        return new HasPrivilegesResponse();
+        super(NAME, HasPrivilegesResponse::new);
     }
 }

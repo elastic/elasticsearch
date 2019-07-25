@@ -120,7 +120,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 return null;
             }
         };
-        Analyzer analyzer = new CustomAnalyzer("tokenizerName", null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
+        Analyzer analyzer = new CustomAnalyzer(null, new CharFilterFactory[0], new TokenFilterFactory[] { tokenFilter });
         MapperException ex = expectThrows(MapperException.class,
                 () -> emptyRegistry.build(IndexSettingsModule.newIndexSettings("index", settings),
                         singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)), emptyMap(),

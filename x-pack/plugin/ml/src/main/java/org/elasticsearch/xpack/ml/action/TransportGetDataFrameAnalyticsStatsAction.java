@@ -134,12 +134,21 @@ public class TransportGetDataFrameAnalyticsStatsAction
         LOGGER.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
-            response -> {
-                List<String> expandedIds = response.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
+            getResponse -> {
+                List<String> expandedIds = getResponse.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
                     .collect(Collectors.toList());
                 request.setExpandedIds(expandedIds);
                 ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
-                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse, listener),
+                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse,
+                        ActionListener.wrap(
+                            finalResponse -> {
+                                // While finalResponse has all the stats objects we need, we should report the count
+                                // from the get response
+                                QueryPage<Stats> finalStats = new QueryPage<>(finalResponse.getResponse().results(),
+                                    getResponse.getResources().count(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD);
+                                listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
+                            },
+                            listener::onFailure)),
                     listener::onFailure
                 );
                 super.doExecute(task, request, runningTasksStatsListener);

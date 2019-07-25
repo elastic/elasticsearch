@@ -15,6 +15,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,6 +30,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class TimingStats implements ToXContentObject, Writeable {
 
     public static final ParseField BUCKET_COUNT = new ParseField("bucket_count");
+    public static final ParseField TOTAL_BUCKET_PROCESSING_TIME_MS = new ParseField("total_bucket_processing_time_ms");
     public static final ParseField MIN_BUCKET_PROCESSING_TIME_MS = new ParseField("minimum_bucket_processing_time_ms");
     public static final ParseField MAX_BUCKET_PROCESSING_TIME_MS = new ParseField("maximum_bucket_processing_time_ms");
     public static final ParseField AVG_BUCKET_PROCESSING_TIME_MS = new ParseField("average_bucket_processing_time_ms");
@@ -40,8 +43,21 @@ public class TimingStats implements ToXContentObject, Writeable {
         new ConstructingObjectParser<>(
             TYPE.getPreferredName(),
             true,
-            args ->
-                new TimingStats((String) args[0], (long) args[1], (Double) args[2], (Double) args[3], (Double) args[4], (Double) args[5]));
+            args -> {
+                String jobId = (String) args[0];
+                long bucketCount = (long) args[1];
+                Double minBucketProcessingTimeMs = (Double) args[2];
+                Double maxBucketProcessingTimeMs = (Double) args[3];
+                Double avgBucketProcessingTimeMs = (Double) args[4];
+                Double exponentialAvgBucketProcessingTimeMs = (Double) args[5];
+                return new TimingStats(
+                    jobId,
+                    bucketCount,
+                    minBucketProcessingTimeMs,
+                    maxBucketProcessingTimeMs,
+                    avgBucketProcessingTimeMs,
+                    exponentialAvgBucketProcessingTimeMs);
+            });
 
     static {
         PARSER.declareString(constructorArg(), Job.ID);
@@ -109,6 +125,13 @@ public class TimingStats implements ToXContentObject, Writeable {
         return bucketCount;
     }
 
+    /** Calculates total bucket processing time as a product of the all-time average bucket processing time and the number of buckets. */
+    public double getTotalBucketProcessingTimeMs() {
+        return avgBucketProcessingTimeMs != null
+            ? bucketCount * avgBucketProcessingTimeMs
+            : 0.0;
+    }
+
     public Double getMinBucketProcessingTimeMs() {
         return minBucketProcessingTimeMs;
     }
@@ -126,7 +149,7 @@ public class TimingStats implements ToXContentObject, Writeable {
     }
 
     /**
-     * Updates the statistics (min, max, avg) for the given data point (bucket processing time).
+     * Updates the statistics (min, max, avg, exponential avg) for the given data point (bucket processing time).
      */
     public void updateStats(double bucketProcessingTimeMs) {
         if (bucketProcessingTimeMs < 0.0) {
@@ -173,8 +196,14 @@ public class TimingStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(Result.RESULT_TYPE.getPreferredName(), TYPE.getPreferredName());
+        }
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_CALCULATED_FIELDS, false)) {
+            builder.field(TOTAL_BUCKET_PROCESSING_TIME_MS.getPreferredName(), getTotalBucketProcessingTimeMs());
+        }
         if (minBucketProcessingTimeMs != null) {
             builder.field(MIN_BUCKET_PROCESSING_TIME_MS.getPreferredName(), minBucketProcessingTimeMs);
         }

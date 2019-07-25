@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * ActionType for invalidating API key
@@ -18,11 +17,6 @@ public final class InvalidateApiKeyAction extends ActionType<InvalidateApiKeyRes
     public static final InvalidateApiKeyAction INSTANCE = new InvalidateApiKeyAction();
 
     private InvalidateApiKeyAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<InvalidateApiKeyResponse> getResponseReader() {
-        return InvalidateApiKeyResponse::new;
+        super(NAME, InvalidateApiKeyResponse::new);
     }
 }

@@ -1,5 +1,8 @@
 [[query-dsl-distance-feature-query]]
-=== Distance Feature Query
+=== Distance feature query
+++++
+<titleabbrev>Distance feature</titleabbrev>
+++++
 
 The `distance_feature` query is a specialized query that only works
 on <<date, `date`>>, <<date_nanos, `date_nanos`>> or <<geo-point,`geo_point`>>

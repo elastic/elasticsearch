@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,7 +34,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class QueryExplanation  implements Streamable, ToXContentFragment {
+public class QueryExplanation implements Writeable, ToXContentFragment {
 
     public static final String INDEX_FIELD = "index";
     public static final String SHARD_FIELD = "shard";
@@ -79,8 +79,12 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
 
     private String error;
 
-    QueryExplanation() {
-
+    public QueryExplanation(StreamInput in) throws IOException {
+        index = in.readOptionalString();
+        shard = in.readInt();
+        valid = in.readBoolean();
+        explanation = in.readOptionalString();
+        error = in.readOptionalString();
     }
 
     public QueryExplanation(String index, int shard, boolean valid, String explanation,
@@ -113,27 +117,12 @@ public class QueryExplanation  implements Streamable, ToXContentFragment {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readOptionalString();
-        shard = in.readInt();
-        valid = in.readBoolean();
-        explanation = in.readOptionalString();
-        error = in.readOptionalString();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(index);
         out.writeInt(shard);
         out.writeBoolean(valid);
         out.writeOptionalString(explanation);
         out.writeOptionalString(error);
-    }
-
-    public static QueryExplanation readQueryExplanation(StreamInput in)  throws IOException {
-        QueryExplanation exp = new QueryExplanation();
-        exp.readFrom(in);
-        return exp;
     }
 
     @Override

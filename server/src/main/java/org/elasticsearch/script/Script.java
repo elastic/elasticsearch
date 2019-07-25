@@ -53,7 +53,8 @@ import java.util.Objects;
  * compile and execute a script from the {@link ScriptService}
  * based on the {@link ScriptType}.
  *
- * There are three types of scripts specified by {@link ScriptType}.
+ * There are two types of scripts specified by {@link ScriptType},
+ * <code>INLINE</code>, and <code>STORED</code>.
  *
  * The following describes the expected parameters for each type of script:
  *

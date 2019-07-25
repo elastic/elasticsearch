@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Request;
 
-public class DeleteLifecycleRequestTests extends AbstractStreamableTestCase<DeleteLifecycleAction.Request> {
+public class DeleteLifecycleRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -16,8 +17,8 @@ public class DeleteLifecycleRequestTests extends AbstractStreamableTestCase<Dele
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

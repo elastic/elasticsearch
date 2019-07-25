@@ -1,5 +1,5 @@
 [[cat-indices]]
-== cat indices
+=== cat indices
 
 The `indices` command provides a cross-section of each index.  This
 information *spans nodes*. For example:
@@ -37,7 +37,7 @@ is to use either the <<cat-count>> or the <<search-count>>
 
 [float]
 [[pri-flag]]
-=== Primaries
+==== Primaries
 
 The index stats by default will show them for all of an index's
 shards, including replicas.  A `pri` flag can be supplied to enable
@@ -45,7 +45,7 @@ the view of relevant stats in the context of only the primaries.
 
 [float]
 [[examples]]
-=== Examples
+==== Examples
 
 Which indices are yellow?
 

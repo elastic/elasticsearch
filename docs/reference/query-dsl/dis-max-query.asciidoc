@@ -1,5 +1,8 @@
 [[query-dsl-dis-max-query]]
-=== Disjunction Max Query
+=== Disjunction max query
+++++
+<titleabbrev>Disjunction max</titleabbrev>
+++++
 
 Returns documents matching one or more wrapped queries, called query clauses or
 clauses.

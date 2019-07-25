@@ -47,12 +47,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -358,61 +355,66 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * we will just reject the connect trigger which will lead to failing searches.
      */
     private class ConnectHandler implements Closeable {
+        private static final int MAX_LISTENERS = 100;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Object mutex = new Object();
-        private final BlockingQueue<ActionListener<Void>> queue = new ArrayBlockingQueue<>(100);
+        private List<ActionListener<Void>> listeners = new ArrayList<>();
 
         /**
          * Triggers a connect round unless there is one running already. If there is a connect round running, the listener will either
          * be queued or rejected and failed.
          */
         void connect(ActionListener<Void> connectListener) {
-            final boolean runConnect;
+            boolean runConnect = false;
             final ActionListener<Void> listener =
                 ContextPreservingActionListener.wrapPreservingContext(connectListener, threadPool.getThreadContext());
             synchronized (mutex) {
                 if (closed.get()) {
-                    if (connectListener != null) {
-                        connectListener.onFailure(new AlreadyClosedException("connect handler is already closed"));
+                    assert listeners.isEmpty();
+                } else {
+                    if (listeners.size() >= MAX_LISTENERS) {
+                        listener.onFailure(new RejectedExecutionException("connect queue is full"));
+                        return;
+                    } else {
+                        listeners.add(listener);
                     }
-                    return;
+                    runConnect = listeners.size() == 1;
                 }
-                if (queue.offer(listener) == false) {
-                    listener.onFailure(new RejectedExecutionException("connect queue is full"));
-                    return;
-                }
-                runConnect = queue.size() == 1;
+            }
+            if (closed.get()) {
+                connectListener.onFailure(new AlreadyClosedException("connect handler is already closed"));
+                return;
             }
             if (runConnect) {
                 ExecutorService executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
                 executor.submit(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        final Collection<ActionListener<Void>> toNotify = new ArrayList<>();
-                        synchronized (mutex) {
-                            queue.drainTo(toNotify);
-                        }
-                        ActionListener.onFailure(toNotify, e);
+                        ActionListener.onFailure(getAndClearListeners(), e);
                     }
 
                     @Override
                     protected void doRun() {
-                        final Collection<ActionListener<Void>> toNotify = new ArrayList<>();
-                        ActionListener<Void> listener1 = ActionListener.wrap((x) -> {
-                            synchronized (mutex) {
-                                queue.drainTo(toNotify);
-                            }
-                            ActionListener.onResponse(toNotify, x);
-                        }, (e) -> {
-                            synchronized (mutex) {
-                                queue.drainTo(toNotify);
-                            }
-                            ActionListener.onFailure(toNotify, e);
-                        });
-                        collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), listener1);
+                        collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(),
+                            ActionListener.wrap(
+                                (x) -> ActionListener.onResponse(getAndClearListeners(), x),
+                                (e) -> ActionListener.onFailure(getAndClearListeners(), e)));
                     }
                 });
             }
+        }
+
+        private List<ActionListener<Void>> getAndClearListeners() {
+            final List<ActionListener<Void>> result;
+            synchronized (mutex) {
+                if (listeners.isEmpty()) {
+                    result = Collections.emptyList();
+                } else {
+                    result = listeners;
+                    listeners = new ArrayList<>();
+                }
+            }
+            return result;
         }
 
         private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
@@ -506,10 +508,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
         @Override
         public void close() throws IOException {
-            final Collection<ActionListener<Void>> toNotify = new ArrayList<>();
+            final List<ActionListener<Void>> toNotify;
             synchronized (mutex) {
                 if (closed.compareAndSet(false, true)) {
-                    queue.drainTo(toNotify);
+                    toNotify = listeners;
+                    listeners = Collections.emptyList();
+                } else {
+                    toNotify = Collections.emptyList();
                 }
             }
             ActionListener.onFailure(toNotify, new AlreadyClosedException("connect handler is already closed"));
@@ -540,10 +545,6 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
             @Override
             public void handleResponse(ClusterStateResponse response) {
-                if (remoteClusterName.get() == null) {
-                    assert response.getClusterName().value() != null;
-                    remoteClusterName.set(response.getClusterName());
-                }
                 handleNodes(response.getState().nodes().getNodes().valuesIt());
             }
 
@@ -577,11 +578,9 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                         return;
                     }
                 }
-                // we have to close this connection before we notify listeners - this is mainly needed for test correctness
+                // We have to close this connection before we notify listeners - this is mainly needed for test correctness
                 // since if we do it afterwards we might fail assertions that check if all high level connections are closed.
-                // from a code correctness perspective we could also close it afterwards. This try/with block will
-                // maintain the possibly exceptions thrown from within the try block and suppress the ones that are possible thrown
-                // by closing the connection
+                // from a code correctness perspective we could also close it afterwards.
                 IOUtils.closeWhileHandlingException(connection);
                 listener.onResponse(null);
             }
@@ -606,7 +605,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     boolean assertNoRunningConnections() { // for testing only
         synchronized (connectHandler.mutex) {
-            assert connectHandler.queue.isEmpty();
+            assert connectHandler.listeners.isEmpty();
         }
         return true;
     }

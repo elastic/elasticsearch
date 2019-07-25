@@ -6,7 +6,7 @@
 [id="{upid}-{api}"]
 === Put {dataframe-transform} API
 
-The put {dataframe-transform} API is used to create a new {dataframe-transform}.
+Creates a new {dataframe-transform}.
 
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 

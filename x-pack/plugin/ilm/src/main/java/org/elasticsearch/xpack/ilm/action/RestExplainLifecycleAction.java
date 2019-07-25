@@ -10,11 +10,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 
 import java.io.IOException;
@@ -37,6 +37,8 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
         ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest();
         explainLifecycleRequest.indices(indexes);
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
+        explainLifecycleRequest.onlyManaged(restRequest.paramAsBoolean("only_managed", false));
+        explainLifecycleRequest.onlyErrors(restRequest.paramAsBoolean("only_errors", false));
         String masterNodeTimeout = restRequest.param("master_timeout");
         if (masterNodeTimeout != null) {
             explainLifecycleRequest.masterNodeTimeout(masterNodeTimeout);

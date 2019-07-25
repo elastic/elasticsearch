@@ -6,7 +6,7 @@
 [id="{upid}-{api}"]
 === Stop {dataframe-transform} API
 
-Stop a started {dataframe-transform}.
+Stops a started {dataframe-transform}.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]

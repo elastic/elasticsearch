@@ -6,8 +6,7 @@
 [id="{upid}-{api}"]
 === Preview {dataframe-transform} API
 
-The preview {dataframe-transform} API is used to preview the results of
-a {dataframe-transform}.
+Previews the results of a {dataframe-transform}.
 
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 

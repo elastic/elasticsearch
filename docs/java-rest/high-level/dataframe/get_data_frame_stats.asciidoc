@@ -6,8 +6,7 @@
 [id="{upid}-{api}"]
 === Get {dataframe-transform} stats API
 
-The get {dataframe-transform} stats API is used read the operational statistics
-of one or more {dataframe-transforms}.
+Retrieves the operational statistics of one or more {dataframe-transforms}.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
@@ -22,7 +21,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new GET Stats request referencing an existing {dataframe-transform}
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 

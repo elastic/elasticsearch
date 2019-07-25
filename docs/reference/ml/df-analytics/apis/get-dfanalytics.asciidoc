@@ -64,11 +64,11 @@ when there are no matches or only partial matches.
 
 `from`::
   (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The
-  default value is `0`. It could be also used as a path parameter.
+  default value is `0`.
 
 `size`::
-  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to obtain. The 
-  default value is `100`. It could be also used as a path parameter.
+  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to 
+  obtain. The default value is `100`.
   
 [[ml-get-dfanalytics-results]]
 ==== {api-response-body-title}

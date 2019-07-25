@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -44,8 +42,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -109,10 +105,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestStatusToXContentListener<SearchResponse> listener = new RestStatusToXContentListener<>(channel);
-            Task task = client.executeLocally(SearchAction.INSTANCE, searchRequest,
-                new HttpChannelTaskListener<>(httpChannelTaskHandler, listener, request.getHttpChannel(), client.getLocalNodeId()));
-            TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
-            httpChannelTaskHandler.linkChannelWithTask(request.getHttpChannel(), client, taskId);
+            httpChannelTaskHandler.execute(client, request.getHttpChannel(), searchRequest, SearchAction.INSTANCE, listener);
         };
     }
 

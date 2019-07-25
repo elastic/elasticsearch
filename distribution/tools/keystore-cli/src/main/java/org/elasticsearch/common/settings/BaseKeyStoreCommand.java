@@ -113,11 +113,4 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
      * respectively.
      */
     protected abstract void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception;
-
-    public abstract class ForceableBaseKeyStoreCommand extends BaseKeyStoreCommand {
-
-        public ForceableBaseKeyStoreCommand(String description, boolean keyStoreMustExist) {
-            super(description, keyStoreMustExist);
-        }
-    }
 }

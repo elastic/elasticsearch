@@ -42,7 +42,6 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
         return ThreadPool.Names.SAME;
     }
 
-    @Override
     protected GetEnrichPolicyAction.Response newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }

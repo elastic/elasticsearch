@@ -46,7 +46,6 @@ public class TransportExecuteEnrichPolicyAction
         return ThreadPool.Names.SAME;
     }
 
-    @Override
     protected AcknowledgedResponse newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }

@@ -102,8 +102,10 @@ public final class WriterConstants {
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
 
     // TODO: remove this when the transition from Joda to Java datetimes is completed
-    public static final Method JCZDT_TO_ZONEDDATETIME = getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
-    public static final Method JDZDT_TO_TEMPORAL = getAsmMethod(Temporal.class, "JCZDTToTemporal", JodaCompatibleZonedDateTime.class);
+    public static final Method JCZDT_TO_ZONEDDATETIME =
+            getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
+    public static final Method JDZDT_TO_TEMPORAL =
+            getAsmMethod(Temporal.class, "JCZDTToTemporal", JodaCompatibleZonedDateTime.class);
 
     public static final Type METHOD_HANDLE_TYPE = Type.getType(MethodHandle.class);
 

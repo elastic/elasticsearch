@@ -407,7 +407,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             } else {
                 andThen.run();
             }
-        } catch(Exception e) {
+        } catch (Exception e) {
             consumer.accept(e);
         }
     }

@@ -52,6 +52,11 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
+grant codeBase "${codebase.jna}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
 //// Everything else:
 
 grant {
@@ -143,4 +148,5 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
 };

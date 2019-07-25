@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -58,6 +57,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
+import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
@@ -81,6 +82,7 @@ import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Setting;
@@ -127,6 +129,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -872,20 +875,29 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCloseExistingIndex() throws IOException {
-        String index = "index";
-        createIndex(index, Settings.EMPTY);
-        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        final String[] indices = new String[randomIntBetween(1, 5)];
+        for (int i = 0; i < indices.length; i++) {
+            String index = "index-" + i;
+            createIndex(index, Settings.EMPTY);
+            indices[i] = index;
+        }
 
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
-        AcknowledgedResponse closeIndexResponse = execute(closeIndexRequest, highLevelClient().indices()::close,
-                highLevelClient().indices()::closeAsync);
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
+        CloseIndexResponse closeIndexResponse = execute(closeIndexRequest,
+            highLevelClient().indices()::close, highLevelClient().indices()::closeAsync);
         assertTrue(closeIndexResponse.isAcknowledged());
+        assertTrue(closeIndexResponse.isShardsAcknowledged());
+        assertThat(closeIndexResponse.getIndices(), notNullValue());
+        assertThat(closeIndexResponse.getIndices(), hasSize(indices.length));
+        closeIndexResponse.getIndices().forEach(indexResult -> {
+            assertThat(indexResult.getIndex(), startsWith("index-"));
+            assertThat(indexResult.hasFailures(), is(false));
 
-        ResponseException exception = expectThrows(ResponseException.class,
-                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search")));
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
-        assertThat(exception.getMessage().contains(index), equalTo(true));
+            ResponseException exception = expectThrows(ResponseException.class,
+                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, indexResult.getIndex() + "/_search")));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            assertThat(exception.getMessage().contains(indexResult.getIndex()), equalTo(true));
+        });
     }
 
     public void testCloseNonExistentIndex() throws IOException {
@@ -896,6 +908,14 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testCloseEmptyOrNullIndex() {
+        String[] indices = randomBoolean() ? Strings.EMPTY_ARRAY : null;
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
+        org.elasticsearch.client.ValidationException exception = expectThrows(org.elasticsearch.client.ValidationException.class,
+            () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
+        assertThat(exception.validationErrors().get(0), equalTo("index is missing"));
     }
 
     public void testRefresh() throws IOException {

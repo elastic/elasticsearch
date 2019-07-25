@@ -1,6 +1,6 @@
 {
   "mget": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-get.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-get.html",
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {

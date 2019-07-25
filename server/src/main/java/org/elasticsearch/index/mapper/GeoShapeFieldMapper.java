@@ -92,7 +92,6 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
-    private final GeometryParser geometryParser;
     private final GeometryIndexer geometryIndexer;
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -101,7 +100,6 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
                                MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
-        geometryParser = new GeometryParser(orientation() == ShapeBuilder.Orientation.RIGHT, coerce().value(), ignoreZValue.value());
         geometryIndexer = new GeometryIndexer(true);
     }
 

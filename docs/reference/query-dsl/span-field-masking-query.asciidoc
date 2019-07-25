@@ -7,11 +7,11 @@
 Wraps a <<span-queries,span query>>, letting you use queries like `span_near` or
 `span_or` to search across different fields.
 
-Queries like `span_near` or `span_or` require any nested queries search the same
-field. With the `field_masking_span` query, you can use the `field` parameter to
-meet that requirement but search a different field instead. This is particularly
-useful for searching <<multi-fields-multiple-analyzers,multi-fields with
-multiple analyzers>>.
+Queries like `span_near` or `span_or` require their inner queries to search
+the same field. With the `field_masking_span` query, you can use the `field`
+parameter to meet that requirement but search a different field instead. This is
+particularly useful for searching <<multi-fields-multiple-analyzers,multi-fields
+with multiple analyzers>>.
 
 [[span-mask-query-ex-request]]
 ==== Example request

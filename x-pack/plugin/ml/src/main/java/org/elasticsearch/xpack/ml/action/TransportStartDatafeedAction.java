@@ -251,7 +251,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeed,
             job,
             xContentRegistry,
-            // Creating fake {@link TimingStatsReporter} so that search API call is not needed.
+            // Creating fake DatafeedTimingStatsReporter so that search API call is not needed.
             new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), jobResultsPersister),
             ActionListener.wrap(
                 unused ->

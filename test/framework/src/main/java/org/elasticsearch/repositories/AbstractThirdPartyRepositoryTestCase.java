@@ -236,10 +236,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo"))
+                blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
                     .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
                 for (String prefix : Arrays.asList("snap-", "meta-")) {
-                    blobStore.blobContainer(BlobPath.cleanPath())
+                    blobStore.blobContainer(repo.basePath())
                         .writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[0]), 0, false);
                 }
                 future.onResponse(null);
@@ -260,10 +260,10 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
                 future.onResponse(
-                    blobStore.blobContainer(BlobPath.cleanPath().add("indices")).children().containsKey("foo")
-                        && blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo")).blobExists("bar")
-                        && blobStore.blobContainer(BlobPath.cleanPath()).blobExists("meta-foo.dat")
-                        && blobStore.blobContainer(BlobPath.cleanPath()).blobExists("snap-foo.dat")
+                    blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath().add("indices").add("foo")), "bar")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "meta-foo.dat")
+                        && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "snap-foo.dat")
                 );
             }
         });

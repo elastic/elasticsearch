@@ -23,7 +23,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
@@ -53,6 +54,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,7 +68,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * indices and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
  */
 public class TransportIndicesShardStoresAction
-        extends StreamableTransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
+        extends TransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
 
     private final NodeClient client;
 
@@ -85,8 +87,8 @@ public class TransportIndicesShardStoresAction
     }
 
     @Override
-    protected IndicesShardStoresResponse newResponse() {
-        return new IndicesShardStoresResponse();
+    protected IndicesShardStoresResponse read(StreamInput in) throws IOException {
+        return new IndicesShardStoresResponse(in);
     }
 
     @Override

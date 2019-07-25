@@ -50,7 +50,7 @@ public class ESJsonLayoutTests extends ESTestCase {
                 "\"node.name\": \"%node_name\", " +
                 "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }\n"));
+                "%exceptionAsJson }" + System.lineSeparator()));
     }
 
     public void testLayoutWithAdditionalFields() {
@@ -72,7 +72,7 @@ public class ESJsonLayoutTests extends ESTestCase {
                 "%notEmpty{, \"x-opaque-id\": \"%ESMessageField{x-opaque-id}\"}" +
                 "%notEmpty{, \"someOtherField\": \"%ESMessageField{someOtherField}\"}" +
                 "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }\n"));
+                "%exceptionAsJson }" + System.lineSeparator()));
     }
 
     public void testLayoutWithAdditionalFieldOverride() {
@@ -92,6 +92,6 @@ public class ESJsonLayoutTests extends ESTestCase {
                 "\"node.name\": \"%node_name\"" +
                 "%notEmpty{, \"message\": \"%ESMessageField{message}\"}" +
                 "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }\n"));
+                "%exceptionAsJson }" + System.lineSeparator()));
     }
 }

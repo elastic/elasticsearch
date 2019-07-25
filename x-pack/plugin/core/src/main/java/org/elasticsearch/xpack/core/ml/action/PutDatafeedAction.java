@@ -27,7 +27,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";
 
     private PutDatafeedAction() {
-        super(NAME);
+        super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -59,11 +59,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -114,11 +109,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
         public DatafeedConfig getResponse() {
             return datafeed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

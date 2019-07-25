@@ -30,7 +30,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Optional;
 
@@ -111,9 +110,7 @@ public class FeatureAwareTests extends ESTestCase {
                 final BytesStreamOutput out = new BytesStreamOutput();
                 final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
                 out.setVersion(afterVersion);
-                if (custom.getRequiredFeature().isPresent()) {
-                    out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
-                }
+                custom.getRequiredFeature();
                 assertTrue(FeatureAware.shouldSerialize(out, custom));
             }
             {
@@ -121,9 +118,6 @@ public class FeatureAwareTests extends ESTestCase {
                 final Version beforeVersion =
                         randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(version));
                 out.setVersion(beforeVersion);
-                if (custom.getRequiredFeature().isPresent() && randomBoolean()) {
-                    out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
-                }
                 assertFalse(FeatureAware.shouldSerialize(out, custom));
             }
         }
@@ -138,7 +132,6 @@ public class FeatureAwareTests extends ESTestCase {
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
             assertTrue(custom.getRequiredFeature().isPresent());
-            out.setFeatures(Collections.singleton(custom.getRequiredFeature().get()));
             assertTrue(FeatureAware.shouldSerialize(out, custom));
         }
     }

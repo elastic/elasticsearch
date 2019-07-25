@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTaskCleaner;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
@@ -179,16 +180,18 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
+            ccrLicenseChecker,
+            restoreSourceService,
+            new CcrRepositoryManager(settings, clusterService, client),
+            new ShardFollowTaskCleaner(clusterService, threadPool, client),
+            new AutoFollowCoordinator(
+                settings,
+                client,
+                clusterService,
                 ccrLicenseChecker,
-                restoreSourceService,
-                new CcrRepositoryManager(settings, clusterService, client),
-                new AutoFollowCoordinator(
-                        settings,
-                        client,
-                        clusterService,
-                        ccrLicenseChecker,
-                        threadPool::relativeTimeInMillis,
-                        threadPool::absoluteTimeInMillis));
+                threadPool::relativeTimeInMillis,
+                threadPool::absoluteTimeInMillis,
+                threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)));
     }
 
     @Override

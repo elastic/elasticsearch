@@ -1,5 +1,8 @@
 [[query-dsl-span-first-query]]
-=== Span First Query
+=== Span first query
+++++
+<titleabbrev>Span first</titleabbrev>
+++++
 
 Matches spans near the beginning of a field. The span first query maps
 to Lucene `SpanFirstQuery`. Here is an example:

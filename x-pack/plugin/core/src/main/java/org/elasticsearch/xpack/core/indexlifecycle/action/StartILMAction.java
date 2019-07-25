@@ -8,19 +8,12 @@ package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class StartILMAction extends ActionType<AcknowledgedResponse> {
     public static final StartILMAction INSTANCE = new StartILMAction();
     public static final String NAME = "cluster:admin/ilm/start";
 
     protected StartILMAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
-
 }

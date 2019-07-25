@@ -70,7 +70,7 @@ public final class FreezeIndexRequest extends TimedRequest {
     }
 
     /**
-     * Returns the wait for active shard cound or null if the default should be used
+     * Returns the wait for active shard count or null if the default should be used
      */
     public ActiveShardCount getWaitForActiveShards() {
         return waitForActiveShards;

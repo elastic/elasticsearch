@@ -179,7 +179,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 statisticsList.add(0L);
             }
         }
-        return DataFrameIndexerTransformStats.withDefaultTransformId(statisticsList.get(0),  // numPages
+        return new DataFrameIndexerTransformStats(statisticsList.get(0),  // numPages
             statisticsList.get(1),  // numInputDocuments
             statisticsList.get(2),  // numOutputDocuments
             statisticsList.get(3),  // numInvocations
@@ -216,7 +216,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             },
             failure -> {
                 if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(DataFrameIndexerTransformStats.withDefaultTransformId());
+                    statsListener.onResponse(new DataFrameIndexerTransformStats());
                 } else {
                     statsListener.onFailure(failure);
                 }

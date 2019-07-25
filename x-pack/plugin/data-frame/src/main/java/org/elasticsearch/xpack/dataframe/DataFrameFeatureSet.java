@@ -105,7 +105,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             listener.onResponse(new DataFrameFeatureSetUsage(available(),
                 enabled(),
                 Collections.emptyMap(),
-                DataFrameIndexerTransformStats.withDefaultTransformId()));
+                new DataFrameIndexerTransformStats()));
             return;
         }
 
@@ -139,7 +139,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                     listener.onResponse(new DataFrameFeatureSetUsage(available(),
                         enabled(),
                         transformsCountByState,
-                        DataFrameIndexerTransformStats.withDefaultTransformId()));
+                        new DataFrameIndexerTransformStats()));
                     return;
                 }
                 transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);

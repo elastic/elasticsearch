@@ -20,11 +20,11 @@ public class TestClusterCleanupOnShutdown implements Runnable {
     private Set<ElasticsearchCluster> clustersToWatch = new HashSet<>();
 
     public synchronized void watch(Collection<ElasticsearchCluster> cluster) {
-        clustersToWatch.addAll(clustersToWatch);
+        clustersToWatch.addAll(cluster);
     }
 
     public synchronized void unWatch(Collection<ElasticsearchCluster> cluster) {
-        clustersToWatch.removeAll(clustersToWatch);
+        clustersToWatch.removeAll(cluster);
     }
 
     @Override

@@ -5,7 +5,8 @@
 ++++
 
 Boosts the <<query-filter-context, relevance score>> of documents closer to a
-provided `origin` date or point.
+provided `origin` date or point. For example, you can use this query to give
+more weight to documents closer to a certain date or location.
 
 You can use the `distance_feature` query to find the nearest neighbors to a
 location. You can also use the query in a <<query-dsl-bool-query,`bool`>>

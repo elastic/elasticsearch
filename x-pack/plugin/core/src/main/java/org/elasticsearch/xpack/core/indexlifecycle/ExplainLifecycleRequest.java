@@ -23,7 +23,7 @@ import java.util.Objects;
  * {@link #indices(String...)} method
  */
 public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycleRequest> {
-    private static final Version FILTERS_INTRODUCED_VERSION = Version.V_8_0_0;
+    private static final Version FILTERS_INTRODUCED_VERSION = Version.V_7_4_0;
 
     private boolean onlyErrors = false;
     private boolean onlyManaged = false;

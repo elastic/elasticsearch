@@ -100,10 +100,9 @@ public class ProcessPipesTests extends ESTestCase {
 
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
                 true, true, true, true, true, true);
-        processPipes.closeUnusedStreams();
     }
 
-    public void testCloseUnusedPipes() throws IOException {
+    public void testCloseOpenedPipesOnError() throws IOException {
 
         NamedPipeHelper namedPipeHelper = mock(NamedPipeHelper.class);
         InputStream logStream = mock(InputStream.class);
@@ -121,23 +120,21 @@ public class ProcessPipesTests extends ESTestCase {
         OutputStream restoreStream = mock(OutputStream.class);
         when(namedPipeHelper.openNamedPipeOutputStream(contains("restore"), any(Duration.class)))
                 .thenReturn(restoreStream);
-        InputStream persistStream = mock(InputStream.class);
-        when(namedPipeHelper.openNamedPipeInputStream(contains("persist"), any(Duration.class)))
-                .thenReturn(persistStream);
+        // opening this pipe will throw
+        when(namedPipeHelper.openNamedPipeInputStream(contains("persist"), any(Duration.class))).thenThrow(new IOException());
 
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
                 true, true, true, true, true, true);
 
-        processPipes.connectStreams(Duration.ofSeconds(2));
-        processPipes.closeUnusedStreams();
+        expectThrows(IOException.class, () -> processPipes.connectStreams(Duration.ofSeconds(2)));
 
+        // check the pipes successfully opened were then closed
         verify(logStream, times(1)).close();
         verify(commandStream, times(1)).close();
         verify(processInStream, times(1)).close();
         verify(processOutStream, times(1)).close();
         verify(restoreStream, times(1)).close();
-        verify(persistStream, times(1)).close();
     }
 }

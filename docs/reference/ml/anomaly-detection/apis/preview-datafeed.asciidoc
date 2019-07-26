@@ -15,6 +15,13 @@ Previews a {dfeed}.
 
 `GET _ml/datafeeds/<datafeed_id>/_preview`
 
+[[ml-preview-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
+`manage_ml`, or `manage` cluster privileges to use this API. For more
+information, see {stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-preview-datafeed-desc]]
 ==== {api-description-title}
 
@@ -25,19 +32,11 @@ structure of the data that will be passed to the anomaly detection engine.
 [[ml-preview-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`datafeed_id` (required)::
-  (string) Identifier for the {dfeed}
-
-[[ml-preview-datafeed-prereqs]]
-==== {api-prereq-title}
-
-If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
-`manage_ml`, or `manage` cluster privileges to use this API. For more
-information, see
-{stack-ov}/security-privileges.html[Security privileges].
+`datafeed_id`::
+  (Required, string) Identifier for the {dfeed}.
 
 [[ml-preview-datafeed-security]]
-==== Security Integration
+==== Security integration
 
 When {es} {security-features} are enabled, the {dfeed} query is previewed using
 the credentials of the user calling the preview {dfeed} API.  When the {dfeed}

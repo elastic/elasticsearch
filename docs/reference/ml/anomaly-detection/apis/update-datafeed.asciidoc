@@ -15,6 +15,13 @@ Updates certain properties of a {dfeed}.
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
+[[ml-update-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-update-datafeed-desc]]
 ==== {api-description-title}
 
@@ -24,8 +31,8 @@ start the {dfeed} for the change to be applied.
 [[ml-update-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`feed_id` (required)::
-  (string) Identifier for the {dfeed}
+`feed_id`::
+  (Required, string) Identifier for the {dfeed}.
 
 [[ml-update-datafeed-request-body]]
 ==== {api-request-body-title}
@@ -55,7 +62,8 @@ The following properties can be updated after the {dfeed} is created:
   `["it_ops_metrics", "server*"]`.
 
 `job_id`::
- (string) A numerical character string that uniquely identifies the job.
+ (Optional, string) A numerical character string that uniquely identifies the
+ {anomaly-job}.
 
 `query`::
   (object) The {es} query domain-specific language (DSL). This value
@@ -83,13 +91,6 @@ The following properties can be updated after the {dfeed} is created:
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.
-
-[[ml-update-datafeed-prereqs]]
-==== {api-prereq-title}
-
-If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-update-datafeed-security]]
 ==== Security Integration

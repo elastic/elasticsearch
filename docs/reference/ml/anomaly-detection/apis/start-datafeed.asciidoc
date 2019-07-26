@@ -17,11 +17,17 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 `POST _ml/datafeeds/<feed_id>/_start`
 
+[[ml-start-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* Before you can start a {dfeed}, the {anomaly-job} must be open. Otherwise, an
+error occurs.
+* If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].
+
 [[ml-start-datafeed-desc]]
 ==== {api-description-title}
-
-NOTE: Before you can start a {dfeed}, the job must be open. Otherwise, an error
-occurs.
 
 When you start a {dfeed}, you can specify a start time.  This enables you to
 include a training period, providing you have this data available in {es}.
@@ -29,7 +35,8 @@ If you want to analyze from the beginning of a dataset, you can specify any date
 earlier than that beginning date.
 
 If you do not specify a start time and the {dfeed} is associated with a new
-job, the analysis starts from the earliest time for which data is available.
+{anomaly-job}, the analysis starts from the earliest time for which data is
+available.
 
 When you start a {dfeed}, you can also specify an end time. If you do so, the
 job analyzes data from the start time until the end time, at which point the
@@ -61,8 +68,8 @@ of the latest processed record.
 [[ml-start-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
-`feed_id` (required)::
-(string) Identifier for the {dfeed}
+`feed_id`::
+(Required, string) Identifier for the {dfeed}.
 
 [[ml-start-datafeed-request-body]]
 ==== {api-request-body-title}
@@ -79,13 +86,6 @@ of the latest processed record.
   (time) Controls the amount of time to wait until a {dfeed} starts.
   The default value is 20 seconds.
 
-[[ml-start-datafeed-prereqs]]
-==== {api-prereq-title}
-
-If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
-cluster privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
-
 [[ml-start-datafeed-security]]
 ==== Security integration
 
@@ -96,7 +96,7 @@ query using those same roles.
 [[ml-start-datafeed-example]]
 ==== {api-examples-title}
 
-The following example starts the `datafeed-it-ops-kpi` {dfeed}:
+The following example starts the `datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------

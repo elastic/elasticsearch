@@ -22,6 +22,14 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 `POST _ml/datafeeds/_all/_stop`
 
+[[ml-stop-datafeed-prereqs]]
+==== {api-prereq-title}
+
+* If {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security privileges].
+
+
 [[ml-stop-datafeed-desc]]
 ==== {api-description-title}
 
@@ -33,8 +41,8 @@ comma-separated list of {dfeeds} or a wildcard expression. You can close all
 ==== {api-path-parms-title}
 
 `feed_id`::
-  (string) Identifier for the {dfeed}. It can be a {dfeed} identifier or a
-  wildcard expression.
+  (Required, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
+  or a wildcard expression.
 
 [[ml-stop-datafeed-query-parms]]
 ==== {api-query-parms-title}
@@ -62,13 +70,6 @@ are no matches or only partial matches.
 `timeout`::
   (time) Controls the amount of time to wait until a {dfeed} stops.
   The default value is 20 seconds.
-
-[[ml-stop-datafeed-prereqs]]
-==== {api-prereq-title}
-
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
 
 [[ml-stop-datafeed-response-codes]]
 ==== {api-response-codes-title}

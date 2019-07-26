@@ -169,7 +169,6 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
 } else {
   thirdPartyTest {
     include '**/GoogleCloudStorageThirdPartyTests.class'
-    systemProperty 'tests.security.manager', 'false'
     systemProperty 'test.google.bucket', gcsBucket
     systemProperty 'test.google.base', gcsBasePath
     nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"

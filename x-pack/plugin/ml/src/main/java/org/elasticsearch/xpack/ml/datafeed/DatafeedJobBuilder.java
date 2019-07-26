@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -101,8 +103,14 @@ public class DatafeedJobBuilder {
         );
 
         // Create data extractor factory
-        Consumer<DatafeedTimingStats> datafeedTimingStatsHandler = timingStats -> {
-            context.timingStatsReporter = new DatafeedTimingStatsReporter(timingStats, jobResultsPersister);
+        Consumer<DatafeedTimingStats> datafeedTimingStatsHandler = initialTimingStats -> {
+            DatafeedTimingStatsPersister timingStatsPersister = new DatafeedTimingStatsPersister() {
+                @Override
+                public void persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
+                    jobResultsPersister.persistDatafeedTimingStats(timingStats, refreshPolicy);
+                }
+            };
+            context.timingStatsReporter = new DatafeedTimingStatsReporter(initialTimingStats, timingStatsPersister);
             DataExtractorFactory.create(
                 client,
                 datafeedConfigHolder.get(),

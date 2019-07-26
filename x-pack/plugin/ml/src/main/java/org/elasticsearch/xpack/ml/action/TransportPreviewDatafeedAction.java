@@ -21,10 +21,10 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.BufferedReader;
@@ -42,21 +42,19 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobResultsProvider jobResultsProvider;
-    private final JobResultsPersister jobResultsPersister;
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportPreviewDatafeedAction(ThreadPool threadPool, TransportService transportService,
                                           ActionFilters actionFilters, Client client, JobConfigProvider jobConfigProvider,
                                           DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider,
-                                          JobResultsPersister jobResultsPersister, NamedXContentRegistry xContentRegistry) {
+                                          NamedXContentRegistry xContentRegistry) {
         super(PreviewDatafeedAction.NAME, transportService, actionFilters, PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobResultsProvider = jobResultsProvider;
-        this.jobResultsPersister = jobResultsPersister;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -83,7 +81,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                     previewDatafeed.build(),
                                     jobBuilder.build(),
                                     xContentRegistry,
-                                    new DatafeedTimingStatsReporter(timingStats, jobResultsPersister),
+                                    // Fake DatafeedTimingStatsReporter that does not have access to results index
+                                    new DatafeedTimingStatsReporter(timingStats, new DatafeedTimingStatsPersister() {}),
                                     new ActionListener<>() {
                                         @Override
                                         public void onResponse(DataExtractorFactory dataExtractorFactory) {

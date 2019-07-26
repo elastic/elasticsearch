@@ -171,7 +171,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -462,36 +461,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(datafeedUpdate.getId(), equalTo(updatedDatafeed.getId()));
         assertThat(datafeedUpdate.getIndices(), equalTo(updatedDatafeed.getIndices()));
         assertThat(datafeedUpdate.getScrollSize(), equalTo(updatedDatafeed.getScrollSize()));
-    }
-
-    public void testUpdateDatafeed_UpdatingJobIdIsProhibited() throws Exception {
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-
-        String jobId = randomValidJobId();
-        Job job = buildJob(jobId);
-        execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
-
-        String anotherJobId = randomValidJobId();
-        Job anotherJob = buildJob(anotherJobId);
-        execute(new PutJobRequest(anotherJob), machineLearningClient::putJob, machineLearningClient::putJobAsync);
-
-        String datafeedId = "datafeed-" + jobId;
-        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
-        execute(new PutDatafeedRequest(datafeedConfig), machineLearningClient::putDatafeed, machineLearningClient::putDatafeedAsync);
-
-        DatafeedUpdate datafeedUpdateWithUnchangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(jobId).build();
-        execute(new UpdateDatafeedRequest(datafeedUpdateWithUnchangedJobId),
-            machineLearningClient::updateDatafeed,
-            machineLearningClient::updateDatafeedAsync);
-
-        DatafeedUpdate datafeedUpdateWithChangedJobId = DatafeedUpdate.builder(datafeedId).setJobId(anotherJobId).build();
-        ElasticsearchStatusException exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> execute(
-                new UpdateDatafeedRequest(datafeedUpdateWithChangedJobId),
-                machineLearningClient::updateDatafeed,
-                machineLearningClient::updateDatafeedAsync));
-        assertThat(exception.getMessage(), containsString("Datafeed's job_id cannot be changed"));
     }
 
     public void testGetDatafeed() throws Exception {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -294,7 +293,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedConfig);
         if (jobId != null) {
             if (datafeedConfig.getJobId() != null && datafeedConfig.getJobId().equals(jobId) == false) {
-                throw ValidationException.withError(ERROR_MESSAGE_ON_JOB_ID_UPDATE);
+                throw ExceptionsHelper.badRequestException(ERROR_MESSAGE_ON_JOB_ID_UPDATE);
             }
             builder.setJobId(jobId);
         }

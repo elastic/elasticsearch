@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -49,7 +51,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.AggProviderTests.createRandomValidAggProvider;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -207,8 +208,10 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedUpdate datafeedUpdateWithChangedJobId = new DatafeedUpdate.Builder(datafeed.getId())
             .setJobId("bar")
             .build();
-        Exception ex = expectThrows(Exception.class, () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap()));
-        assertThat(ex.getMessage(), containsString(DatafeedUpdate.ERROR_MESSAGE_ON_JOB_ID_UPDATE));
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class, () -> datafeedUpdateWithChangedJobId.apply(datafeed, Collections.emptyMap()));
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getMessage(), equalTo(DatafeedUpdate.ERROR_MESSAGE_ON_JOB_ID_UPDATE));
     }
 
     public void testApply_givenEmptyUpdate() {

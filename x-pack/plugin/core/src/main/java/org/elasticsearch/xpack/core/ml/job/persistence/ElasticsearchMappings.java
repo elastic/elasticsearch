@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -931,12 +932,27 @@ public class ElasticsearchMappings {
             .endObject()
             .startObject(TimingStats.EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName())
+                .startObject(PROPERTIES)
+                    .startObject(ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                    .startObject(ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName())
+                        .field(TYPE, DATE)
+                    .endObject()
+                    .startObject(ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName())
+                        .field(TYPE, DOUBLE)
+                    .endObject()
+                .endObject()
             .endObject();
     }
 
     /**
      * {@link DatafeedTimingStats} mapping.
      * Does not include mapping for BUCKET_COUNT as this mapping is added by {@link #addDataCountsMapping} method.
+     * Does not include mapping for EXPONENTIAL_AVG_CALCULATION_CONTEXT as this mapping is added by
+     *     {@link #addTimingStatsExceptBucketCountMapping} method.
      *
      * @throws IOException On builder write error
      */
@@ -948,6 +964,7 @@ public class ElasticsearchMappings {
             // re-used: BUCKET_COUNT
             .startObject(DatafeedTimingStats.TOTAL_SEARCH_TIME_MS.getPreferredName())
                 .field(TYPE, DOUBLE)
+            // re-used: EXPONENTIAL_AVG_CALCULATION_CONTEXT
             .endObject();
     }
 

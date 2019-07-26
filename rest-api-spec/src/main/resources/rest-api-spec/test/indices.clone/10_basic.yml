@@ -29,8 +29,8 @@ setup:
 ---
 "Clone index via API":
   - skip:
-      version: " - 7.99.99"
-      reason: index cloning was added in 8.0.0
+      version: " - 7.3.99"
+      reason: index cloning was added in 7.4.0
   # make it read-only
   - do:
       indices.put_settings:
@@ -95,8 +95,8 @@ setup:
 ---
 "Create illegal clone indices":
   - skip:
-      version: " - 7.99.99"
-      reason: index cloning was added in 8.0.0
+      version: " - 7.3.99"
+      reason: index cloning was added in 7.4.0
   # try to do an illegal clone with illegal number_of_shards
   - do:
       catch: /illegal_argument_exception/

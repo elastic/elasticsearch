@@ -46,6 +46,13 @@ source indices and a check that the destination index is not part of the source
 index pattern. You can use the `defer_validation` parameter to skip these
 checks.
 
+Deferred validations are always run when the {dataframe-transform} is started,
+with the exception of privilege checks. When {es} {security-features} are
+enabled, the {dataframe-transform} remembers which roles the user that created
+it had at the time of creation and uses those same roles. If those roles do not
+have the required privileges on the source and destination indices, the
+{dataframe-transform} fails when it attempts unauthorized operations.
+
 IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
             Do not put a {dataframe-transform} directly into any
             `.data-frame-internal*` indices using the Elasticsearch index API.
@@ -66,11 +73,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 `defer_validation`::
   (Optional, boolean) When `true`, deferrable validations are not run. This
   behavior may be desired if the source index does not exist until after the
-  {dataframe-transform} is created. Deferred validations are always run when the
-  {dataframe-transform} is started, with the exception of privilege checks. If
-  the user who created the transform does not have the required privileges on
-  the source and destination indices, the transform starts but then fails when
-  it attempts the unauthorized operation. The default value is `false`.
+  {dataframe-transform} is created.
 
 [[put-data-frame-transform-request-body]]
 ==== {api-request-body-title}

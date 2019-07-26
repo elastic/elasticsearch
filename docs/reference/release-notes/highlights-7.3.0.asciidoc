@@ -135,10 +135,10 @@ similar level as what you could have on pre-6.0 releases.
 [[release-highlights-7.3.0-transforms]]
 ==== {dataframes-cap}: transform and pivot your streaming data
 
-beta[] {dataframe-transforms-cap} are a core new feature in {es} that enable you
-to transform an existing index to a secondary, summarized index.
-{dataframe-transforms-cap} enable you to pivot your data and create
-entity-centric indices that can summarize the behavior of an entity. This
+beta[] {stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}] are a core new
+feature in {es} that enable you to transform an existing index to a secondary,
+summarized index. {dataframe-transforms-cap} enable you to pivot your data and
+create entity-centric indices that can summarize the behavior of an entity. This
 organizes the data into an analysis-friendly format.
 
 {dataframe-transforms-cap} were originally available in 7.2. With 7.3 they can

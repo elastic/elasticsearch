@@ -103,7 +103,7 @@ public class GCSCleanupTests extends AbstractCleanupTests {
         return () -> command.execute(terminal, options);
     }
 
-    public void testNoCredentialsFile() {
+    public void testNoCredentials() {
         expectThrows(() ->
                         executeCommand(false, Map.of("base64_credentials", "")),
                 "base64_credentials option is required for cleaning up GCS repository");

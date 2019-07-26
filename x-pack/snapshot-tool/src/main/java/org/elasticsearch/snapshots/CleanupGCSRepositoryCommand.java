@@ -12,16 +12,23 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 
 public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
 
     private final OptionSpec<String> credentialsFileOption;
+    private final OptionSpec<String> endpointOption;
+    private final OptionSpec<String> tokenURIOption;
 
     public CleanupGCSRepositoryCommand() {
         super("Command to cleanup orphaned segment files from the GCS repository");
 
         credentialsFileOption = parser.accepts("credentials_file", "Name of the file with GCS credentials")
+                .withRequiredArg();
+        endpointOption = parser.accepts("endpoint", "GCS endpoint")
+                .withRequiredArg();
+        tokenURIOption = parser.accepts("token_uri", "GCS URI to use for OAuth tokens")
                 .withRequiredArg();
     }
 
@@ -36,14 +43,17 @@ public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
     }
 
     @Override
-    protected AbstractRepository newRepository(Terminal terminal, OptionSet options) throws IOException, GeneralSecurityException {
+    protected AbstractRepository newRepository(Terminal terminal, OptionSet options)
+            throws IOException, GeneralSecurityException, URISyntaxException {
         return new GCSRepository(
                 terminal,
                 safetyGapMillisOption.value(options),
                 parallelismOption.value(options),
                 bucketOption.value(options),
                 basePathOption.value(options),
-                credentialsFileOption.value(options));
+                credentialsFileOption.value(options),
+                endpointOption.value(options),
+                tokenURIOption.value(options));
     }
 
 }

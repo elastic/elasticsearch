@@ -20,12 +20,15 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.channels.Channels;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
@@ -48,13 +51,15 @@ public class GCSRepository extends AbstractRepository {
     private final Storage storage;
 
     protected GCSRepository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String bucket, String basePath,
-                            String credentialsFile) throws IOException, GeneralSecurityException {
+                            String credentialsFile, String endpoint, String tokenURI) throws IOException, GeneralSecurityException,
+            URISyntaxException {
         super(terminal, safetyGapMillis, parallelism, basePath);
-        this.storage = buildGCSClient(credentialsFile);
+        this.storage = buildGCSClient(credentialsFile, endpoint, tokenURI);
         this.bucket = bucket;
     }
 
-    private static Storage buildGCSClient(String credentialsFiles) throws IOException, GeneralSecurityException {
+    private static Storage buildGCSClient(String credentialsFile, String endpoint, String tokenURI)
+            throws IOException, GeneralSecurityException, URISyntaxException {
         final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
         builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
         final HttpTransport httpTransport = builder.build();
@@ -67,7 +72,15 @@ public class GCSRepository extends AbstractRepository {
                 .setTransportOptions(httpTransportOptions)
                 .setHeaderProvider(() -> Collections.singletonMap("user-agent", "gcs_cleanup_tool"));
 
-        ServiceAccountCredentials serviceAccountCredentials = ServiceAccountCredentials.fromStream(new FileInputStream(credentialsFiles));
+        if (Strings.hasLength(endpoint)) {
+            storageOptionsBuilder.setHost(endpoint);
+        }
+
+        ServiceAccountCredentials serviceAccountCredentials = ServiceAccountCredentials.fromStream(new FileInputStream(credentialsFile));
+        if (Strings.hasLength(tokenURI)) {
+            serviceAccountCredentials = serviceAccountCredentials.toBuilder().setTokenServerUri(new URI(tokenURI)).build();
+        }
+
         if (serviceAccountCredentials.createScopedRequired()) {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials.createScoped(Collections.singleton(DEVSTORAGE_FULL_CONTROL)));
         } else {

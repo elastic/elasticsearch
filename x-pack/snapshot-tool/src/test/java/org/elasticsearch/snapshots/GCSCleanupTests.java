@@ -8,6 +8,7 @@ package org.elasticsearch.snapshots;
 import joptsimple.OptionSet;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +46,24 @@ public class GCSCleanupTests extends AbstractCleanupTests {
     }
 
     @Override
+    protected Settings nodeSettings() {
+        Settings.Builder builder = Settings.builder();
+
+        if (Strings.isNullOrEmpty(getEndpoint()) == false) {
+            builder.put("gcs.client.default.endpoint", getEndpoint());
+        }
+
+        if (Strings.isNullOrEmpty(getTokenUri()) == false) {
+            builder.put("gcs.client.default.token_uri", getTokenUri());
+        }
+
+        return Settings.builder()
+                .put(builder.build())
+                .setSecureSettings(credentials())
+                .build();
+    }
+
+    @Override
     protected void createRepository(final String repoName) {
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
                 .setType("gcs")
@@ -67,6 +86,14 @@ public class GCSCleanupTests extends AbstractCleanupTests {
         return System.getProperty("test.google.credentials_file");
     }
 
+    private String getEndpoint() {
+        return System.getProperty("test.google.endpoint");
+    }
+
+    private String getTokenUri() {
+        return System.getProperty("test.google.tokenURI");
+    }
+
     @Override
     protected ThrowingRunnable commandRunnable(MockTerminal terminal, Map<String, String> nonDefaultArguments) {
         final CleanupGCSRepositoryCommand command = new CleanupGCSRepositoryCommand();
@@ -75,7 +102,10 @@ public class GCSCleanupTests extends AbstractCleanupTests {
                 "--parallelism", nonDefaultArguments.getOrDefault("parallelism", "10"),
                 "--bucket", nonDefaultArguments.getOrDefault("bucket", getBucket()),
                 "--base_path", nonDefaultArguments.getOrDefault("base_path", getBasePath()),
-                "--credentials_file", nonDefaultArguments.getOrDefault("credentials_file", getCredentialsFiles()));
+                "--credentials_file", nonDefaultArguments.getOrDefault("credentials_file", getCredentialsFiles()),
+                "--endpoint", nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
+                "--token_uri", nonDefaultArguments.getOrDefault("token_uri", getTokenUri())
+                );
         return () -> command.execute(terminal, options);
     }
 

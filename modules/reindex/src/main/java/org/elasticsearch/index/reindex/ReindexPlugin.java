@@ -109,7 +109,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         this.scriptService.set(scriptService);
-        reindexSslConfig.set(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
+        this.reindexSslConfig.set(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
         return Collections.singletonList(reindexSslConfig.get());
     }
 
@@ -124,7 +124,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, PersistentTas
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool, Client client,
                                                                        SettingsModule settingsModule) {
-        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client, threadPool,
-            scriptService.get(), reindexSslConfig.get()));
+        ScriptService scriptService = this.scriptService.get();
+        assert scriptService != null;
+        ReindexSslConfig reindexSslConfig = this.reindexSslConfig.get();
+        assert reindexSslConfig != null;
+        return Collections.singletonList(new ReindexTask.ReindexPersistentTasksExecutor(clusterService, client, threadPool, scriptService,
+            reindexSslConfig));
     }
 }

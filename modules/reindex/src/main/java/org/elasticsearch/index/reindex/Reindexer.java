@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -76,15 +77,15 @@ public class Reindexer {
     private final Client client;
     private final ThreadPool threadPool;
     private final ScriptService scriptService;
-    private final ReindexSslConfig sslConfig;
+    private final ReindexSslConfig reindexSslConfig;
 
     Reindexer(ClusterService clusterService, Client client, ThreadPool threadPool, ScriptService scriptService,
-              ReindexSslConfig sslConfig) {
+              ReindexSslConfig reindexSslConfig) {
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
-        this.sslConfig = sslConfig;
+        this.reindexSslConfig = reindexSslConfig;
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
@@ -93,7 +94,7 @@ public class Reindexer {
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
-                    scriptService, sslConfig, request, listener);
+                    scriptService, reindexSslConfig, request, listener);
                 searchAction.start();
             }
         );
@@ -157,8 +158,11 @@ public class Reindexer {
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
 
-        private final ScriptService scriptService;
-        private final ReindexSslConfig sslConfig;
+//        private final ScriptService scriptService;
+//        private final ReindexSslConfig sslConfig;
+        private static final String SSL_CONFIG = "SSL_CONFIG";
+        private static final String SCRIPT_SERVICE = "SCRIPT_SERVICE";
+
 
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
@@ -177,9 +181,7 @@ public class Reindexer {
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                false, logger, client, threadPool, request, listener);
-            this.scriptService = scriptService;
-            this.sslConfig = sslConfig;
+                false, logger, client, threadPool, request, listener, buildConfig(scriptService, sslConfig));
         }
 
         @Override
@@ -187,6 +189,7 @@ public class Reindexer {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
+                ReindexSslConfig sslConfig = (ReindexSslConfig) config.get(SSL_CONFIG);
                 RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads);
                 return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
                     this::onScrollResponse, this::finishHim,
@@ -212,6 +215,7 @@ public class Reindexer {
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
+                ScriptService scriptService = (ScriptService) config.get(SCRIPT_SERVICE);
                 return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
@@ -366,6 +370,13 @@ public class Reindexer {
                 }
                 return l;
             }
+        }
+
+        private static Map<String, Object> buildConfig(ScriptService scriptService, ReindexSslConfig sslConfig) {
+            HashMap<String, Object> config = new HashMap<>();
+            config.put("SCRIPT_SERVICE", scriptService);
+            config.put("SSL_CONFIG", sslConfig);
+            return config;
         }
     }
 }

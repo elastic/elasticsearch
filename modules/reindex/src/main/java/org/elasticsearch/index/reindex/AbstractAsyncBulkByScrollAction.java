@@ -88,6 +88,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected final Logger logger;
     protected final BulkByScrollTask task;
+    protected final Map<String, Object> config;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
 
@@ -116,7 +117,16 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                            boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
                                            ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener) {
+        this(task, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, logger, client, threadPool, mainRequest, listener,
+            Collections.emptyMap());
+    }
+
+    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
+                                           boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
+                                           ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
+                                           Map<String, Object> config) {
         this.task = task;
+        this.config = config;
         if (!task.isWorker()) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }

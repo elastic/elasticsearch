@@ -250,6 +250,19 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(user.roles().length, is(0));
     }
 
+    public void testAuthenticationDelegationFailsWithoutTokenService() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        Settings settings = Settings.builder()
+                .put(globalSettings)
+                .put("xpack.security.authc.realms.pki.my_pki.delegation.enabled", true)
+                .build();
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> new PkiRealm(new RealmConfig(new RealmConfig.RealmIdentifier("pki", "my_pki"), settings,
+                        TestEnvironment.newEnvironment(globalSettings), threadContext), mock(UserRoleMapper.class)));
+        assertThat(e.getMessage(), is("PKI realms with delegation enabled require that"
+                + " the token service be enabled as well (xpack.security.authc.token.enabled)"));
+    }
+
     public void testAuthenticationDelegationSuccess() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         X509AuthenticationToken delegatedToken = new X509AuthenticationToken(new X509Certificate[] { certificate }, true);
@@ -262,6 +275,7 @@ public class PkiRealmTests extends ESTestCase {
                 .put("xpack.security.authc.realms.pki.my_pki.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
                 .put("xpack.security.authc.realms.pki.my_pki.delegation.enabled", true)
+                .put("xpack.security.authc.token.enabled", true)
                 .setSecureSettings(secureSettings)
                 .build();
         PkiRealm realmWithDelegation = buildRealm(roleMapper, settings);

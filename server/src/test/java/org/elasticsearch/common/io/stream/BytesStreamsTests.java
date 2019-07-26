@@ -834,5 +834,4 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeZLong(timeValue.duration());
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
-
 }

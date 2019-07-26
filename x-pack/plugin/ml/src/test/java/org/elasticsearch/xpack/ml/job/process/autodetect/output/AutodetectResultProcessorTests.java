@@ -134,7 +134,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(bulkBuilder.persistTimingStats(any(TimingStats.class))).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
         AutodetectResult result = mock(AutodetectResult.class);
-        Bucket bucket = mock(Bucket.class);
+        Bucket bucket = new Bucket(JOB_ID, new Date(), BUCKET_SPAN_MS);
         when(result.getBucket()).thenReturn(bucket);
 
         processorUnderTest.setDeleteInterimRequired(false);
@@ -151,7 +151,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(bulkBuilder.persistTimingStats(any(TimingStats.class))).thenReturn(bulkBuilder);
         when(bulkBuilder.persistBucket(any(Bucket.class))).thenReturn(bulkBuilder);
         AutodetectResult result = mock(AutodetectResult.class);
-        Bucket bucket = mock(Bucket.class);
+        Bucket bucket = new Bucket(JOB_ID, new Date(), BUCKET_SPAN_MS);
         when(result.getBucket()).thenReturn(bucket);
 
         processorUnderTest.processResult(result);

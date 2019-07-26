@@ -46,8 +46,4 @@ public class PutRoleMappingResponse extends ActionResponse implements ToXContent
         out.writeBoolean(created);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-}

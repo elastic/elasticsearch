@@ -1,5 +1,5 @@
 [[cat-recovery]]
-== cat recovery
+=== cat recovery
 
 The `recovery` command is a view of index shard recoveries, both on-going and previously
 completed. It is a more compact view of the JSON <<indices-recovery,recovery>> API.
@@ -24,11 +24,11 @@ The response of this request will be something like:
 [source,txt]
 ---------------------------------------------------------------------------
 index   shard time type  stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
-twitter 0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0     0               100%          9928        0            0                      100.0%
+twitter 0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0b    0b              100%          9928b       0            0                      100.0%
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/store/empty_store/]
 // TESTRESPONSE[s/100%/0.0%/]
-// TESTRESPONSE[s/9928/0/]
+// TESTRESPONSE[s/9928b/0b/]
 // TESTRESPONSE[s/13ms/\\d+m?s/]
 // TESTRESPONSE[s/13/\\d+/ non_json]
 
@@ -50,8 +50,8 @@ This will return a line like:
 
 [source,txt]
 ----------------------------------------------------------------------------
-i       s t      ty   st    shost       thost       f     fp      b bp
-twitter 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0 100.0%
+i       s t      ty   st    shost       thost       f     fp      b  bp
+twitter 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0b 100.0%
 ----------------------------------------------------------------------------
 // TESTRESPONSE[s/peer/empty_store/]
 // TESTRESPONSE[s/192.168.1.2/127.0.0.1/]

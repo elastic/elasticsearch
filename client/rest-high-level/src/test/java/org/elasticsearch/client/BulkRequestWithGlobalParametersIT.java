@@ -170,7 +170,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
     public void testGlobalRouting() throws IOException {
         createIndexWithMultipleShards("index");
-        BulkRequest request = new BulkRequest(null);
+        BulkRequest request = new BulkRequest((String) null);
         request.add(new IndexRequest("index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest("index").id("2")
@@ -186,7 +186,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     }
 
     public void testMixLocalAndGlobalRouting() throws IOException {
-        BulkRequest request = new BulkRequest(null);
+        BulkRequest request = new BulkRequest((String) null);
         request.routing("globalRouting");
         request.add(new IndexRequest("index").id("1")
             .source(XContentType.JSON, "field", "bulk1"));

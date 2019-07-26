@@ -1,5 +1,9 @@
 [[query-dsl-ids-query]]
-=== Ids Query
+=== IDs
+++++
+<titleabbrev>IDs</titleabbrev>
+++++
+
 Returns documents based on their IDs. This query uses document IDs stored in
 the <<mapping-id-field,`_id`>> field.
 

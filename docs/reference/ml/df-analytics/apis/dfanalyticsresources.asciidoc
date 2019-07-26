@@ -105,4 +105,4 @@ The `source` configuration object has the following properties:
   corresponds to the query object in an {es} search POST body. All the
   options that are supported by {es} can be used, as this object is
   passed verbatim to {es}. By default, this property has the following
-  value: `{"match_all": {"boost": 1}}`.
+  value: `{"match_all": {}}`.

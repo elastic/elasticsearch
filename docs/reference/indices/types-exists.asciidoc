@@ -1,5 +1,5 @@
 [[indices-types-exists]]
-== Types Exists
+=== Types Exists
 
 deprecated[7.0.0, Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.]
 

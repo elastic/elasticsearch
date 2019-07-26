@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     private static ConstructingObjectParser<DatafeedTimingStats, Void> createParser() {
         ConstructingObjectParser<DatafeedTimingStats, Void> parser =
             new ConstructingObjectParser<>(
-                "datafeed_timing_stats",
+                TYPE.getPreferredName(),
                 true,
                 args -> {
                     String jobId = (String) args[0];
@@ -113,8 +114,8 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
         this.totalSearchTimeMs += searchTimeMs;
     }
 
-    public void setBucketCount(long bucketCount) {
-        this.bucketCount = bucketCount;
+    public void incrementBucketCount(long bucketCount) {
+        this.bucketCount += bucketCount;
     }
 
     @Override
@@ -128,6 +129,9 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(Result.RESULT_TYPE.getPreferredName(), TYPE.getPreferredName());
+        }
         builder.field(JOB_ID.getPreferredName(), jobId);
         builder.field(SEARCH_COUNT.getPreferredName(), searchCount);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);

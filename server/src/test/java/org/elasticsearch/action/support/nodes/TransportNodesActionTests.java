@@ -317,7 +317,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<TestNodeResponse> nodes) throws IOException {
-            out.writeStreamableList(nodes);
+            out.writeList(nodes);
         }
     }
 

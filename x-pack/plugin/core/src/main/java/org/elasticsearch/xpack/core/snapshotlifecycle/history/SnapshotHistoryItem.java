@@ -94,7 +94,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         this.snapshotName = Objects.requireNonNull(snapshotName);
         this.operation = Objects.requireNonNull(operation);
         this.success = success;
-        this.snapshotConfiguration = Objects.requireNonNull(snapshotConfiguration);
+        this.snapshotConfiguration = snapshotConfiguration;
         this.errorDetails = errorDetails;
     }
 

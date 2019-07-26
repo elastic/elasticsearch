@@ -25,7 +25,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
@@ -41,7 +40,7 @@ import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -180,6 +179,22 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
     }
 
+    public void testCreateDeleteWithDefer() throws IOException {
+        String sourceIndex = "missing-source-index";
+
+        String id = "test-with-defer";
+        DataFrameTransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
+        DataFrameClient client = highLevelClient().dataFrame();
+        PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(transform);
+        request.setDeferValidation(true);
+        AcknowledgedResponse ack = execute(request, client::putDataFrameTransform, client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+
+        ack = execute(new DeleteDataFrameTransformRequest(transform.getId()), client::deleteDataFrameTransform,
+            client::deleteDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+    }
+
     public void testGetTransform() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
@@ -258,8 +273,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
                 client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
-        assertThat(statsResponse.getTransformsStateAndStats(), hasSize(1));
-        DataFrameTransformTaskState taskState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getTaskState();
+        assertThat(statsResponse.getTransformsStats(), hasSize(1));
+        DataFrameTransformTaskState taskState = statsResponse.getTransformsStats().get(0).getTaskState();
 
         // Since we are non-continuous, the transform could auto-stop between being started earlier and us gathering the statistics
         assertThat(taskState, is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
@@ -274,7 +289,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         // Calling stop with wait_for_completion assures that we will be in the `STOPPED` state for the transform task
         statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
             client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
-        taskState = statsResponse.getTransformsStateAndStats().get(0).getTransformState().getTaskState();
+        taskState = statsResponse.getTransformsStats().get(0).getTaskState();
         assertThat(taskState, is(DataFrameTransformTaskState.STOPPED));
     }
 
@@ -353,13 +368,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
                 client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
 
-        assertEquals(1, statsResponse.getTransformsStateAndStats().size());
-        DataFrameTransformStateAndStats stats = statsResponse.getTransformsStateAndStats().get(0);
-        assertEquals(DataFrameTransformTaskState.STOPPED, stats.getTransformState().getTaskState());
-        assertEquals(IndexerState.STOPPED, stats.getTransformState().getIndexerState());
+        assertEquals(1, statsResponse.getTransformsStats().size());
+        DataFrameTransformStats stats = statsResponse.getTransformsStats().get(0);
+        assertEquals(DataFrameTransformTaskState.STOPPED, stats.getTaskState());
 
         DataFrameIndexerTransformStats zeroIndexerStats = new DataFrameIndexerTransformStats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
-        assertEquals(zeroIndexerStats, stats.getTransformStats());
+        assertEquals(zeroIndexerStats, stats.getIndexerStats());
 
         // start the transform
         StartDataFrameTransformResponse startTransformResponse = execute(new StartDataFrameTransformRequest(id),
@@ -369,17 +383,15 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertBusy(() -> {
             GetDataFrameTransformStatsResponse response = execute(new GetDataFrameTransformStatsRequest(id),
                     client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
-            DataFrameTransformStateAndStats stateAndStats = response.getTransformsStateAndStats().get(0);
-            assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
-            assertNotNull(stateAndStats.getTransformState().getProgress());
-            assertThat(stateAndStats.getTransformState().getTaskState(),
+            DataFrameTransformStats stateAndStats = response.getTransformsStats().get(0);
+            assertNotEquals(zeroIndexerStats, stateAndStats.getIndexerStats());
+            assertThat(stateAndStats.getTaskState(),
                 is(oneOf(DataFrameTransformTaskState.STARTED, DataFrameTransformTaskState.STOPPED)));
-            assertThat(stateAndStats.getTransformState().getIndexerState(),
-                is(oneOf(IndexerState.STARTED, IndexerState.STOPPED)));
-            assertThat(stateAndStats.getTransformState().getProgress().getPercentComplete(), equalTo(100.0));
-            assertThat(stateAndStats.getTransformState().getProgress().getTotalDocs(), greaterThan(0L));
-            assertThat(stateAndStats.getTransformState().getProgress().getRemainingDocs(), equalTo(0L));
-            assertThat(stateAndStats.getTransformState().getReason(), is(nullValue()));
+            assertNotNull(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress());
+            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getPercentComplete(), equalTo(100.0));
+            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getTotalDocs(), greaterThan(0L));
+            assertThat(stateAndStats.getCheckpointingInfo().getNext().getCheckpointProgress().getRemainingDocs(), equalTo(0L));
+            assertThat(stateAndStats.getReason(), is(nullValue()));
         });
     }
 

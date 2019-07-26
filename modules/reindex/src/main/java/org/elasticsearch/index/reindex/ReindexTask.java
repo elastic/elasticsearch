@@ -53,7 +53,6 @@ public class ReindexTask extends AllocatedPersistentTask {
     private final TaskId taskId;
     private final BulkByScrollTask newTask;
     private final Reindexer reindexer;
-    private volatile BulkByScrollTask childTask;
 
     public static class ReindexPersistentTasksExecutor extends PersistentTasksExecutor<ReindexJob> {
 
@@ -63,7 +62,8 @@ public class ReindexTask extends AllocatedPersistentTask {
         private final ScriptService scriptService;
         private final ReindexSslConfig reindexSslConfig;
 
-        public ReindexPersistentTasksExecutor(ClusterService clusterService, final Client client, ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig reindexSslConfig) {
+        ReindexPersistentTasksExecutor(ClusterService clusterService, final Client client, ThreadPool threadPool,
+                                       ScriptService scriptService, ReindexSslConfig reindexSslConfig) {
             super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
             this.client = client;
@@ -132,68 +132,68 @@ public class ReindexTask extends AllocatedPersistentTask {
             ReindexRequest reindexRequest = reindexJob.getReindexRequest();
             reindexRequest.setParentTask(taskId);
             boolean shouldStoreResult = reindexJob.shouldStoreResult();
-            childTask = (BulkByScrollTask) client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
-                new ContextPreservingActionListener<>(supplier, new ActionListener<>() {
-                    @Override
-                    public void onResponse(BulkByScrollResponse response) {
-                        updatePersistentTaskState(new ReindexJobState(taskId, response, null), new ActionListener<>() {
-                            @Override
-                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                                if (shouldStoreResult) {
-                                    taskManager.storeResult(ReindexTask.this, response, new ActionListener<>() {
-                                        @Override
-                                        public void onResponse(BulkByScrollResponse response) {
-                                            markAsCompleted();
-                                        }
 
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            logger.info("Failed to store task result", e);
-                                            markAsFailed(e);
-                                        }
-                                    });
-                                } else {
-                                    markAsCompleted();
-                                }
-                            }
+            reindexer.execute(newTask, reindexRequest, new ContextPreservingActionListener<>(supplier, new ActionListener<>() {
+                @Override
+                public void onResponse(BulkByScrollResponse response) {
+                    updatePersistentTaskState(new ReindexJobState(taskId, response, null), new ActionListener<>() {
+                        @Override
+                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                            if (shouldStoreResult) {
+                                taskManager.storeResult(ReindexTask.this, response, new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(BulkByScrollResponse response) {
+                                        markAsCompleted();
+                                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.info("Failed to update task state to success", e);
-                                if (shouldStoreResult) {
-                                    taskManager.storeResult(ReindexTask.this, e, ActionListener.wrap(() -> markAsFailed(e)));
-                                } else {
-                                    markAsFailed(e);
-                                }
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        logger.info("Failed to store task result", e);
+                                        markAsFailed(e);
+                                    }
+                                });
+                            } else {
+                                markAsCompleted();
                             }
-                        });
-                    }
+                        }
 
-                    @Override
-                    public void onFailure(Exception ex) {
-                        updatePersistentTaskState(new ReindexJobState(taskId, null, wrapException(ex)), new ActionListener<>() {
-                            @Override
-                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                                if (shouldStoreResult) {
-                                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                                } else {
-                                    markAsFailed(ex);
-                                }
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.info("Failed to update task state to success", e);
+                            if (shouldStoreResult) {
+                                taskManager.storeResult(ReindexTask.this, e, ActionListener.wrap(() -> markAsFailed(e)));
+                            } else {
+                                markAsFailed(e);
                             }
+                        }
+                    });
+                }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.info("Failed to update task state to failed", e);
-                                ex.addSuppressed(e);
-                                if (shouldStoreResult) {
-                                    taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
-                                } else {
-                                    markAsFailed(ex);
-                                }
+                @Override
+                public void onFailure(Exception ex) {
+                    updatePersistentTaskState(new ReindexJobState(taskId, null, wrapException(ex)), new ActionListener<>() {
+                        @Override
+                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                            if (shouldStoreResult) {
+                                taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
+                            } else {
+                                markAsFailed(ex);
                             }
-                        });
-                    }
-                }));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.info("Failed to update task state to failed", e);
+                            ex.addSuppressed(e);
+                            if (shouldStoreResult) {
+                                taskManager.storeResult(ReindexTask.this, ex, ActionListener.wrap(() -> markAsFailed(ex)));
+                            } else {
+                                markAsFailed(ex);
+                            }
+                        }
+                    });
+                }
+            }));
         }
     }
 

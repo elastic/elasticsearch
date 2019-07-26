@@ -32,10 +32,14 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.chrono.Chronology;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAdjuster;
 import java.time.temporal.TemporalAmount;
@@ -94,6 +98,42 @@ public class JodaCompatibleZonedDateTime {
         return DATE_FORMATTER.format(dt);
     }
 
+    public String format(DateTimeFormatter formatter) {
+        return dt.format(formatter);
+    }
+
+    public int get(TemporalField field) {
+        return dt.get(field);
+    }
+
+    public long getLong(TemporalField field) {
+        return dt.getLong(field);
+    }
+
+    public Chronology getChronology() {
+        return dt.getChronology();
+    }
+
+    public int compareTo(JodaCompatibleZonedDateTime o) {
+        return dt.compareTo(o.dt);
+    }
+
+    public ZoneOffset getOffset() {
+        return dt.getOffset();
+    }
+
+    public boolean isSupported(TemporalField field) {
+        return dt.isSupported(field);
+    }
+
+    public long toEpochSecond() {
+        return dt.toEpochSecond();
+    }
+
+    public LocalTime toLocalTime() {
+        return dt.toLocalTime();
+    }
+
     public boolean isAfter(JodaCompatibleZonedDateTime o) {
         return dt.isAfter(o.getZonedDateTime());
     }
@@ -105,6 +145,8 @@ public class JodaCompatibleZonedDateTime {
     public boolean isEqual(JodaCompatibleZonedDateTime o) {
         return dt.isEqual(o.getZonedDateTime());
     }
+
+
 
     public int getDayOfMonth() {
         return dt.getDayOfMonth();

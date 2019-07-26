@@ -2,7 +2,8 @@
 [[ml-sum-functions]]
 === Sum functions
 
-The sum functions detect anomalies when the sum of a field in a bucket is anomalous.
+The sum functions detect anomalies when the sum of a field in a bucket is
+anomalous.
 
 If you want to monitor unusually high totals, use high-sided functions.
 
@@ -35,7 +36,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 1: Analyzing total expenses with the sum function
 [source,js]
@@ -49,7 +50,7 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `sum` function in a detector in your job, it
+If you use this `sum` function in a detector in your {anomaly-job}, it
 models total expenses per employees for each cost center. For each time bucket,
 it detects when an employee’s expenses are unusual for a cost center compared
 to other employees.
@@ -65,7 +66,7 @@ to other employees.
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `high_sum` function in a detector in your job, it
+If you use this `high_sum` function in a detector in your {anomaly-job}, it
 models total `cs_bytes`. It detects `cs_hosts` that transfer unusually high
 volumes compared to other `cs_hosts`. This example looks for volumes of data
 transferred from a client to a server on the internet that are unusual compared
@@ -91,7 +92,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 NOTE: Population analysis (that is to say, use of the `over_field_name` property)
 is not applicable for this function.
@@ -107,9 +108,7 @@ is not applicable for this function.
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `high_non_null_sum` function in a detector in your job, it
-models the total `amount_approved` for each employee. It ignores any buckets
+If you use this `high_non_null_sum` function in a detector in your {anomaly-job},
+it models the total `amount_approved` for each employee. It ignores any buckets
 where the amount is null. It detects employees who approve unusually high
 amounts compared to their past behavior.
-//For this credit control system analysis, using non_null_sum will ignore
-//periods where the employees are not active on the system.

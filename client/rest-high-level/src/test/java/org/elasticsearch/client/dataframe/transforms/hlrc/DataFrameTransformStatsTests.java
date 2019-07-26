@@ -79,8 +79,7 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
             randomFrom(DataFrameTransformTaskState.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : randomNodeAttributes(),
-            // TODO: remove this ID field from the server side as it's no longer needed
-            randomStats("_all"),
+            randomStats(),
             DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 
@@ -132,8 +131,8 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
             attributes);
     }
 
-    public static DataFrameIndexerTransformStats randomStats(String transformId) {
-        return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
+    public static DataFrameIndexerTransformStats randomStats() {
+        return new DataFrameIndexerTransformStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L));

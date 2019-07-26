@@ -851,7 +851,7 @@ public class JobResultsProviderTests extends ESTestCase {
         contextMap.put(ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 100.0);
         contextMap.put(ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(1000_000_000));
         contextMap.put(ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 200.0);
-        timingStatsMap.put(DatafeedTimingStats.EXPONENTIAL_AVERAGE_CALCULATION_CONTEXT.getPreferredName(), contextMap);
+        timingStatsMap.put(DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), contextMap);
         
         List<Map<String, Object>> source = Arrays.asList(timingStatsMap);
         SearchResponse response = createSearchResponse(source);
@@ -917,7 +917,7 @@ public class JobResultsProviderTests extends ESTestCase {
         contextFooMap.put(ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 600.0);
         contextFooMap.put(ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600));
         contextFooMap.put(ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0);
-        sourceFooMap.put(DatafeedTimingStats.EXPONENTIAL_AVERAGE_CALCULATION_CONTEXT.getPreferredName(), contextFooMap);
+        sourceFooMap.put(DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), contextFooMap);
 
         Map<String, Object> sourceBarMap = new HashMap<>();
         sourceBarMap.put(Job.ID.getPreferredName(), "bar");
@@ -928,7 +928,7 @@ public class JobResultsProviderTests extends ESTestCase {
         contextBarMap.put(ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 700.0);
         contextBarMap.put(ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000700));
         contextBarMap.put(ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 70.0);
-        sourceBarMap.put(DatafeedTimingStats.EXPONENTIAL_AVERAGE_CALCULATION_CONTEXT.getPreferredName(), contextBarMap);
+        sourceBarMap.put(DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), contextBarMap);
 
         List<Map<String, Object>> sourceFoo = Arrays.asList(sourceFooMap);
         List<Map<String, Object>> sourceBar = Arrays.asList(sourceBarMap);
@@ -993,7 +993,7 @@ public class JobResultsProviderTests extends ESTestCase {
         contextFooMap.put(ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(), 600.0);
         contextFooMap.put(ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(), Instant.ofEpochMilli(100000600));
         contextFooMap.put(ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), 60.0);
-        sourceFooMap.put(DatafeedTimingStats.EXPONENTIAL_AVERAGE_CALCULATION_CONTEXT.getPreferredName(), contextFooMap);
+        sourceFooMap.put(DatafeedTimingStats.EXPONENTIAL_AVG_CALCULATION_CONTEXT.getPreferredName(), contextFooMap);
 
         List<Map<String, Object>> source = Arrays.asList(sourceFooMap);
         SearchResponse response = createSearchResponse(source);

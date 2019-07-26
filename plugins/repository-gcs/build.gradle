@@ -136,6 +136,10 @@ String gcsServiceAccount = System.getenv("google_storage_service_account")
 String gcsBucket = System.getenv("google_storage_bucket")
 String gcsBasePath = System.getenv("google_storage_base_path")
 
+def encodedCredentials = {
+  Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
+}
+
 if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   thirdPartyTest.dependsOn('qa:google-cloud-storage:createServiceAccountFile', 'qa:google-cloud-storage:googleCloudStorageFixture')
   thirdPartyTest.finalizedBy('qa:google-cloud-storage:googleCloudStorageFixture#stop')
@@ -150,13 +154,13 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   def tokenURI = {
     "http://${project('qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
   }
-
+  
   thirdPartyTest {
     include '**/GoogleCloudStorageThirdPartyTests.class'
     systemProperty 'tests.security.manager', 'false'
-    systemProperty 'test.google.account', Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
     systemProperty 'test.google.bucket', gcsBucket
     systemProperty 'test.google.base', gcsBasePath
+    nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
     nonInputProperties.systemProperty 'test.google.endpoint', "${ -> fixtureEndpoint.call() }"
     nonInputProperties.systemProperty 'test.google.tokenURI', "${ -> tokenURI.call() }"
   }
@@ -166,9 +170,9 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   thirdPartyTest {
     include '**/GoogleCloudStorageThirdPartyTests.class'
     systemProperty 'tests.security.manager', 'false'
-    systemProperty 'test.google.account', Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
     systemProperty 'test.google.bucket', gcsBucket
     systemProperty 'test.google.base', gcsBasePath
+    nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
   }
 }
 

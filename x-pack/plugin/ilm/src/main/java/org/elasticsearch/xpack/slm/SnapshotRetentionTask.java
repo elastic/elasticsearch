@@ -24,7 +24,11 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItem;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,10 +54,12 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final SnapshotHistoryStore historyStore;
 
-    public SnapshotRetentionTask(Client client, ClusterService clusterService) {
+    public SnapshotRetentionTask(Client client, ClusterService clusterService, SnapshotHistoryStore historyStore) {
         this.client = new OriginSettingClient(client, ClientHelper.INDEX_LIFECYCLE_ORIGIN);
         this.clusterService = clusterService;
+        this.historyStore = historyStore;
     }
 
     @Override
@@ -200,12 +206,15 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             snapshots.forEach(info -> {
                 logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, info.snapshotId());
                 CountDownLatch latch = new CountDownLatch(1);
+                String policyId = (String) info.userMetadata().get("policy"); // TODO NOCOMMIT: Make this less fragile
                 client.admin().cluster().prepareDeleteSnapshot(repo, info.snapshotId().getName())
                     .execute(new LatchedActionListener<>(new ActionListener<>() {
                         @Override
                         public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                             if (acknowledgedResponse.isAcknowledged()) {
                                 logger.debug("[{}] snapshot [{}] deleted successfully", repo, info.snapshotId());
+                                historyStore.putAsync(SnapshotHistoryItem.deletionSuccessRecord(Instant.now().toEpochMilli(),
+                                    info.snapshotId().getName(), policyId, repo));
                             }
                         }
 
@@ -213,6 +222,15 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         public void onFailure(Exception e) {
                             logger.warn(new ParameterizedMessage("[{}] failed to delete snapshot [{}] for retention",
                                 repo, info.snapshotId()), e);
+                            try {
+                                historyStore.putAsync(SnapshotHistoryItem.deletionFailureRecord(Instant.now().toEpochMilli(),
+                                    info.snapshotId().getName(), policyId, repo, e));
+                            } catch (IOException ex) {
+                                // This shouldn't happen unless there's an issue with serializing the original exception
+                                logger.error(new ParameterizedMessage(
+                                    "failed to record snapshot creation failure for snapshot lifecycle policy [{}]",
+                                    policyId), e);
+                            }
                         }
                     }, latch));
                 try {

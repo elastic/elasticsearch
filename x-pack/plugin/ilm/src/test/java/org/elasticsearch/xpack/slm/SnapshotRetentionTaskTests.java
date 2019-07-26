@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -139,6 +140,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             AtomicReference<List<SnapshotInfo>> deleted = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
             MockSnapshotRetentionTask retentionTask = new MockSnapshotRetentionTask(noOpClient, clusterService,
+                null,//new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
+                // (historyItem) -> fail("actually test this")),
                 () -> {
                     List<SnapshotInfo> snaps = new ArrayList<>(2);
                     snaps.add(eligibleSnapshot);
@@ -191,9 +194,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         MockSnapshotRetentionTask(Client client,
                                   ClusterService clusterService,
+                                  SnapshotHistoryStore historyStore,
                                   Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
                                   Consumer<Map<String, List<SnapshotInfo>>> snapshotDeleter) {
-            super(client, clusterService);
+            super(client, clusterService, historyStore);
             this.snapshotRetriever = snapshotRetriever;
             this.snapshotDeleter = snapshotDeleter;
         }

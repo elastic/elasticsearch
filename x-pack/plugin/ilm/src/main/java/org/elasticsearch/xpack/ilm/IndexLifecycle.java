@@ -154,8 +154,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone()));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
-        snapshotRetentionService.set(new SnapshotRetentionService(settings, () -> new SnapshotRetentionTask(client, clusterService),
-            clusterService, getClock()));
+        snapshotRetentionService.set(new SnapshotRetentionService(settings,
+            () -> new SnapshotRetentionTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
         return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get(),
             snapshotRetentionService.get());
     }

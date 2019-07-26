@@ -372,7 +372,7 @@ class SamlAuthenticator extends SamlRequestHandler {
                 // If the difference is less than half the length of the string, show it in detail
                 if (diffChar >= spEntityId.length() / 2) {
                     logger.info("Audience restriction [{}] does not match required audience [{}] " +
-                            "(difference starts at character [#{}] [{}] vs [{}]",
+                            "(difference starts at character [#{}] [{}] vs [{}])",
                         uri, spEntityId, diffChar, uri.substring(diffChar), spEntityId.substring(diffChar));
                 } else {
                     logger.info("Audience restriction [{}] does not match required audience [{}]", uri, spEntityId);

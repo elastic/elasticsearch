@@ -1395,7 +1395,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 authenticator.getClass().getName(),
                 Level.INFO,
                 "Audience restriction [" + similarAudience + "] does not match required audience [" + SP_ENTITY_ID +
-                    "] (difference starts at character [#" + (SP_ENTITY_ID.length() - 1) + "] [:80/] vs [/]"
+                    "] (difference starts at character [#" + (SP_ENTITY_ID.length() - 1) + "] [:80/] vs [/])    "
             ));
             mockAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "not similar audience",

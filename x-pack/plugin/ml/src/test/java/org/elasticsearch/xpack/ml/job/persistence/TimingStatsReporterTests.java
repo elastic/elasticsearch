@@ -5,10 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.junit.Before;
 import org.mockito.InOrder;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -20,6 +27,8 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 public class TimingStatsReporterTests extends ESTestCase {
 
     private static final String JOB_ID = "my-job-id";
+    private static final Instant TIMESTAMP = Instant.ofEpochMilli(1000000000);
+    private static final Duration BUCKET_SPAN = Duration.ofMinutes(1);
 
     private JobResultsPersister.Builder bulkResultsPersister;
 
@@ -29,56 +38,56 @@ public class TimingStatsReporterTests extends ESTestCase {
     }
 
     public void testGetCurrentTimingStats() {
-        TimingStats stats = new TimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
-        TimingStatsReporter reporter = new TimingStatsReporter(stats, bulkResultsPersister);
+        TimingStats stats = createTimingStats(JOB_ID, 7, 1.0, 2.0, 1.23, 7.89);
+        TimingStatsReporter reporter = createReporter(stats);
         assertThat(reporter.getCurrentTimingStats(), equalTo(stats));
 
         verifyZeroInteractions(bulkResultsPersister);
     }
 
     public void testReporting() {
-        TimingStatsReporter reporter = new TimingStatsReporter(new TimingStats(JOB_ID), bulkResultsPersister);
+        TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID)));
 
-        reporter.reportBucketProcessingTime(10);
-        assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0)));
+        reporter.reportBucket(createBucket(10));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0)));
 
-        reporter.reportBucketProcessingTime(20);
-        assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 2, 10.0, 20.0, 15.0, 10.1)));
+        reporter.reportBucket(createBucket(20));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createTimingStats(JOB_ID, 2, 10.0, 20.0, 15.0, 10.1, 30.0)));
 
-        reporter.reportBucketProcessingTime(15);
-        assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 3, 10.0, 20.0, 15.0, 10.149)));
+        reporter.reportBucket(createBucket(15));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createTimingStats(JOB_ID, 3, 10.0, 20.0, 15.0, 10.149, 45.0)));
 
         InOrder inOrder = inOrder(bulkResultsPersister);
-        inOrder.verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0));
-        inOrder.verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 2, 10.0, 20.0, 15.0, 10.1));
+        inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0));
+        inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 2, 10.0, 20.0, 15.0, 10.1, 30.0));
         inOrder.verifyNoMoreInteractions();
     }
 
     public void testFinishReporting() {
-        TimingStatsReporter reporter = new TimingStatsReporter(new TimingStats(JOB_ID), bulkResultsPersister);
+        TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
         assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID)));
 
-        reporter.reportBucketProcessingTime(10);
-        assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0)));
+        reporter.reportBucket(createBucket(10));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0)));
 
-        reporter.reportBucketProcessingTime(10);
-        assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 2, 10.0, 10.0, 10.0, 10.0)));
+        reporter.reportBucket(createBucket(10));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createTimingStats(JOB_ID, 2, 10.0, 10.0, 10.0, 10.0, 20.0)));
 
-        reporter.reportBucketProcessingTime(10);
-        assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0)));
+        reporter.reportBucket(createBucket(10));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createTimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0, 30.0)));
 
         reporter.finishReporting();
-        assertThat(reporter.getCurrentTimingStats(), equalTo(new TimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0)));
+        assertThat(reporter.getCurrentTimingStats(), equalTo(createTimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0, 30.0)));
 
         InOrder inOrder = inOrder(bulkResultsPersister);
-        inOrder.verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0));
-        inOrder.verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0));
+        inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0));
+        inOrder.verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 3, 10.0, 10.0, 10.0, 10.0, 30.0));
         inOrder.verifyNoMoreInteractions();
     }
 
     public void testFinishReportingNoChange() {
-        TimingStatsReporter reporter = new TimingStatsReporter(new TimingStats(JOB_ID), bulkResultsPersister);
+        TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
 
         reporter.finishReporting();
 
@@ -86,27 +95,27 @@ public class TimingStatsReporterTests extends ESTestCase {
     }
 
     public void testFinishReportingWithChange() {
-        TimingStatsReporter reporter = new TimingStatsReporter(new TimingStats(JOB_ID), bulkResultsPersister);
+        TimingStatsReporter reporter = createReporter(new TimingStats(JOB_ID));
 
-        reporter.reportBucketProcessingTime(10);
+        reporter.reportBucket(createBucket(10));
 
         reporter.finishReporting();
 
-        verify(bulkResultsPersister).persistTimingStats(new TimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0));
+        verify(bulkResultsPersister).persistTimingStats(createTimingStats(JOB_ID, 1, 10.0, 10.0, 10.0, 10.0, 10.0));
     }
 
     public void testTimingStatsDifferSignificantly() {
         assertThat(
             TimingStatsReporter.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0)),
+                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0)),
             is(false));
         assertThat(
             TimingStatsReporter.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 11.0, 1.0, 10.0)),
+                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), createTimingStats(JOB_ID, 10, 10.0, 11.0, 1.0, 10.0)),
             is(false));
         assertThat(
             TimingStatsReporter.differSignificantly(
-                new TimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), new TimingStats(JOB_ID, 10, 10.0, 12.0, 1.0, 10.0)),
+                createTimingStats(JOB_ID, 10, 10.0, 10.0, 1.0, 10.0), createTimingStats(JOB_ID, 10, 10.0, 12.0, 1.0, 10.0)),
             is(true));
     }
 
@@ -120,5 +129,52 @@ public class TimingStatsReporterTests extends ESTestCase {
         assertThat(TimingStatsReporter.differSignificantly(1.0, 0.899999), is(true));
         assertThat(TimingStatsReporter.differSignificantly(0.0, 1.0), is(true));
         assertThat(TimingStatsReporter.differSignificantly(1.0, 0.0), is(true));
+    }
+
+    private TimingStatsReporter createReporter(TimingStats timingStats) {
+        return new TimingStatsReporter(timingStats, bulkResultsPersister);
+    }
+
+    private static TimingStats createTimingStats(
+        String jobId,
+        long bucketCount,
+        @Nullable Double minBucketProcessingTimeMs,
+        @Nullable Double maxBucketProcessingTimeMs,
+        @Nullable Double avgBucketProcessingTimeMs,
+        @Nullable Double exponentialAvgBucketProcessingTimeMs) {
+        return createTimingStats(
+            jobId,
+            bucketCount,
+            minBucketProcessingTimeMs,
+            maxBucketProcessingTimeMs,
+            avgBucketProcessingTimeMs,
+            exponentialAvgBucketProcessingTimeMs,
+            0.0);
+    }
+
+    private static TimingStats createTimingStats(
+            String jobId,
+            long bucketCount,
+            @Nullable Double minBucketProcessingTimeMs,
+            @Nullable Double maxBucketProcessingTimeMs,
+            @Nullable Double avgBucketProcessingTimeMs,
+            @Nullable Double exponentialAvgBucketProcessingTimeMs,
+            double incrementalBucketProcessingTimeMs) {
+        ExponentialAverageCalculationContext context =
+            new ExponentialAverageCalculationContext(incrementalBucketProcessingTimeMs, TIMESTAMP.plus(BUCKET_SPAN), null);
+        return new TimingStats(
+            jobId,
+            bucketCount,
+            minBucketProcessingTimeMs,
+            maxBucketProcessingTimeMs,
+            avgBucketProcessingTimeMs,
+            exponentialAvgBucketProcessingTimeMs,
+            context);
+    }
+
+    private static Bucket createBucket(long processingTimeMs) {
+        Bucket bucket = new Bucket(JOB_ID, Date.from(TIMESTAMP), BUCKET_SPAN.getSeconds());
+        bucket.setProcessingTimeMs(processingTimeMs);
+        return bucket;
     }
 }

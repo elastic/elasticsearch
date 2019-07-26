@@ -48,26 +48,14 @@ import java.util.stream.Collectors;
 
 public class EsExecutors {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(EsExecutors.class));
-
     /**
      * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
-    public static final Setting<Integer> PROCESSORS_SETTING = new Setting<>(
+    public static final Setting<Integer> PROCESSORS_SETTING = Setting.intSetting(
         "processors",
-        s -> Integer.toString(Runtime.getRuntime().availableProcessors()),
-        s -> {
-            final int value = Setting.parseInt(s, 1, "processors");
-            final int availableProcessors = Runtime.getRuntime().availableProcessors();
-            if (value > availableProcessors) {
-                deprecationLogger.deprecatedAndMaybeLog(
-                    "processors",
-                    "setting processors to value [{}] which is more than available processors [{}] is deprecated",
-                    value,
-                    availableProcessors);
-            }
-            return value;
-        },
+        Runtime.getRuntime().availableProcessors(),
+        1,
+        Runtime.getRuntime().availableProcessors(),
         Property.NodeScope);
 
     /**

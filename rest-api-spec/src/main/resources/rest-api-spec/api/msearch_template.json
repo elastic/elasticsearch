@@ -1,6 +1,6 @@
 {
   "msearch_template": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html",
     "stability": "stable",
     "methods": ["GET", "POST"],
     "url": {

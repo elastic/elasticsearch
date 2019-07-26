@@ -173,15 +173,16 @@ managed indices.
       "managed": true,                           <1>
       "policy": "datastream_policy",             <2>
       "lifecycle_date_millis": 1538475653281,
-      "phase": "hot",                            <3>
+      "age": "30s",                              <3>
+      "phase": "hot",                            <4>
       "phase_time_millis": 1538475653317,
-      "action": "rollover",                      <4>
+      "action": "rollover",                      <5>
       "action_time_millis": 1538475653317,
-      "step": "attempt-rollover",                <5>
+      "step": "attempt-rollover",                <6>
       "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "datastream_policy",
-        "phase_definition": {                    <6>
+        "phase_definition": {                    <7>
           "min_age": "0ms",
           "actions": {
             "rollover": {
@@ -190,7 +191,7 @@ managed indices.
             }
           }
         },
-        "version": 1,                            <7>
+        "version": 1,                            <8>
         "modified_date_in_millis": 1539609701576
       }
     }
@@ -201,12 +202,13 @@ managed indices.
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 <1> this index is managed by ILM
 <2> the policy in question, in this case, "datastream_policy"
-<3> what phase the index is currently in
-<4> what action the index is currently on
-<5> what step the index is currently on
-<6> the definition of the phase
+<3> the current age of the index
+<4> what phase the index is currently in
+<5> what action the index is currently on
+<6> what step the index is currently on
+<7> the definition of the phase
     (in this case, the "hot" phase) that the index is currently on
-<7> the version of the policy being used to execute the current phase
+<8> the version of the policy being used to execute the current phase
 
 You can read about the full details of this response in the
 <<ilm-explain-lifecycle, explain API docs>>. For now, let's focus on how

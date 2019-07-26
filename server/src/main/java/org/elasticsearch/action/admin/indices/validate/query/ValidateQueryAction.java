@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class ValidateQueryAction extends StreamableResponseActionType<ValidateQueryResponse> {
+public class ValidateQueryAction extends ActionType<ValidateQueryResponse> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();
     public static final String NAME = "indices:admin/validate/query";
 
     private ValidateQueryAction() {
-        super(NAME);
-    }
-
-    @Override
-    public ValidateQueryResponse newResponse() {
-        return new ValidateQueryResponse();
+        super(NAME, ValidateQueryResponse::new);
     }
 }

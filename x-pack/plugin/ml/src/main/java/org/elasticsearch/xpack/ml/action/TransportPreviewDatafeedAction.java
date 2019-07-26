@@ -50,8 +50,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                                           ActionFilters actionFilters, Client client, JobConfigProvider jobConfigProvider,
                                           DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider,
                                           JobResultsPersister jobResultsPersister, NamedXContentRegistry xContentRegistry) {
-        super(PreviewDatafeedAction.NAME, transportService, PreviewDatafeedAction.Request::new, actionFilters
-        );
+        super(PreviewDatafeedAction.NAME, transportService, actionFilters, PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;

@@ -19,21 +19,15 @@
 package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
-import org.elasticsearch.gradle.BwcVersions;
-import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.DistributionDownloadPlugin;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.test.RestTestRunnerTask;
-import org.elasticsearch.gradle.tool.Boilerplate;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
-import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
-import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
@@ -53,8 +47,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     public static final String EXTENSION_NAME = "testClusters";
-    private static final String HELPER_CONFIGURATION_PREFIX = "testclusters";
-    private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
@@ -64,13 +56,9 @@ public class TestClustersPlugin implements Plugin<Project> {
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
 
-    public static String getHelperConfigurationName(String version) {
-        return HELPER_CONFIGURATION_PREFIX + "-" + version;
-    }
-
     @Override
     public void apply(Project project) {
-        Project rootProject = project.getRootProject();
+        project.getPlugins().apply(DistributionDownloadPlugin.class);
 
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project);
@@ -94,17 +82,11 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // After each task we determine if there are clusters that are no longer needed.
         configureStopClustersHook(project);
-
-        // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
-        // configuration so the user doesn't have to repeat this.
-        autoConfigureClusterDependencies(project, rootProject, container);
-    }
-
-    private static File getExtractDir(Project project) {
-        return new File(project.getRootProject().getBuildDir(), "testclusters/extract/");
     }
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project) {
+        NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project);
+
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
             ElasticsearchCluster.class,
@@ -112,7 +94,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 project.getPath(),
                 name,
                 project,
-                new File(project.getRootProject().getBuildDir(), "testclusters/extract"),
+                i -> distros.create(name + "-" + i),
                 new File(project.getBuildDir(), "testclusters")
             )
         );
@@ -153,9 +135,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                                     "Task, but got: " + thisObject.getClass());
                             }
                             usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(cluster);
-                            ((Task) thisObject).dependsOn(
-                                project.getRootProject().getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME)
-                            );
+                            for (ElasticsearchNode node : cluster.getNodes()) {
+                                ((Task) thisObject).dependsOn(node.getDistribution().getExtracted());
+                            }
                             if (thisObject instanceof RestTestRunnerTask) {
                                 ((RestTestRunnerTask) thisObject).testCluster(cluster);
                             }
@@ -285,145 +267,4 @@ public class TestClustersPlugin implements Plugin<Project> {
         }
         cluster.stop(taskFailed);
     }
-
-    /**
-     * Boilerplate to get testClusters container extension
-     *
-     * Equivalent to project.testClusters in the DSL
-     */
-    @SuppressWarnings("unchecked")
-    public static NamedDomainObjectContainer<ElasticsearchCluster> getNodeExtension(Project project) {
-        return (NamedDomainObjectContainer<ElasticsearchCluster>)
-            project.getExtensions().getByName(EXTENSION_NAME);
-    }
-
-    private static void autoConfigureClusterDependencies(
-        Project project,
-        Project rootProject,
-        NamedDomainObjectContainer<ElasticsearchCluster> container
-    ) {
-        // Download integ test distribution from maven central
-        MavenArtifactRepository mavenCentral = project.getRepositories().mavenCentral();
-        mavenCentral.content(spec -> {
-            spec.includeGroupByRegex("org\\.elasticsearch\\.distribution\\..*");
-        });
-
-        // Other distributions from the download service
-        project.getRepositories().add(
-            project.getRepositories().ivy(spec -> {
-                spec.setUrl("https://artifacts.elastic.co/downloads");
-                spec.patternLayout(p -> p.artifact("elasticsearch/[module]-[revision](-[classifier]).[ext]"));
-                HttpHeaderCredentials headerConfig = spec.getCredentials(HttpHeaderCredentials.class);
-                headerConfig.setName("X-Elastic-No-KPI");
-                headerConfig.setValue("1");
-                spec.content(c-> c.includeGroupByRegex("org\\.elasticsearch\\.distribution\\..*"));
-            })
-        );
-
-        // We have a single task to sync the helper configuration to "artifacts dir"
-        // the clusters will look for artifacts there based on the naming conventions.
-        // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
-        // the build.
-        Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
-            onCreate.getOutputs().dir(getExtractDir(rootProject));
-            onCreate.getInputs().files(
-                project.getRootProject().getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
-            );
-            onCreate.dependsOn(project.getRootProject().getConfigurations()
-                .matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
-            );
-            // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
-            onCreate.doFirst(new Action<Task>() {
-                @Override
-                public void execute(Task task) {
-                    // Clean up the extract dir first to make sure we have no stale files from older
-                    // previous builds of the same distribution
-                    project.delete(getExtractDir(rootProject));
-                }
-            });
-            onCreate.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        project.getRootProject().getConfigurations()
-                            .matching(config -> config.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
-                            .forEach(config -> project.copy(spec ->
-                                config.getResolvedConfiguration()
-                                    .getResolvedArtifacts()
-                                    .forEach(resolvedArtifact -> {
-                                        final FileTree files;
-                                        File file = resolvedArtifact.getFile();
-                                        if (file.getName().endsWith(".zip")) {
-                                            files = project.zipTree(file);
-                                        } else if (file.getName().endsWith("tar.gz")) {
-                                            files = project.tarTree(file);
-                                        } else {
-                                            throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                                        }
-                                        logger.info("Extracting {}@{}", resolvedArtifact, config);
-                                        spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
-                                        spec.into(getExtractDir(project));
-                                    }))
-                            );
-                    }
-            });
-        });
-
-        // When the project evaluated we know of all tasks that use clusters.
-        // Each of these have to depend on the artifacts being synced.
-        // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
-        // all because fields can change after the fact.
-        project.afterEvaluate(ip -> container.forEach(esCluster ->
-            esCluster.eachVersionedDistribution((version, distribution) -> {
-                Configuration helperConfiguration = Boilerplate.maybeCreate(
-                    rootProject.getConfigurations(),
-                    getHelperConfigurationName(version),
-                    onCreate ->
-                        // We use a single configuration on the root project to resolve all testcluster dependencies ( like distros )
-                        // at once, only once without the need to repeat it for each project. This pays off assuming that most
-                        // projects use the same dependencies.
-                        onCreate.setDescription(
-                            "Internal helper configuration used by cluster configuration to download " +
-                                "ES distributions and plugins for " + version
-                        )
-                );
-                BwcVersions.UnreleasedVersionInfo unreleasedInfo;
-                final List<Version> unreleased;
-                {
-                    ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-                    if (extraProperties.has("bwcVersions")) {
-                        Object bwcVersionsObj = extraProperties.get("bwcVersions");
-                        if (bwcVersionsObj instanceof BwcVersions == false) {
-                            throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
-                                "but instead it was " + bwcVersionsObj.getClass());
-                        }
-                        final BwcVersions bwcVersions = (BwcVersions) bwcVersionsObj;
-                        unreleased = ((BwcVersions) bwcVersionsObj).getUnreleased();
-                        unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(version));
-                    } else {
-                        logger.info("No version information available, assuming all versions used are released");
-                        unreleased = Collections.emptyList();
-                        unreleasedInfo = null;
-                    }
-                }
-                if (unreleased.contains(Version.fromString(version))) {
-                    Map<String, Object> projectNotation = new HashMap<>();
-                    projectNotation.put("path", unreleasedInfo.gradleProjectPath);
-                    projectNotation.put("configuration", distribution.getLiveConfiguration());
-                    rootProject.getDependencies().add(
-                        helperConfiguration.getName(),
-                        project.getDependencies().project(projectNotation)
-                    );
-                } else {
-                    rootProject.getDependencies().add(
-                        helperConfiguration.getName(),
-                        distribution.getGroup() + ":" +
-                            distribution.getArtifactName() + ":" +
-                            version +
-                            (distribution.getClassifier().isEmpty() ? "" : ":" + distribution.getClassifier()) + "@" +
-                            distribution.getFileExtension());
-
-                }
-            })));
-    }
-
 }

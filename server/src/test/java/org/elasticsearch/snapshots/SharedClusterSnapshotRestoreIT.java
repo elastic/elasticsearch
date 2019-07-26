@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -3799,6 +3800,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/44671", Constants.WINDOWS);
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String repoName = "test-restore-snapshot-repo";

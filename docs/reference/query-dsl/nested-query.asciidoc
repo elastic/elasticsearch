@@ -1,5 +1,8 @@
 [[query-dsl-nested-query]]
-=== Nested Query
+=== Nested query
+++++
+<titleabbrev>Nested</titleabbrev>
+++++
 
 Wraps another query to search <<nested,nested>> fields.
 

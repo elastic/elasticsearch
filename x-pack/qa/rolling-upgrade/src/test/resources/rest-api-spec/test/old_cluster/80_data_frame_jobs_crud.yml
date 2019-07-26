@@ -65,7 +65,6 @@
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
-  - match: { transforms.0.state.task_state: "/started|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -78,8 +77,6 @@
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
-  - match: { transforms.0.state.indexer_state: "stopped" }
-  - match: { transforms.0.state.task_state: "stopped" }
 
   - do:
       data_frame.put_data_frame_transform:
@@ -124,7 +121,6 @@
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
-  - match: { transforms.0.state.task_state: "/started|stopped/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -137,8 +133,6 @@
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
-  - match: { transforms.0.state.indexer_state: "stopped" }
-  - match: { transforms.0.state.task_state: "stopped" }
 
 ---
 "Test put continuous data frame transform on old cluster":
@@ -201,7 +195,6 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.state.task_state: "started" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -214,5 +207,3 @@
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
-  - match: { transforms.0.state.indexer_state: "stopped" }
-  - match: { transforms.0.state.task_state: "stopped" }

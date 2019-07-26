@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,8 +33,20 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public static Regression createRandom() {
-        List<RegressionMetric> metrics = Collections.singletonList(MeanSquaredErrorTests.createRandom());
-        return new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean() ? null : metrics);
+        List<RegressionMetric> metrics = new ArrayList<>();
+        if (randomBoolean()) {
+            metrics.add(MeanSquaredErrorTests.createRandom());
+        }
+        if (randomBoolean()) {
+            metrics.add(RSquaredTests.createRandom());
+        }
+        return new Regression(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomBoolean() ?
+                null :
+                metrics.isEmpty() ?
+                    null :
+                    metrics);
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +43,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField STEP_TIME_FIELD = new ParseField("step_time");
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
+    private static final ParseField AGE_FIELD = new ParseField("age");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
             "index_lifecycle_explain_response",
@@ -58,7 +60,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     (Long) (a[9]),
                     (Long) (a[10]),
                     (BytesReference) a[11],
-                    (PhaseExecutionInfo) a[12]));
+                    (PhaseExecutionInfo) a[12]
+                // a[13] == "age"
+            ));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
@@ -78,6 +82,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         }, STEP_INFO_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> PhaseExecutionInfo.parse(p, ""),
             PHASE_EXECUTION_INFO);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), AGE_FIELD);
     }
 
     private final String index;
@@ -243,6 +248,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return phaseExecutionInfo;
     }
 
+    public TimeValue getAge() {
+        if (lifecycleDate == null) {
+            return TimeValue.MINUS_ONE;
+        } else {
+            return TimeValue.timeValueMillis(System.currentTimeMillis() - lifecycleDate);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -252,6 +265,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+                builder.field(AGE_FIELD.getPreferredName(), getAge().toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

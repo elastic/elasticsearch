@@ -67,7 +67,6 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40435")
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
                 startObject().

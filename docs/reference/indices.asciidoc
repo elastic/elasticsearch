@@ -1,14 +1,12 @@
 [[indices]]
-= Indices APIs
+== Index APIs
 
-[partintro]
---
-The indices APIs are used to manage individual indices,
+Index APIs are used to manage individual indices,
 index settings, aliases, mappings, and index templates.
 
 [float]
 [[index-management]]
-== Index management:
+=== Index management:
 
 * <<indices-create-index>>
 * <<indices-delete-index>>
@@ -17,11 +15,15 @@ index settings, aliases, mappings, and index templates.
 * <<indices-open-close>>
 * <<indices-shrink-index>>
 * <<indices-split-index>>
+* <<indices-clone-index>>
 * <<indices-rollover-index>>
+* <<freeze-index-api>>
+* <<unfreeze-index-api>>
+
 
 [float]
 [[mapping-management]]
-== Mapping management:
+=== Mapping management:
 
 * <<indices-put-mapping>>
 * <<indices-get-mapping>>
@@ -30,12 +32,12 @@ index settings, aliases, mappings, and index templates.
 
 [float]
 [[alias-management]]
-== Alias management:
+=== Alias management:
 * <<indices-aliases>>
 
 [float]
 [[index-settings]]
-== Index settings:
+=== Index settings:
 * <<indices-update-settings>>
 * <<indices-get-settings>>
 * <<indices-analyze>>
@@ -43,7 +45,7 @@ index settings, aliases, mappings, and index templates.
 
 [float]
 [[monitoring]]
-== Monitoring:
+=== Monitoring:
 * <<indices-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>
@@ -51,13 +53,11 @@ index settings, aliases, mappings, and index templates.
 
 [float]
 [[status-management]]
-== Status management:
+=== Status management:
 * <<indices-clearcache>>
 * <<indices-refresh>>
 * <<indices-flush>>
 * <<indices-forcemerge>>
-
---
 
 include::indices/create-index.asciidoc[]
 
@@ -73,7 +73,13 @@ include::indices/shrink-index.asciidoc[]
 
 include::indices/split-index.asciidoc[]
 
+include::indices/clone-index.asciidoc[]
+
 include::indices/rollover-index.asciidoc[]
+
+include::indices/apis/freeze.asciidoc[]
+
+include::indices/apis/unfreeze.asciidoc[]
 
 include::indices/put-mapping.asciidoc[]
 

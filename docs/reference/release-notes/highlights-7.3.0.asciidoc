@@ -162,7 +162,7 @@ bulk of the data in the index. We assign to each analysed data point an
 index.
  
 In addition to new {oldetection} functionality, we are introducing the 
-Evaluate API, which allows users to compute a range of performance metrics such 
+evaluate {dfanalytics} API, which enables you to compute a range of performance metrics such 
 as confusion matrices, precision, recall, the 
 https://en.wikipedia.org/wiki/Receiver_operating_characteristic[receiver-operating characteristics (ROC) curve] 
 and the area under the ROC curve. If you are running {oldetection} on a source 

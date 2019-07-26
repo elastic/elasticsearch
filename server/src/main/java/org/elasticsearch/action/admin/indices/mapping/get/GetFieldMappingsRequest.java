@@ -48,9 +48,7 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public GetFieldMappingsRequest() {
-
-    }
+    public GetFieldMappingsRequest() {}
 
     public GetFieldMappingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -139,10 +137,5 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         out.writeBoolean(local);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

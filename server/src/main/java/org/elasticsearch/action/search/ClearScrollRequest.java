@@ -78,11 +78,6 @@ public class ClearScrollRequest extends ActionRequest implements ToXContentObjec
     }
 
     @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (scrollIds == null) {

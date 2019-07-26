@@ -102,11 +102,6 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(scriptContextName);
@@ -132,11 +127,6 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
             super(in);
             scriptContextNames = in.readStringList();
             painlessContextInfo = in.readOptionalWriteable(PainlessContextInfo::new);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

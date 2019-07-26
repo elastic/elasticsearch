@@ -61,7 +61,7 @@ the user will continue to type more letters until the word they are looking
 for appears.
 
 For better solutions for _search-as-you-type_ see the
-<<search-suggesters-completion,completion suggester>> and
+<<completion-suggester,completion suggester>> and
 the <<search-as-you-type,`search_as_you_type` field type>>.
 
 ===================================================

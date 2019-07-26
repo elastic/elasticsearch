@@ -65,7 +65,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             List<ShardsSyncedFlushResult> shardsSyncedFlushResults = new ArrayList<>();
             int numShards = in.readInt();
             for (int j =0; j< numShards; j++) {
-                shardsSyncedFlushResults.add(ShardsSyncedFlushResult.readShardsSyncedFlushResult(in));
+                shardsSyncedFlushResults.add(new ShardsSyncedFlushResult(in));
             }
             tmpShardsResultPerIndex.put(index, shardsSyncedFlushResults);
         }
@@ -196,11 +196,6 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         static final String SHARD = "shard";
         static final String ROUTING = "routing";
         static final String REASON = "reason";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

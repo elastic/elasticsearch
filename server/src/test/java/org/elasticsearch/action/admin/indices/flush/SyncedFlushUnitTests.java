@@ -168,7 +168,7 @@ public class SyncedFlushUnitTests extends ESTestCase {
                             shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse("copy failure " + shardId));
                         } else {
                             successful++;
-                            shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse());
+                            shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse((String) null));
                         }
                     }
                     shardsResults.add(new ShardsSyncedFlushResult(shardId, "_sync_id_" + shard, replicas + 1, shardResponses));

@@ -29,5 +29,4 @@ public class MainAction extends ActionType<MainResponse> {
     public MainAction() {
         super(NAME, MainResponse::new);
     }
-
 }

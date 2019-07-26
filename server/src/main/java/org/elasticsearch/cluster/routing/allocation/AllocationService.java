@@ -354,22 +354,12 @@ public class AllocationService {
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
-
     /**
      * Reroutes the routing table based on the live nodes.
      * <p>
      * If the same instance of ClusterState is returned, then no change has been made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason) {
-        return reroute(clusterState, reason, false);
-    }
-
-    /**
-     * Reroutes the routing table based on the live nodes.
-     * <p>
-     * If the same instance of ClusterState is returned, then no change has been made.
-     */
-    protected ClusterState reroute(ClusterState clusterState, String reason, boolean debug) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
@@ -377,7 +367,6 @@ public class AllocationService {
         routingNodes.unassigned().shuffle();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, fixedClusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime());
-        allocation.debugDecision(debug);
         reroute(allocation);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;

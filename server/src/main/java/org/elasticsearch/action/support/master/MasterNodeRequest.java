@@ -68,10 +68,4 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     public final TimeValue masterNodeTimeout() {
         return this.masterNodeTimeout;
     }
-
-    @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
 }

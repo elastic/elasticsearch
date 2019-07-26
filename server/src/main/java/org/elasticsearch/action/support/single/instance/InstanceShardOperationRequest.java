@@ -60,7 +60,6 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         concreteIndex = in.readOptionalString();
     }
 
-
     public InstanceShardOperationRequest(String index) {
         this.index = index;
     }
@@ -120,11 +119,6 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     void concreteIndex(String concreteIndex) {
         this.concreteIndex = concreteIndex;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -1,5 +1,5 @@
 [[indices-shards-stores]]
-== Indices Shard Stores
+=== Indices Shard Stores
 
 Provides store information for shard copies of indices.
 Store information reports on which nodes shard copies exist, the shard

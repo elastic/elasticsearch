@@ -34,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.action.admin.indices.validate.query.QueryExplanation.readQueryExplanation;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -84,7 +83,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
         if (size > 0) {
             queryExplanations = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                queryExplanations.add(readQueryExplanation(in));
+                queryExplanations.add(new QueryExplanation(in));
             }
         }
     }

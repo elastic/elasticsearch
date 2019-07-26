@@ -27,21 +27,11 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
-
 /**
  * A TransportAction that self registers a handler into the transport service
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    /**
-     * @deprecated Use {@link #HandledTransportAction(String, TransportService, ActionFilters, Writeable.Reader)} instead.
-     */
-    @Deprecated
-    protected HandledTransportAction(String actionName, TransportService transportService,
-                                     Supplier<Request> request, ActionFilters actionFilters) {
-        this(actionName, true, transportService, request, actionFilters);
-    }
 
     protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
@@ -51,17 +41,6 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     protected HandledTransportAction(String actionName, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader, String executor) {
         this(actionName, true, transportService, actionFilters, requestReader, executor);
-    }
-
-    /**
-     * @deprecated Use {@link #HandledTransportAction(String, boolean, TransportService, ActionFilters, Writeable.Reader)} instead.
-     */
-    @Deprecated
-    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
-                                     TransportService transportService, Supplier<Request> request, ActionFilters actionFilters) {
-        super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
-            new TransportHandler());
     }
 
     protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,

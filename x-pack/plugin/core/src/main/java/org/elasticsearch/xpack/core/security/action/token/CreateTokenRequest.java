@@ -222,10 +222,4 @@ public final class CreateTokenRequest extends ActionRequest {
         out.writeOptionalString(scope);
         out.writeOptionalSecureString(kerberosTicket);
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
 }

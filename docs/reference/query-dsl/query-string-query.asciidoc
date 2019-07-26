@@ -1,5 +1,8 @@
 [[query-dsl-query-string-query]]
-=== Query String Query
+=== Query string query
+++++
+<titleabbrev>Query string</titleabbrev>
+++++
 
 A query that uses a query parser in order to parse its content. Here is
 an example:

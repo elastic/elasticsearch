@@ -189,6 +189,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -197,6 +198,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1225,8 +1227,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Engine.SyncedFlushResult.SUCCESS);
                 assertEquals(3, engine.segments(false).size());
 
-                engine.forceMerge(forceMergeFlushes, 1, false,
-                    false, false);
+                engine.forceMerge(forceMergeFlushes, 1, false, false, false);
                 if (forceMergeFlushes == false) {
                     engine.refresh("make all segments visible");
                     assertEquals(4, engine.segments(false).size());
@@ -1471,7 +1472,7 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.Index index = indexForDoc(doc);
             engine.delete(new Engine.Delete(index.type(), index.id(), index.uid(), primaryTerm.get()));
             //expunge deletes
-            engine.forceMerge(true, 10, true, false, false);
+            engine.forceMerge(true, -1, true, false, false);
             engine.refresh("test");
 
             assertEquals(engine.segments(true).size(), 1);
@@ -1752,8 +1753,7 @@ public class InternalEngineTests extends EngineTestCase {
                                 engine.refresh("test");
                                 indexed.countDown();
                                 try {
-                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(),
-                                        randomBoolean());
+                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
                                 } catch (IOException e) {
                                     return;
                                 }
@@ -2862,19 +2862,15 @@ public class InternalEngineTests extends EngineTestCase {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
-        final long primaryTerm = randomNonNegativeLong();
-        Translog translog = createTranslog(() -> primaryTerm);
+        final long newPrimaryTerm = randomLongBetween(0L, primaryTerm.get());
+        final Translog translog = createTranslog(() -> newPrimaryTerm);
         long id = translog.currentFileGeneration();
         translog.close();
         IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
-        try {
-            engine = createEngine(store, primaryTranslogDir);
-            fail("engine shouldn't start without a valid translog id");
-        } catch (EngineCreationFailureException ex) {
-            // expected
-        }
+        expectThrows(EngineCreationFailureException.class, "engine shouldn't start without a valid translog id",
+            () -> createEngine(store, primaryTranslogDir));
         // when a new translog is created it should be ok
-        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, primaryTerm);
+        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, UNASSIGNED_SEQ_NO, shardId, newPrimaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
         engine = new InternalEngine(config);
@@ -3166,8 +3162,7 @@ public class InternalEngineTests extends EngineTestCase {
                     try {
                         switch (operation) {
                             case "optimize": {
-                                engine.forceMerge(true, 1, false, false,
-                                    false);
+                                engine.forceMerge(true, 1, false, false, false);
                                 break;
                             }
                             case "refresh": {
@@ -4368,7 +4363,16 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush();
             }
             if (randomBoolean()) {
-                engine.forceMerge(randomBoolean(), between(1, 10), randomBoolean(), false, false);
+                boolean flush = randomBoolean();
+                boolean onlyExpungeDeletes = randomBoolean();
+                int maxNumSegments = randomIntBetween(-1, 10);
+                try {
+                    engine.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, false, false);
+                } catch (IllegalArgumentException e) {
+                    assertThat(e.getMessage(), containsString("only_expunge_deletes and max_num_segments are mutually exclusive"));
+                    assertThat(onlyExpungeDeletes, is(true));
+                    assertThat(maxNumSegments, greaterThan(-1));
+                }
             }
         }
         if (engine.engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
@@ -5712,7 +5716,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertMaxSeqNoInCommitUserData(engine);
     }
 
-    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8809")
     public void testRefreshAndFailEngineConcurrently() throws Exception {
         AtomicBoolean stopped = new AtomicBoolean();
         Semaphore indexedDocs = new Semaphore(0);

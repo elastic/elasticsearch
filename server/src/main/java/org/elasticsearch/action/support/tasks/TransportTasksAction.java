@@ -265,9 +265,7 @@ public abstract class TransportTasksAction<
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {
-                                        NodeTasksResponse response = new NodeTasksResponse();
-                                        response.readFrom(in);
-                                        return response;
+                                        return new NodeTasksResponse(in);
                                     }
 
                                     @Override
@@ -368,28 +366,8 @@ public abstract class TransportTasksAction<
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
 
-        NodeTasksResponse() {
-        }
-
-        NodeTasksResponse(String nodeId,
-                                 List<TaskResponse> results,
-                                 List<TaskOperationFailure> exceptions) {
-            this.nodeId = nodeId;
-            this.results = results;
-            this.exceptions = exceptions;
-        }
-
-        public String getNodeId() {
-            return nodeId;
-        }
-
-        public List<TaskOperationFailure> getExceptions() {
-            return exceptions;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        NodeTasksResponse(StreamInput in) throws IOException {
+            super(in);
             nodeId = in.readString();
             int resultsSize = in.readVInt();
             results = new ArrayList<>(resultsSize);
@@ -406,6 +384,22 @@ public abstract class TransportTasksAction<
             } else {
                 exceptions = null;
             }
+        }
+
+        NodeTasksResponse(String nodeId,
+                                 List<TaskResponse> results,
+                                 List<TaskOperationFailure> exceptions) {
+            this.nodeId = nodeId;
+            this.results = results;
+            this.exceptions = exceptions;
+        }
+
+        public String getNodeId() {
+            return nodeId;
+        }
+
+        public List<TaskOperationFailure> getExceptions() {
+            return exceptions;
         }
 
         @Override

@@ -1,5 +1,8 @@
 [[query-dsl-script-score-query]]
-=== Script Score Query
+=== Script score query
+++++
+<titleabbrev>Script score</titleabbrev>
+++++
 
 The `script_score` allows you to modify the score of documents that are
 retrieved by a query. This can be useful if, for example, a score

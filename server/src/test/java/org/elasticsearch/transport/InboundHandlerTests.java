@@ -171,11 +171,6 @@ public class InboundHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(value);
@@ -193,11 +188,6 @@ public class InboundHandlerTests extends ESTestCase {
         private TestResponse(StreamInput in) throws IOException {
             super(in);
             this.value = in.readString();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException();
         }
 
         @Override

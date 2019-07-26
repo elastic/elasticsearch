@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -34,11 +35,12 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 public class TransportUpdateDatafeedAction extends
-    StreamableTransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
+    TransportMasterNodeAction<UpdateDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private final Client client;
     private final DatafeedConfigProvider datafeedConfigProvider;
@@ -50,8 +52,8 @@ public class TransportUpdateDatafeedAction extends
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, NamedXContentRegistry xContentRegistry) {
-        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
+        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateDatafeedAction.Request::new,
+                indexNameExpressionResolver);
 
         this.client = client;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
@@ -65,8 +67,8 @@ public class TransportUpdateDatafeedAction extends
     }
 
     @Override
-    protected PutDatafeedAction.Response newResponse() {
-        return new PutDatafeedAction.Response();
+    protected PutDatafeedAction.Response read(StreamInput in) throws IOException {
+        return new PutDatafeedAction.Response(in);
     }
 
     @Override

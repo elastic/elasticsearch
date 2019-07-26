@@ -1,5 +1,5 @@
 [[cat-allocation]]
-== cat allocation
+=== cat allocation
 
 `allocation` provides a snapshot of how many shards are allocated to each data node
 and how much disk space they are using.

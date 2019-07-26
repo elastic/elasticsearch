@@ -7,20 +7,23 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.StreamableTransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
-public class TransportGetJobsAction extends StreamableTransportMasterNodeReadAction<GetJobsAction.Request, GetJobsAction.Response> {
+import java.io.IOException;
+
+public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJobsAction.Request, GetJobsAction.Response> {
 
     private final JobManager jobManager;
 
@@ -40,8 +43,8 @@ public class TransportGetJobsAction extends StreamableTransportMasterNodeReadAct
     }
 
     @Override
-    protected GetJobsAction.Response newResponse() {
-        return new GetJobsAction.Response();
+    protected GetJobsAction.Response read(StreamInput in) throws IOException {
+        return new GetJobsAction.Response(in);
     }
 
     @Override

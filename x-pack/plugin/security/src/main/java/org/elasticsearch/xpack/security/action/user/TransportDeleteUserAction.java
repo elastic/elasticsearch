@@ -29,7 +29,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
     @Inject
     public TransportDeleteUserAction(Settings settings, ActionFilters actionFilters,
                                      NativeUsersStore usersStore, TransportService transportService) {
-        super(DeleteUserAction.NAME, transportService, DeleteUserRequest::new, actionFilters);
+        super(DeleteUserAction.NAME, transportService, actionFilters, DeleteUserRequest::new);
         this.settings = settings;
         this.usersStore = usersStore;
     }

@@ -26,7 +26,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     @Inject
     public TransportGetRecordsAction(TransportService transportService, ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
                                      JobManager jobManager, Client client) {
-        super(GetRecordsAction.NAME, transportService, GetRecordsAction.Request::new, actionFilters);
+        super(GetRecordsAction.NAME, transportService, actionFilters, GetRecordsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;

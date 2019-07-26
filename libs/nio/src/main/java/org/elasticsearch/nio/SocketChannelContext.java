@@ -93,7 +93,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             try {
                 connect(rawChannel, remoteAddress);
             } catch (IOException e) {
-                throw new IOException("Failed to connect socket channel {remoteAddress=" + remoteAddress + "}.", e);
+                throw new IOException("Failed to initiate socket channel connection {remoteAddress=" + remoteAddress + "}.", e);
             }
         }
     }

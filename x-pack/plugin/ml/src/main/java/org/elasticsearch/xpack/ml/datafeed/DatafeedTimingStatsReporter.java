@@ -46,7 +46,7 @@ public class DatafeedTimingStatsReporter {
         if (searchDuration == null) {
             return;
         }
-        currentTimingStats.incrementTotalSearchTimeMs(searchDuration.millis());
+        currentTimingStats.incrementSearchTimeMs(searchDuration.millis());
         flushIfDifferSignificantly();
     }
 
@@ -58,6 +58,9 @@ public class DatafeedTimingStatsReporter {
             return;
         }
         currentTimingStats.incrementBucketCount(dataCounts.getBucketCount());
+        if (dataCounts.getLatestRecordTimeStamp() != null) {
+            currentTimingStats.setLatestRecordTimestamp(dataCounts.getLatestRecordTimeStamp().toInstant());
+        }
         flushIfDifferSignificantly();
     }
 
@@ -79,7 +82,8 @@ public class DatafeedTimingStatsReporter {
     public static boolean differSignificantly(DatafeedTimingStats stats1, DatafeedTimingStats stats2) {
         return countsDifferSignificantly(stats1.getSearchCount(), stats2.getSearchCount())
             || differSignificantly(stats1.getTotalSearchTimeMs(), stats2.getTotalSearchTimeMs())
-            || differSignificantly(stats1.getAvgSearchTimePerBucketMs(), stats2.getAvgSearchTimePerBucketMs());
+            || differSignificantly(stats1.getAvgSearchTimePerBucketMs(), stats2.getAvgSearchTimePerBucketMs())
+            || differSignificantly(stats1.getExponentialAvgSearchTimePerHourMs(), stats2.getExponentialAvgSearchTimePerHourMs());
     }
 
     /**

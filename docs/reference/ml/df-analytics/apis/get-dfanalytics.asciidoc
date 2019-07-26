@@ -33,10 +33,7 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-description-title}
 
 You can get information for multiple {dfanalytics-jobs} in a single API request 
-by using a comma-separated list of {dfanalytics-jobs} or a wildcard expression. 
-You can get information for all {dfanalytics-jobs} by using _all, by specifying 
-`*` as the `<data_frame_analytics_id>`, or by omitting the
-`<data_frame_analytics_id>`.
+by using a comma-separated list of {dfanalytics-jobs} or a wildcard expression.
 
 [[ml-get-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -44,27 +41,34 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 `<data_frame_analytics_id>`::
   (Optional, string) Identifier for the {dfanalytics-job}. If you do not specify
   one of these options, the API returns information for the first hundred
-  {dfanalytics-jobs}.
-  
-`allow_no_match` (Optional)::
-  (boolean) If `false` and the `data_frame_analytics_id` does not match any 
-  {dfanalytics-job} an error will be returned. The default value is `true`.
+  {dfanalytics-jobs}. You can get information for all {dfanalytics-jobs} by 
+  using _all, by specifying `*` as the `<data_frame_analytics_id>`, or by 
+  omitting the `<data_frame_analytics_id>`.
 
 [[ml-get-dfanalytics-query-params]]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-  (Optional, boolean) If `false` and the `data_frame_analytics_id` does not
-  match any {dfanalytics-job} an error will be returned. The default value is
-  `true`.
+  (Optional, boolean) Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {dfanalytics-jobs} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `data_frame_analytics` array 
+when there are no matches and the subset of results when there are partial 
+matches. If this parameter is `false`, the request returns a `404` status code 
+when there are no matches or only partial matches.
+--
 
 `from`::
   (Optional, integer) Skips the specified number of {dfanalytics-jobs}. The
   default value is `0`.
 
 `size`::
-  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to obtain. The 
-  default value is `100`.
+  (Optional, integer) Specifies the maximum number of {dfanalytics-jobs} to 
+  obtain. The default value is `100`.
   
 [[ml-get-dfanalytics-results]]
 ==== {api-response-body-title}
@@ -72,6 +76,13 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 `data_frame_analytics`::
   (array) An array of {dfanalytics-job} resources. For more information, see
   <<ml-dfanalytics-resources>>.
+
+[[ml-get-dfanalytics-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_match` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request.
 
 [[ml-get-dfanalytics-example]]
 ==== {api-examples-title}

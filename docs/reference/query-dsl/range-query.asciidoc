@@ -56,12 +56,12 @@ GET _search
 `format`::
 +
 --
-Date format used to convert `date` values in the query.
+(Optional, string) Date format used to convert `date` values in the query.
 
 By default, {es} uses the <<mapping-date-format,date `format`>> provided in the
 `<field>`'s mapping. This value overrides that mapping format.
 
-For valid syntax, see <<mapping-date-format,`format`>>. Optional.
+For valid syntax, see <<mapping-date-format,`format`>>.
 
 [WARNING]
 ====

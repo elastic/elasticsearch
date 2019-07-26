@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -34,6 +35,7 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
     private KeyStoreWrapper keyStore;
     private SecureString keyStorePassword;
     private final boolean keyStoreMustExist;
+    OptionSpec<Void> forceOption;
 
     public BaseKeyStoreCommand(String description, boolean keyStoreMustExist) {
         super(description);
@@ -49,7 +51,7 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
                 if (keyStoreMustExist) {
                     throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found at [" +
                         KeyStoreWrapper.keystorePath(env.configFile()) + "]. Use 'create' command to create one.");
-                } else {
+                } else if (options.has(forceOption) == false) {
                     if (terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
                         terminal.println("Exiting without creating keystore.");
                         return;
@@ -101,8 +103,7 @@ public abstract class BaseKeyStoreCommand extends EnvironmentAwareCommand {
         } else {
             passwordArray = terminal.readSecret("Enter password for the elasticsearch keystore : ");
         }
-        final SecureString password = new SecureString(passwordArray);
-        return password;
+        return new SecureString(passwordArray);
     }
 
     /**

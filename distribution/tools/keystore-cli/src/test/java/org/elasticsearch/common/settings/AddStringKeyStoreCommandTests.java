@@ -60,10 +60,16 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     }
 
-    public void testMissingPromptCreateWithoutPassword() throws Exception {
+    public void testMissingPromptCreateWithoutPasswordWhenPrompted() throws Exception {
         terminal.addTextInput("y");
         terminal.addSecretInput("bar");
         execute("foo");
+        assertSecureString("foo", "bar", "");
+    }
+
+    public void testMissingPromptCreateWithoutPasswordWithoutPromptIfForced() throws Exception {
+        terminal.addSecretInput("bar");
+        execute("-f", "foo");
         assertSecureString("foo", "bar", "");
     }
 

@@ -132,16 +132,48 @@ if (s3Enabled) {
 }
 
 if (gcsEnabled) {
-  String gcsCredentialsFile = System.getProperty("test.google.credentials_file")
-  String gcsBucket = System.getProperty("test.google.bucket")
-  String gcsBasePath = "integration_test"
-  
   task thirdPartyTestGCS(type: Test) {
+  }
+
+  String gcsServiceAccount = System.getenv("google_storage_service_account")
+  String gcsBucket = System.getenv("google_storage_bucket")
+  String gcsBasePath = System.getenv("google_storage_base_path")
+
+  if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+    thirdPartyTestGCS.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile', 
+            ':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture')
+    thirdPartyTestGCS.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
+    gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir, 
+            'generated-resources/service_account_test.json').path
+    gcsBucket = 'bucket_test'
+    gcsBasePath = 'integration_test'
+
+    def fixtureEndpoint = {
+      "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}"
+    }
+
+    def tokenURI = {
+      "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
+    }
+
+    thirdPartyTestGCS {
+      nonInputProperties.systemProperty 'test.google.endpoint', "${ -> fixtureEndpoint.call() }"
+      nonInputProperties.systemProperty 'test.google.tokenURI', "${ -> tokenURI.call() }"
+    }
+  } else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+    throw new IllegalArgumentException("not all options specified to run thirdPartyTestGCS against external GCS service are present")
+  }
+
+  def encodedCredentials = {
+    Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
+  }
+
+  thirdPartyTestGCS {
     include '**/GCSCleanupTests.class'
-    systemProperty 'tests.security.manager', 'false'
-    systemProperty 'test.google.credentials_file', gcsCredentialsFile
+    systemProperty 'tests.security.manager', false
     systemProperty 'test.google.bucket', gcsBucket
     systemProperty 'test.google.base', gcsBasePath
+    nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
   }
 
   thirdPartyTest.dependsOn(thirdPartyTestGCS)

@@ -26,7 +26,6 @@ import java.util.List;
  * Encapsulates an accumulation of validation errors
  */
 public class ValidationException extends IllegalArgumentException {
-
     private final List<String> validationErrors = new ArrayList<>();
 
     public ValidationException() {

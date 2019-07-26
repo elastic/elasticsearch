@@ -26,17 +26,22 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -47,8 +52,8 @@ import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MA
 /**
  * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
  */
-public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
-    public static final String CONTENT_TYPE = "geo_shape";
+public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends FieldMapper {
+
 
     public static class Names {
         public static final ParseField ORIENTATION = new ParseField("orientation");
@@ -62,7 +67,36 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
     }
 
-    public abstract static class Builder<T extends Builder, Y extends BaseGeoShapeFieldMapper>
+
+    /**
+     * Interface representing an preprocessor in geo-shape indexing pipeline
+     */
+    public interface Indexer<Parsed, Processed> {
+
+        Processed prepareForIndexing(Parsed geometry);
+
+        Class<Processed> processedClass();
+
+    }
+
+    /**
+     * interface representing parser in geo shape indexing pipeline
+     */
+    public interface Parser<Parsed> {
+
+        Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+
+    }
+
+    /**
+     * interface representing a query builder that generates a query from the given shape
+     */
+    public interface QueryProcessor {
+
+        Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context);
+    }
+
+    public abstract static class Builder<T extends Builder, Y extends AbstractGeometryFieldMapper>
             extends FieldMapper.Builder<T, Y> {
         protected Boolean coerce;
         protected Boolean ignoreMalformed;
@@ -152,7 +186,7 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("name cannot be empty string");
             }
 
-            BaseGeoShapeFieldType ft = (BaseGeoShapeFieldType)fieldType();
+            AbstractGeometryFieldType ft = (AbstractGeometryFieldType)fieldType();
             ft.setOrientation(orientation().value());
         }
     }
@@ -218,10 +252,16 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
         }
     }
 
-    public abstract static class BaseGeoShapeFieldType extends MappedFieldType {
+    public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
         protected Orientation orientation = Defaults.ORIENTATION.value();
 
-        protected BaseGeoShapeFieldType() {
+        protected Indexer<Parsed, Processed> geometryIndexer;
+
+        protected Parser<Parsed> geometryParser;
+
+        protected QueryProcessor geometryQueryBuilder;
+
+        protected AbstractGeometryFieldType() {
             setIndexOptions(IndexOptions.DOCS);
             setTokenized(false);
             setStored(false);
@@ -229,7 +269,7 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
             setOmitNorms(true);
         }
 
-        protected BaseGeoShapeFieldType(BaseGeoShapeFieldType ref) {
+        protected AbstractGeometryFieldType(AbstractGeometryFieldType ref) {
             super(ref);
             this.orientation = ref.orientation;
         }
@@ -237,23 +277,13 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
         @Override
         public boolean equals(Object o) {
             if (!super.equals(o)) return false;
-            BaseGeoShapeFieldType that = (BaseGeoShapeFieldType) o;
+            AbstractGeometryFieldType that = (AbstractGeometryFieldType) o;
             return orientation == that.orientation;
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(super.hashCode(), orientation);
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
         }
 
         public Orientation orientation() { return this.orientation; }
@@ -272,16 +302,40 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead");
         }
+
+        public void setGeometryIndexer(Indexer<Parsed, Processed> geometryIndexer) {
+            this.geometryIndexer = geometryIndexer;
+        }
+
+        protected Indexer<Parsed, Processed> geometryIndexer() {
+            return geometryIndexer;
+        }
+
+        public void setGeometryParser(Parser<Parsed> geometryParser)  {
+            this.geometryParser = geometryParser;
+        }
+
+        protected Parser<Parsed> geometryParser() {
+            return geometryParser;
+        }
+
+        public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
+            this.geometryQueryBuilder = geometryQueryBuilder;
+        }
+
+        public QueryProcessor geometryQueryBuilder() {
+            return geometryQueryBuilder;
+        }
     }
 
     protected Explicit<Boolean> coerce;
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
 
-    protected BaseGeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                     Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                     Explicit<Boolean> ignoreZValue, Settings indexSettings,
-                                     MultiFields multiFields, CopyTo copyTo) {
+    protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                                          Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                                          Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                                          MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
@@ -291,7 +345,7 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith) {
         super.doMerge(mergeWith);
-        BaseGeoShapeFieldMapper gsfm = (BaseGeoShapeFieldMapper)mergeWith;
+        AbstractGeometryFieldMapper gsfm = (AbstractGeometryFieldMapper)mergeWith;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;
         }
@@ -310,7 +364,7 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
-        BaseGeoShapeFieldType ft = (BaseGeoShapeFieldType)fieldType();
+        AbstractGeometryFieldType ft = (AbstractGeometryFieldType)fieldType();
         if (includeDefaults || ft.orientation() != Defaults.ORIENTATION.value()) {
             builder.field(Names.ORIENTATION.getPreferredName(), ft.orientation());
         }
@@ -338,11 +392,35 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
     }
 
     public Orientation orientation() {
-        return ((BaseGeoShapeFieldType)fieldType).orientation();
+        return ((AbstractGeometryFieldType)fieldType).orientation();
     }
 
+    protected abstract void indexShape(ParseContext context, Processed shape);
+
+    /** parsing logic for geometry indexing */
     @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
+    public void parse(ParseContext context) throws IOException {
+        AbstractGeometryFieldType fieldType = (AbstractGeometryFieldType)fieldType();
+
+        @SuppressWarnings("unchecked") Indexer<Parsed, Processed> geometryIndexer = fieldType.geometryIndexer();
+        @SuppressWarnings("unchecked") Parser<Parsed> geometryParser = fieldType.geometryParser();
+        try {
+            Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
+            if (shape == null) {
+                Parsed geometry = geometryParser.parse(context.parser(), this);
+                if (geometry == null) {
+                    return;
+                }
+                shape = geometryIndexer.prepareForIndexing(geometry);
+            }
+            indexShape(context, shape);
+        } catch (Exception e) {
+            if (ignoreMalformed.value() == false) {
+                throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
+                    fieldType().typeName());
+            }
+            context.addIgnoredField(fieldType().name());
+        }
     }
+
 }

@@ -87,11 +87,11 @@ public class GCSCleanupTests extends AbstractCleanupTests {
     }
 
     private String getEndpoint() {
-        return System.getProperty("test.google.endpoint");
+        return System.getProperty("test.google.endpoint", "");
     }
 
     private String getTokenUri() {
-        return System.getProperty("test.google.tokenURI");
+        return System.getProperty("test.google.tokenURI", "");
     }
 
     @Override

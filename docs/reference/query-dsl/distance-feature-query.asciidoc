@@ -28,9 +28,9 @@ following example.
 +
 --
 
-* `name` field of the <<keyword,`keyword`>> type
-* `production_date` field of the <<date, `date`>> type
-* `location` field of the <<geo-point,`geo_point`>> type
+* `name`, a <<keyword,`keyword`>> field
+* `production_date`, a <<date, `date`>> field
+* `location`, a <<geo-point,`geo_point`>> field
 
 [source,js]
 ----

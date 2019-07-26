@@ -136,10 +136,6 @@ String gcsServiceAccount = System.getenv("google_storage_service_account")
 String gcsBucket = System.getenv("google_storage_bucket")
 String gcsBasePath = System.getenv("google_storage_base_path")
 
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
-}
-
 if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   thirdPartyTest.dependsOn('qa:google-cloud-storage:createServiceAccountFile', 'qa:google-cloud-storage:googleCloudStorageFixture')
   thirdPartyTest.finalizedBy('qa:google-cloud-storage:googleCloudStorageFixture#stop')
@@ -156,23 +152,22 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   }
   
   thirdPartyTest {
-    include '**/GoogleCloudStorageThirdPartyTests.class'
-    systemProperty 'tests.security.manager', 'false'
-    systemProperty 'test.google.bucket', gcsBucket
-    systemProperty 'test.google.base', gcsBasePath
-    nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
     nonInputProperties.systemProperty 'test.google.endpoint', "${ -> fixtureEndpoint.call() }"
     nonInputProperties.systemProperty 'test.google.tokenURI', "${ -> tokenURI.call() }"
   }
 } else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
   throw new IllegalArgumentException("not all options specified to run thirdPartyTest against external GCS service are present")
-} else {
-  thirdPartyTest {
-    include '**/GoogleCloudStorageThirdPartyTests.class'
-    systemProperty 'test.google.bucket', gcsBucket
-    systemProperty 'test.google.base', gcsBasePath
-    nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
-  }
+}
+
+def encodedCredentials = {
+  Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
+}
+
+thirdPartyTest {
+  include '**/GoogleCloudStorageThirdPartyTests.class'
+  systemProperty 'test.google.bucket', gcsBucket
+  systemProperty 'test.google.base', gcsBasePath
+  nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
 }
 
 check.dependsOn(thirdPartyTest)

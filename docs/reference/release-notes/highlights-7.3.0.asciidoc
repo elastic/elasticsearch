@@ -144,8 +144,9 @@ NOTE: Data frames are only available with the default distribution of {es}.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
-==== Discover your most unusual data using outlier detection
+[discrete]
+[[release-highlights-7.3.0-outlier-detection]]
+==== Discover your most unusual data using {oldetection}
 
 The goal of {stack-ov}/security-privileges.html[{oldetection}] is to find 
 the most unusual data points in an index. We analyse the numerical fields of 
@@ -169,7 +170,5 @@ index that has already been labeled to indicate which points are truly outliers
 and which are normal, you can use the 
 {ref}/evaluate-dfanalytics.html[Evaluate API] to assess the performance of the 
 {oldetection} analytics on your dataset.
-
-NOTE: Outlier detection requires a platinum license.
 
 // end::notable-highlights[]

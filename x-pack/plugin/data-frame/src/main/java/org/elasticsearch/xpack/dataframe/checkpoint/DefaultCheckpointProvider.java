@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.dataframe.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -92,7 +94,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
     protected final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     protected final DataFrameTransformConfig transformConfig;
 
-    public DefaultCheckpointProvider(Client client, DataFrameTransformsConfigManager dataFrameTransformsConfigManager, DataFrameTransformConfig transformConfig) {
+    public DefaultCheckpointProvider(Client client,
+                                     DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                     DataFrameTransformConfig transformConfig) {
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.transformConfig = transformConfig;
@@ -187,7 +191,8 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
             userIndicesClone.removeAll(checkpointsByIndex.keySet());
             if (userIndicesClone.isEmpty() == false) {
-                DataFrameTransformsCheckpointService.logger.debug("Original set of user indices contained more indexes [{}]", userIndicesClone);
+                DataFrameTransformsCheckpointService.logger.debug("Original set of user indices contained more indexes [{}]",
+                        userIndicesClone);
             }
         }
 
@@ -247,7 +252,8 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     listener.onResponse(checkpointingInfoBuilder.build());
                 },
                 e -> {
-                    logger.debug("Failed to retrieve source checkpoint for data frame [{}]", transformConfig.getId(), e);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                            "Failed to retrieve source checkpoint for data frame [{}]", transformConfig.getId()), e);
                     listener.onFailure(new CheckpointException("Failure during source checkpoint info retrieval", e));
                 }
             );
@@ -259,8 +265,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                     getIndexCheckpoints(checkpointsByIndexListener);
                 },
                 e -> {
-                    logger.debug("Failed to retrieve next checkpoint [{}] for data frame [{}]", lastCheckpointNumber + 1,
-                            transformConfig.getId(), e);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                            "Failed to retrieve next checkpoint [{}] for data frame [{}]", lastCheckpointNumber + 1,
+                            transformConfig.getId()), e);
                     listener.onFailure(new CheckpointException("Failure during next checkpoint info retrieval", e));
                 }
             );
@@ -273,8 +280,9 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
                         nextCheckpointListener);
             },
             e -> {
-                logger.debug("Failed to retrieve last checkpoint [{}] for data frame [{}]", lastCheckpointNumber,
-                        transformConfig.getId(), e);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage(
+                        "Failed to retrieve last checkpoint [{}] for data frame [{}]", lastCheckpointNumber,
+                        transformConfig.getId()), e);
                 listener.onFailure(new CheckpointException("Failure during last checkpoint info retrieval", e));
             }
         );

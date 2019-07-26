@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStats
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
@@ -85,19 +86,20 @@ public class TransportGetDataFrameTransformsStatsAction extends
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
+            DataFrameTransformState transformState = task.getState();
             task.getCheckpointingInfo(ActionListener.wrap(
-                checkpointStats -> listener.onResponse(new Response(
+                checkpointingInfo -> listener.onResponse(new Response(
                     Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                        task.getState().getTaskState(),
-                        task.getState().getReason(),
+                        transformState.getTaskState(),
+                        transformState.getReason(),
                         null,
                         task.getStats(),
-                        checkpointStats)),
+                        checkpointingInfo)),
                     1L)),
                 e -> listener.onResponse(new Response(
                     Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                        task.getState().getTaskState(),
-                        task.getState().getReason(),
+                        transformState.getTaskState(),
+                        transformState.getReason(),
                         null,
                         task.getStats(),
                         DataFrameTransformCheckpointingInfo.EMPTY)),
@@ -213,7 +215,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     private void populateSingleStoppedTransformStat(DataFrameTransformStoredDoc transform,
                                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
-        transformsCheckpointService.getCheckpointStats(
+        transformsCheckpointService.getCheckpointingInfo(
             transform.getId(),
             transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getIndexerState(),

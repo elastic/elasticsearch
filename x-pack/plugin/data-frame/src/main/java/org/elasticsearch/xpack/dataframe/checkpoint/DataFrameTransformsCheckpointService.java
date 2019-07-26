@@ -57,12 +57,12 @@ public class DataFrameTransformsCheckpointService {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    public void getCheckpointStats(String transformId,
-                                   long lastCheckpointNumber,
-                                   IndexerState nextCheckpointIndexerState,
-                                   DataFrameIndexerPosition nextCheckpointPosition,
-                                   DataFrameTransformProgress nextCheckpointProgress,
-                                   ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    public void getCheckpointingInfo(String transformId,
+                                     long lastCheckpointNumber,
+                                     IndexerState nextCheckpointIndexerState,
+                                     DataFrameIndexerPosition nextCheckpointPosition,
+                                     DataFrameTransformProgress nextCheckpointProgress,
+                                     ActionListener<DataFrameTransformCheckpointingInfo> listener) {
 
         // <0> get the transform and the source, transient checkpoint
         dataFrameTransformsConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(

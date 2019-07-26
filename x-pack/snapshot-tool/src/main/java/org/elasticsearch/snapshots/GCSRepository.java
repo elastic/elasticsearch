@@ -24,7 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -32,6 +32,7 @@ import java.net.URISyntaxException;
 import java.nio.channels.Channels;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -51,14 +52,14 @@ public class GCSRepository extends AbstractRepository {
     private final Storage storage;
 
     protected GCSRepository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String bucket, String basePath,
-                            String credentialsFile, String endpoint, String tokenURI) throws IOException, GeneralSecurityException,
+                            String base64Credentials, String endpoint, String tokenURI) throws IOException, GeneralSecurityException,
             URISyntaxException {
         super(terminal, safetyGapMillis, parallelism, basePath);
-        this.storage = buildGCSClient(credentialsFile, endpoint, tokenURI);
+        this.storage = buildGCSClient(base64Credentials, endpoint, tokenURI);
         this.bucket = bucket;
     }
 
-    private static Storage buildGCSClient(String credentialsFile, String endpoint, String tokenURI)
+    private static Storage buildGCSClient(String base64Credentials, String endpoint, String tokenURI)
             throws IOException, GeneralSecurityException, URISyntaxException {
         final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
         builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
@@ -76,7 +77,9 @@ public class GCSRepository extends AbstractRepository {
             storageOptionsBuilder.setHost(endpoint);
         }
 
-        ServiceAccountCredentials serviceAccountCredentials = ServiceAccountCredentials.fromStream(new FileInputStream(credentialsFile));
+        byte[] decodedCredentials = Base64.getDecoder().decode(base64Credentials);
+        ServiceAccountCredentials serviceAccountCredentials =
+                ServiceAccountCredentials.fromStream(new ByteArrayInputStream(decodedCredentials));
         if (Strings.hasLength(tokenURI)) {
             serviceAccountCredentials = serviceAccountCredentials.toBuilder().setTokenServerUri(new URI(tokenURI)).build();
         }

@@ -15,9 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Map;
 
@@ -34,14 +32,10 @@ public class GCSCleanupTests extends AbstractCleanupTests {
     @Override
     protected SecureSettings credentials() {
         assertThat(getBucket(), not(blankOrNullString()));
-        assertThat(getCredentialsFiles(), not(blankOrNullString()));
+        assertThat(getBase64Credentials(), not(blankOrNullString()));
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        try {
-            secureSettings.setFile("gcs.client.default.credentials_file", Files.readAllBytes(Paths.get(getCredentialsFiles())));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        secureSettings.setFile("gcs.client.default.credentials_file", Base64.getDecoder().decode(getBase64Credentials()));
         return secureSettings;
     }
 
@@ -82,16 +76,16 @@ public class GCSCleanupTests extends AbstractCleanupTests {
         return System.getProperty("test.google.base");
     }
 
-    private String getCredentialsFiles() {
-        return System.getProperty("test.google.credentials_file");
-    }
-
     private String getEndpoint() {
         return System.getProperty("test.google.endpoint", "");
     }
 
     private String getTokenUri() {
         return System.getProperty("test.google.tokenURI", "");
+    }
+
+    private String getBase64Credentials() {
+        return System.getProperty("test.google.account");
     }
 
     @Override
@@ -102,7 +96,7 @@ public class GCSCleanupTests extends AbstractCleanupTests {
                 "--parallelism", nonDefaultArguments.getOrDefault("parallelism", "10"),
                 "--bucket", nonDefaultArguments.getOrDefault("bucket", getBucket()),
                 "--base_path", nonDefaultArguments.getOrDefault("base_path", getBasePath()),
-                "--credentials_file", nonDefaultArguments.getOrDefault("credentials_file", getCredentialsFiles()),
+                "--base64_credentials", nonDefaultArguments.getOrDefault("base64_credentials", getBase64Credentials()),
                 "--endpoint", nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
                 "--token_uri", nonDefaultArguments.getOrDefault("token_uri", getTokenUri())
                 );
@@ -111,8 +105,8 @@ public class GCSCleanupTests extends AbstractCleanupTests {
 
     public void testNoCredentialsFile() {
         expectThrows(() ->
-                        executeCommand(false, Map.of("credentials_file", "")),
-                "credentials_file option is required for cleaning up GCS repository");
+                        executeCommand(false, Map.of("base64_credentials", "")),
+                "base64_credentials option is required for cleaning up GCS repository");
     }
 
 }

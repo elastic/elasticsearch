@@ -17,14 +17,15 @@ import java.security.GeneralSecurityException;
 
 public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
 
-    private final OptionSpec<String> credentialsFileOption;
+    private final OptionSpec<String> base64CredentialsOption;
     private final OptionSpec<String> endpointOption;
     private final OptionSpec<String> tokenURIOption;
 
     public CleanupGCSRepositoryCommand() {
         super("Command to cleanup orphaned segment files from the GCS repository");
 
-        credentialsFileOption = parser.accepts("credentials_file", "Name of the file with GCS credentials")
+        base64CredentialsOption = parser
+                .accepts("base64_credentials", "Base64 encoded content of google service account credentials file")
                 .withRequiredArg();
         endpointOption = parser.accepts("endpoint", "GCS endpoint")
                 .withRequiredArg();
@@ -36,9 +37,9 @@ public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
     protected void validate(OptionSet options) {
         super.validate(options);
 
-        String credentialsFile = credentialsFileOption.value(options);
-        if (Strings.isNullOrEmpty(credentialsFile)) {
-            throw new ElasticsearchException("credentials_file option is required for cleaning up GCS repository");
+        String encodedCredentials = base64CredentialsOption.value(options);
+        if (Strings.isNullOrEmpty(encodedCredentials)) {
+            throw new ElasticsearchException("base64_credentials option is required for cleaning up GCS repository");
         }
     }
 
@@ -51,7 +52,7 @@ public class CleanupGCSRepositoryCommand extends AbstractCleanupCommand {
                 parallelismOption.value(options),
                 bucketOption.value(options),
                 basePathOption.value(options),
-                credentialsFileOption.value(options),
+                base64CredentialsOption.value(options),
                 endpointOption.value(options),
                 tokenURIOption.value(options));
     }

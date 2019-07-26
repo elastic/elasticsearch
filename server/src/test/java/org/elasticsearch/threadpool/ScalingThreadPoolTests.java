@@ -48,7 +48,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             core = "generic".equals(threadPoolName) ? 4 : 1; // the defaults
         }
 
-        final int processors = randomIntBetween(1, 1 + Runtime.getRuntime().availableProcessors());
+        final int processors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
         final int maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
 
         final int expectedMax;

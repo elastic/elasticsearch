@@ -18,10 +18,10 @@ scores.
 
 [[distance-feature-index-setup]]
 ===== Index setup
-To use the `distance_query` query, your index must include a <<date, `date`>>,
+To use the `distance_feature` query, your index must include a <<date, `date`>>,
 <<date_nanos, `date_nanos`>> or <<geo-point,`geo_point`>> field.
 
-To see how you can set up an index for the `distance_query` query, try the
+To see how you can set up an index for the `distance_feature` query, try the
 following example.
 
 . Create an `items` index with the following field mapping:

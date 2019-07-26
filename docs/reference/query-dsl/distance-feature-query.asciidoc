@@ -122,7 +122,7 @@ GET /items/_search
 [[distance-feature-query-distance-ex]]
 ====== Boost documents based on location
 The following `bool` search returns documents with a `name` value of
-`chocolate`.The search also uses the `distance_feature` query to increase the
+`chocolate`. The search also uses the `distance_feature` query to increase the
 relevance score of documents with a `location` value closer to `[-71.3, 41.15]`.
 
 [source,js]

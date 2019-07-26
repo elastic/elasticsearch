@@ -148,7 +148,7 @@ NOTE: Data frames are only available with the default distribution of {es}.
 [[release-highlights-7.3.0-outlier-detection]]
 ==== Discover your most unusual data using {oldetection}
 
-The goal of {stack-ov}/security-privileges.html[{oldetection}] is to find 
+The goal of {stack-ov}/dfa-outlier-detection.html[{oldetection}] is to find 
 the most unusual data points in an index. We analyse the numerical fields of 
 each data point (document in an index) and annotate them with how unusual they 
 are.

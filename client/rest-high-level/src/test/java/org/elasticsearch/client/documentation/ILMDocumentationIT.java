@@ -775,7 +775,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("idx"));
         SnapshotRetentionConfiguration retention =
-            new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30));
+            new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), 2, 10);
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
             "policy_id", "name", "1 2 3 * * ?",
             "my_repository", config, retention);

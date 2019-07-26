@@ -49,9 +49,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         SnapshotLifecyclePolicy policyWithout = new SnapshotLifecyclePolicy("policyWithout", "snap", "1 * * * * ?",
             "repo", null, SnapshotRetentionConfiguration.EMPTY);
         SnapshotLifecyclePolicy policyWithout2 = new SnapshotLifecyclePolicy("policyWithout2", "snap", "1 * * * * ?",
-            "repo", null, new SnapshotRetentionConfiguration(null));
+            "repo", null, new SnapshotRetentionConfiguration(null, null, null));
         SnapshotLifecyclePolicy policyWith = new SnapshotLifecyclePolicy("policyWith", "snap", "1 * * * * ?",
-            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30)));
+            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
 
         // Test with no SLM metadata
         ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
@@ -77,7 +77,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
     public void testSnapshotEligibleForDeletion() {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
-            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30)));
+            "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
         SnapshotLifecyclePolicy policyWithNoRetention = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
             "repo", null, randomBoolean() ? null : SnapshotRetentionConfiguration.EMPTY);
         Map<String, SnapshotLifecyclePolicy> policyMap = Collections.singletonMap("policy", policy);
@@ -125,7 +125,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
              Client noOpClient = new NoOpClient("slm-test")) {
 
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("policy", "snap", "1 * * * * ?",
-                "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30)));
+                "repo", null, new SnapshotRetentionConfiguration(TimeValue.timeValueDays(30), null, null));
 
             ClusterState state = createState(policy);
             ClusterServiceUtils.setState(clusterService, state);

@@ -241,7 +241,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
         // Create a policy with a retention period of 1 millisecond
         createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true,
-            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1)));
+            new SnapshotRetentionConfiguration(TimeValue.timeValueMillis(1), null, null));
 
         // Manually create a snapshot
         Response executeResp = client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "/_execute"));

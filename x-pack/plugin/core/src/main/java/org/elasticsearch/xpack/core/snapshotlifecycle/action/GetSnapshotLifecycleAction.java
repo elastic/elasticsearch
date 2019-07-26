@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyItem;
@@ -28,12 +27,7 @@ public class GetSnapshotLifecycleAction extends ActionType<GetSnapshotLifecycleA
     public static final String NAME = "cluster:admin/slm/get";
 
     protected GetSnapshotLifecycleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<GetSnapshotLifecycleAction.Response> getResponseReader() {
-        return GetSnapshotLifecycleAction.Response::new;
+        super(NAME, GetSnapshotLifecycleAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<GetSnapshotLifecycleAction.Request> {

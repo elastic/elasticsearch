@@ -1,8 +1,8 @@
 [[cluster-nodes-usage]]
-== Nodes Feature Usage
+=== Nodes Feature Usage
 
 [float]
-=== Nodes usage
+==== Nodes usage
 
 The cluster nodes usage API allows to retrieve information on the usage
 of features for each node.
@@ -23,7 +23,7 @@ second command selectively retrieves nodes usage of only `nodeId1` and
 
 [float]
 [[rest-usage]]
-==== REST actions usage information
+===== REST actions usage information
 
 The `rest_actions` field in the response contains a map of the REST
 actions classname with a count of the number of times that action has

@@ -1,5 +1,8 @@
 [[query-dsl-prefix-query]]
-=== Prefix Query
+=== Prefix query
+++++
+<titleabbrev>Prefix</titleabbrev>
+++++
 
 Matches documents that have fields containing terms with a specified
 prefix (*not analyzed*). The prefix query maps to Lucene `PrefixQuery`.

@@ -51,10 +51,4 @@ public final class SamlInvalidateSessionResponse extends ActionResponse {
         out.writeInt(count);
         out.writeString(redirectUrl);
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
 }

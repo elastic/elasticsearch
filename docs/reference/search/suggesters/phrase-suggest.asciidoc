@@ -1,5 +1,5 @@
 [[phrase-suggester]]
-=== Phrase Suggester
+==== Phrase Suggester
 
 NOTE: In order to understand the format of suggestions, please
 read the <<search-suggesters>> page first.
@@ -15,7 +15,7 @@ based on `ngram-language` models. In practice this suggester will be
 able to make better decisions about which tokens to pick based on
 co-occurrence and frequencies.
 
-==== API Example
+===== API Example
 
 In general the `phrase` suggester requires special mapping up front to work.
 The `phrase` suggester examples on this page need the following mapping to
@@ -135,7 +135,7 @@ The response contains suggestions scored by the most likely spell correction fir
 // TESTRESPONSE[s/"hits": .../"hits": "$body.hits",/]
 // TESTRESPONSE[s/"took": 3,/"took": "$body.took",/]
 
-==== Basic Phrase suggest API parameters
+===== Basic Phrase suggest API parameters
 
 [horizontal]
 `field`::
@@ -263,7 +263,7 @@ POST test/_search
     option indicating whether the generated phrase matched any
     document.
 
-==== Smoothing Models
+===== Smoothing Models
 
 The `phrase` suggester supports multiple smoothing models to balance
 weight between infrequent grams (grams (shingles) are not existing in
@@ -313,7 +313,7 @@ POST test/_search
 --------------------------------------------------
 // CONSOLE
 
-==== Candidate Generators
+===== Candidate Generators
 
 The `phrase` suggester uses candidate generators to produce a list of
 possible terms per term in the given text. A single candidate generator
@@ -326,7 +326,7 @@ Currently only one type of candidate generator is supported, the
 under the key `direct_generator`; each of the generators in the list is
 called per term in the original text.
 
-==== Direct Generators
+===== Direct Generators
 
 The direct generators support the following parameters:
 

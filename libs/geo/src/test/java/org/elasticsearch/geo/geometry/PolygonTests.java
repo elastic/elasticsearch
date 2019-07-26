@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
@@ -30,7 +31,7 @@ import java.util.Collections;
 public class PolygonTests extends BaseGeometryTestCase<Polygon> {
     @Override
     protected Polygon createTestInstance(boolean hasAlt) {
-        return randomPolygon(hasAlt);
+        return GeometryTestUtils.randomPolygon(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {

@@ -16,8 +16,9 @@ public class XPackUsageFeatureResponse extends ActionResponse {
 
     private XPackFeatureSet.Usage usage;
 
-    public XPackUsageFeatureResponse() {
-        // empty, for readFrom
+    public XPackUsageFeatureResponse(StreamInput in) throws IOException {
+        super(in);
+        usage = in.readNamedWriteable(XPackFeatureSet.Usage.class);
     }
 
     public XPackUsageFeatureResponse(XPackFeatureSet.Usage usage) {
@@ -33,9 +34,4 @@ public class XPackUsageFeatureResponse extends ActionResponse {
         out.writeNamedWriteable(usage);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        usage = in.readNamedWriteable(XPackFeatureSet.Usage.class);
     }
-}

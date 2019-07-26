@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class DeleteLicenseAction extends ActionType<AcknowledgedResponse> {
 
@@ -15,11 +14,7 @@ public class DeleteLicenseAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/license/delete";
 
     private DeleteLicenseAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
 }

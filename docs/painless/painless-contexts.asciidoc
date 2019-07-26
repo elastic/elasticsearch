@@ -23,7 +23,7 @@ specialized code may define new ways to use a Painless script.
 | Reindex                           | <<painless-reindex-context, Painless Documentation>>
                                     | {ref}/docs-reindex.html[Elasticsearch Documentation]
 | Sort                              | <<painless-sort-context, Painless Documentation>>
-                                    | {ref}/search-request-sort.html[Elasticsearch Documentation]
+                                    | {ref}/search-request-body.html#request-body-search-sort[Elasticsearch Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>
                                     | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
 | Weight                            | <<painless-weight-context, Painless Documentation>>
@@ -31,7 +31,7 @@ specialized code may define new ways to use a Painless script.
 | Score                             | <<painless-score-context, Painless Documentation>>
                                     | {ref}/query-dsl-function-score-query.html[Elasticsearch Documentation]
 | Field                             | <<painless-field-context, Painless Documentation>>
-                                    | {ref}/search-request-script-fields.html[Elasticsearch Documentation]
+                                    | {ref}/search-request-body.html#request-body-search-script-fields[Elasticsearch Documentation]
 | Filter                            | <<painless-filter-context, Painless Documentation>>
                                     | {ref}/query-dsl-script-query.html[Elasticsearch Documentation]
 | Minimum should match              | <<painless-min-should-match-context, Painless Documentation>>

@@ -72,7 +72,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
     @Override
     protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
         // here only the settings should be tested, as this test covers explicitly only the XContent parsing
-        // the rest of the request fields are tested by the StreamableTests
+        // the rest of the request fields are tested by the SerializingTests
         super.assertEqualInstances(new UpdateSettingsRequest(expectedInstance.settings()),
                 new UpdateSettingsRequest(newInstance.settings()));
     }

@@ -34,8 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.matchesPattern;
-import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.

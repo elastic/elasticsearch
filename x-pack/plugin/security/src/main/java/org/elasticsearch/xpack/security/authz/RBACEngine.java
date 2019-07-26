@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -360,7 +361,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction));
+            final ClusterPrivilege checkPrivilege = ClusterPrivilegeResolver.get(Collections.singleton(checkAction));
             cluster.put(checkAction, userRole.grants(checkPrivilege));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);

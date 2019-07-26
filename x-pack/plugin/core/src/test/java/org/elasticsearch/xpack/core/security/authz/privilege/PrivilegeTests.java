@@ -32,36 +32,36 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testCluster() throws Exception {
         Set<String> name = Sets.newHashSet("monitor");
-        ClusterPrivilege cluster = ClusterPrivilege.get(name);
-        assertThat(cluster, is(ClusterPrivilege.MONITOR));
+        ClusterPrivilege cluster = ClusterPrivilegeResolver.get(name);
+        assertThat(cluster, is(ClusterPrivilegeResolver.MONITOR));
 
         // since "all" implies "monitor", this should be the same language as All
         name = Sets.newHashSet("monitor", "all");
-        cluster = ClusterPrivilege.get(name);
-        assertTrue(Operations.sameLanguage(ClusterPrivilege.ALL.automaton, cluster.automaton));
+        cluster = ClusterPrivilegeResolver.get(name);
+        assertTrue(Operations.sameLanguage(ClusterPrivilegeResolver.ALL.automaton, cluster.automaton));
 
         name = Sets.newHashSet("monitor", "none");
-        cluster = ClusterPrivilege.get(name);
-        assertTrue(Operations.sameLanguage(ClusterPrivilege.MONITOR.automaton, cluster.automaton));
+        cluster = ClusterPrivilegeResolver.get(name);
+        assertTrue(Operations.sameLanguage(ClusterPrivilegeResolver.MONITOR.automaton, cluster.automaton));
 
         Set<String> name2 = Sets.newHashSet("none", "monitor");
-        ClusterPrivilege cluster2 = ClusterPrivilege.get(name2);
+        ClusterPrivilege cluster2 = ClusterPrivilegeResolver.get(name2);
         assertThat(cluster, is(cluster2));
     }
 
     public void testClusterTemplateActions() throws Exception {
         Set<String> name = Sets.newHashSet("indices:admin/template/delete");
-        ClusterPrivilege cluster = ClusterPrivilege.get(name);
+        ClusterPrivilege cluster = ClusterPrivilegeResolver.get(name);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/delete"), is(true));
 
         name = Sets.newHashSet("indices:admin/template/get");
-        cluster = ClusterPrivilege.get(name);
+        cluster = ClusterPrivilegeResolver.get(name);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/get"), is(true));
 
         name = Sets.newHashSet("indices:admin/template/put");
-        cluster = ClusterPrivilege.get(name);
+        cluster = ClusterPrivilegeResolver.get(name);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("indices:admin/template/put"), is(true));
     }
@@ -69,12 +69,12 @@ public class PrivilegeTests extends ESTestCase {
     public void testClusterInvalidName() throws Exception {
         thrown.expect(IllegalArgumentException.class);
         Set<String> actionName = Sets.newHashSet("foobar");
-        ClusterPrivilege.get(actionName);
+        ClusterPrivilegeResolver.get(actionName);
     }
 
     public void testClusterAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("cluster:admin/snapshot/delete");
-        ClusterPrivilege cluster = ClusterPrivilege.get(actionName);
+        ClusterPrivilege cluster = ClusterPrivilegeResolver.get(actionName);
         assertThat(cluster, notNullValue());
         assertThat(cluster.predicate().test("cluster:admin/snapshot/delete"), is(true));
         assertThat(cluster.predicate().test("cluster:admin/snapshot/dele"), is(false));
@@ -144,7 +144,7 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testManageCcrPrivilege() {
-        Predicate<String> predicate = ClusterPrivilege.MANAGE_CCR.predicate();
+        Predicate<String> predicate = ClusterPrivilegeResolver.MANAGE_CCR.predicate();
         assertThat(predicate.test("cluster:admin/xpack/ccr/follow_index"), is(true));
         assertThat(predicate.test("cluster:admin/xpack/ccr/unfollow_index"), is(true));
         assertThat(predicate.test("cluster:admin/xpack/ccr/brand_new_api"), is(true));
@@ -153,7 +153,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIlmPrivileges() {
         {
-            Predicate<String> predicate = ClusterPrivilege.MANAGE_ILM.predicate();
+            Predicate<String> predicate = ClusterPrivilegeResolver.MANAGE_ILM.predicate();
             // check cluster actions
             assertThat(predicate.test("cluster:admin/ilm/delete"), is(true));
             assertThat(predicate.test("cluster:admin/ilm/_move/post"), is(true));
@@ -168,7 +168,7 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            Predicate<String> predicate = ClusterPrivilege.READ_ILM.predicate();
+            Predicate<String> predicate = ClusterPrivilegeResolver.READ_ILM.predicate();
             // check cluster actions
             assertThat(predicate.test("cluster:admin/ilm/delete"), is(false));
             assertThat(predicate.test("cluster:admin/ilm/_move/post"), is(false));
@@ -207,7 +207,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testSlmPriviledges() {
         {
-            Predicate<String> predicate = ClusterPrivilege.MANAGE_SLM.predicate();
+            Predicate<String> predicate = ClusterPrivilegeResolver.MANAGE_SLM.predicate();
             // check cluster actions
             assertThat(predicate.test("cluster:admin/slm/delete"), is(true));
             assertThat(predicate.test("cluster:admin/slm/put"), is(true));
@@ -221,7 +221,7 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            Predicate<String> predicate = ClusterPrivilege.READ_SLM.predicate();
+            Predicate<String> predicate = ClusterPrivilegeResolver.READ_SLM.predicate();
             // check cluster actions
             assertThat(predicate.test("cluster:admin/slm/delete"), is(false));
             assertThat(predicate.test("cluster:admin/slm/put"), is(false));

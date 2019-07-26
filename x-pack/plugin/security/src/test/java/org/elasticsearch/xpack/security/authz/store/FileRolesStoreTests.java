@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.BufferedWriter;
@@ -74,7 +74,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
+        assertThat(role.cluster().privilege(), is(ClusterPrivilegeResolver.ALL));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(2));
@@ -102,7 +102,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role1.ab" }));
         assertThat(role.cluster(), notNullValue());
-        assertThat(role.cluster().privilege(), is(ClusterPrivilege.ALL));
+        assertThat(role.cluster().privilege(), is(ClusterPrivilegeResolver.ALL));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices().groups(), notNullValue());
         assertThat(role.indices().groups().length, is(0));
@@ -114,7 +114,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.names(), equalTo(new String[] { "role2" }));
         assertThat(role.cluster(), notNullValue());
-        assertTrue(Operations.sameLanguage(role.cluster().privilege().getAutomaton(), ClusterPrivilege.ALL.getAutomaton()));
+        assertTrue(Operations.sameLanguage(role.cluster().privilege().getAutomaton(), ClusterPrivilegeResolver.ALL.getAutomaton()));
         assertThat(role.indices(), notNullValue());
         assertThat(role.indices(), is(IndicesPermission.NONE));
         assertThat(role.runAs(), is(RunAsPermission.NONE));

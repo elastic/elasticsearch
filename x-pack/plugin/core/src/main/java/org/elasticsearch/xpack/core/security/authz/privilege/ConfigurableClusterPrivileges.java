@@ -125,7 +125,7 @@ public final class ConfigurableClusterPrivileges {
      */
     public static class ManageApplicationPrivileges implements ConfigurableClusterPrivilege {
 
-        private static final ClusterPrivilege PRIVILEGE = ClusterPrivilege.get(
+        private static final ClusterPrivilege PRIVILEGE = ClusterPrivilegeResolver.get(
             Collections.singleton("cluster:admin/xpack/security/privilege/*")
         );
         public static final String WRITEABLE_NAME = "manage-application-privileges";

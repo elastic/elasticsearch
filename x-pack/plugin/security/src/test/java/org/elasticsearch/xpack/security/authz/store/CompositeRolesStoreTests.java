@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -75,11 +75,11 @@ import java.util.function.Predicate;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
@@ -543,7 +543,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final TransportRequest request3 = mock(TransportRequest.class);
 
         ConfigurableClusterPrivilege ccp1 = mock(ConfigurableClusterPrivilege.class);
-        when(ccp1.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        when(ccp1.getPrivilege()).thenReturn(ClusterPrivilegeResolver.MANAGE_SECURITY);
         when(ccp1.getRequestPredicate()).thenReturn(req -> req == request1);
         RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
@@ -569,7 +569,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         new String[]{"app-user-1"}, null, null);
 
         ConfigurableClusterPrivilege ccp2 = mock(ConfigurableClusterPrivilege.class);
-        when(ccp2.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
+        when(ccp2.getPrivilege()).thenReturn(ClusterPrivilegeResolver.MANAGE_SECURITY);
         when(ccp2.getRequestPredicate()).thenReturn(req -> req == request2);
         RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage_saml"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()

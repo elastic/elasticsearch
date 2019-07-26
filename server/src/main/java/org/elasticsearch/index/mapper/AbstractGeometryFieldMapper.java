@@ -192,7 +192,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    protected final static String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
+    protected static final String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
 
     public static class TypeParser implements Mapper.TypeParser {
         protected boolean parseXContentParameters(String name, Map.Entry<String, Object> entry, Map<String, Object> params)

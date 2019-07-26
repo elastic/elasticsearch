@@ -191,14 +191,14 @@ public class SocketChannelContextTests extends ESTestCase {
         config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, address);
         InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
         TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
-        doThrow(new SocketException()).doNothing().when(rawSocket).setReuseAddress(tcpNoDelay);
+        doThrow(new SocketException()).doNothing().when(rawSocket).setReuseAddress(tcpReuseAddress);
         context.register();
         when(rawChannel.finishConnect()).thenReturn(true);
         context.connect();
 
         verify(rawSocket, times(2)).setReuseAddress(tcpReuseAddress);
         verify(rawSocket).setKeepAlive(tcpKeepAlive);
-        verify(rawSocket).setTcpNoDelay(tcpKeepAlive);
+        verify(rawSocket).setTcpNoDelay(tcpNoDelay);
         verify(rawSocket).setSendBufferSize(tcpSendBufferSize);
         verify(rawSocket).setReceiveBufferSize(tcpReceiveBufferSize);
     }

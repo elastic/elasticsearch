@@ -10,12 +10,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
+import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
+import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -24,6 +28,9 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.search.aggregations.matrix.stats.MatrixAggregationInspectionHelper.hasValue;
+import static org.elasticsearch.search.aggregations.support.AggregationInspectionHelper.hasValue;
 
 public class MetricAggExtractor implements BucketExtractor {
 
@@ -123,26 +130,35 @@ public class MetricAggExtractor implements BucketExtractor {
     /**
      * Check if the given aggregate has been executed and has computed values
      * or not (the bucket is null).
-     *
-     * Waiting on https://github.com/elastic/elasticsearch/issues/34903
      */
     private static boolean containsValues(InternalAggregation agg) {
         // Stats & ExtendedStats
         if (agg instanceof InternalStats) {
-            return ((InternalStats) agg).getCount() != 0;
+            return hasValue((InternalStats) agg);
         }
-        if (agg instanceof MatrixStats) {
-            return ((MatrixStats) agg).getDocCount() != 0;
+        if (agg instanceof InternalMatrixStats) {
+            return hasValue((InternalMatrixStats) agg);
         }
-        // sum returns 0 even for null; since that's a common case, we return it as such
-        if (agg instanceof SingleValue) {
-            return Double.isFinite(((SingleValue) agg).value());
+        if (agg instanceof InternalMax) {
+            return hasValue((InternalMax) agg);
         }
-        if (agg instanceof PercentileRanks) {
-            return Double.isFinite(((PercentileRanks) agg).percent(0));
+        if (agg instanceof InternalMin) {
+            return hasValue((InternalMin) agg);
         }
-        if (agg instanceof Percentiles) {
-            return Double.isFinite(((Percentiles) agg).percentile(0));
+        if (agg instanceof InternalAvg) {
+            return hasValue((InternalAvg) agg);
+        }
+        if (agg instanceof InternalCardinality) {
+            return hasValue((InternalCardinality) agg);
+        }
+        if (agg instanceof InternalSum) {
+            return hasValue((InternalSum) agg);
+        }
+        if (agg instanceof InternalTDigestPercentileRanks) {
+            return  hasValue((InternalTDigestPercentileRanks) agg);
+        }
+        if (agg instanceof InternalTDigestPercentiles) {
+            return hasValue((InternalTDigestPercentiles) agg);
         }
         return true;
     }

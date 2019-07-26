@@ -19,8 +19,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.junit.Before;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,13 +39,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class JvmErgonomicsTests extends LaunchersTestCase {
-
-    @Before
-    public void setUp() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44669",
-            System.getProperty("os.name").contains("Win")
-        );
-    }
 
     public void testExtractValidHeapSizeUsingXmx() throws InterruptedException, IOException {
         assertThat(

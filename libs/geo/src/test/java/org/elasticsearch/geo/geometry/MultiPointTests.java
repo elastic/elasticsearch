@@ -19,6 +19,7 @@
 
 package org.elasticsearch.geo.geometry;
 
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.geo.utils.StandardValidator;
 import org.elasticsearch.geo.utils.WellKnownText;
@@ -37,7 +38,7 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
         int size = randomIntBetween(1, 10);
         List<Point> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomPoint(hasAlt));
+            arr.add(GeometryTestUtils.randomPoint(hasAlt));
         }
         return new MultiPoint(arr);
     }

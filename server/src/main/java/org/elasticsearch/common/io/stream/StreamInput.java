@@ -530,6 +530,9 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /**
+     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+     */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
         int size = readArraySize();
         if (size == 0) {
@@ -549,6 +552,8 @@ public abstract class StreamInput extends InputStream {
      * <pre><code>
      * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
      * </code></pre>
+     * If the map or a list in it contains any elements it will be mutable, otherwise either the empty map or empty lists it contains
+     * might be immutable.
      *
      * @param keyReader The key reader
      * @param valueReader The value reader
@@ -567,12 +572,19 @@ public abstract class StreamInput extends InputStream {
         return map;
     }
 
+    /**
+     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+     */
     @Nullable
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
 
+    /**
+     * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
+     * be immutable if it is empty.
+     */
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
@@ -1026,6 +1038,7 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list
@@ -1036,6 +1049,7 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
      * @return the list of strings
      * @throws IOException if an I/O exception occurs reading the list
@@ -1045,7 +1059,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a set of objects
+     * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
         return readCollection(reader, HashSet::new, Collections.emptySet());
@@ -1069,7 +1083,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of {@link NamedWriteable}s.
+     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
         int count = readArraySize();

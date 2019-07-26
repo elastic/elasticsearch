@@ -107,9 +107,11 @@ public class RealmSettings {
         if (nonSecureSettings.isEmpty()) {
             final String prefix = realmSettingPrefix(identifier);
             throw new SettingsException(
-                "The realm [{}.{}] is exists within the secure settings (elasticsearch.keystore), but does not exist in elasticsearch.yml."
-                    + " Please remove these settings from the keystore, or update their names to match a defined realm: [{}]",
-                identifier.getType(), identifier.getName(),
+                "found settings for the realm [{}] (with type [{}]) in the secure settings (elasticsearch.keystore)," +
+                    " but this realm does not have any settings in elasticsearch.yml." +
+                    " Please remove these settings from the keystore, or update their names to match one of the realms that are" +
+                    " defined in elasticsearch.yml - [{}]",
+                identifier.getName(), identifier.getType(),
                 realmSettings.keySet().stream().map(k -> prefix + k).collect(Collectors.joining(","))
             );
         }

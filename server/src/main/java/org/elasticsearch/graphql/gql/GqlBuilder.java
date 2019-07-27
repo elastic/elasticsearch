@@ -73,4 +73,9 @@ public class GqlBuilder {
 
         return schema;
     }
+
+    public GqlBuilder directive(GraphQLDirective directive) {
+        directives.add(directive);
+        return this;
+    }
 }

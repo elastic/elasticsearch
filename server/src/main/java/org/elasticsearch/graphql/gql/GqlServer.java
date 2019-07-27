@@ -50,6 +50,7 @@ public class GqlServer {
             .map(new GqlIndexSchema(api).use)
             .map(new GqlIndexInfoSchema(api).use)
             .map(new GqlNodeSchema(api).use)
+            .map(builder -> builder.directive(Directives.DeferDirective))
             .get();
 
         schema = builder.build();
@@ -65,8 +66,10 @@ public class GqlServer {
      * @param ctx {@link GraphQLContext} that can contain any optional data relevant for current request.
      * @return JSON-like Map-Lists ready for serialization to JSON sending back response to user.
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, GraphQLContext ctx) {
         logger.trace("GraphQL executeToSpecification {}", query);
+
         ExecutionResult result = graphql.execute(
             ExecutionInput.newExecutionInput(query)
                 .operationName(operationName)
@@ -74,6 +77,10 @@ public class GqlServer {
                 .context(ctx)
                 .build()
         );
-        return result.toSpecification();
+        Map<String, Object> data = result.toSpecification();
+
+        return data;
     }
+
+
 }

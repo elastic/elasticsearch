@@ -31,11 +31,17 @@ public class GqlPingSchema {
 
     /**
      * - Adds `Query.ping: String` resolver.
+     * - Adds `Mutation.ping: String` resolver.
      */
     public Function<GqlBuilder, GqlBuilder> use = builder -> builder
         .queryField(newFieldDefinition()
             .description("Ping server if it is available.")
             .name("ping")
             .type(nonNull(GraphQLString)))
-        .fetcher("Query", "ping", new StaticDataFetcher("pong"));
+        .mutationField(newFieldDefinition()
+            .description("Ping server if it is available.")
+            .name("ping")
+            .type(nonNull(GraphQLString)))
+        .fetcher("Query", "ping", new StaticDataFetcher("pong"))
+        .fetcher("Mutation", "ping", new StaticDataFetcher("pong"));
 }

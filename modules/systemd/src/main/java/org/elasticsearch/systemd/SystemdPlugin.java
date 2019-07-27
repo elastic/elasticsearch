@@ -21,8 +21,6 @@ package org.elasticsearch.systemd;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -39,15 +37,22 @@ public class SystemdPlugin extends Plugin implements ClusterPlugin {
 
     @SuppressWarnings("unused")
     public SystemdPlugin() {
-        this(true, Constants.LINUX, System.getenv("ES_SD_NOTIFY"));
+        this(true, Build.CURRENT.type(), System.getenv("ES_SD_NOTIFY"));
     }
 
-    SystemdPlugin(final boolean assertIsPackageDistribution, final boolean isLinux, final String esSDNotify) {
-        if (Assertions.ENABLED && assertIsPackageDistribution) {
+    SystemdPlugin(final boolean assertIsPackageDistribution, final Build.Type buildType, final String esSDNotify) {
+        final boolean isPackageDistribution = buildType == Build.Type.DEB || buildType == Build.Type.RPM;
+        if (assertIsPackageDistribution) {
             // our build is configured to only include this module in the package distributions
-            assert Build.CURRENT.type() == Build.Type.DEB || Build.CURRENT.type() == Build.Type.RPM : Build.CURRENT.type();
+            assert isPackageDistribution : buildType;
         }
-        if (isLinux == false || esSDNotify == null) {
+        if (isPackageDistribution == false) {
+            logger.debug("disabling sd_notify as the build type [{}] is not a package distribution", buildType);
+            enabled = false;
+            return;
+        }
+        logger.trace("ES_SD_NOTIFY is set to [{}]", esSDNotify);
+        if (esSDNotify == null) {
             enabled = false;
             return;
         }

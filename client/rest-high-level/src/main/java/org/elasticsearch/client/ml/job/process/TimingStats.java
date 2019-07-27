@@ -45,6 +45,8 @@ public class TimingStats implements ToXContentObject {
     public static final ParseField AVG_BUCKET_PROCESSING_TIME_MS = new ParseField("average_bucket_processing_time_ms");
     public static final ParseField EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS =
         new ParseField("exponential_average_bucket_processing_time_ms");
+    public static final ParseField EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_PER_HOUR_MS =
+        new ParseField("exponential_average_bucket_processing_time_per_hour_ms");
 
     public static final ConstructingObjectParser<TimingStats, Void> PARSER =
         new ConstructingObjectParser<>(
@@ -58,6 +60,7 @@ public class TimingStats implements ToXContentObject {
                 Double maxBucketProcessingTimeMs = (Double) args[4];
                 Double avgBucketProcessingTimeMs = (Double) args[5];
                 Double exponentialAvgBucketProcessingTimeMs = (Double) args[6];
+                Double exponentialAvgBucketProcessingTimePerHourMs = (Double) args[7];
                 return new TimingStats(
                     jobId,
                     getOrDefault(bucketCount, 0L),
@@ -65,7 +68,8 @@ public class TimingStats implements ToXContentObject {
                     minBucketProcessingTimeMs,
                     maxBucketProcessingTimeMs,
                     avgBucketProcessingTimeMs,
-                    exponentialAvgBucketProcessingTimeMs);
+                    exponentialAvgBucketProcessingTimeMs,
+                    exponentialAvgBucketProcessingTimePerHourMs);
             });
 
     static {
@@ -76,6 +80,7 @@ public class TimingStats implements ToXContentObject {
         PARSER.declareDouble(optionalConstructorArg(), MAX_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), AVG_BUCKET_PROCESSING_TIME_MS);
         PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS);
+        PARSER.declareDouble(optionalConstructorArg(), EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_PER_HOUR_MS);
     }
 
     private final String jobId;
@@ -85,6 +90,7 @@ public class TimingStats implements ToXContentObject {
     private Double maxBucketProcessingTimeMs;
     private Double avgBucketProcessingTimeMs;
     private Double exponentialAvgBucketProcessingTimeMs;
+    private Double exponentialAvgBucketProcessingTimePerHourMs;
 
     public TimingStats(
             String jobId,
@@ -93,7 +99,8 @@ public class TimingStats implements ToXContentObject {
             @Nullable Double minBucketProcessingTimeMs,
             @Nullable Double maxBucketProcessingTimeMs,
             @Nullable Double avgBucketProcessingTimeMs,
-            @Nullable Double exponentialAvgBucketProcessingTimeMs) {
+            @Nullable Double exponentialAvgBucketProcessingTimeMs,
+            @Nullable Double exponentialAvgBucketProcessingTimePerHourMs) {
         this.jobId = jobId;
         this.bucketCount = bucketCount;
         this.totalBucketProcessingTimeMs = totalBucketProcessingTimeMs;
@@ -101,6 +108,7 @@ public class TimingStats implements ToXContentObject {
         this.maxBucketProcessingTimeMs = maxBucketProcessingTimeMs;
         this.avgBucketProcessingTimeMs = avgBucketProcessingTimeMs;
         this.exponentialAvgBucketProcessingTimeMs = exponentialAvgBucketProcessingTimeMs;
+        this.exponentialAvgBucketProcessingTimePerHourMs = exponentialAvgBucketProcessingTimePerHourMs;
     }
 
     public String getJobId() {
@@ -131,6 +139,10 @@ public class TimingStats implements ToXContentObject {
         return exponentialAvgBucketProcessingTimeMs;
     }
 
+    public Double getExponentialAvgBucketProcessingTimePerHourMs() {
+        return exponentialAvgBucketProcessingTimePerHourMs;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -149,6 +161,10 @@ public class TimingStats implements ToXContentObject {
         if (exponentialAvgBucketProcessingTimeMs != null) {
             builder.field(EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_MS.getPreferredName(), exponentialAvgBucketProcessingTimeMs);
         }
+        if (exponentialAvgBucketProcessingTimePerHourMs != null) {
+            builder.field(
+                EXPONENTIAL_AVG_BUCKET_PROCESSING_TIME_PER_HOUR_MS.getPreferredName(), exponentialAvgBucketProcessingTimePerHourMs);
+        }
         builder.endObject();
         return builder;
     }
@@ -164,7 +180,8 @@ public class TimingStats implements ToXContentObject {
             && Objects.equals(this.minBucketProcessingTimeMs, that.minBucketProcessingTimeMs)
             && Objects.equals(this.maxBucketProcessingTimeMs, that.maxBucketProcessingTimeMs)
             && Objects.equals(this.avgBucketProcessingTimeMs, that.avgBucketProcessingTimeMs)
-            && Objects.equals(this.exponentialAvgBucketProcessingTimeMs, that.exponentialAvgBucketProcessingTimeMs);
+            && Objects.equals(this.exponentialAvgBucketProcessingTimeMs, that.exponentialAvgBucketProcessingTimeMs)
+            && Objects.equals(this.exponentialAvgBucketProcessingTimePerHourMs, that.exponentialAvgBucketProcessingTimePerHourMs);
     }
 
     @Override
@@ -176,7 +193,8 @@ public class TimingStats implements ToXContentObject {
             minBucketProcessingTimeMs,
             maxBucketProcessingTimeMs,
             avgBucketProcessingTimeMs,
-            exponentialAvgBucketProcessingTimeMs);
+            exponentialAvgBucketProcessingTimeMs,
+            exponentialAvgBucketProcessingTimePerHourMs);
     }
 
     @Override

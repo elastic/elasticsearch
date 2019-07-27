@@ -275,7 +275,6 @@ public class RecoverySourceHandler {
                             // just established on the replica. This primary is certainly retaining such history, but other replicas might
                             // not be. No big deal if this recovery succeeds, but if this primary fails then the new primary might have to
                             // repeat phase 1 to recover this replica.
-                            // TODO TBD maybe do this earlier?
                             final long localCheckpointOfSafeCommit = startingSeqNo - 1;
                             logger.trace("creating new retention lease at [{}]", localCheckpointOfSafeCommit);
                             shard.addPeerRecoveryRetentionLease(request.targetNode().getId(), localCheckpointOfSafeCommit,

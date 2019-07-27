@@ -35,4 +35,9 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * The minimal version of the recipient this object can be sent to
      */
     Version getMinimalSupportedVersion();
+
+    static <T extends VersionedNamedWriteable> boolean shouldSerialize(final StreamOutput out, final T custom) {
+        return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
+    }
+
 }

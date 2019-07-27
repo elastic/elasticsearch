@@ -146,6 +146,7 @@ public class ChannelFactoryTests extends ESTestCase {
 
         @Override
         protected InetSocketAddress getRemoteAddress(SocketChannel rawChannel) throws IOException {
+            // Override this functionality to avoid having to connect the accepted channel
             return mock(InetSocketAddress.class);
         }
     }

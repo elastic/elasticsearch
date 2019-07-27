@@ -143,5 +143,10 @@ public class ChannelFactoryTests extends ESTestCase {
                                                           Config.ServerSocket socketConfig) {
             return new NioServerSocketChannel(channel);
         }
+
+        @Override
+        protected InetSocketAddress getRemoteAddress(SocketChannel rawChannel) throws IOException {
+            return mock(InetSocketAddress.class);
+        }
     }
 }

@@ -28,6 +28,4 @@
         max_num_segments: 10
         only_expunge_deletes: true
 
-  - match: { acknowledged: true }
-
 

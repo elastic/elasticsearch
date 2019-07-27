@@ -168,7 +168,8 @@ public class RecoverySourceHandler {
                     ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting)) : null);
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
-
+            final Closeable retentionLock = shard.acquireRetentionLock();
+            resources.add(retentionLock);
             final long startingSeqNo;
             final boolean isSequenceNumberBasedRecovery
                 = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
@@ -177,17 +178,14 @@ public class RecoverySourceHandler {
                 && (useRetentionLeases == false
                 || (retentionLeaseRef.get() != null && retentionLeaseRef.get().retainingSequenceNumber() <= request.startingSeqNo()));
 
-            final Closeable retentionLock;
             if (isSequenceNumberBasedRecovery && useRetentionLeases) {
                 // all the history we need is retained by an existing retention lease, so we do not need a separate retention lock
-                retentionLock = () -> {};
+                retentionLock.close();
                 logger.trace("history is retained by {}", retentionLeaseRef.get());
             } else {
-                // temporarily prevent any history from being discarded, and do this before acquiring the safe commit so that we can
-                // be certain that all operations after the safe commit's local checkpoint will be retained for the duration of this
-                // recovery.
-                retentionLock = shard.acquireRetentionLock();
-                resources.add(retentionLock);
+                // all the history we need is retained by the retention lock, obtained before calling shard.hasCompleteHistoryOperations()
+                // and before acquiring the safe commit we'll be using, so we can be certain that all operations after the safe commit's
+                // local checkpoint will be retained for the duration of this recovery.
                 logger.trace("history is retained by retention lock");
             }
 
@@ -291,8 +289,8 @@ public class RecoverySourceHandler {
             }, onFailure);
 
             establishRetentionLeaseStep.whenComplete(r -> {
-                if (useRetentionLeases) {
-                    // all the history we need is now retained by a retention lease so we can discard the retention lock
+                if (useRetentionLeases && isSequenceNumberBasedRecovery == false) {
+                    // all the history we need is now retained by a retention lease so we can close the retention lock
                     retentionLock.close();
                 }
 

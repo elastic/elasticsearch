@@ -62,7 +62,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         SocketChannel rawChannel = rawChannelFactory.openNioChannel();
         setNonBlocking(rawChannel);
         NioSelector selector = supplier.get();
-        Socket channel = internalCreateChannel(selector, rawChannel, createSocketConfig(remoteAddress));
+        Socket channel = internalCreateChannel(selector, rawChannel, createSocketConfig(remoteAddress, false));
         scheduleChannel(channel, selector);
         return channel;
     }
@@ -70,7 +70,11 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     public Socket acceptNioChannel(SocketChannel rawChannel, Supplier<NioSelector> supplier) throws IOException {
         setNonBlocking(rawChannel);
         NioSelector selector = supplier.get();
-        Socket channel = internalCreateChannel(selector, rawChannel, createSocketConfig(null));
+        InetSocketAddress remoteAddress = (InetSocketAddress) rawChannel.socket().getRemoteSocketAddress();
+        if (remoteAddress == null) {
+            throw new IOException("Accepted socket does not have remote address");
+        }
+        Socket channel = internalCreateChannel(selector, rawChannel, createSocketConfig(remoteAddress, true));
         scheduleChannel(channel, selector);
         return channel;
     }
@@ -172,8 +176,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         }
     }
 
-    private Config.Socket createSocketConfig(InetSocketAddress remoteAddress) {
-        return new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, remoteAddress);
+    private Config.Socket createSocketConfig(InetSocketAddress remoteAddress, boolean isAccepted) {
+        return new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, remoteAddress,
+            isAccepted);
     }
 
     public static class RawChannelFactory {

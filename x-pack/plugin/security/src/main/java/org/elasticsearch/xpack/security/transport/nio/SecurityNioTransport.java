@@ -143,16 +143,7 @@ public class SecurityNioTransport extends NioTransport {
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
             final NioChannelHandler handler;
             if (ipFilter != null) {
-                InetSocketAddress remoteAddress;
-                if (socketConfig.isAccepted()) {
-                    remoteAddress = nioChannel.getRemoteAddress();
-                    if (remoteAddress == null) {
-                        throw new IOException("Accepted socket does not have remote address");
-                    }
-                } else {
-                    remoteAddress = socketConfig.getRemoteAddress();
-                }
-                handler = new NioIPFilter(readWriteHandler, remoteAddress, ipFilter, profileName);
+                handler = new NioIPFilter(readWriteHandler, socketConfig.getRemoteAddress(), ipFilter, profileName);
             } else {
                 handler = readWriteHandler;
             }

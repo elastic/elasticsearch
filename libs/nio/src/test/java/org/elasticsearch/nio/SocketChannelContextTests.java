@@ -119,11 +119,7 @@ public class SocketChannelContextTests extends ESTestCase {
         boolean tcpReuseAddress = randomBoolean();
         int tcpSendBufferSize = randomIntBetween(1000, 2000);
         int tcpReceiveBufferSize = randomIntBetween(1000, 2000);
-        if (isAccepted) {
-            config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, null);
-        } else {
-            config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, address);
-        }
+        config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, address, isAccepted);
         InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
         TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
         context.register();
@@ -188,7 +184,7 @@ public class SocketChannelContextTests extends ESTestCase {
         boolean tcpReuseAddress = randomBoolean();
         int tcpSendBufferSize = randomIntBetween(1000, 2000);
         int tcpReceiveBufferSize = randomIntBetween(1000, 2000);
-        config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, address);
+        config = new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize, address, false);
         InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
         TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, handler, buffer, config);
         doThrow(new SocketException()).doNothing().when(rawSocket).setReuseAddress(tcpReuseAddress);
@@ -442,7 +438,8 @@ public class SocketChannelContextTests extends ESTestCase {
     }
 
     private static Config.Socket getSocketConfig() {
-        return new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class));
+        return new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class),
+            randomBoolean());
     }
 
     private static class TestSocketChannelContext extends SocketChannelContext {

@@ -40,15 +40,17 @@ public abstract class Config {
         private final int tcpSendBufferSize;
         private final int tcpReceiveBufferSize;
         private final InetSocketAddress remoteAddress;
+        private final boolean isAccepted;
 
         public Socket(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReuseAddress, int tcpSendBufferSize, int tcpReceiveBufferSize,
-                      InetSocketAddress remoteAddress) {
+                      InetSocketAddress remoteAddress, boolean isAccepted) {
             super(tcpReuseAddress);
             this.tcpNoDelay = tcpNoDelay;
             this.tcpKeepAlive = tcpKeepAlive;
             this.tcpSendBufferSize = tcpSendBufferSize;
             this.tcpReceiveBufferSize = tcpReceiveBufferSize;
             this.remoteAddress = remoteAddress;
+            this.isAccepted = isAccepted;
         }
 
         public boolean tcpNoDelay() {
@@ -68,7 +70,7 @@ public abstract class Config {
         }
 
         public boolean isAccepted() {
-            return remoteAddress == null;
+            return isAccepted;
         }
 
         public InetSocketAddress getRemoteAddress() {

@@ -77,8 +77,8 @@ public class SSLChannelContextTests extends ESTestCase {
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
         socketConfig = new Config.Socket(randomBoolean(), randomBoolean(), randomBoolean(), -1, -1, mock(InetSocketAddress.class), false);
-        context.setSelectionKey(mock(SelectionKey.class));
         context = new SSLChannelContext(channel, selector, socketConfig, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
+        context.setSelectionKey(mock(SelectionKey.class));
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         when(selector.getTaskScheduler()).thenReturn(nioTimer);

@@ -88,7 +88,13 @@ public class StartDemoServer {
                 res.setHeader("Mime-Version", "1.0");
                 res.sendHeadersChunk();
 
-                res.sendChunk(GqlApiUtils.serializeJson(result.getSpecification()) + "\n");
+                String json = GqlApiUtils.serializeJson(result.getSpecification());
+                res.sendChunk(
+                    "\n---\n" +
+                        "Content-Type: application/json\n" +
+                        "Content-Length: " + json.length() + "\n" +
+                        "\n" +
+                        json + "\n");
 
                 result.getDeferredResults().subscribe(new Subscriber<ExecutionResult>() {
 

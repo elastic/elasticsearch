@@ -84,8 +84,11 @@ public class StartDemoServer {
             GqlResult result = gqlServer.execute(query, operationName, variables);
 
             if (result.hasDeferredResults()) {
+                res.setHeader("Content-Type", "multipart/batch;type=\"application/http;type=1.1\";boundary=-");
+                res.setHeader("Mime-Version", "1.0");
                 res.sendHeadersChunk();
-                res.sendChunk(GqlApiUtils.serializeJson(result.getSpecification()));
+
+                res.sendChunk(GqlApiUtils.serializeJson(result.getSpecification()) + "\n");
 
                 result.getDeferredResults().subscribe(new Subscriber<ExecutionResult>() {
 
@@ -99,7 +102,13 @@ public class StartDemoServer {
 
                     @Override
                     public void onNext(ExecutionResult executionResult) {
-                        res.sendChunk(GqlApiUtils.serializeJson(executionResult.toSpecification()));
+                        String json = GqlApiUtils.serializeJson(executionResult.toSpecification());
+                        res.sendChunk(
+                                "\n---\n" +
+                                "Content-Type: application/json\n" +
+                                "Content-Length: " + json.length() + "\n" +
+                                "\n" +
+                                json + "\n");
                         subscription.request(1);
                     }
 
@@ -110,6 +119,7 @@ public class StartDemoServer {
 
                     @Override
                     public void onComplete() {
+                        res.sendChunk("\n-----\n");
                         res.end();
                     }
                 });

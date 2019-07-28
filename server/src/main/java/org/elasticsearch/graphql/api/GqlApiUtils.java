@@ -40,6 +40,7 @@ import org.elasticsearch.rest.*;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -150,5 +151,38 @@ public class GqlApiUtils {
 
     public static Map<String, Object> parseJson(String json) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+    }
+
+    public static String serializeJson(Object obj) {
+        if (obj instanceof Integer) {
+            return obj.toString();
+        } else if (obj instanceof String) {
+            return "\"" + ((String) obj).replaceAll("\"", "\\\\\"") + "\"";
+        } else if (obj instanceof Boolean) {
+            return (Boolean) obj ? "true" : "false";
+        } else if (obj instanceof List) {
+            String str = "[";
+            Iterator it = ((List) obj).iterator();
+            while (it.hasNext()) {
+                str += serializeJson(it.next());
+                if (it.hasNext()) {
+                    str += ",";
+                }
+            }
+            return str + "]";
+        } else if (obj instanceof Map) {
+            String str = "{";
+            Iterator it = ((Map) obj).keySet().iterator();
+            while (it.hasNext()) {
+                String key = it.next().toString();
+                str += serializeJson(key) + ":" + serializeJson(((Map) obj).get(key));
+                if (it.hasNext()) {
+                    str += ",";
+                }
+            }
+            return str + "}";
+        } else {
+            return "null";
+        }
     }
 }

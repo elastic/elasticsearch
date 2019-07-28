@@ -100,9 +100,7 @@ public class DemoServer {
                     try {
                         route.handler.handle(req, res);
                     } catch (Exception e) {
-                        res.setStatus(400);
-                        res.setHeader("Content-Type", "application/json");
-                        res.send("{\"error\": \"Internal server error.\"}\n");
+                        res.sendJsonError("Internal server error.");
 
                         System.out.println("Handler error " + req.getPath() + " " + e);
                         e.printStackTrace();
@@ -187,6 +185,13 @@ public class DemoServer {
             if (!keepAlive) {
                 f.addListener(ChannelFutureListener.CLOSE);
             }
+        }
+
+        @Override
+        public void sendJsonError(String errorMessage) {
+            setStatus(400);
+            setHeader("Content-Type", "application/json");
+            send("{\"error\": \"" + errorMessage + "\"}\n");
         }
 
         @Override

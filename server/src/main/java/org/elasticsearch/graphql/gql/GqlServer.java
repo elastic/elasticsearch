@@ -82,5 +82,8 @@ public class GqlServer {
         return data;
     }
 
-
+    public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables) {
+        GraphQLContext ctx = GraphQLContext.newContext().build();
+        return executeToSpecification(query, operationName, variables, ctx);
+    }
 }

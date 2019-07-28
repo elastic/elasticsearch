@@ -60,6 +60,6 @@ final public class GraphqlService {
     private void init() {
         actionModule.getRestController().registerHandler(RestRequest.Method.POST, "/graphql", graphqlRestHandler);
 
-        (new Thread(() -> new StartDemoServer(networkPlugins))).start();
+        (new Thread(() -> new StartDemoServer(networkPlugins, gqlServer))).start();
     }
 }

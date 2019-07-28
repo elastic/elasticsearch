@@ -22,18 +22,26 @@ package org.elasticsearch.graphql.server;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.graphql.api.GqlApiUtils;
+import org.elasticsearch.graphql.gql.GqlServer;
 import org.elasticsearch.plugins.NetworkPlugin;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class StartDemoServer {
     private static final Logger logger = LogManager.getLogger(StartDemoServer.class);
-    DemoServerRouter router = new DemoServerRouter();
 
-    public StartDemoServer(List<NetworkPlugin> networkPlugins) {
+    private GqlServer gqlServer;
+
+    private DemoServerRouter router = new DemoServerRouter();
+
+    @SuppressWarnings("unchecked")
+    public StartDemoServer(List<NetworkPlugin> networkPlugins, GqlServer gqlServer) {
         logger.info("Starting demo server.");
+
+        this.gqlServer = gqlServer;
 
         router.addRoute(GET, "/ping", (req, res) -> {
             res.send("pong");
@@ -52,15 +60,29 @@ public class StartDemoServer {
             try {
                 body = GqlApiUtils.parseJson(req.body());
             } catch (Exception e) {
-                res.setStatus(400);
-                res.setHeader("Content-Type", "application/json");
-                res.send("{\"error\": \"Could not parse JSON body.\"}\n");
+                res.sendJsonError("Could not parse JSON body.");
                 logger.error(e);
                 return;
             }
 
-            System.out.println("PARSED: " + body);
-            res.send(req.body());
+            if (!(body.get("query") instanceof String) || (((String) body.get("query")).length() < 3)) {
+                res.sendJsonError("GraphQL request must have a query.");
+                return;
+            }
+
+            String query = (String) body.get("query");
+            String operationName = body.get("operationName") instanceof String
+                ? (String) body.get("operationName") : "";
+            Map<String, Object> variables = body.get("variables") instanceof Map
+                ? (Map<String, Object>) body.get("variables") : new HashMap();
+
+            Map<String, Object> result = gqlServer.executeToSpecification(query, operationName, variables);
+
+            logger.info("GraphQL result: {}", result);
+            logger.info("JSON: {}", GqlApiUtils.serializeJson(result));
+
+            res.setHeader("Content-Type", "application/json");
+            res.send(GqlApiUtils.serializeJson(result));
         });
 
         for (NetworkPlugin plugin: networkPlugins) {
@@ -68,7 +90,8 @@ public class StartDemoServer {
             try {
                 plugin.createDemoServer(router);
             } catch (Exception e) {
-                logger.error("Could not start demo server: {}", e);
+                logger.info("Could not start demo server.");
+                logger.error(e);
                 e.printStackTrace(new java.io.PrintStream(System.out));
             }
         }

@@ -26,6 +26,8 @@ public interface DemoServerResponse {
 
     void send(String contents);
 
+    void sendJsonError(String errorMessage);
+
     void sendHeadersChunk();
 
     void sendChunk(String chunk);

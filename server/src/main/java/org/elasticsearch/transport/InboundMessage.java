@@ -92,7 +92,7 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
                 InboundMessage message;
                 if (TransportStatus.isRequest(status)) {
-                    if (streamInput.getVersion().before(Version.V_8_0_0)) {
+                    if (remoteVersion.before(Version.V_8_0_0)) {
                         // discard features
                         streamInput.readStringArray();
                     }

@@ -93,7 +93,7 @@ abstract class OutboundMessage extends NetworkMessage {
 
         @Override
         protected BytesReference writeMessage(CompressibleBytesOutputStream out) throws IOException {
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (version.before(Version.V_8_0_0)) {
                 // empty features array
                 out.writeStringArray(Strings.EMPTY_ARRAY);
             }

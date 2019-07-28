@@ -34,6 +34,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty4.DemoServer;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 
 import java.util.Arrays;
@@ -88,5 +89,10 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                                                                         HttpServerTransport.Dispatcher dispatcher) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
             () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
+    }
+
+    @Override
+    public Object createDemoServer() throws Exception {
+        return new DemoServer();
     }
 }

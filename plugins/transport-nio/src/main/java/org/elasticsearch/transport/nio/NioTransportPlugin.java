@@ -102,4 +102,9 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
             return groupFactory.get();
         }
     }
+
+    @Override
+    public Object createDemoServer() {
+        return null;
+    }
 }

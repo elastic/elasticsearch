@@ -103,6 +103,11 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
        return Collections.singletonList(new OriginAssertingInterceptor(threadContext));
     }
 
+    @Override
+    public Object createDemoServer() {
+        return null;
+    }
+
     static class TestTask extends CancellableTask {
 
         private volatile boolean blocked = true;

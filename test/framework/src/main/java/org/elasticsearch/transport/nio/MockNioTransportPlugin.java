@@ -45,4 +45,9 @@ public class MockNioTransportPlugin extends Plugin implements NetworkPlugin {
             () -> new MockNioTransport(settings, Version.CURRENT, threadPool, networkService, pageCacheRecycler,
                 namedWriteableRegistry, circuitBreakerService));
     }
+
+    @Override
+    public Object createDemoServer() {
+        return null;
+    }
 }

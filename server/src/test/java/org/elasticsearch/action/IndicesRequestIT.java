@@ -726,6 +726,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
                                                                        ThreadContext threadContext) {
                 return Collections.singletonList(instance);
             }
+
+            @Override
+            public Object createDemoServer() {
+                return null;
+            }
         }
 
         private final Set<String> actions = new HashSet<>();

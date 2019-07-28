@@ -104,6 +104,11 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         super(settings, configPath);
     }
 
+    @Override
+    public Object createDemoServer() {
+        return null;
+    }
+
     //Get around all the setOnce nonsense in the plugin
     @Override
     protected SSLService getSslService() {

@@ -87,6 +87,11 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     @Override
+    public Object createDemoServer() {
+        return null;
+    }
+
+    @Override
     public List<Setting<?>> getSettings() {
         return Collections.singletonList(VOTING_ONLY_NODE_SETTING);
     }

@@ -335,6 +335,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
+    public Object createDemoServer() {
+        return null;
+    }
+
+    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,

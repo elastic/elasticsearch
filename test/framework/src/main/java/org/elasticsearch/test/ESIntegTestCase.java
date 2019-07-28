@@ -1848,6 +1848,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             });
         }
+
+        @Override
+        public Object createDemoServer() {
+            return null;
+        }
     }
 
     /**

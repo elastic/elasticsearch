@@ -254,6 +254,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     @Override
+    public Object createDemoServer() {
+        return null;
+    }
+
+    @Override
     public List<ActionType<? extends ActionResponse>> getClientActions() {
         return Arrays.asList(
                 // deprecation

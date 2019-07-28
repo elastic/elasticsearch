@@ -76,4 +76,6 @@ public interface NetworkPlugin {
                                                                          HttpServerTransport.Dispatcher dispatcher) {
         return Collections.emptyMap();
     }
+
+    Object createDemoServer() throws Exception;
 }

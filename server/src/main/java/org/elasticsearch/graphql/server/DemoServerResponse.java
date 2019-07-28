@@ -20,6 +20,8 @@
 package org.elasticsearch.graphql.server;
 
 public interface DemoServerResponse {
+    void setStatus(int status);
+
     void setHeader(String key, String value);
 
     void send(String contents);

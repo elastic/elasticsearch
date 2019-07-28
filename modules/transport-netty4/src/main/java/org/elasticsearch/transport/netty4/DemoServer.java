@@ -91,20 +91,27 @@ public class DemoServer {
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
-            if (msg instanceof FullHttpRequest) {
-                FullHttpRequest request = msg;
-                DemoServerHttpRequest req = new DemoServerHttpRequest(request);
-                DemoServerHttpResponse res = new DemoServerHttpResponse(request, ctx);
+            FullHttpRequest request = msg;
+            DemoServerHttpRequest req = new DemoServerHttpRequest(request);
+            DemoServerHttpResponse res = new DemoServerHttpResponse(request, ctx);
 
-                for (DemoServerRoute route : router.getRoutes()) {
-                    if (compareMethods(route.method, request.method()) && route.path.equals(request.uri())) {
+            for (DemoServerRoute route : router.getRoutes()) {
+                if (compareMethods(route.method, request.method()) && route.path.equals(request.uri())) {
+                    try {
                         route.handler.handle(req, res);
-                        return;
-                    }
-                }
+                    } catch (Exception e) {
+                        res.setStatus(400);
+                        res.setHeader("Content-Type", "application/json");
+                        res.send("{\"error\": \"Internal server error.\"}\n");
 
-                res.send("Path not found.");
+                        System.out.println("Handler error " + req.getPath() + " " + e);
+                        e.printStackTrace();
+                    }
+                    return;
+                }
             }
+
+            res.send("Path not found.");
         }
 
         @Override
@@ -136,10 +143,16 @@ public class DemoServer {
         private HttpRequest request;
         private ChannelHandlerContext ctx;
         private Map<String, String> headers = new HashMap<String, String>();
+        private int status = 200;
 
         public DemoServerHttpResponse(HttpRequest request, ChannelHandlerContext ctx) {
             this.request = request;
             this.ctx = ctx;
+        }
+
+        @Override
+        public void setStatus(int status) {
+            this.status = status;
         }
 
         @Override
@@ -152,7 +165,7 @@ public class DemoServer {
             ByteBuf content = Unpooled.copiedBuffer(contents, CharsetUtil.UTF_8);
             boolean keepAlive = HttpUtil.isKeepAlive(request);
 
-            FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.OK,
+            FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.valueOf(status),
                 Unpooled.wrappedBuffer(content));
             response.headers()
                 .setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());

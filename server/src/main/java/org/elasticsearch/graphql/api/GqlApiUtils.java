@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContent;
 import org.elasticsearch.common.xcontent.javautil.JavaUtilXContentGenerator;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.graphql.api.fake.GqlApiFakeHttpChannel;
 import org.elasticsearch.graphql.api.fake.GqlApiFakeHttpRequest;
 import org.elasticsearch.graphql.api.fake.GqlApiFakeRestChannel;
@@ -46,26 +47,26 @@ import java.util.function.Function;
 public class GqlApiUtils {
     private static final Logger logger = LogManager.getLogger(GqlApiUtils.class);
 
-    static public XContentBuilder createJavaUtilBuilder() throws IOException  {
+    public static XContentBuilder createJavaUtilBuilder() throws IOException  {
         BytesStreamOutput bos = new BytesStreamOutput();
         XContentBuilder builder = new XContentBuilder(JavaUtilXContent.javaUtilXContent, bos);
         return builder;
     }
 
-    static public Object getJavaUtilBuilderResult(XContentBuilder builder) throws Exception {
+    public static Object getJavaUtilBuilderResult(XContentBuilder builder) throws Exception {
         builder.close();
         JavaUtilXContentGenerator generator = (JavaUtilXContentGenerator) builder.generator();
         return generator.getResult();
     }
 
     @SuppressWarnings("unchecked")
-    static public Map<String, Object> toMap(ToXContent response) throws Exception {
+    public static Map<String, Object> toMap(ToXContent response) throws Exception {
         XContentBuilder builder = createJavaUtilBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return (Map) getJavaUtilBuilderResult(builder);
     }
 
-    static public Map<String, Object> toMapSafe(ToXContent response) {
+    public static Map<String, Object> toMapSafe(ToXContent response) {
 //        logger.info("toMapSafe {}", response);
         try {
             return toMap(response);
@@ -75,7 +76,7 @@ public class GqlApiUtils {
         }
     }
 
-    static public <Request extends ActionRequest, Response extends ActionResponse>
+    public static <Request extends ActionRequest, Response extends ActionResponse>
             CompletableFuture<Map<String, Object>> executeAction(NodeClient client,
                                                                  ActionType<Response> action,
                                                                  Request request) {
@@ -102,7 +103,7 @@ public class GqlApiUtils {
     }
 
     @SuppressWarnings("unchecked")
-    static public <T> CompletableFuture<T> executeRestHandler(NodeClient client,
+    public static <T> CompletableFuture<T> executeRestHandler(NodeClient client,
                                                               BaseRestHandler handler,
                                                               RestRequest.Method method,
                                                               String uri) throws Exception {
@@ -120,7 +121,7 @@ public class GqlApiUtils {
         return promise;
     }
 
-    static public <T> ActionListener<T> futureToListener(CompletableFuture<T> promise) {
+    public static <T> ActionListener<T> futureToListener(CompletableFuture<T> promise) {
         return new ActionListener<T>() {
             @Override
             @SuppressWarnings("unchecked")
@@ -135,15 +136,19 @@ public class GqlApiUtils {
         };
     }
 
-    static public <T> Function<T, T> logResult(Logger logger, String message) {
+    public static <T> Function<T, T> logResult(Logger logger, String message) {
         return res -> {
             logger.info("{} [value ~> {}]", message, res);
             return res;
         };
     }
 
-    static public String getSomeMapKey(Map<String, Object> map) {
+    public static String getSomeMapKey(Map<String, Object> map) {
         Iterator<String> it = map.keySet().iterator();
         return it.hasNext() ? it.next() : null;
+    }
+
+    public static Map<String, Object> parseJson(String json) {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
     }
 }

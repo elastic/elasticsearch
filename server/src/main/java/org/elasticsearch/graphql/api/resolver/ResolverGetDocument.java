@@ -22,8 +22,6 @@ package org.elasticsearch.graphql.api.resolver;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.graphql.api.GqlApiUtils;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -63,7 +61,7 @@ public class ResolverGetDocument {
         obj.put("primaryTerm", obj.get("_primary_term"));
         obj.remove("_primary_term");
 
-        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, (String) obj.get("_source"), false);
+        Map<String, Object> source = parseJson((String) obj.get("_source"));
         obj.put("source", source);
         obj.remove("_source");
 

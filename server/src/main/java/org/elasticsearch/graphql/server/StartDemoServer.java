@@ -21,10 +21,12 @@ package org.elasticsearch.graphql.server;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.graphql.api.GqlApiUtils;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.rest.RestRequest;
+import static org.elasticsearch.rest.RestRequest.Method.*;
 
 import java.util.List;
+import java.util.Map;
 
 public class StartDemoServer {
     private static final Logger logger = LogManager.getLogger(StartDemoServer.class);
@@ -33,15 +35,32 @@ public class StartDemoServer {
     public StartDemoServer(List<NetworkPlugin> networkPlugins) {
         logger.info("Starting demo server.");
 
-        router.addRoute(RestRequest.Method.GET, "/ping", (req, res) -> {
+        router.addRoute(GET, "/ping", (req, res) -> {
             res.send("pong");
         });
 
-        router.addRoute(RestRequest.Method.GET, "/stream-test", (req, res) -> {
+        router.addRoute(GET, "/stream-test", (req, res) -> {
             res.sendHeadersChunk();
             res.sendChunk("abc");
             res.sendChunk("123");
             res.end();
+        });
+
+        router.addRoute(POST, "/graphql", (req, res) -> {
+            Map<String, Object> body;
+
+            try {
+                body = GqlApiUtils.parseJson(req.body());
+            } catch (Exception e) {
+                res.setStatus(400);
+                res.setHeader("Content-Type", "application/json");
+                res.send("{\"error\": \"Could not parse JSON body.\"}\n");
+                logger.error(e);
+                return;
+            }
+
+            System.out.println("PARSED: " + body);
+            res.send(req.body());
         });
 
         for (NetworkPlugin plugin: networkPlugins) {

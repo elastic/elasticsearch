@@ -48,6 +48,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -104,9 +105,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
     }
 
     @Override
-    public Object createDemoServer() {
-        return null;
-    }
+    public void createDemoServer(DemoServerRouter router) {}
 
     static class TestTask extends CancellableTask {
 

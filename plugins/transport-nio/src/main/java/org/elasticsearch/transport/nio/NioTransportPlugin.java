@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.nio.NioHttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -104,7 +105,5 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
-    public Object createDemoServer() {
-        return null;
-    }
+    public void createDemoServer(DemoServerRouter router) {}
 }

@@ -27,6 +27,8 @@ import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.api.GqlElasticsearchApi;
 import org.elasticsearch.graphql.gql.GqlServer;
 import org.elasticsearch.graphql.rest.GraphqlRestHandler;
+import org.elasticsearch.graphql.server.DemoServerRouter;
+import org.elasticsearch.graphql.server.StartDemoServer;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.RestRequest;
 
@@ -35,13 +37,13 @@ import java.util.List;
 final public class GraphqlService {
     private static final Logger logger = LogManager.getLogger(GraphqlService.class);
 
-    NodeClient client;
-    List<NetworkPlugin> networkPlugins;
-    ActionModule actionModule;
+    private NodeClient client;
+    private List<NetworkPlugin> networkPlugins;
+    private ActionModule actionModule;
 
-    GqlApi api;
-    GqlServer gqlServer;
-    GraphqlRestHandler graphqlRestHandler;
+    private GqlApi api;
+    private GqlServer gqlServer;
+    private GraphqlRestHandler graphqlRestHandler;
 
     public GraphqlService(NodeClient client, ActionModule actionModule, List<NetworkPlugin> networkPlugins) {
         this.client = client;
@@ -55,21 +57,9 @@ final public class GraphqlService {
         init();
     }
 
-    void init() {
+    private void init() {
         actionModule.getRestController().registerHandler(RestRequest.Method.POST, "/graphql", graphqlRestHandler);
 
-        (new Thread(this::startDemoServer)).start();
-    }
-
-    void startDemoServer() {
-        logger.info("Creating demo server.");
-        for (NetworkPlugin plugin: networkPlugins) {
-           try {
-               plugin.createDemoServer();
-           } catch (Exception e) {
-               logger.error("Could not start demo server: " + e);
-               e.printStackTrace(new java.io.PrintStream(System.out));
-           }
-        }
+        (new Thread(() -> new StartDemoServer(networkPlugins))).start();
     }
 }

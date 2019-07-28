@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
@@ -254,9 +255,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     }
 
     @Override
-    public Object createDemoServer() {
-        return null;
-    }
+    public void createDemoServer(DemoServerRouter router) {}
 
     @Override
     public List<ActionType<? extends ActionResponse>> getClientActions() {

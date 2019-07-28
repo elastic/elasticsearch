@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -47,7 +48,5 @@ public class MockNioTransportPlugin extends Plugin implements NetworkPlugin {
     }
 
     @Override
-    public Object createDemoServer() {
-        return null;
-    }
+    public void createDemoServer(DemoServerRouter router) {}
 }

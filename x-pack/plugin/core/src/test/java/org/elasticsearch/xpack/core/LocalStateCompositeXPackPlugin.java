@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -105,9 +106,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Object createDemoServer() {
-        return null;
-    }
+    public void createDemoServer(DemoServerRouter router) {}
 
     //Get around all the setOnce nonsense in the plugin
     @Override

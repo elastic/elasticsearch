@@ -82,6 +82,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -728,9 +729,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
             }
 
             @Override
-            public Object createDemoServer() {
-                return null;
-            }
+            public void createDemoServer(DemoServerRouter router) {}
         }
 
         private final Set<String> actions = new HashSet<>();

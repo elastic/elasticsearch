@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -335,9 +336,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     @Override
-    public Object createDemoServer() {
-        return null;
-    }
+    public void createDemoServer(DemoServerRouter router) {}
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,

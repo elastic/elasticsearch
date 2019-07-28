@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -87,9 +88,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     @Override
-    public Object createDemoServer() {
-        return null;
-    }
+    public void createDemoServer(DemoServerRouter router) {}
 
     @Override
     public List<Setting<?>> getSettings() {

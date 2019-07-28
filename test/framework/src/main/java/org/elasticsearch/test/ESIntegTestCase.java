@@ -95,6 +95,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -1850,9 +1851,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
 
         @Override
-        public Object createDemoServer() {
-            return null;
-        }
+        public void createDemoServer(DemoServerRouter router) {}
     }
 
     /**

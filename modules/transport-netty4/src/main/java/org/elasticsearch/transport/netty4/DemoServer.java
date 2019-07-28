@@ -30,9 +30,20 @@ import io.netty.handler.codec.http.*;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.CharsetUtil;
+import org.elasticsearch.graphql.server.*;
+import org.elasticsearch.rest.RestRequest;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class DemoServer {
-    public DemoServer() throws Exception {
+    private DemoServerRouter router;
+
+    private static int PORT = 9100;
+
+    public DemoServer(DemoServerRouter router) throws Exception {
+        this.router = router;
+
         EventLoopGroup bossGroup = new NioEventLoopGroup(1);
         EventLoopGroup workerGroup = new NioEventLoopGroup();
 
@@ -53,11 +64,21 @@ public class DemoServer {
                 })
                 .channel(NioServerSocketChannel.class);
 
-            Channel ch = bootstrap.bind(9100).sync().channel();
+            Channel ch = bootstrap.bind(PORT).sync().channel();
             ch.closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();
             workerGroup.shutdownGracefully();
+        }
+    }
+
+    public static boolean compareMethods(RestRequest.Method method1, HttpMethod method2) {
+        if ((method1 == RestRequest.Method.GET) && (method2 == HttpMethod.GET)) {
+            return true;
+        } else if ((method1 == RestRequest.Method.POST) && (method2 == HttpMethod.POST)) {
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -70,30 +91,18 @@ public class DemoServer {
         @Override
         public void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
             if (msg instanceof HttpRequest) {
-                HttpRequest req = (HttpRequest) msg;
+                HttpRequest request = (HttpRequest) msg;
+                DemoServerHttpRequest req = new DemoServerHttpRequest(request);
+                DemoServerHttpResponse res = new DemoServerHttpResponse(request, ctx);
 
-                ByteBuf content = Unpooled.copiedBuffer("hello 2", CharsetUtil.UTF_8);
-                boolean keepAlive = HttpUtil.isKeepAlive(req);
-
-                FullHttpResponse response = new DefaultFullHttpResponse(req.protocolVersion(), HttpResponseStatus.OK,
-                    Unpooled.wrappedBuffer(content));
-                response.headers()
-                    .set(HttpHeaderNames.CONTENT_TYPE, HttpHeaderValues.TEXT_PLAIN)
-                    .setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
-
-                if (keepAlive) {
-                    if (!req.protocolVersion().isKeepAliveDefault()) {
-                        response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                for (DemoServerRoute route : router.getRoutes()) {
+                    if (compareMethods(route.method, request.method()) && route.path.equals(request.uri())) {
+                        route.handler.handle(req, res);
+                        return;
                     }
-                } else {
-                    response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
                 }
 
-                ChannelFuture f = ctx.write(response);
-
-                if (!keepAlive) {
-                    f.addListener(ChannelFutureListener.CLOSE);
-                }
+                res.send("Path not found.");
             }
         }
 
@@ -101,6 +110,62 @@ public class DemoServer {
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             cause.printStackTrace();
             ctx.close();
+        }
+    }
+
+    public class DemoServerHttpRequest implements DemoServerRequest {
+        private HttpRequest request;
+
+        public DemoServerHttpRequest(HttpRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public String getPath() {
+            return request.uri();
+        }
+    }
+
+    public class DemoServerHttpResponse implements DemoServerResponse {
+        private HttpRequest request;
+        private ChannelHandlerContext ctx;
+        private Map<String, String> headers = new HashMap<String, String>();
+
+        public DemoServerHttpResponse(HttpRequest request, ChannelHandlerContext ctx) {
+            this.request = request;
+            this.ctx = ctx;
+        }
+
+        public void addHeader(String key, String value) {
+            headers.put(key, value);
+        }
+
+        public void send(String contents) {
+            ByteBuf content = Unpooled.copiedBuffer(contents, CharsetUtil.UTF_8);
+            boolean keepAlive = HttpUtil.isKeepAlive(request);
+
+            FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.OK,
+                Unpooled.wrappedBuffer(content));
+            response.headers()
+                .setInt(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());
+
+            for (String key : headers.keySet()) {
+                response.headers().set(key, headers.get(key));
+            }
+
+            if (keepAlive) {
+                if (!request.protocolVersion().isKeepAliveDefault()) {
+                    response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                }
+            } else {
+                response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+            }
+
+            ChannelFuture f = ctx.write(response);
+
+            if (!keepAlive) {
+                f.addListener(ChannelFutureListener.CLOSE);
+            }
         }
     }
 }

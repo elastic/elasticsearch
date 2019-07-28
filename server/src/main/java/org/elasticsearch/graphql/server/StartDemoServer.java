@@ -19,11 +19,16 @@
 
 package org.elasticsearch.graphql.server;
 
+import graphql.ExecutionResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.graphql.api.GqlApiUtils;
+import org.elasticsearch.graphql.gql.GqlResult;
 import org.elasticsearch.graphql.gql.GqlServer;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
 import static org.elasticsearch.rest.RestRequest.Method.*;
 
 import java.util.HashMap;
@@ -76,13 +81,45 @@ public class StartDemoServer {
             Map<String, Object> variables = body.get("variables") instanceof Map
                 ? (Map<String, Object>) body.get("variables") : new HashMap();
 
-            Map<String, Object> result = gqlServer.executeToSpecification(query, operationName, variables);
+            GqlResult result = gqlServer.execute(query, operationName, variables);
 
-            logger.info("GraphQL result: {}", result);
-            logger.info("JSON: {}", GqlApiUtils.serializeJson(result));
+            if (result.hasDeferredResults()) {
+                res.sendHeadersChunk();
+                res.sendChunk(GqlApiUtils.serializeJson(result.getSpecification()));
 
-            res.setHeader("Content-Type", "application/json");
-            res.send(GqlApiUtils.serializeJson(result));
+                result.getDeferredResults().subscribe(new Subscriber<ExecutionResult>() {
+
+                    Subscription subscription;
+
+                    @Override
+                    public void onSubscribe(Subscription s) {
+                        subscription = s;
+                        subscription.request(1);
+                    }
+
+                    @Override
+                    public void onNext(ExecutionResult executionResult) {
+                        res.sendChunk(GqlApiUtils.serializeJson(executionResult.toSpecification()));
+                        subscription.request(1);
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        res.sendChunk("{\"error\": \"Something went wrong while streaming deferred results.\"}");
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        res.end();
+                    }
+                });
+            } else {
+                logger.info("GraphQL result: {}", result);
+                logger.info("JSON: {}", GqlApiUtils.serializeJson(result));
+
+                res.setHeader("Content-Type", "application/json");
+                res.send(GqlApiUtils.serializeJson(result.getSpecification()));
+            }
         });
 
         for (NetworkPlugin plugin: networkPlugins) {

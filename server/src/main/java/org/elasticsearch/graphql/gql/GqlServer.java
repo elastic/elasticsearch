@@ -24,8 +24,11 @@ import graphql.schema.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.graphql.api.GqlApi;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
 
 import java.util.Map;
+import java.util.Observable;
 import java.util.Optional;
 
 import org.elasticsearch.graphql.gql.schema.*;
@@ -66,9 +69,22 @@ public class GqlServer {
      * @param ctx {@link GraphQLContext} that can contain any optional data relevant for current request.
      * @return JSON-like Map-Lists ready for serialization to JSON sending back response to user.
      */
-    @SuppressWarnings("unchecked")
     public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables, GraphQLContext ctx) {
-        logger.trace("GraphQL executeToSpecification {}", query);
+        return execute(query, operationName, variables, ctx).getSpecification();
+    }
+
+    public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables) {
+        GraphQLContext ctx = GraphQLContext.newContext().build();
+        return executeToSpecification(query, operationName, variables, ctx);
+    }
+
+    public GqlResult execute(String query, String operationName, Map<String, Object> variables) {
+        GraphQLContext ctx = GraphQLContext.newContext().build();
+        return execute(query, operationName, variables, ctx);
+    }
+
+    public GqlResult execute(String query, String operationName, Map<String, Object> variables, GraphQLContext ctx) {
+        logger.trace("GraphQL execute {}", query);
 
         ExecutionResult result = graphql.execute(
             ExecutionInput.newExecutionInput(query)
@@ -77,13 +93,32 @@ public class GqlServer {
                 .context(ctx)
                 .build()
         );
-        Map<String, Object> data = result.toSpecification();
 
-        return data;
-    }
+        return new GqlResult() {
+            @Override
+            public Map<String, Object> getSpecification() {
+                return result.toSpecification();
+            }
 
-    public Map<String, Object> executeToSpecification(String query, String operationName, Map<String, Object> variables) {
-        GraphQLContext ctx = GraphQLContext.newContext().build();
-        return executeToSpecification(query, operationName, variables, ctx);
+            @Override
+            public boolean hasDeferredResults() {
+                return getDeferredResults() != null;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public Publisher<ExecutionResult> getDeferredResults() {
+                if (result == null) {
+                    System.out.println("RESULT IS NULL");
+                    return null;
+                }
+                Map<Object, Object> extensions = result.getExtensions();
+                if (extensions == null) {
+                    System.out.println("EXTENSIONS IS NULL");
+                    return null;
+                }
+                return (Publisher<ExecutionResult>) extensions.get(GraphQL.DEFERRED_RESULTS);
+            }
+        };
     }
 }

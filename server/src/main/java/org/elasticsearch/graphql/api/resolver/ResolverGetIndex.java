@@ -123,5 +123,7 @@ public class ResolverGetIndex {
         return future
             .thenApply(GqlApiUtils::toMapSafe)
             .thenApply(mapIndexData);
+
+
     }
 }

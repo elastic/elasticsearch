@@ -58,7 +58,7 @@ public class DemoServer {
                         ChannelPipeline pipeline = ch.pipeline();
 
                         pipeline.addLast("request", new HttpRequestDecoder());
-                        pipeline.addLast("reponse", new HttpResponseEncoder());
+                        pipeline.addLast("response", new HttpResponseEncoder());
                         pipeline.addLast("aggregator", new HttpObjectAggregator(65536));
                         pipeline.addLast("business-logic", new HttpHandler());
                     }

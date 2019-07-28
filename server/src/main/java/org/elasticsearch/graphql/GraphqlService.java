@@ -27,7 +27,6 @@ import org.elasticsearch.graphql.api.GqlApi;
 import org.elasticsearch.graphql.api.GqlElasticsearchApi;
 import org.elasticsearch.graphql.gql.GqlServer;
 import org.elasticsearch.graphql.rest.GraphqlRestHandler;
-import org.elasticsearch.graphql.server.DemoServerRouter;
 import org.elasticsearch.graphql.server.StartDemoServer;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.rest.RestRequest;

@@ -36,6 +36,9 @@ import org.elasticsearch.graphql.api.fake.GqlApiFakeHttpChannel;
 import org.elasticsearch.graphql.api.fake.GqlApiFakeHttpRequest;
 import org.elasticsearch.graphql.api.fake.GqlApiFakeRestChannel;
 import org.elasticsearch.rest.*;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -43,6 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
 import java.util.function.Function;
 
 public class GqlApiUtils {
@@ -184,5 +188,35 @@ public class GqlApiUtils {
         } else {
             return "null";
         }
+    }
+
+    public static <I, O> Publisher<O> transformPublisher(Publisher<I> publisher, Function<I, O> fn) {
+        return s -> {
+            publisher.subscribe(new Subscriber<I>() {
+                @Override
+                public void onSubscribe(Subscription subscription) {
+                    s.onSubscribe(subscription);
+                }
+
+                @Override
+                public void onNext(I i) {
+                    try {
+                        s.onNext(fn.apply(i));
+                    } catch (Exception e) {
+                        s.onError(e);
+                    }
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    s.onError(t);
+                }
+
+                @Override
+                public void onComplete() {
+                    s.onComplete();
+                }
+            });
+        };
     }
 }

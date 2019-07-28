@@ -11,5 +11,5 @@ public interface GqlResult {
 
     boolean hasDeferredResults();
 
-    Publisher<ExecutionResult> getDeferredResults();
+    Publisher<Map<String, Object>> getDeferredResults();
 }

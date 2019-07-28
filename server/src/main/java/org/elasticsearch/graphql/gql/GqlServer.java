@@ -24,8 +24,8 @@ import graphql.schema.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.graphql.api.GqlApi;
+import org.elasticsearch.graphql.api.GqlApiUtils;
 import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
 
 import java.util.Map;
 import java.util.Observable;
@@ -107,17 +107,18 @@ public class GqlServer {
 
             @Override
             @SuppressWarnings("unchecked")
-            public Publisher<ExecutionResult> getDeferredResults() {
+            public Publisher<Map<String, Object>> getDeferredResults() {
                 if (result == null) {
-                    System.out.println("RESULT IS NULL");
                     return null;
                 }
+
                 Map<Object, Object> extensions = result.getExtensions();
                 if (extensions == null) {
-                    System.out.println("EXTENSIONS IS NULL");
                     return null;
                 }
-                return (Publisher<ExecutionResult>) extensions.get(GraphQL.DEFERRED_RESULTS);
+
+                Publisher<ExecutionResult> publisher = (Publisher<ExecutionResult>) extensions.get(GraphQL.DEFERRED_RESULTS);
+                return GqlApiUtils.transformPublisher(publisher, executionResult -> executionResult.toSpecification());
             }
         };
     }

@@ -84,57 +84,9 @@ public class StartDemoServer {
             GqlResult result = gqlServer.execute(query, operationName, variables);
 
             if (result.hasDeferredResults()) {
-                res.setHeader("Content-Type", "multipart/batch;type=\"application/http;type=1.1\";boundary=-");
-                res.setHeader("Mime-Version", "1.0");
-                res.sendHeadersChunk();
-
-                String json = GqlApiUtils.serializeJson(result.getSpecification());
-                res.sendChunk(
-                    "\n---\n" +
-                        "Content-Type: application/json\n" +
-                        "Content-Length: " + json.length() + "\n" +
-                        "\n" +
-                        json + "\n");
-
-                result.getDeferredResults().subscribe(new Subscriber<ExecutionResult>() {
-
-                    Subscription subscription;
-
-                    @Override
-                    public void onSubscribe(Subscription s) {
-                        subscription = s;
-                        subscription.request(1);
-                    }
-
-                    @Override
-                    public void onNext(ExecutionResult executionResult) {
-                        String json = GqlApiUtils.serializeJson(executionResult.toSpecification());
-                        res.sendChunk(
-                                "\n---\n" +
-                                "Content-Type: application/json\n" +
-                                "Content-Length: " + json.length() + "\n" +
-                                "\n" +
-                                json + "\n");
-                        subscription.request(1);
-                    }
-
-                    @Override
-                    public void onError(Throwable t) {
-                        res.sendChunk("{\"error\": \"Something went wrong while streaming deferred results.\"}");
-                    }
-
-                    @Override
-                    public void onComplete() {
-                        res.sendChunk("\n-----\n");
-                        res.end();
-                    }
-                });
+                streamExecutionResult(res, result);
             } else {
-                logger.info("GraphQL result: {}", result);
-                logger.info("JSON: {}", GqlApiUtils.serializeJson(result));
-
-                res.setHeader("Content-Type", "application/json");
-                res.send(GqlApiUtils.serializeJson(result.getSpecification()));
+                sendExecutionResult(res, result);
             }
         });
 
@@ -148,5 +100,67 @@ public class StartDemoServer {
                 e.printStackTrace(new java.io.PrintStream(System.out));
             }
         }
+    }
+
+    private void streamExecutionResult(DemoServerResponse res, GqlResult result) {
+        res.setHeader("Content-Type", "multipart/batch;type=\"application/http;type=1.1\";boundary=-");
+        res.setHeader("Mime-Version", "1.0");
+        res.sendHeadersChunk();
+
+        String json = GqlApiUtils.serializeJson(result.getSpecification());
+        res.sendChunk(
+            "\n---\n" +
+                "Content-Type: application/json\n" +
+                "Content-Length: " + json.length() + "\n" +
+                "\n" +
+                json + "\n");
+
+        result.getDeferredResults().subscribe(new Subscriber<>() {
+
+            Subscription subscription;
+
+            @Override
+            public void onSubscribe(Subscription s) {
+                subscription = s;
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(Map<String, Object> data) {
+                String json = GqlApiUtils.serializeJson(data);
+                res.sendChunk(
+                    "\n---\n" +
+                        "Content-Type: application/json\n" +
+                        "Content-Length: " + json.length() + "\n" +
+                        "\n" +
+                        json + "\n");
+                subscription.request(1);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                logger.error(t);
+                res.sendChunk(
+                    "\n---\n" +
+                        "Content-Type: application/json\n" +
+                        "Content-Length: " + json.length() + "\n" +
+                        "\n" +
+                        "{\"error\": \"Something went wrong while streaming deferred results.\"}\n");
+            }
+
+            @Override
+            public void onComplete() {
+                res.sendChunk("\n-----\n");
+                res.end();
+            }
+        });
+    }
+
+    private void sendExecutionResult(DemoServerResponse res, GqlResult result) {
+        logger.info("GraphQL result: {}", result);
+        logger.info("JSON: {}", GqlApiUtils.serializeJson(result));
+
+        res.setHeader("Content-Type", "application/json");
+        res.send(GqlApiUtils.serializeJson(result.getSpecification()));
     }
 }

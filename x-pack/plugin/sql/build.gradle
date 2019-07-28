@@ -40,7 +40,6 @@ check.dependsOn internalClusterTest
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly(project(':modules:lang-painless')) {
-        // exclude ASM to not affect featureAware task on Java 10+
         exclude group: "org.ow2.asm"
     }
     compile project('sql-action')

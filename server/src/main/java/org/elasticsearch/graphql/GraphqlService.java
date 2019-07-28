@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.graphql;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.graphql.api.GqlApi;
@@ -30,6 +33,8 @@ import org.elasticsearch.rest.RestRequest;
 import java.util.List;
 
 final public class GraphqlService {
+    private static final Logger logger = LogManager.getLogger(GraphqlService.class);
+
     NodeClient client;
     List<NetworkPlugin> networkPlugins;
     ActionModule actionModule;
@@ -57,12 +62,12 @@ final public class GraphqlService {
     }
 
     void startDemoServer() {
-        System.out.println("Creating demo server.");
+        logger.info("Creating demo server.");
         for (NetworkPlugin plugin: networkPlugins) {
            try {
                plugin.createDemoServer();
            } catch (Exception e) {
-               System.out.println("Could not start demo server: " + e);
+               logger.error("Could not start demo server: " + e);
                e.printStackTrace(new java.io.PrintStream(System.out));
            }
         }

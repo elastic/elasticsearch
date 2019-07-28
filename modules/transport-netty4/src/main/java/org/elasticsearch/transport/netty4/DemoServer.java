@@ -58,7 +58,9 @@ public class DemoServer {
                         ChannelPipeline pipeline = ch.pipeline();
 
                         pipeline.addLast("http", new HttpServerCodec());
-                        pipeline.addLast("continue-100", new HttpServerExpectContinueHandler());
+//                        pipeline.addLast("continue-100", new HttpServerExpectContinueHandler());
+                        pipeline.addLast("decoder", new HttpRequestDecoder());
+                        pipeline.addLast("aggregator", new HttpObjectAggregator(1048576));
                         pipeline.addLast("business-logic", new HttpHandler());
                     }
                 })
@@ -82,16 +84,16 @@ public class DemoServer {
         }
     }
 
-    public class HttpHandler extends SimpleChannelInboundHandler<HttpObject> {
+    public class HttpHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
         @Override
         public void channelReadComplete(ChannelHandlerContext ctx) {
             ctx.flush();
         }
 
         @Override
-        public void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
-            if (msg instanceof HttpRequest) {
-                HttpRequest request = (HttpRequest) msg;
+        public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
+            if (msg instanceof FullHttpRequest) {
+                FullHttpRequest request = msg;
                 DemoServerHttpRequest req = new DemoServerHttpRequest(request);
                 DemoServerHttpResponse res = new DemoServerHttpResponse(request, ctx);
 
@@ -114,15 +116,20 @@ public class DemoServer {
     }
 
     public class DemoServerHttpRequest implements DemoServerRequest {
-        private HttpRequest request;
+        private FullHttpRequest request;
 
-        public DemoServerHttpRequest(HttpRequest request) {
+        public DemoServerHttpRequest(FullHttpRequest request) {
             this.request = request;
         }
 
         @Override
         public String getPath() {
             return request.uri();
+        }
+
+        @Override
+        public String body() {
+            return request.content().toString(CharsetUtil.UTF_8);
         }
     }
 

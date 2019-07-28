@@ -21,4 +21,6 @@ package org.elasticsearch.graphql.server;
 
 public interface DemoServerRequest {
     String getPath();
+
+    String body();
 }

@@ -57,10 +57,9 @@ public class DemoServer {
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ChannelPipeline pipeline = ch.pipeline();
 
-                        pipeline.addLast("http", new HttpServerCodec());
-//                        pipeline.addLast("continue-100", new HttpServerExpectContinueHandler());
-                        pipeline.addLast("decoder", new HttpRequestDecoder());
-                        pipeline.addLast("aggregator", new HttpObjectAggregator(1048576));
+                        pipeline.addLast("request", new HttpRequestDecoder());
+                        pipeline.addLast("reponse", new HttpResponseEncoder());
+                        pipeline.addLast("aggregator", new HttpObjectAggregator(65536));
                         pipeline.addLast("business-logic", new HttpHandler());
                     }
                 })
@@ -143,10 +142,12 @@ public class DemoServer {
             this.ctx = ctx;
         }
 
-        public void addHeader(String key, String value) {
+        @Override
+        public void setHeader(String key, String value) {
             headers.put(key, value);
         }
 
+        @Override
         public void send(String contents) {
             ByteBuf content = Unpooled.copiedBuffer(contents, CharsetUtil.UTF_8);
             boolean keepAlive = HttpUtil.isKeepAlive(request);
@@ -169,6 +170,53 @@ public class DemoServer {
             }
 
             ChannelFuture f = ctx.write(response);
+
+            if (!keepAlive) {
+                f.addListener(ChannelFutureListener.CLOSE);
+            }
+        }
+
+        @Override
+        public void sendHeadersChunk() {
+            if (request.protocolVersion() != HttpVersion.HTTP_1_1) {
+                send("Need to use HTTP 1.1 protocol for (Transfer-Encoding: chunked) streaming.");
+                return;
+            }
+
+            boolean keepAlive = HttpUtil.isKeepAlive(request);
+            HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+
+            for (String key : headers.keySet()) {
+                response.headers().set(key, headers.get(key));
+            }
+
+            response.headers()
+                .set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8")
+                .set(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
+
+            if (keepAlive) {
+                if (!request.protocolVersion().isKeepAliveDefault()) {
+                    response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                }
+            } else {
+                response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+            }
+
+            ctx.write(response);
+        }
+
+
+        @Override
+        public void sendChunk(String chunk) {
+            ByteBuf buf = Unpooled.copiedBuffer(chunk, CharsetUtil.UTF_8);
+            HttpContent content = new DefaultHttpContent(buf);
+            ctx.write(content);
+        }
+
+        @Override
+        public void end() {
+            boolean keepAlive = HttpUtil.isKeepAlive(request);
+            ChannelFuture f = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
 
             if (!keepAlive) {
                 f.addListener(ChannelFutureListener.CLOSE);

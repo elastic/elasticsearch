@@ -20,6 +20,13 @@
 package org.elasticsearch.graphql.server;
 
 public interface DemoServerResponse {
+    void setHeader(String key, String value);
 
     void send(String contents);
+
+    void sendHeadersChunk();
+
+    void sendChunk(String chunk);
+
+    void end();
 }

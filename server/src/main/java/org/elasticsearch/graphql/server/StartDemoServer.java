@@ -37,6 +37,13 @@ public class StartDemoServer {
             res.send("pong");
         });
 
+        router.addRoute(RestRequest.Method.GET, "/stream-test", (req, res) -> {
+            res.sendHeadersChunk();
+            res.sendChunk("abc");
+            res.sendChunk("123");
+            res.end();
+        });
+
         for (NetworkPlugin plugin: networkPlugins) {
             System.out.println(plugin.getClass());
             try {

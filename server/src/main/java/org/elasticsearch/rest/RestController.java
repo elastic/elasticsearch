@@ -222,7 +222,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
-        final int contentLength = request.content().length();
+        final int contentLength = request.contentLength();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();
             if (xContentType == null) {

@@ -100,15 +100,17 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                 .build();
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             // put role mappings for delegated PKI
-            PutRoleMappingRequest request = new PutRoleMappingRequest("role_from_delegated_user", true, Collections.singletonList("role_from_delegated_user"),
-                    Collections.emptyList(), new FieldRoleMapperExpression("metadata.pki_delegated_from_user", "test_user"), null, RefreshPolicy.IMMEDIATE);
+            PutRoleMappingRequest request = new PutRoleMappingRequest("role_from_delegated_user", true,
+                    Collections.singletonList("role_from_delegated_user"), Collections.emptyList(),
+                    new FieldRoleMapperExpression("metadata.pki_delegated_from_user", "test_user"), null, RefreshPolicy.IMMEDIATE);
             restClient.security().putRoleMapping(request, testUserOptions);
             request = new PutRoleMappingRequest("role_from_delegated_realm", true, Collections.singletonList("role_from_delegated_realm"),
-                    Collections.emptyList(), new FieldRoleMapperExpression("metadata.pki_delegated_from_realm", "file"), null, RefreshPolicy.IMMEDIATE);
+                    Collections.emptyList(), new FieldRoleMapperExpression("metadata.pki_delegated_from_realm", "file"), null,
+                    RefreshPolicy.IMMEDIATE);
             restClient.security().putRoleMapping(request, testUserOptions);
 
-            X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"));
-            DelegatePkiAuthenticationRequest delegatePkiRequest = new DelegatePkiAuthenticationRequest(new X509Certificate[] { certificate });
+            X509Certificate cert = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"));
+            DelegatePkiAuthenticationRequest delegatePkiRequest = new DelegatePkiAuthenticationRequest(new X509Certificate[] { cert });
             PlainActionFuture<DelegatePkiAuthenticationResponse> future = new PlainActionFuture<>();
             client().execute(TransportDelegatePkiAuthenticationAction.TYPE, delegatePkiRequest, future);
             String token = future.get().getTokenString();
@@ -134,8 +136,10 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(authnRealm.getType(), is("pki"));
 
             // delete role mappings for delegated PKI
-            restClient.security().deleteRoleMapping(new DeleteRoleMappingRequest("role_from_delegated_user", RefreshPolicy.IMMEDIATE), testUserOptions);
-            restClient.security().deleteRoleMapping(new DeleteRoleMappingRequest("role_from_delegated_realm", RefreshPolicy.IMMEDIATE), testUserOptions);
+            restClient.security().deleteRoleMapping(new DeleteRoleMappingRequest("role_from_delegated_user", RefreshPolicy.IMMEDIATE),
+                  testUserOptions);
+            restClient.security().deleteRoleMapping(new DeleteRoleMappingRequest("role_from_delegated_realm", RefreshPolicy.IMMEDIATE),
+                  testUserOptions);
         }
     }
 

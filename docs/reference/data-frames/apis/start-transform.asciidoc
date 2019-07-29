@@ -44,9 +44,11 @@ index take precedence over dynamic mappings and templates.
 When the {dataframe-transform} starts, a series of validations occur to ensure
 its success. If you deferred validation when you created the
 {dataframe-transform}, they occur when you start the transform--with the
-exception of privilege checks. If the user who created the transform does not
-have the required privileges on the source and destination indices, the
-transform starts but then fails when it attempts the unauthorized operation.
+exception of privilege checks. When {es} {security-features} are enabled, the
+{dataframe-transform} remembers which roles the user that created it had at the
+time of creation and uses those same roles. If those roles do not have the
+required privileges on the source and destination indices, the
+{dataframe-transform} fails when it attempts unauthorized operations.
 
 [[start-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}

@@ -4,7 +4,7 @@
 
 By default, {dfeeds} fetch data from {es} using search and scroll requests.
 It can be significantly more efficient, however, to aggregate data in {es}
-and to configure your jobs to analyze aggregated data.
+and to configure your {anomaly-jobs} to analyze aggregated data.
 
 One of the benefits of aggregating data this way is that {es} automatically
 distributes these calculations across your cluster. You can then feed this
@@ -19,8 +19,8 @@ of the last record in the bucket. If you use a terms aggregation and the
 cardinality of a term is high, then the aggregation might not be effective and
 you might want to just use the default search and scroll behavior.
 
-When you create or update a job, you can include the names of aggregations, for
-example:
+When you create or update an {anomaly-job}, you can include the names of
+aggregations, for example:
 
 [source,js]
 ----------------------------------

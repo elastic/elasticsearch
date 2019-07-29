@@ -47,7 +47,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -432,20 +431,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ActionListener<Void> listener = ActionListener.wrap(
             x -> latch.countDown(),
             x -> {
-                /*
-                 * This can occur on a thread submitted to the thread pool while we are closing the
-                 * remote cluster connection at the end of the test.
-                 */
-                if (x instanceof CancellableThreads.ExecutionCancelledException) {
-                    try {
-                        // we should already be shutting down
-                        assertEquals(0L, latch.getCount());
-                    } finally {
-                        // ensure we count down the latch on failure as well to not prevent failing tests from ending
-                        latch.countDown();
-                    }
-                    return;
-                }
                 exceptionAtomicReference.set(x);
                 latch.countDown();
             }
@@ -580,7 +565,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 closeRemote.countDown();
                 listenerCalled.await();
                 assertNotNull(exceptionReference.get());
-                expectThrows(CancellableThreads.ExecutionCancelledException.class, () -> {
+                expectThrows(AlreadyClosedException.class, () -> {
                     throw exceptionReference.get();
                 });
 
@@ -640,16 +625,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                 latch.countDown();
                                             },
                                             x -> {
-                                                /*
-                                                 * This can occur on a thread submitted to the thread pool while we are closing the
-                                                 * remote cluster connection at the end of the test.
-                                                 */
-                                                if (x instanceof CancellableThreads.ExecutionCancelledException) {
-                                                    // we should already be shutting down
-                                                    assertTrue(executed.get());
-                                                    return;
-                                                }
-
                                                 assertTrue(executed.compareAndSet(false, true));
                                                 latch.countDown();
 
@@ -737,8 +712,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                         throw assertionError;
                                                     }
                                                 }
-                                                if (x instanceof RejectedExecutionException || x instanceof AlreadyClosedException
-                                                    || x instanceof CancellableThreads.ExecutionCancelledException) {
+                                                if (x instanceof RejectedExecutionException || x instanceof AlreadyClosedException) {
                                                     // that's fine
                                                 } else {
                                                     throw new AssertionError(x);

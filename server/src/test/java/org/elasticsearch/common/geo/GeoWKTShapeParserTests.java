@@ -47,6 +47,7 @@ import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -470,7 +471,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         } else {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
             assertExpected(gcb.buildS4J(), gcb, true);
-            assertExpected(new GeometryIndexer(true).prepareForIndexing(gcb.buildGeometry()), gcb, false);
+            assertExpected(new GeoShapeIndexer(true).prepareForIndexing(gcb.buildGeometry()), gcb, false);
         }
     }
 

@@ -56,6 +56,9 @@ Aggregations::
 Audit::
 * Enable console audit logs for docker {pull}42671[#42671] (issue: {issue}42666[#42666])
 
+Data Frame::
+* [ML-DataFrame] add sync api {pull}41800[#41800]
+
 Infra/Settings::
 * Consistent Secure Settings {pull}40416[#40416]
 
@@ -106,6 +109,7 @@ CCR::
 * Replicate aliases in cross-cluster replication {pull}41815[#41815] (issue: {issue}41396[#41396])
 
 Cluster Coordination::
+* Ignore unknown fields if overriding node metadata {pull}44689[#44689]
 * Add voting-only master node {pull}43410[#43410] (issue: {issue}14340[#14340])
 * Defer reroute when nodes join {pull}42855[#42855]
 * Stop SeedHostsResolver on shutdown {pull}42844[#42844]
@@ -154,6 +158,7 @@ Features/Monitoring::
 * Expand beats_system role privileges {pull}40876[#40876]
 
 Features/Watcher::
+* Improve CryptoService error message on missing secure file {pull}43623[#43623] (issue: {issue}43619[#43619])
 * Watcher: Allow to execute actions for each element in array {pull}41997[#41997] (issue: {issue}34546[#34546])
 
 Infra/Core::
@@ -198,6 +203,7 @@ Network::
 * Do not hang on unsupported HTTP methods {pull}43362[#43362]
 
 Ranking::
+* Fix parameter value for calling data.advanceExact {pull}44205[#44205]
 * Distance measures for dense and sparse vectors {pull}37947[#37947] (issue: {issue}31615[#31615])
 
 Recovery::
@@ -232,6 +238,7 @@ Store::
 === Bug fixes
 
 Aggregations::
+* Fix incorrect calculation of how many buckets will result from a merge {pull}44461[#44461] (issue: {issue}43577[#43577])
 * Set document on script when using Bytes.WithScript {pull}43390[#43390]
 * Bug fix to allow access to top level params in reduce script {pull}42096[#42096] (issue: {issue}42046[#42046])
 
@@ -249,9 +256,13 @@ Analysis::
 * Require [articles] setting in elision filter {pull}43083[#43083] (issue: {issue}43002[#43002])
 
 Authentication::
+* Fix broken short-circuit in getUnlicensedRealms {pull}44399[#44399]
 * Fix Token Service retry mechanism {pull}39639[#39639]
 
 CCR::
+* Skip update if leader and follower settings identical {pull}44535[#44535] (issue: {issue}44521[#44521])
+* Avoid stack overflow in auto-follow coordinator {pull}44421[#44421] (issue: {issue}43251[#43251])
+* Avoid NPE when checking for CCR index privileges {pull}44397[#44397] (issue: {issue}44172[#44172])
 * CCR should not replicate private/internal settings {pull}43067[#43067] (issue: {issue}41268[#41268])
 
 CRUD::
@@ -265,6 +276,7 @@ Cluster Coordination::
 * Omit non-masters in ClusterFormationFailureHelper {pull}41344[#41344]
 
 Data Frame::
+* [ML][Data Frame] treat bulk index failures as an indexing failure {pull}44351[#44351] (issue: {issue}44101[#44101])
 * [ML][Data Frame] responding with 409 status code when failing _stop {pull}44231[#44231] (issue: {issue}44103[#44103])
 * [ML][Data Frame] adds index validations to _start data frame transform {pull}44191[#44191] (issue: {issue}44104[#44104])
 * [ML] Data frame task failure do not make a 500 response {pull}44058[#44058] (issue: {issue}44011[#44011])
@@ -301,6 +313,8 @@ Features/ILM::
 * Make ILM force merging best effort {pull}43246[#43246] (issues: {issue}42824[#42824], {issue}43245[#43245])
 
 Features/Indices APIs::
+* Check shard limit after applying index templates {pull}44619[#44619] (issues: {issue}34021[#34021], {issue}44567[#44567], {issue}44619[#44619])
+* Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
 * Prevent NullPointerException in TransportRolloverAction {pull}43353[#43353] (issue: {issue}43296[#43296])
 
 Features/Ingest::
@@ -317,6 +331,7 @@ Features/Watcher::
 * fix unlikely bug that can prevent Watcher from restarting {pull}42030[#42030]
 
 Infra/Core::
+* Add default CLI JVM options {pull}44545[#44545] (issues: {issue}219[#219], {issue}42021[#42021])
 * scheduleAtFixedRate would hang {pull}42993[#42993] (issue: {issue}38441[#38441])
 * Only ignore IOException when fsyncing on dirs {pull}42972[#42972] (issue: {issue}42950[#42950])
 * Fix alpha build error message when generate version object from version string {pull}40406[#40406]
@@ -324,7 +339,11 @@ Infra/Core::
 * Change licence expiration date pattern {pull}39681[#39681] (issue: {issue}39136[#39136])
 
 Infra/Packaging::
+* Restore setting up temp dir for windows service {pull}44541[#44541]
 * Fix the bundled jdk flag to be passed through windows startup {pull}43502[#43502]
+
+Infra/Plugins::
+* Do not checksum all bytes at once in plugin install {pull}44649[#44649] (issue: {issue}44545[#44545])
 
 Infra/REST API::
 * Remove deprecated _source_exclude and _source_include from get API spec {pull}42188[#42188]
@@ -333,14 +352,16 @@ Infra/Scripting::
 * Allow aggregations using expressions to use _score {pull}42652[#42652]
 
 Machine Learning::
+* Fix test for old cluster version >= 7.3.0 {pull}44437[#44437]
 * Use specific version constant for wire bwc check {pull}44316[#44316] (issue: {issue}42501[#42501])
 * Update .ml-config mappings before indexing job, datafeed or df analytics config {pull}44216[#44216] (issue: {issue}44263[#44263])
 * [ML] Wait for .ml-config primary before assigning persistent tasks {pull}44170[#44170] (issue: {issue}44156[#44156])
 * [ML] Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
-* [ML] Fix datafeed checks when a concrete remote index is present {pull}43923[#43923]
+* [ML] Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
 * [ML] Fix possible race condition when closing an opening job {pull}42506[#42506]
 
 Mapping::
+* Ensure field caps doesn't error on rank feature fields. {pull}44370[#44370] (issue: {issue}44330[#44330])
 * Prevent types deprecation warning for indices.exists requests {pull}43963[#43963] (issue: {issue}43905[#43905])
 * Fix index_prefix sub field name on nested text fields {pull}43862[#43862] (issue: {issue}43741[#43741])
 * Fix possible NPE in put mapping validators {pull}43000[#43000] (issue: {issue}37675[#37675])
@@ -374,6 +395,7 @@ SQL::
 * SQL: cover the Integer type when extracting values from _source {pull}42859[#42859] (issue: {issue}42858[#42858])
 
 Search::
+* Don't use index_phrases on graph queries {pull}44340[#44340] (issue: {issue}43976[#43976])
 * Fix wrong logic in `match_phrase` query with multi-word synonyms {pull}43941[#43941] (issue: {issue}43308[#43308])
 * Fix UOE on search requests that match a sparse role query {pull}43668[#43668] (issue: {issue}42857[#42857])
 * Fix propagation of enablePositionIncrements in QueryStringQueryBuilder {pull}43578[#43578] (issue: {issue}43574[#43574])
@@ -387,6 +409,8 @@ Search::
 * Deduplicate alias and concrete fields in query field expansion {pull}42328[#42328]
 
 Security::
+* Do not swallow I/O exception getting authentication {pull}44398[#44398] (issues: {issue}44172[#44172], {issue}44397[#44397])
+* Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
 * SecurityIndexSearcherWrapper doesn't always carry over caches and similarity {pull}43436[#43436]
 * Detect when security index is closed {pull}42191[#42191]
 

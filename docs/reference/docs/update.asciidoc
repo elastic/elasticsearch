@@ -194,6 +194,8 @@ the request was ignored.
    "_type": "_doc",
    "_id": "1",
    "_version": 7,
+   "_primary_term": 1,
+   "_seq_no": 6,
    "result": "noop"
 }
 --------------------------------------------------

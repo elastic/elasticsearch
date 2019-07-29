@@ -47,7 +47,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -129,7 +128,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             equalTo(ReplicaItemExecutionMode.FAILURE));
         // NOOP requests should not be replicated
         DocWriteRequest<UpdateRequest> updateRequest = new UpdateRequest("index", "type", "id");
-        response = new UpdateResponse(shardId, "type", "id", 1, DocWriteResponse.Result.NOOP);
+        response = new UpdateResponse(shardId, "type", "id", 0, 1, 1, DocWriteResponse.Result.NOOP);
         request = new BulkItemRequest(0, updateRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.UPDATE,
             response));
@@ -481,8 +480,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        DocWriteResponse noopUpdateResponse = new UpdateResponse(shardId, "_doc", "id", 0,
-            DocWriteResponse.Result.NOOP);
+        DocWriteResponse noopUpdateResponse = new UpdateResponse(shardId, "_doc", "id", 0, 2, 1, DocWriteResponse.Result.NOOP);
 
         IndexShard shard = mock(IndexShard.class);
 
@@ -514,7 +512,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             equalTo(DocWriteResponse.Result.NOOP));
         assertThat(bulkShardRequest.items().length, equalTo(1));
         assertEquals(primaryRequest, bulkShardRequest.items()[0]); // check that bulk item was not mutated
-        assertThat(primaryResponse.getResponse().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(primaryResponse.getResponse().getSeqNo(), equalTo(0L));
     }
 
     public void testUpdateRequestWithFailure() throws Exception {

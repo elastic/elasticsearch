@@ -287,6 +287,7 @@ public class DatafeedUpdate implements ToXContentObject {
             this.delayedDataCheckConfig = config.delayedDataCheckConfig;
         }
 
+        @Deprecated
         public Builder setJobId(String jobId) {
             this.jobId = jobId;
             return this;

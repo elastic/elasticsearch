@@ -223,7 +223,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
      * @param input            Data input stream
      * @param xContentType     the {@link XContentType} of the input
      * @param params           Data processing parameters
-     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written)
+     * @param handler          Delegate error or datacount results (Count of records, fields, bytes, etc written as a result of this call)
      */
     public void processData(JobTask jobTask, AnalysisRegistry analysisRegistry, InputStream input,
                             XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {

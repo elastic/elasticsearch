@@ -595,9 +595,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private long recovered;
         private boolean reused;
 
-        public File() {
-        }
-
         public File(String name, long length, boolean reused) {
             assert name != null;
             this.name = name;
@@ -695,11 +692,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     public static class Index extends Timer implements ToXContentFragment, Writeable {
 
-        private Map<String, File> fileDetails = new HashMap<>();
+        private final Map<String, File> fileDetails = new HashMap<>();
 
         public static final long UNKNOWN = -1L;
 
-        private long version = UNKNOWN;
         private long sourceThrottlingInNanos = UNKNOWN;
         private long targetThrottleTimeInNanos = UNKNOWN;
 
@@ -735,7 +731,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public synchronized void reset() {
             super.reset();
-            version = UNKNOWN;
             fileDetails.clear();
             sourceThrottlingInNanos = UNKNOWN;
             targetThrottleTimeInNanos = UNKNOWN;
@@ -750,10 +745,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
             File file = fileDetails.get(name);
             file.addRecoveredBytes(bytes);
-        }
-
-        public synchronized long version() {
-            return this.version;
         }
 
         public synchronized void addSourceThrottling(long timeInNanos) {
@@ -874,16 +865,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             return total;
         }
 
-        public synchronized long totalReuseBytes() {
-            long total = 0;
-            for (File file : fileDetails.values()) {
-                if (file.reused()) {
-                    total += file.length();
-                }
-            }
-            return total;
-        }
-
         /**
          * percent of bytes recovered out of total files bytes *to be* recovered
          */
@@ -925,10 +906,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 }
             }
             return reused;
-        }
-
-        public synchronized void updateVersion(long version) {
-            this.version = version;
         }
 
         @Override

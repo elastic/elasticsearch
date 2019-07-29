@@ -65,16 +65,16 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         ConstructingObjectParser<DataFrameTransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME,
                 lenient, args -> {
                     String id = (String) args[0];
-                    Long timestamp = (Long) args[1];
-                    Long checkpoint = (Long) args[2];
+                    long timestamp = (Long) args[1];
+                    long checkpoint = (Long) args[2];
 
                     @SuppressWarnings("unchecked")
                     Map<String, long[]> checkpoints = (Map<String, long[]>) args[3];
 
-                    Long timestamp_checkpoint = (Long) args[4];
+                    Long timeUpperBound = (Long) args[4];
 
                     // ignored, only for internal storage: String docType = (String) args[5];
-                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timestamp_checkpoint);
+                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timeUpperBound);
                 });
 
         parser.declareString(constructorArg(), DataFrameField.ID);
@@ -108,13 +108,13 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         return parser;
     }
 
-    public DataFrameTransformCheckpoint(String transformId, Long timestamp, Long checkpoint, Map<String, long[]> checkpoints,
+    public DataFrameTransformCheckpoint(String transformId, long timestamp, long checkpoint, Map<String, long[]> checkpoints,
             Long timeUpperBound) {
-        this.transformId = transformId;
-        this.timestampMillis = timestamp.longValue();
+        this.transformId = Objects.requireNonNull(transformId);
+        this.timestampMillis = timestamp;
         this.checkpoint = checkpoint;
         this.indicesCheckpoints = Collections.unmodifiableMap(checkpoints);
-        this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound.longValue();
+        this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound;
     }
 
     public DataFrameTransformCheckpoint(StreamInput in) throws IOException {

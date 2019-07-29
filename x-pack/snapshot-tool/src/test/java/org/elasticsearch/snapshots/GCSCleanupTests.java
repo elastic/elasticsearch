@@ -41,7 +41,7 @@ public class GCSCleanupTests extends AbstractCleanupTests {
 
     @Override
     protected Settings nodeSettings() {
-        Settings.Builder builder = Settings.builder();
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings());
 
         if (Strings.isNullOrEmpty(getEndpoint()) == false) {
             builder.put("gcs.client.default.endpoint", getEndpoint());
@@ -51,10 +51,7 @@ public class GCSCleanupTests extends AbstractCleanupTests {
             builder.put("gcs.client.default.token_uri", getTokenUri());
         }
 
-        return Settings.builder()
-                .put(builder.build())
-                .setSecureSettings(credentials())
-                .build();
+        return builder.build();
     }
 
     @Override

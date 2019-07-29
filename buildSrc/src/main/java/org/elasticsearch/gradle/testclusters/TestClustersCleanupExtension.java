@@ -33,7 +33,6 @@ public class TestClustersCleanupExtension {
         executorService.submit(cleanupThread);
     }
 
-
     public static void createExtension(Project project) {
         if (project.getRootProject().getExtensions().findByType(TestClustersCleanupExtension.class) != null) {
             return;
@@ -43,7 +42,7 @@ public class TestClustersCleanupExtension {
             "__testclusters_rate_limit",
             TestClustersCleanupExtension.class
         );
-        Thread shutdownHook = new Thread(ext.cleanupThread::run);
+        Thread shutdownHook = new Thread(ext.cleanupThread::shutdownClusters);
         Runtime.getRuntime().addShutdownHook(shutdownHook);
         project.getGradle().buildFinished(buildResult -> {
             ext.executorService.shutdownNow();

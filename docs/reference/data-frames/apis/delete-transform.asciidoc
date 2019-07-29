@@ -34,6 +34,13 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 `<data_frame_transform_id>`::
   (Required, string) Identifier for the {dataframe-transform}.
 
+[[delete-data-frame-transform-query-parms]]
+==== {api-query-parms-title}
+
+`force`::
+(Optional, boolean) When `true`, the {dataframe-transform} is deleted regardless of its
+current state. The default value is `false`, meaning that the {dataframe-transform} must be
+`stopped` before it can be deleted.
 
 [[delete-data-frame-transform-examples]]
 ==== {api-examples-title}

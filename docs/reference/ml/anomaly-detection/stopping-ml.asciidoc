@@ -1,22 +1,22 @@
 [role="xpack"]
 [[stopping-ml]]
-== Stopping machine learning
+== Stopping {ml} {anomaly-detect}
 
-An orderly shutdown of {ml} ensures that:
+An orderly shutdown ensures that:
 
 * {dfeeds-cap} are stopped
 * Buffers are flushed
 * Model history is pruned
 * Final results are calculated
 * Model snapshots are saved
-* Jobs are closed
+* {anomaly-jobs-cap} are closed
 
 This process ensures that jobs are in a consistent state in case you want to
 subsequently re-open them.
 
 [float]
 [[stopping-ml-datafeeds]]
-=== Stopping {dfeeds-cap}
+=== Stopping {dfeeds}
 
 When you stop a {dfeed}, it ceases to retrieve data from {es}. You can stop a
 {dfeed} by using {kib} or the
@@ -25,7 +25,7 @@ request stops the `feed1` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-POST _ml/datafeeds/datafeed-total-requests/_stop
+POST _ml/datafeeds/feed1/_stop
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_startdf]
@@ -39,7 +39,7 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 [float]
 [[stopping-all-ml-datafeeds]]
-==== Stopping All {dfeeds-cap}
+==== Stopping all {dfeeds}
 
 If you are upgrading your cluster, you can use the following request to stop all
 {dfeeds}:
@@ -53,19 +53,20 @@ POST _ml/datafeeds/_all/_stop
 
 [float]
 [[closing-ml-jobs]]
-=== Closing Jobs
+=== Closing {anomaly-jobs}
 
-When you close a job, it cannot receive data or perform analysis operations.
-If a job is associated with a {dfeed}, you must stop the {dfeed} before you can
-close the jobs. If the {dfeed} has an end date, the job closes automatically on
-that end date.
+When you close an {anomaly-job}, it cannot receive data or perform analysis
+operations. If a job is associated with a {dfeed}, you must stop the {dfeed}
+before you can close the job. If the {dfeed} has an end date, the job closes
+automatically on that end date.
 
-You can close a job by using the {ref}/ml-close-job.html[close job API]. For
+You can close a job by using the
+{ref}/ml-close-job.html[close {anomaly-job} API]. For 
 example, the following request closes the `job1` job:
 
 [source,js]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_close
+POST _ml/anomaly_detectors/job1/_close
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
@@ -73,14 +74,15 @@ POST _ml/anomaly_detectors/total-requests/_close
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
 For more information, see <<security-privileges>>.
 
-A job can be opened and closed multiple times throughout its lifecycle.
+{anomaly-jobs-cap} can be opened and closed multiple times throughout their
+lifecycle.
 
 [float]
 [[closing-all-ml-datafeeds]]
-==== Closing All Jobs
+==== Closing all {anomaly-jobs}
 
 If you are upgrading your cluster, you can use the following request to close
-all open jobs on the cluster:
+all open {anomaly-jobs} on the cluster:
 
 [source,js]
 ----------------------------------

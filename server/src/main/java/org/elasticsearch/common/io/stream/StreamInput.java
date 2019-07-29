@@ -530,8 +530,14 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /**
+     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+     */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
         int size = readArraySize();
+        if (size == 0) {
+            return Collections.emptyMap();
+        }
         Map<K, V> map = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             K key = keyReader.read(this);
@@ -546,6 +552,8 @@ public abstract class StreamInput extends InputStream {
      * <pre><code>
      * Map&lt;String, List&lt;String&gt;&gt; map = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
      * </code></pre>
+     * If the map or a list in it contains any elements it will be mutable, otherwise either the empty map or empty lists it contains
+     * might be immutable.
      *
      * @param keyReader The key reader
      * @param valueReader The value reader
@@ -564,12 +572,19 @@ public abstract class StreamInput extends InputStream {
         return map;
     }
 
+    /**
+     * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
+     */
     @Nullable
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
     }
 
+    /**
+     * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
+     * be immutable if it is empty.
+     */
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
@@ -649,6 +664,9 @@ public abstract class StreamInput extends InputStream {
     @SuppressWarnings("unchecked")
     private List readArrayList() throws IOException {
         int size = readArraySize();
+        if (size == 0) {
+            return Collections.emptyList();
+        }
         List list = new ArrayList(size);
         for (int i = 0; i < size; i++) {
             list.add(readGenericValue());
@@ -666,8 +684,13 @@ public abstract class StreamInput extends InputStream {
         return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
     }
 
+    private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+
     private Object[] readArray() throws IOException {
         int size8 = readArraySize();
+        if (size8 == 0) {
+            return EMPTY_OBJECT_ARRAY;
+        }
         Object[] list8 = new Object[size8];
         for (int i = 0; i < size8; i++) {
             list8[i] = readGenericValue();
@@ -677,6 +700,9 @@ public abstract class StreamInput extends InputStream {
 
     private Map readLinkedHashMap() throws IOException {
         int size9 = readArraySize();
+        if (size9 == 0) {
+            return Collections.emptyMap();
+        }
         Map map9 = new LinkedHashMap(size9);
         for (int i = 0; i < size9; i++) {
             map9.put(readString(), readGenericValue());
@@ -686,6 +712,9 @@ public abstract class StreamInput extends InputStream {
 
     private Map readHashMap() throws IOException {
         int size10 = readArraySize();
+        if (size10 == 0) {
+            return Collections.emptyMap();
+        }
         Map map10 = new HashMap(size10);
         for (int i = 0; i < size10; i++) {
             map10.put(readString(), readGenericValue());
@@ -738,8 +767,13 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    private static final int[] EMPTY_INT_ARRAY = new int[0];
+
     public int[] readIntArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_INT_ARRAY;
+        }
         int[] values = new int[length];
         for (int i = 0; i < length; i++) {
             values[i] = readInt();
@@ -749,6 +783,9 @@ public abstract class StreamInput extends InputStream {
 
     public int[] readVIntArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_INT_ARRAY;
+        }
         int[] values = new int[length];
         for (int i = 0; i < length; i++) {
             values[i] = readVInt();
@@ -756,8 +793,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
+
     public long[] readLongArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_LONG_ARRAY;
+        }
         long[] values = new long[length];
         for (int i = 0; i < length; i++) {
             values[i] = readLong();
@@ -767,6 +809,9 @@ public abstract class StreamInput extends InputStream {
 
     public long[] readVLongArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_LONG_ARRAY;
+        }
         long[] values = new long[length];
         for (int i = 0; i < length; i++) {
             values[i] = readVLong();
@@ -774,8 +819,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final float[] EMPTY_FLOAT_ARRAY = new float[0];
+
     public float[] readFloatArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_FLOAT_ARRAY;
+        }
         float[] values = new float[length];
         for (int i = 0; i < length; i++) {
             values[i] = readFloat();
@@ -783,8 +833,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
+
     public double[] readDoubleArray() throws IOException {
         int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_DOUBLE_ARRAY;
+        }
         double[] values = new double[length];
         for (int i = 0; i < length; i++) {
             values[i] = readDouble();
@@ -792,8 +847,13 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+
     public byte[] readByteArray() throws IOException {
         final int length = readArraySize();
+        if (length == 0) {
+            return EMPTY_BYTE_ARRAY;
+        }
         final byte[] bytes = new byte[length];
         readBytes(bytes, 0, bytes.length);
         return bytes;
@@ -978,16 +1038,18 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list
      */
     public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
-        return readCollection(reader, ArrayList::new);
+        return readCollection(reader, ArrayList::new, Collections.emptyList());
     }
 
     /**
      * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
      *
      * @return the list of strings
      * @throws IOException if an I/O exception occurs reading the list
@@ -997,18 +1059,22 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a set of objects
+     * Reads a set of objects. If the returned set contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
-        return readCollection(reader, HashSet::new);
+        return readCollection(reader, HashSet::new, Collections.emptySet());
     }
 
     /**
      * Reads a collection of objects
      */
     private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader,
-                                                                  IntFunction<C> constructor) throws IOException {
+                                                                  IntFunction<C> constructor,
+                                                                  C empty) throws IOException {
         int count = readArraySize();
+        if (count == 0) {
+            return empty;
+        }
         C builder = constructor.apply(count);
         for (int i=0; i<count; i++) {
             builder.add(reader.read(this));
@@ -1017,10 +1083,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of {@link NamedWriteable}s.
+     * Reads a list of {@link NamedWriteable}s. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
         int count = readArraySize();
+        if (count == 0) {
+            return Collections.emptyList();
+        }
         List<T> builder = new ArrayList<>(count);
         for (int i=0; i<count; i++) {
             builder.add(readNamedWriteable(categoryClass));

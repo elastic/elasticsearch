@@ -4,21 +4,6 @@ apply plugin: 'elasticsearch.rest-test'
 
 archivesBaseName = 'x-pack'
 
-subprojects {
-  // We define a specific reposiroty for opensaml since the shibboleth project doesn't publish to maven central and the
-  // artifacts that are located there are not curated/updated by the project
-  // see: https://wiki.shibboleth.net/confluence/display/DEV/Use+of+Maven+Central
-  repositories {
-    maven {
-      name "opensaml"
-      url "https://build.shibboleth.net/nexus/content/repositories/releases/"
-      content {
-        includeGroup "org.opensaml"
-        includeGroup "net.shibboleth.utilities"
-      }
-    }
-  }
-}
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   if (isEclipse) {

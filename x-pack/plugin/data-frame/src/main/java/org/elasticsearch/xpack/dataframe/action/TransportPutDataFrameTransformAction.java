@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -213,15 +215,19 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
             validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> listener.onFailure(
-                    new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                    new ElasticsearchStatusException(
+                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        RestStatus.BAD_REQUEST,
                         validationException))
         );
 
         try {
             pivot.validateConfig();
-        } catch (Exception e) {
+        } catch (ElasticsearchException e) {
             listener.onFailure(
-                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                new ElasticsearchStatusException(
+                    DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                    RestStatus.BAD_REQUEST,
                     e));
             return;
         }

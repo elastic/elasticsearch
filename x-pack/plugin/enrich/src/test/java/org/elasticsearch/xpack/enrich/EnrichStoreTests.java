@@ -27,7 +27,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(XPackPlugin.class, EnrichPlugin.class);
+        return List.of(LocalStateEnrich.class);
     }
 
     public void testCrud() throws Exception {

@@ -41,7 +41,7 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(XPackPlugin.class, EnrichPlugin.class);
+        return List.of(LocalStateEnrich.class);
     }
 
     private int indexNameAutoIncrementingCounter = 0;

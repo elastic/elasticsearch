@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -428,7 +429,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 shape = geometryIndexer.prepareForIndexing(geometry);
             }
 
-            List<IndexableField> fields = geometryIndexer.indexShape(context, shape);
+            List<IndexableField> fields = new ArrayList<>();
+            fields.addAll(geometryIndexer.indexShape(context, shape));
             createFieldNamesField(context, fields);
             for (IndexableField field : fields) {
                 context.doc().add(field);

@@ -10,115 +10,111 @@ import org.elasticsearch.gradle.ElasticsearchDistribution
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  compile project(":server")
-  compile project(":libs:elasticsearch-cli")
-  testCompile project(":test:framework")
-  
-  compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  compile "com.amazonaws:jmespath-java:${versions.aws}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
-  compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testCompile project(":plugins:repository-s3")
+    compile project(":server")
+    compile project(":libs:elasticsearch-cli")
+    testCompile project(":test:framework")
 
-  // GCS dependencies
-  compile 'com.google.cloud:google-cloud-storage:1.77.0'
-  compile 'com.google.cloud:google-cloud-core:1.77.0'
-  compile 'com.google.guava:guava:26.0-jre'
-  compile 'com.google.http-client:google-http-client:1.30.1'
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'com.google.api:api-common:1.8.1'
-  compile 'com.google.api:gax:1.45.0'
-  compile 'org.threeten:threetenbp:1.3.3'
-  compile 'com.google.protobuf:protobuf-java-util:3.7.1'
-  compile 'com.google.protobuf:protobuf-java:3.7.1'
-  compile 'com.google.code.gson:gson:2.7'
-  compile 'com.google.api.grpc:proto-google-common-protos:1.16.0'
-  compile 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
-  compile 'com.google.cloud:google-cloud-core-http:1.77.0'
-  compile 'com.google.auth:google-auth-library-credentials:0.16.1'
-  compile 'com.google.auth:google-auth-library-oauth2-http:0.16.1'
-  compile 'com.google.oauth-client:google-oauth-client:1.28.0'
-  compile 'com.google.api-client:google-api-client:1.28.0'
-  compile 'com.google.http-client:google-http-client-appengine:1.29.2'
-  compile 'com.google.http-client:google-http-client-jackson2:1.29.2'
-  compile 'com.google.api:gax-httpjson:0.62.0'
-  compile 'io.grpc:grpc-context:1.12.0'
-  compile 'io.opencensus:opencensus-api:0.18.0'
-  compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
-  compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
-  testCompile project(":plugins:repository-gcs")
+    compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
+    compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+    compile "com.amazonaws:jmespath-java:${versions.aws}"
+    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+    compile "commons-logging:commons-logging:${versions.commonslogging}"
+    compile "commons-codec:commons-codec:${versions.commonscodec}"
+    compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+    compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
+    compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+    testCompile project(":plugins:repository-s3")
 
-  // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
-  compile 'javax.xml.bind:jaxb-api:2.2.2'
+    // GCS dependencies
+    compile 'com.google.cloud:google-cloud-storage:1.77.0'
+    compile 'com.google.cloud:google-cloud-core:1.77.0'
+    compile 'com.google.guava:guava:26.0-jre'
+    compile 'com.google.http-client:google-http-client:1.30.1'
+    compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+    compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+    compile "commons-logging:commons-logging:${versions.commonslogging}"
+    compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+    compile "commons-codec:commons-codec:${versions.commonscodec}"
+    compile 'com.google.api:api-common:1.8.1'
+    compile 'com.google.api:gax:1.45.0'
+    compile 'org.threeten:threetenbp:1.3.3'
+    compile 'com.google.protobuf:protobuf-java-util:3.7.1'
+    compile 'com.google.protobuf:protobuf-java:3.7.1'
+    compile 'com.google.code.gson:gson:2.7'
+    compile 'com.google.api.grpc:proto-google-common-protos:1.16.0'
+    compile 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
+    compile 'com.google.cloud:google-cloud-core-http:1.77.0'
+    compile 'com.google.auth:google-auth-library-credentials:0.16.1'
+    compile 'com.google.auth:google-auth-library-oauth2-http:0.16.1'
+    compile 'com.google.oauth-client:google-oauth-client:1.28.0'
+    compile 'com.google.api-client:google-api-client:1.28.0'
+    compile 'com.google.http-client:google-http-client-appengine:1.29.2'
+    compile 'com.google.http-client:google-http-client-jackson2:1.29.2'
+    compile 'com.google.api:gax-httpjson:0.62.0'
+    compile 'io.grpc:grpc-context:1.12.0'
+    compile 'io.opencensus:opencensus-api:0.18.0'
+    compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
+    compile 'com.google.apis:google-api-services-storage:v1-rev20190426-1.28.0'
+    testCompile project(":plugins:repository-gcs")
+
+    // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
+    // and whitelist this hack in JarHell
+    compile 'javax.xml.bind:jaxb-api:2.2.2'
 }
 
 dependencyLicenses {
-  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
-  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /jaxb-.*/, to: 'jaxb'
+    mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+    mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
+    mapping from: /jackson-.*/, to: 'jackson'
+    mapping from: /jaxb-.*/, to: 'jaxb'
 
-  mapping from: /google-cloud-.*/, to: 'google-cloud'
-  mapping from: /google-auth-.*/, to: 'google-auth'
-  mapping from: /google-http-.*/, to: 'google-http'
-  mapping from: /opencensus.*/, to: 'opencensus'
-  mapping from: /http.*/, to: 'httpclient'
-  mapping from: /protobuf.*/, to: 'protobuf'
-  mapping from: /proto-google.*/, to: 'proto-google'
+    mapping from: /google-cloud-.*/, to: 'google-cloud'
+    mapping from: /google-auth-.*/, to: 'google-auth'
+    mapping from: /google-http-.*/, to: 'google-http'
+    mapping from: /opencensus.*/, to: 'opencensus'
+    mapping from: /http.*/, to: 'httpclient'
+    mapping from: /protobuf.*/, to: 'protobuf'
+    mapping from: /proto-google.*/, to: 'proto-google'
 }
 
 test.enabled = false
 testingConventions.enabled = false
 
-boolean gcsEnabled = Boolean.getBoolean("test.google.enabled")
-boolean s3Enabled = Boolean.getBoolean("test.s3.enabled")
-
 task thirdPartyTest {}
 
-if (s3Enabled) {
-  apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.test.fixtures'
 
-  String s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
-  String s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
-  String s3PermanentBucket = 'permanent-bucket-test'
-  String s3PermanentBasePath = 'integration_test'
+String s3PermanentAccessKey = 's3_integration_test_permanent_access_key'
+String s3PermanentSecretKey = 's3_integration_test_permanent_secret_key'
+String s3PermanentBucket = 'permanent-bucket-test'
+String s3PermanentBasePath = 'integration_test'
 
-  task writeDockerFile {
+task writeDockerFile {
     File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
     outputs.file(minioDockerfile)
     doLast {
-      minioDockerfile.parentFile.mkdirs()
-      minioDockerfile.text =
-              "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-                      "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-                      "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-                      "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+        minioDockerfile.parentFile.mkdirs()
+        minioDockerfile.text =
+                "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
+                        "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+                        "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+                        "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
     }
-  }
+}
 
-  preProcessFixture {
+preProcessFixture {
     dependsOn(writeDockerFile)
-  }
+}
 
-  def minioAddress = {
+def minioAddress = {
     int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
     assert minioPort > 0
     'http://127.0.0.1:' + minioPort
-  }
+}
 
-  task thirdPartyTestS3(type: Test) {
+task thirdPartyTestS3(type: Test) {
     include '**/S3CleanupTests.class'
     systemProperty 'tests.security.manager', 'false'
     systemProperty 'test.s3.account', s3PermanentAccessKey
@@ -126,68 +122,67 @@ if (s3Enabled) {
     systemProperty 'test.s3.bucket', s3PermanentBucket
     systemProperty 'test.s3.base', s3PermanentBasePath
     nonInputProperties.systemProperty 'test.s3.endpoint', "${-> minioAddress.call()}"
-  }
-
-  thirdPartyTest.dependsOn(thirdPartyTestS3)
 }
 
-if (gcsEnabled) {
-  task thirdPartyTestGCS(type: Test) {
-  }
+thirdPartyTest.dependsOn(thirdPartyTestS3)
 
-  String gcsServiceAccount = System.getenv("google_storage_service_account")
-  String gcsBucket = System.getenv("google_storage_bucket")
-  String gcsBasePath = System.getenv("google_storage_base_path")
+task thirdPartyTestGCS(type: Test) {
+}
 
-  if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
-    thirdPartyTestGCS.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile', 
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+    thirdPartyTestGCS.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile',
             ':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture')
     thirdPartyTestGCS.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
-    gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir, 
+    gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir,
             'generated-resources/service_account_test.json').path
     gcsBucket = 'bucket_test'
     gcsBasePath = 'integration_test'
 
     def fixtureEndpoint = {
-      "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}"
+        "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}"
     }
 
     def tokenURI = {
-      "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
+        "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
     }
 
     thirdPartyTestGCS {
-      nonInputProperties.systemProperty 'test.google.endpoint', "${ -> fixtureEndpoint.call() }"
-      nonInputProperties.systemProperty 'test.google.tokenURI', "${ -> tokenURI.call() }"
+        nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureEndpoint.call()}"
+        nonInputProperties.systemProperty 'test.google.tokenURI', "${-> tokenURI.call()}"
     }
-  } else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
     throw new IllegalArgumentException("not all options specified to run thirdPartyTestGCS against external GCS service are present")
-  }
+}
 
-  def encodedCredentials = {
+def encodedCredentials = {
     Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
-  }
+}
 
-  thirdPartyTestGCS {
+thirdPartyTestGCS {
     include '**/GCSCleanupTests.class'
     systemProperty 'tests.security.manager', false
     systemProperty 'test.google.bucket', gcsBucket
     systemProperty 'test.google.base', gcsBasePath
-    nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
-  }
-
-  thirdPartyTest.dependsOn(thirdPartyTestGCS)
+    nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
 }
 
+thirdPartyTest.dependsOn(thirdPartyTestGCS)
+
 task unpackArchive(dependsOn: tasks.assemble, type: Copy) {
-  from tarTree("${project.buildDir}/snapshot-tool-${project.version}.tgz")
-  into "${project.buildDir}"
+    from tarTree("${project.buildDir}/snapshot-tool-${project.version}.tgz")
+    into "${project.buildDir}"
 }
 
 task smokeTest(type: Exec) {
-  dependsOn unpackArchive
-  onlyIf { ElasticsearchDistribution.CURRENT_PLATFORM != ElasticsearchDistribution.Platform.WINDOWS }
-  commandLine "${project.buildDir}/snapshot-tool-${project.version}/bin/elasticsearch-snapshot", "-h"
+    dependsOn unpackArchive
+    onlyIf {
+        ElasticsearchDistribution.CURRENT_PLATFORM != ElasticsearchDistribution.Platform.WINDOWS
+    }
+    commandLine "${project.buildDir}/snapshot-tool-${project.version}/bin/elasticsearch-snapshot", "-h"
 }
 
 check.dependsOn(thirdPartyTest)
@@ -196,26 +191,26 @@ check.dependsOn(smokeTest)
 def vendorPath = Paths.get("${project.buildDir}/libs/vendor")
 
 task copyRuntimeLibs(type: Copy) {
-  doFirst {
-    Files.createDirectories(vendorPath)
-  }
-  into vendorPath.toString()
-  from configurations.compile, configurations.runtime
+    doFirst {
+        Files.createDirectories(vendorPath)
+    }
+    into vendorPath.toString()
+    from configurations.compile, configurations.runtime
 }
 
 task buildTarArchive(dependsOn: copyRuntimeLibs, type: Tar) {
-  compression Compression.GZIP
-  archiveBaseName.set('snapshot-tool')
-  destinationDirectory.set(project.buildDir)
-  into "snapshot-tool-${version}", {
-    into "bin", {
-      from file("${project.projectDir}/src/bin")
+    compression Compression.GZIP
+    archiveBaseName.set('snapshot-tool')
+    destinationDirectory.set(project.buildDir)
+    into "snapshot-tool-${version}", {
+        into "bin", {
+            from file("${project.projectDir}/src/bin")
+        }
+        into "libs", {
+            from jar.getArchiveFile()
+            from file("${project.buildDir}/libs")
+        }
     }
-    into "libs", {
-      from jar.getArchiveFile()
-      from file("${project.buildDir}/libs")
-    }
-  }
 }
 
 assemble.dependsOn(buildTarArchive)
@@ -275,7 +270,7 @@ thirdPartyAudit.ignoreMissingClasses(
         'javax.servlet.ServletContextListener'
 )
 
-thirdPartyAudit.ignoreViolations (
+thirdPartyAudit.ignoreViolations(
         // uses internal java api: sun.misc.Unsafe
         'com.google.protobuf.UnsafeUtil',
         'com.google.protobuf.UnsafeUtil$1',

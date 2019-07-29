@@ -79,12 +79,12 @@ import java.util.Set;
  * Note that this 'msearch' implementation only supports executing a query, pagination and source filtering.
  * Other search features are not supported, because the enrich processor isn't using these search features.
  */
-public class ShardMultiSearchAction extends ActionType<MultiSearchResponse> {
+public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse> {
 
-    public static final ShardMultiSearchAction INSTANCE = new ShardMultiSearchAction();
+    public static final EnrichShardMultiSearchAction INSTANCE = new EnrichShardMultiSearchAction();
     private static final String NAME = "indices:data/read/shard_multi_search";
 
-    private ShardMultiSearchAction() {
+    private EnrichShardMultiSearchAction() {
         super(NAME, MultiSearchResponse::new);
     }
 

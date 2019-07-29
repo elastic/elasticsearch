@@ -191,7 +191,7 @@ public class CoordinatorProxyAction extends ActionType<SearchResponse> {
 
                     MultiSearchRequest mrequest = new MultiSearchRequest();
                     enrichIndexRequestsAndSlots.stream().map(Tuple::v2).forEach(mrequest::add);
-                    client.execute(ShardMultiSearchAction.INSTANCE, new ShardMultiSearchAction.Request(mrequest), listener);
+                    client.execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(mrequest), listener);
                 }
             };
         }

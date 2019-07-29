@@ -226,7 +226,7 @@ public class CoordinatorTests extends ESTestCase {
             multiSearchRequest.add(new SearchRequest(index));
         }
 
-        List<ShardMultiSearchAction.Request> requests = new ArrayList<>();
+        List<EnrichShardMultiSearchAction.Request> requests = new ArrayList<>();
         ElasticsearchClient client = new ElasticsearchClient() {
 
             @Override
@@ -239,7 +239,7 @@ public class CoordinatorTests extends ESTestCase {
             public <Request extends ActionRequest, Response extends ActionResponse> void execute(ActionType<Response> action,
                                                                                                  Request request,
                                                                                                  ActionListener<Response> listener) {
-                requests.add((ShardMultiSearchAction.Request) request);
+                requests.add((EnrichShardMultiSearchAction.Request) request);
             }
 
             @Override

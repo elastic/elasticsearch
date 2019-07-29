@@ -26,7 +26,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class ShardMultiSearchActionTests extends ESSingleNodeTestCase {
+public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -56,7 +56,7 @@ public class ShardMultiSearchActionTests extends ESSingleNodeTestCase {
         }
 
         MultiSearchResponse result  =
-            client().execute(ShardMultiSearchAction.INSTANCE, new ShardMultiSearchAction.Request(request)).actionGet();
+            client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet();
         assertThat(result.getResponses().length, equalTo(numSearches));
         for (int i = 0; i < numSearches; i++) {
             assertThat(result.getResponses()[i].isFailure(), is(false));
@@ -71,7 +71,7 @@ public class ShardMultiSearchActionTests extends ESSingleNodeTestCase {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(new SearchRequest("index"));
         Exception e = expectThrows(ActionRequestValidationException.class,
-            () -> client().execute(ShardMultiSearchAction.INSTANCE, new ShardMultiSearchAction.Request(request)).actionGet());
+            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet());
         assertThat(e.getMessage(), equalTo("Validation Failed: 1: index [index] is not an enrich index;"));
     }
 
@@ -81,7 +81,7 @@ public class ShardMultiSearchActionTests extends ESSingleNodeTestCase {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(new SearchRequest(indexName));
         Exception e = expectThrows(IllegalStateException.class,
-            () -> client().execute(ShardMultiSearchAction.INSTANCE, new ShardMultiSearchAction.Request(request)).actionGet());
+            () -> client().execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(request)).actionGet());
         assertThat(e.getMessage(), equalTo("index [.enrich-1] should have 1 shard, but has 2 shards"));
     }
 
@@ -89,7 +89,7 @@ public class ShardMultiSearchActionTests extends ESSingleNodeTestCase {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(new SearchRequest("index1"));
         request.add(new SearchRequest("index2"));
-        expectThrows(AssertionError.class, () -> new ShardMultiSearchAction.Request(request));
+        expectThrows(AssertionError.class, () -> new EnrichShardMultiSearchAction.Request(request));
     }
 
 }

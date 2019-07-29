@@ -136,7 +136,7 @@ abstract class TrustConfig {
         } else {
             final String pathString = paths.stream().map(Path::toAbsolutePath).map(Path::toString).collect(Collectors.joining(", "));
             return new ElasticsearchException(
-                "failed to initialize SSL TrustManager - access to read {} files [{}] is blocked;" +
+                "failed to initialize SSL TrustManager - access to read one or more of the {} files [{}] is blocked;" +
                     " SSL resources should be placed in the [{}] directory",
                 cause, fileType, pathString, environment.configFile());
         }

@@ -39,6 +39,9 @@ import java.util.Objects;
  */
 class PEMKeyConfig extends KeyConfig {
 
+    private static final String CERTIFICATE_FILE = "certificate";
+    private static final String KEY_FILE = "key";
+
     private final String keyPath;
     private final SecureString keyPassword;
     private final String certPath;
@@ -76,11 +79,11 @@ class PEMKeyConfig extends KeyConfig {
         try {
             return CertParsingUtils.readCertificates(Collections.singletonList(certificate));
         } catch (FileNotFoundException | NoSuchFileException fileException) {
-            throw missingKeyConfigFile(fileException, "certificate", certificate);
+            throw missingKeyConfigFile(fileException, CERTIFICATE_FILE, certificate);
         } catch (AccessDeniedException accessException) {
-            throw unreadableKeyConfigFile(accessException, "certificate", certificate);
+            throw unreadableKeyConfigFile(accessException, CERTIFICATE_FILE, certificate);
         } catch (AccessControlException securityException) {
-            throw blockedKeyConfigFile(securityException, environment, "certificate", certificate);
+            throw blockedKeyConfigFile(securityException, environment, CERTIFICATE_FILE, certificate);
         }
     }
 
@@ -111,11 +114,11 @@ class PEMKeyConfig extends KeyConfig {
         try {
             return PemUtils.readPrivateKey(key, keyPassword::getChars);
         } catch (FileNotFoundException | NoSuchFileException fileException) {
-            throw missingKeyConfigFile(fileException, "key", key);
+            throw missingKeyConfigFile(fileException, KEY_FILE, key);
         } catch (AccessDeniedException accessException) {
-            throw unreadableKeyConfigFile(accessException, "key", key);
+            throw unreadableKeyConfigFile(accessException, KEY_FILE, key);
         } catch (AccessControlException securityException) {
-            throw blockedKeyConfigFile(securityException, environment, "key", key);
+            throw blockedKeyConfigFile(securityException, environment, KEY_FILE, key);
         }
     }
 

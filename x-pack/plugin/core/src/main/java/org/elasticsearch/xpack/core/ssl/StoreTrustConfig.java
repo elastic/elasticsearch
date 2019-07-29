@@ -35,6 +35,8 @@ import java.util.Objects;
  */
 class StoreTrustConfig extends TrustConfig {
 
+    private static final String TRUSTSTORE_FILE = "truststore";
+
     final String trustStorePath;
     final String trustStoreType;
     final SecureString trustStorePassword;
@@ -63,11 +65,11 @@ class StoreTrustConfig extends TrustConfig {
             KeyStore trustStore = getStore(storePath, trustStoreType, trustStorePassword);
             return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingTrustConfigFile(e, "truststore", storePath);
+            throw missingTrustConfigFile(e, TRUSTSTORE_FILE, storePath);
         } catch (AccessDeniedException  e) {
-            throw unreadableTrustConfigFile(e, "truststore", storePath);
+            throw unreadableTrustConfigFile(e, TRUSTSTORE_FILE, storePath);
         } catch (AccessControlException e) {
-            throw blockedTrustConfigFile(e, environment, "truststore", List.of(storePath));
+            throw blockedTrustConfigFile(e, environment, TRUSTSTORE_FILE, List.of(storePath));
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize SSL TrustManager", e);
         }

@@ -32,6 +32,8 @@ import java.util.Objects;
  */
 class PEMTrustConfig extends TrustConfig {
 
+    private static final String CA_FILE = "certificate_authorities";
+    
     private final List<String> caPaths;
 
     /**
@@ -50,13 +52,13 @@ class PEMTrustConfig extends TrustConfig {
             return CertParsingUtils.trustManager(certificates);
         } catch (NoSuchFileException noSuchFileException) {
             final Path missingPath = CertParsingUtils.resolvePath(noSuchFileException.getFile(), environment);
-            throw missingTrustConfigFile(noSuchFileException, "certificate_authorities", missingPath);
+            throw missingTrustConfigFile(noSuchFileException, CA_FILE, missingPath);
         } catch (AccessDeniedException accessDeniedException) {
             final Path missingPath = CertParsingUtils.resolvePath(accessDeniedException.getFile(), environment);
-            throw unreadableTrustConfigFile(accessDeniedException, "certificate_authorities", missingPath);
+            throw unreadableTrustConfigFile(accessDeniedException, CA_FILE, missingPath);
         } catch (AccessControlException accessControlException) {
             final List<Path> paths = CertParsingUtils.resolvePaths(caPaths, environment);
-            throw blockedTrustConfigFile(accessControlException, environment, "certificate_authorities", paths);
+            throw blockedTrustConfigFile(accessControlException, environment, CA_FILE, paths);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize SSL TrustManager", e);
         }

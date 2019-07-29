@@ -39,6 +39,8 @@ import java.util.Objects;
  */
 class StoreKeyConfig extends KeyConfig {
 
+    private static final String KEYSTORE_FILE = "keystore";
+
     final String keyStorePath;
     final String keyStoreType;
     final SecureString keyStorePassword;
@@ -75,11 +77,11 @@ class StoreKeyConfig extends KeyConfig {
             checkKeyStore(ks);
             return CertParsingUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingKeyConfigFile(e, "keystore", ksPath);
+            throw missingKeyConfigFile(e, KEYSTORE_FILE, ksPath);
         } catch (AccessDeniedException e) {
-            throw unreadableKeyConfigFile(e, "keystore", ksPath);
+            throw unreadableKeyConfigFile(e, KEYSTORE_FILE, ksPath);
         } catch (AccessControlException e) {
-            throw blockedKeyConfigFile(e, environment, "keystore", ksPath);
+            throw blockedKeyConfigFile(e, environment, KEYSTORE_FILE, ksPath);
         } catch (IOException | GeneralSecurityException e) {
             throw new ElasticsearchException("failed to initialize SSL KeyManager", e);
         }
@@ -92,11 +94,11 @@ class StoreKeyConfig extends KeyConfig {
             KeyStore ks = getStore(ksPath, keyStoreType, keyStorePassword);
             return CertParsingUtils.trustManager(ks, trustStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {
-            throw missingTrustConfigFile(e, "keystore", ksPath);
+            throw missingTrustConfigFile(e, KEYSTORE_FILE, ksPath);
         } catch (AccessDeniedException e) {
-            throw missingTrustConfigFile(e, "keystore", ksPath);
+            throw missingTrustConfigFile(e, KEYSTORE_FILE, ksPath);
         } catch (AccessControlException e) {
-            throw blockedTrustConfigFile(e, environment, "keystore", List.of(ksPath));
+            throw blockedTrustConfigFile(e, environment, KEYSTORE_FILE, List.of(ksPath));
         } catch (IOException | GeneralSecurityException e) {
             throw new ElasticsearchException("failed to initialize SSL TrustManager", e);
         }

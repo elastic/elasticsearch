@@ -22,7 +22,7 @@ public class DataFrameTransformStoredDocTests extends AbstractSerializingDataFra
     public static DataFrameTransformStoredDoc randomDataFrameTransformStoredDoc(String id) {
         return new DataFrameTransformStoredDoc(id,
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
-                DataFrameIndexerTransformStatsTests.randomStats(id));
+                DataFrameIndexerTransformStatsTests.randomStats());
     }
 
     public static DataFrameTransformStoredDoc randomDataFrameTransformStoredDoc() {

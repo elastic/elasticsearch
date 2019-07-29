@@ -718,13 +718,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, new StatsRequest()).actionGet();
             assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTaskFailures(), empty());
-            assertThat(response.getStatsResponses(), hasSize(1));
-            assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
-            ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
-            assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getMessage(), equalTo("no such index"));
+            if (response.getStatsResponses().isEmpty() == false) {
+                assertThat(response.getStatsResponses(), hasSize(1));
+                assertThat(response.getStatsResponses().get(0).status().failedWriteRequests(), greaterThanOrEqualTo(1L));
+                ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
+                assertThat(fatalException, notNullValue());
+                assertThat(fatalException.getMessage(), equalTo("no such index"));
+            }
         });
-        pauseFollow("index2");
         ensureNoCcrTasks();
     }
 
@@ -1272,6 +1273,37 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .put(seeds.getKey(), address));
             assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         }
+    }
+
+    public void testCleanUpShardFollowTasksForDeletedIndices() throws Exception {
+        final int numberOfShards = randomIntBetween(1, 10);
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1")
+            .setSettings(Settings.builder()
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .build()));
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        leaderClient().prepareIndex("index1", "doc", "1").setSource("{}", XContentType.JSON).get();
+        assertBusy(() -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(1L)));
+
+        assertBusy(() -> {
+            String action = ShardFollowTask.NAME + "[c]";
+            ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
+            assertThat(listTasksResponse.getTasks(), hasSize(numberOfShards));
+        });
+
+        assertAcked(followerClient().admin().indices().prepareDelete("index2"));
+
+        assertBusy(() -> {
+            String action = ShardFollowTask.NAME + "[c]";
+            ListTasksResponse listTasksResponse = followerClient().admin().cluster().prepareListTasks().setActions(action).get();
+            assertThat(listTasksResponse.getTasks(), hasSize(0));
+        });
+        ensureNoCcrTasks();
     }
 
     private long getFollowTaskSettingsVersion(String followerIndex) {

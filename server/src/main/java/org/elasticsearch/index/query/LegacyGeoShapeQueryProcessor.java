@@ -64,6 +64,11 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
     }
 
     @Override
+    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        return process(shape, fieldName, LegacyGeoShapeFieldMapper.DeprecatedParameters.Defaults.STRATEGY, relation, context);
+    }
+
+    @Override
     public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
         LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (LegacyGeoShapeFieldMapper.GeoShapeFieldType) ft;
         SpatialStrategy spatialStrategy = shapeFieldType.strategy();

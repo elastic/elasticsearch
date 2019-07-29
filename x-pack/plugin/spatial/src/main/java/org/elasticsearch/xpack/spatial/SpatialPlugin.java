@@ -8,17 +8,28 @@ package org.elasticsearch.xpack.spatial;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-public class SpatialPlugin extends Plugin implements ActionPlugin {
+import static java.util.Collections.emptyMap;
+
+public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin {
+    protected final boolean enabled;
 
     public SpatialPlugin(Settings settings) {
+        this.enabled = XPackSettings.SPATIAL_ENABLED.get(settings);
     }
 
     @Override
@@ -26,5 +37,15 @@ public class SpatialPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(
             new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
             new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class));
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        if (enabled == false) {
+            return emptyMap();
+        }
+        Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
+        mappers.put(ShapeFieldMapper.CONTENT_TYPE, new ShapeFieldMapper.TypeParser());
+        return Collections.unmodifiableMap(mappers);
     }
 }

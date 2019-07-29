@@ -79,8 +79,8 @@ dependencyLicenses {
   mapping from: /proto-google.*/, to: 'proto-google'
 }
 
-// Disabled to quiet the testing convention check since we only run third party tests
 test.enabled = false
+testingConventions.enabled = false
 
 boolean gcsEnabled = Boolean.getBoolean("test.google.enabled")
 boolean s3Enabled = Boolean.getBoolean("test.s3.enabled")

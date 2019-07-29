@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.common.geo;
+package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.geo.geometry.Circle;
@@ -52,7 +52,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 /**
  * Utility class that converts geometries into Lucene-compatible form
  */
-public final class GeometryIndexer {
+public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
 
     private static final double DATELINE = 180;
 
@@ -60,7 +60,7 @@ public final class GeometryIndexer {
 
     private final boolean orientation;
 
-    public GeometryIndexer(boolean orientation) {
+    public GeoShapeIndexer(boolean orientation) {
         this.orientation = orientation;
     }
 
@@ -174,6 +174,11 @@ public final class GeometryIndexer {
                 return rectangle;
             }
         });
+    }
+
+    @Override
+    public Class<Geometry> processedClass() {
+        return Geometry.class;
     }
 
     /**
@@ -666,10 +671,8 @@ public final class GeometryIndexer {
      * Array of edges will be ordered asc by the y-coordinate of the
      * intersections of edges.
      *
-     * @param dateline
-     *            x-coordinate of the dateline
-     * @param edges
-     *            set of edges that may intersect with the dateline
+     * @param dateline x-coordinate of the dateline
+     * @param edges    set of edges that may intersect with the dateline
      * @return number of intersecting edges
      */
     protected static int intersections(double dateline, Edge[] edges) {
@@ -697,10 +700,10 @@ public final class GeometryIndexer {
 
         for (int i = 0; i < edges.length; i++) {
             if (edges[i].component >= 0) {
-                double[]  partitionPoint = new double[3];
-                int length = component(edges[i], -(components.size()+numHoles+1), mainEdges, partitionPoint);
+                double[] partitionPoint = new double[3];
+                int length = component(edges[i], -(components.size() + numHoles + 1), mainEdges, partitionPoint);
                 List<Point[]> component = new ArrayList<>();
-                component.add(coordinates(edges[i], new Point[length+1], partitionPoint));
+                component.add(coordinates(edges[i], new Point[length + 1], partitionPoint));
                 components.add(component);
             }
         }
@@ -781,22 +784,22 @@ public final class GeometryIndexer {
      * This method sets the component id of all edges in a ring to a given id and shifts the
      * coordinates of this component according to the dateline
      *
-     * @param edge An arbitrary edge of the component
-     * @param id id to apply to the component
+     * @param edge  An arbitrary edge of the component
+     * @param id    id to apply to the component
      * @param edges a list of edges to which all edges of the component will be added (could be <code>null</code>)
      * @return number of edges that belong to this component
      */
     private static int component(final Edge edge, final int id, final ArrayList<Edge> edges, double[] partitionPoint) {
         // find a coordinate that is not part of the dateline
         Edge any = edge;
-        while(any.coordinate.getLon() == +DATELINE || any.coordinate.getLon() == -DATELINE) {
-            if((any = any.next) == edge) {
+        while (any.coordinate.getLon() == +DATELINE || any.coordinate.getLon() == -DATELINE) {
+            if ((any = any.next) == edge) {
                 break;
             }
         }
 
         double shiftOffset = any.coordinate.getLon() > DATELINE ? DATELINE : (any.coordinate.getLon() < -DATELINE ? -DATELINE : 0);
-        
+
         // run along the border of the component, collect the
         // edges, shift them according to the dateline and
         // update the component id
@@ -847,14 +850,15 @@ public final class GeometryIndexer {
                 prev = current;
             }
             length++;
-        } while(connectedComponents == 0 && (current = current.next) != edge);
+        } while (connectedComponents == 0 && (current = current.next) != edge);
 
-        return (splitIndex != 1) ? length-splitIndex: length;
+        return (splitIndex != 1) ? length - splitIndex : length;
     }
 
     /**
      * Compute all coordinates of a component
-     * @param component an arbitrary edge of the component
+     *
+     * @param component   an arbitrary edge of the component
      * @param coordinates Array of coordinates to write the result to
      * @return the coordinates parameter
      */
@@ -875,8 +879,8 @@ public final class GeometryIndexer {
         return coordinates;
     }
 
-    private static List<Polygon>  buildPoints(List<List<Point[]>> components) {
-        List<Polygon>  result = new ArrayList<>(components.size());
+    private static List<Polygon> buildPoints(List<List<Point[]>> components) {
+        List<Polygon> result = new ArrayList<>(components.size());
         for (int i = 0; i < components.size(); i++) {
             List<Point[]> component = components.get(i);
             result.add(buildPolygon(component));
@@ -885,7 +889,7 @@ public final class GeometryIndexer {
     }
 
     private static Polygon buildPolygon(List<Point[]> polygon) {
-        List<org.elasticsearch.geo.geometry.LinearRing> holes;
+        List<LinearRing> holes;
         Point[] shell = polygon.get(0);
         if (polygon.size() > 1) {
             holes = new ArrayList<>(polygon.size() - 1);
@@ -899,7 +903,7 @@ public final class GeometryIndexer {
                     x[c] = normalizeLon(coords[c].getLon());
                     y[c] = normalizeLat(coords[c].getLat());
                 }
-                holes.add(new org.elasticsearch.geo.geometry.LinearRing(y, x));
+                holes.add(new LinearRing(y, x));
             }
         } else {
             holes = Collections.emptyList();
@@ -924,11 +928,12 @@ public final class GeometryIndexer {
         final Point[][] points = new Point[numHoles][];
 
         for (int i = 0; i < numHoles; i++) {
-            double[]  partitionPoint = new double[3];
-            int length = component(holes[i], -(i+1), null, partitionPoint); // mark as visited by inverting the sign
-            points[i] = coordinates(holes[i], new Point[length+1], partitionPoint);
+            double[] partitionPoint = new double[3];
+            int length = component(holes[i], -(i + 1), null, partitionPoint); // mark as visited by inverting the sign
+            points[i] = coordinates(holes[i], new Point[length + 1], partitionPoint);
         }
 
         return points;
     }
+
 }

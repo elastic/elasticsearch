@@ -16,35 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.client.Validatable;
+package org.elasticsearch.index.mapper;
 
-import java.util.Objects;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.locationtech.spatial4j.shape.Shape;
 
-
-public class DeleteRollupJobRequest implements Validatable {
-
-    private final String id;
-
-    public DeleteRollupJobRequest(String id) {
-        this.id = Objects.requireNonNull(id, "id parameter must not be null");
-    }
-
-    public String getId() {
-        return id;
+public class LegacyGeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<ShapeBuilder<?, ?, ?>, Shape> {
+    @Override
+    public Shape prepareForIndexing(ShapeBuilder<?, ?, ?> shapeBuilder) {
+        return shapeBuilder.buildS4J();
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        DeleteRollupJobRequest that = (DeleteRollupJobRequest) o;
-        return Objects.equals(id, that.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
+    public Class<Shape> processedClass() {
+        return Shape.class;
     }
 }

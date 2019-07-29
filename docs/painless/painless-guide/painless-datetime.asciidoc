@@ -783,7 +783,7 @@ POST /_bulk
 ===== Day-of-the-Week Bucket Aggregation Example
 
 The following example uses a
-{ref}\search-aggregations-bucket-terms-aggregation.html#search-aggregations-bucket-terms-aggregation-script[terms aggregation]
+{ref}/search-aggregations-bucket-terms-aggregation.html#search-aggregations-bucket-terms-aggregation-script[terms aggregation]
 as part of the
 <<painless-bucket-script-agg-context, bucket script aggregation context>> to
 display the number of messages from each day-of-the-week.
@@ -807,7 +807,7 @@ GET /messages/_search?pretty=true
 ===== Morning/Evening Bucket Aggregation Example
 
 The following example uses a
-{ref}\search-aggregations-bucket-terms-aggregation.html#search-aggregations-bucket-terms-aggregation-script[terms aggregation]
+{ref}/search-aggregations-bucket-terms-aggregation.html#search-aggregations-bucket-terms-aggregation-script[terms aggregation]
 as part of the
 <<painless-bucket-script-agg-context, bucket script aggregation context>> to
 display the number of messages received in the morning versus the evening.

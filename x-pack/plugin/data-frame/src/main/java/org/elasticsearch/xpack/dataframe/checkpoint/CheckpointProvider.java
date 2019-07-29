@@ -14,17 +14,9 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgr
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 /**
- * Abstraction of checkpoint creation, update checks
+ * Interface for checkpoint creation, checking for changes and getting statistics about checkpoints
  */
 public interface CheckpointProvider {
-
-    /**
-     * Determines whether the data frame needs updating
-     *
-     * @param lastCheckpoint the last checkpoint
-     * @param listener listener to send the result to
-     */
-    void sourceHasChanged(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
 
     /**
      * Get a checkpoint, used to store a checkpoint.
@@ -35,7 +27,17 @@ public interface CheckpointProvider {
     void getCheckpoint(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<DataFrameTransformCheckpoint> listener);
 
     /**
+     * Determines whether the data frame needs updating
+     *
+     * @param lastCheckpoint the last checkpoint
+     * @param listener listener to send the result to
+     */
+    void sourceHasChanged(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
+
+    /**
      * Get checkpoint statistics for a running data frame
+     *
+     * For running data frames most information is available in-memory.
      *
      * @param lastCheckpoint the last checkpoint
      * @param nextCheckpoint the next checkpoint
@@ -53,6 +55,8 @@ public interface CheckpointProvider {
 
     /**
      * Get checkpoint statistics for a stopped data frame
+     *
+     * For stopped data frames we need to do lookups in the internal index.
      *
      * @param lastCheckpointNumber the last checkpoint number
      * @param nextCheckpointIndexerState indexer state for the next checkpoint

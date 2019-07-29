@@ -36,18 +36,31 @@ import java.util.TreeMap;
 
 public class DefaultCheckpointProvider implements CheckpointProvider {
 
+    /**
+     * Builder for collecting checkpointing information for the purpose of _stats
+     */
     private static class DataFrameTransformCheckpointingInfoBuilder {
         private IndexerState nextCheckpointIndexerState;
         private DataFrameIndexerPosition nextCheckpointPosition;
         private DataFrameTransformProgress nextCheckpointProgress;
-        private DataFrameTransformCheckpoint lastCheckpoint = DataFrameTransformCheckpoint.EMPTY;
-        private DataFrameTransformCheckpoint nextCheckpoint = DataFrameTransformCheckpoint.EMPTY;
-        private DataFrameTransformCheckpoint sourceCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+        private DataFrameTransformCheckpoint lastCheckpoint;
+        private DataFrameTransformCheckpoint nextCheckpoint;
+        private DataFrameTransformCheckpoint sourceCheckpoint;
 
         DataFrameTransformCheckpointingInfoBuilder() {
         }
 
         DataFrameTransformCheckpointingInfo build() {
+            if (lastCheckpoint == null) {
+                lastCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+            }
+            if (nextCheckpoint == null) {
+                nextCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+            }
+            if (sourceCheckpoint == null) {
+                sourceCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+            }
+
             return new DataFrameTransformCheckpointingInfo(
                 new DataFrameTransformCheckpointStats(lastCheckpoint.getCheckpoint(), null, null, null,
                     lastCheckpoint.getTimestamp(), lastCheckpoint.getTimeUpperBound()),

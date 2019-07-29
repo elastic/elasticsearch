@@ -64,7 +64,7 @@ public class DataFrameTransformsCheckpointService {
                                      DataFrameTransformProgress nextCheckpointProgress,
                                      ActionListener<DataFrameTransformCheckpointingInfo> listener) {
 
-        // <0> get the transform and the source, transient checkpoint
+        // we need to retrieve the config first before we can defer the rest to the corresponding provider
         dataFrameTransformsConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(
             transformConfig -> {
                 getCheckpointProvider(transformConfig).getCheckpointingInfo(lastCheckpointNumber, nextCheckpointIndexerState,

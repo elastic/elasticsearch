@@ -96,7 +96,9 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         task.getStats(),
                         checkpointingInfo)),
                     1L)),
-                e -> listener.onResponse(new Response(
+                e -> {
+                    logger.warn("Failed to retrieve checkpointing info for transform [" + task.getTransformId() + "]", e);
+                    listener.onResponse(new Response(
                     Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
                         transformState.getTaskState(),
                         transformState.getReason(),
@@ -105,7 +107,8 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         DataFrameTransformCheckpointingInfo.EMPTY)),
                     1L,
                     Collections.emptyList(),
-                    Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))))
+                    Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))));
+                }
                 ));
         } else {
             listener.onResponse(new Response(Collections.emptyList(), 0L));

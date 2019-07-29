@@ -49,17 +49,15 @@ final class OutboundHandler {
 
     private final String nodeName;
     private final Version version;
-    private final String[] features;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final TransportLogger transportLogger;
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, String[] features, ThreadPool threadPool, BigArrays bigArrays,
+    OutboundHandler(String nodeName, Version version, ThreadPool threadPool, BigArrays bigArrays,
                     TransportLogger transportLogger) {
         this.nodeName = nodeName;
         this.version = version;
-        this.features = features;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.transportLogger = transportLogger;
@@ -83,8 +81,8 @@ final class OutboundHandler {
                      final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
                      final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
-        OutboundMessage.Request message = new OutboundMessage.Request(threadPool.getThreadContext(), features, request, version, action,
-            requestId, isHandshake, compressRequest);
+        OutboundMessage.Request message =
+            new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressRequest);
         ActionListener<Void> listener = ActionListener.wrap(() ->
             messageListener.onRequestSent(node, requestId, action, request, options));
         sendMessage(channel, message, listener);

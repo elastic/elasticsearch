@@ -48,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
@@ -310,15 +311,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
             while (allHandlers.hasNext()) {
                 final RestHandler handler;
-                if (requestMethod == null) {
+                final MethodHandlers handlers = allHandlers.next();
+                if (handlers == null) {
                     handler = null;
                 } else {
-                    final MethodHandlers handlers = allHandlers.next();
-                    if (handlers == null) {
-                        handler = null;
-                    } else {
-                        handler = handlers.getHandler(requestMethod);
-                    }
+                    handler = handlers.getHandler(requestMethod);
                 }
                 if (dispatchRequest(request, channel, client, handler)) {
                     return;
@@ -419,11 +416,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private Set<RestRequest.Method> getValidHandlerMethodSet(RestRequest request) {
         Set<RestRequest.Method> validMethods = new HashSet<>();
         Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
-        while (allHandlers.hasNext()) {
-            final MethodHandlers mh = allHandlers.next();
-            if (mh != null) {
-                validMethods.addAll(mh.getValidMethods());
-            }
+        for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
+            Optional.ofNullable(it.next()).map(mh -> validMethods.addAll(mh.getValidMethods()));
         }
         return validMethods;
     }

@@ -82,6 +82,10 @@ public class RestRequestTests extends ESTestCase {
         runConsumesContentTest(RestRequest::hasContent, false);
     }
 
+    public void testContentLengthDoesNotConsumesContent() {
+        runConsumesContentTest(RestRequest::contentLength, false);
+    }
+
     private <T extends Exception> void runConsumesContentTest(
             final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
         final HttpRequest httpRequest = mock(HttpRequest.class);

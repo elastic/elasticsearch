@@ -95,7 +95,6 @@ public class TransportLoggerTests extends ESTestCase {
             try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
                 context.writeTo(messageOutput);
             }
-            messageOutput.writeStringArray(new String[0]);
             messageOutput.writeString(ClusterStatsAction.NAME);
             new ClusterStatsRequest().writeTo(messageOutput);
             BytesReference messageBody = messageOutput.bytes();

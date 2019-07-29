@@ -47,11 +47,14 @@ import java.util.stream.Collectors;
 public class EsExecutors {
 
     /**
-     * Settings key to manually set the number of available processors.
-     * This is used to adjust thread pools sizes etc. per node.
+     * Setting to manually set the number of available processors. This setting is used to adjust thread pool sizes per node.
      */
-    public static final Setting<Integer> PROCESSORS_SETTING =
-        Setting.intSetting("processors", Runtime.getRuntime().availableProcessors(), 1, Property.NodeScope);
+    public static final Setting<Integer> PROCESSORS_SETTING = Setting.intSetting(
+        "processors",
+        Runtime.getRuntime().availableProcessors(),
+        1,
+        Runtime.getRuntime().availableProcessors(),
+        Property.NodeScope);
 
     /**
      * Returns the number of available processors. Defaults to

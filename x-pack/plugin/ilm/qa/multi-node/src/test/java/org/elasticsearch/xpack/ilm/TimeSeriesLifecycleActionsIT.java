@@ -54,9 +54,11 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -829,6 +831,45 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(startILMReqest));
     }
 
+    public void testExplainFilters() throws Exception {
+        String goodIndex = index + "-good-000001";
+        String errorIndex = index + "-error";
+        String nonexistantPolicyIndex = index + "-nonexistant-policy";
+        String unmanagedIndex = index + "-unmanaged";
+
+        createFullPolicy(TimeValue.ZERO);
+
+        createIndexWithSettings(goodIndex, Settings.builder()
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        createIndexWithSettingsNoAlias(errorIndex, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        createIndexWithSettingsNoAlias(nonexistantPolicyIndex, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(3,10))));
+        createIndexWithSettingsNoAlias(unmanagedIndex, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+        assertBusy(() -> {
+            Map<String, Map<String, Object>> explainResponse = explain(index + "*", false, false);
+            assertNotNull(explainResponse);
+            assertThat(explainResponse,
+                allOf(hasKey(goodIndex), hasKey(errorIndex), hasKey(nonexistantPolicyIndex), hasKey(unmanagedIndex)));
+
+            Map<String, Map<String, Object>> onlyManagedResponse = explain(index + "*", false, true);
+            assertNotNull(onlyManagedResponse);
+            assertThat(onlyManagedResponse, allOf(hasKey(goodIndex), hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
+            assertThat(onlyManagedResponse, not(hasKey(unmanagedIndex)));
+
+            Map<String, Map<String, Object>> onlyErrorsResponse = explain(index + "*", true, randomBoolean());
+            assertNotNull(onlyErrorsResponse);
+            assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
+            assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
+        });
+    }
+
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
@@ -948,15 +989,21 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private Map<String, Object> explainIndex(String indexName) throws IOException {
-        Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
+        return explain(indexName, false, false).get(indexName);
+    }
+
+    private Map<String, Map<String, Object>> explain(String indexPattern, boolean onlyErrors, boolean onlyManaged) throws IOException {
+        Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
+        explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
+        explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
         Response response = client().performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
 
-        @SuppressWarnings("unchecked") Map<String, Object> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"))
-            .get(indexName);
+        @SuppressWarnings("unchecked") Map<String, Map<String, Object>> indexResponse =
+            ((Map<String, Map<String, Object>>) responseMap.get("indices"));
         return indexResponse;
     }
 

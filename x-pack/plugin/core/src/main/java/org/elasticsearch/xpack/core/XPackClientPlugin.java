@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,11 +30,11 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.ccr.CCRInfoTransportAction;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
@@ -192,6 +192,11 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
@@ -209,11 +214,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -224,11 +224,6 @@ import java.util.Optional;
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
     static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
-
-    @Override
-    protected Optional<String> getFeature() {
-        return X_PACK_FEATURE;
-    }
 
     private final Settings settings;
 

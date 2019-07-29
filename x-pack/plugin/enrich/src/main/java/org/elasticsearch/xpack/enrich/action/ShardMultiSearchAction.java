@@ -104,8 +104,7 @@ public class ShardMultiSearchAction extends ActionType<MultiSearchResponse> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            multiSearchRequest = new MultiSearchRequest();
-            multiSearchRequest.readFrom(in);
+            multiSearchRequest = new MultiSearchRequest(in);
         }
 
         @Override
@@ -171,7 +170,7 @@ public class ShardMultiSearchAction extends ActionType<MultiSearchResponse> {
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
                 final QueryShardContext context =
-                    indexService.newQueryShardContext(shardId.id(), searcher.reader(), () -> nowInMillis, null);
+                    indexService.newQueryShardContext(shardId.id(), searcher.getIndexReader(), () -> nowInMillis, null);
                 final MapperService mapperService = context.getMapperService();
                 final Text typeText = mapperService.documentMapper().typeText();
 
@@ -197,14 +196,14 @@ public class ShardMultiSearchAction extends ActionType<MultiSearchResponse> {
 
                     final Query luceneQuery = queryBuilder.rewrite(context).toQuery(context);
                     final int n = from + size;
-                    final TopDocs topDocs = searcher.searcher().search(luceneQuery, n, new Sort(SortField.FIELD_DOC));
+                    final TopDocs topDocs = searcher.search(luceneQuery, n, new Sort(SortField.FIELD_DOC));
 
                     final SearchHit[] hits = new SearchHit[topDocs.scoreDocs.length];
                     for (int j = 0; j < topDocs.scoreDocs.length; j++) {
                         final ScoreDoc scoreDoc = topDocs.scoreDocs[j];
 
                         visitor.reset();
-                        searcher.searcher().doc(scoreDoc.doc, visitor);
+                        searcher.doc(scoreDoc.doc, visitor);
                         visitor.postProcess(mapperService);
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.uid().id(), typeText, Map.of());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
